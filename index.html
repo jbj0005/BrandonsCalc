@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Brandon's Calculator</title>
+    
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&family=Saira+Extra+Condensed:wght@100;200;300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&family=Saira+Extra+Condensed:wght@100;200;300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&family=Saira+Extra+Condensed:wght@100;200;300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&family=Saira+Extra+Condensed:wght@100;200;300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Favicon & App Icons -->
+    <link rel="icon" href="/assets/icons/favicon.ico" sizes="any">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/favicon-16x16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/assets/icons/android-chrome-192x192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="/assets/icons/android-chrome-512x512.png">
+    <!-- Optional PWA manifest (uncomment after you add site.webmanifest) -->
+    <link rel="manifest" href="site.webmanifest">
+    <meta name="theme-color" content="#0b1f2a">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <main>
+    <div class="flexCards">
+      <!-- Vehicle Selector -->
+      <div class="card cornerAnchor" id="savedVehicleCard">
+        <img
+          class="cornerBadge cornerBadge--top-right"
+          src="assets/brandons_calculator_patch_1_120px.png"
+          alt="Brandon's Calculator seal"
+        />
+        <div>
+          <h2 class="flexSpace">Saved Vehicles</h2>
+        </div>
+        <div>
+          <form class="flexCenter" id="vehicleForm">
+            <select class="dropDown" id="vehicleSelect">
+              <option value="">--Select a Saved Vehicle--</option>
+            </select>
+              <div class="vehicleButtons">
+                <button type="button" data-vehicle-action="add">ADD</button>
+                <button type="button" data-vehicle-action="update">UPDATE</button>
+                <button type="button" data-vehicle-action="delete">DELETE</button>
+              </div>
+          </form>
+        </div>
+      </div>
+
+        <!-- Calculator Card -->
+      <div class="card" id="calculatorCard">
+        <div class="vehicleButtons flexSpace">
+          <h2>Calculator</h2>
+          <button>CLEAR</button>
+        </div>
+        <!-- Savings Note-->
+        <form class="grid2">
+          <output
+            id="savingsNote"
+            class="note col2">
+          </output>
+        
+          <!-- Sale Price -->
+          <label class="col1" for="salePrice">SALE PRICE</label>
+            <input
+              class="input col2 usdFormat"
+              type="text"
+              id="salePrice"
+              placeholder="$0.00">
+            </input>
+
+          <!-- Trade Offer -->
+          <label class="col1" for="tradeOffer">TRADE OFFER</label>
+            <input
+              class="input col2 usdFormat"
+              type="text"
+              id="tradeOffer"
+              placeholder="$0.00">
+            </input>
+
+          <!-- Trade Payoff -->
+          <label class="col1" for="tradePayoff">TRADE PAYOFF</label>
+            <input
+              class="input col2 usdFormat"
+              type="text"
+              id="tradePayoff"
+              placeholder="$0.00">
+            </input>
+
+          <!-- Equity -->
+          <label class="col1" for="equity">EQUITY</label>
+            <output
+              class="col2 output output mutedOutput"
+              id="equity"
+              placeholder="$0.00">
+            </output>
+
+          <!-- Cash Difference -->
+          <label class="ol1" for="cashDifference">CASH DIFFERENCE</label>
+            <output
+              class="col2 output mutedOutput"
+              id="cashDifference"
+              placeholder="$0.00">
+            </output>
+        </form>
+      </div>
+
+        <!-- Fees Card-->
+        <div class="card" id="feesCard">
+          <div class="flexSpace vehicleButtons">
+            <h2>Dealer & Gov't Fees</h2>
+            <button id="editFeeButton" type="button">EDIT</button>
+          </div>
+            <!-- Fee Headers -->
+          <form class="grid5">
+            <label
+              class="col1 feeHeaders">TYPE
+            </label>
+            <label
+              class="col2 feeHeaders">DESCRIPTION
+            </label>
+            <label
+              class="col3 feeHeaders">AMOUNT
+            </label>
+
+            <!-- Dealer Fees -->
+            <label class="col1 feeLabels" for="dealerFeeDesc dealerFeeAmount">DEALER</label>
+              <input
+                id="dealerFeeDesc"
+                class="inputFeeDesc col2"
+                type="text"
+                placeholder="e.g. Doc Fee">
+              </input>
+              <input
+                id="dealerFeeAmount"
+                class="inputFeeAmount col3 usdFormat"
+                type="text"
+                placeholder="$0.00">
+              </input>
+              <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
+              <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
+              
+              <!-- Dealer Fees Total -->
+              <label class="col2 mutedFeeLabels" for="totalDealerFees">TOTAL DEALER FEES</label>
+                <output
+                  class="mutedFeeOutput col3"
+                  type="text"
+                  id="totalDealerFees"
+                  placeholder="$0.00">
+                </output>
+
+            <!-- Gov't Fees -->
+            <label class="col1 feeLabels" for="govtFeeDesc govtFeeAmount">GOV'T</label>
+              <input
+                id="govtFeeDesc" 
+                class="inputFeeDesc col2"
+                type="text"
+                placeholder="e.g. Electronic Title">
+              </input>
+              <input
+                id="govtFeeAmount"
+                class="inputFeeAmount col3 usdFormat"
+                type="text"
+                placeholder="$0.00">
+              </input>
+              <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
+              <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
+
+            <!-- Gov't Fees Total -->
+              <label class="col2 mutedFeeLabels" for="totalGovtFees">TOTAL GOV'T FEES</label>
+                <output
+                  class="mutedFeeOutput col3"
+                  type="text"
+                  id="totalGovtFees"
+                  placeholder="$0.00">
+                </output>
+          </form>
+
+              <!-- Total Fees -->
+            <div class="flexEnd">
+              <label class="bigOutput" for="totalTF">TOTAL FEES</label>
+                <output
+                  class="bigOutput usdFormat"
+                  type="text"
+                  id="totalTF"
+                  placeholder="$0.00">
+                </output>
+            </div>
+        </div>
+
+        <!-- Taxes Card-->
+        <div class="card" id="taxesCard">
+          <h2 class="flexSpace">Taxes</h2>
+          <form class="grid3 flexEnd">
+            <!-- Taxable Base -->
+            <label class="col1" for="taxableBase">TAXABLE BASE</label>
+              <output
+                class="col3 output mutedOutput"
+                id="taxableBase"
+                placeholder="$0.00">
+              </output>
+            <!-- State Tax -->
+            <label class="col1" for="stateTax">STATE TAXES</label>
+              <input
+                class="input inputTax col2 usdFormat"
+                type="text"
+                id="stateTax"
+                placeholder="6.0%">
+              </input>
+            <output
+                class="output mutedOutput col3"
+                id="stateTaxTotal"
+                placeholder="$0.00">$0.00
+            </output>
+            <!-- County Tax -->
+            <label class="col1" for="countyTax">COUNTY TAXES</label>
+             <input
+                class="input inputTax col2 usdFormat"
+                type="text"
+                id="countyTax"
+                placeholder="1.0%">
+              </input>
+              <output
+                  class="output mutedOutput col3"
+                  id="countyTaxTotal"
+                  placeholder="$0.00">$0.00
+              </output>
+          </form>
+          <!-- Total Taxes -->
+          <div class="flexEnd">
+            <label class="bigOutput" for="totalTaxes">TOTAL TAXES</label>
+            <output
+              class=" bigOutput usdFormat"
+              type="text"
+              id="totalTaxes"
+              placeholder="$0.00">
+            </output>
+          </div>
+        </div>
+
+         <!-- Financing Card-->
+        <div class="card" id="financingCard">
+          <h2 class="flexSpace">Financing</h2>
+          <div class=" insideCard grid2">
+            <label class="feesLabel col1 row1" for="financeTF">Finance Taxes & Fees?
+              <input
+                type="checkbox"
+                id="financeTF"
+                checked>
+            </label>
+            <label class="feesLabel col1 row2" for="financeNegEquity">Finance Negative Equity?
+              <input
+                type="checkbox"
+                id="financeNegEquity"
+                checked>
+            </label>
+            <label class="feesLabel col1 row3" for="cashOutEquity">Cash Out Equity?
+              <input
+                type="checkbox"
+                id="cashOutEquity">
+            </label>
+        </div>
+
+          <!-- Cash Down -->
+        <form class="grid2">
+          <label class="col1" for="cashDown">CASH DOWN</label>
+            <input
+              class="input col2 usdFormat"
+              type="text"
+              id="cashDown"
+              placeholder="$0.00">
+            </input>
+            <!-- Cash 2 Buyer -->
+            <label class="col1" for="cash2Buyer">CASH TO BUYER</label>
+              <output
+                class="output col2 usdFormat"
+                type="text"
+                id="cash2Buyer"
+                placeholder="$0.00">
+              </output>
+            <!-- Cash Due -->
+            <label class="col1" for="cashDue">CASH DUE AT SIGNING</label>
+              <output
+                class="output col2 usdFormat"
+                type="text"
+                id="cashDue"
+                placeholder="$0.00">
+              </output>
+        </form>
+             <!-- Amount Financed -->
+        <div class="flexEnd">
+          <label
+            class="bigOutput"
+            for="amountFinanced">AMOUNT FINANCED
+          </label>
+            <output
+              id="amountFinanced"
+              class=" bigOutput usdFormat"
+              type="text"
+              placeholder="$0.00">
+            </output>        
+        </div>
+      </div>
+          <!-- APR / Term / Monthly Pmt -->
+      <div class="card" id="monthPmtCard">
+        <h2 class="flexSpace">Monthly Payment</h2>
+        <form class="grid2">
+          <label class="col1" for="financeApr">APR</label>
+            <input
+              class="input inputTax col2"
+              type="text"
+              id="financeApr"
+              value="5.99%"
+              placeholder="5.99%">
+            </input>
+          <label class="row2 col1" for="financeTerm">TERM (months)</label>
+            <input
+              class="input inputTax col2"
+              type="number"
+              id="financeTerm"
+              min="1"
+              step="1"
+              value="72"
+              placeholder="72">
+            </input>
+        </form>
+          <div class="flexEnd">
+            <label class="bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
+              <output
+                class="bigOutput usdFormat"
+                type="text"
+                id="monthlyPmt"
+                placeholder="$0.00">
+              </output>
+              <output class="note" id="zeroAPR"></output>
+          </div>
+      </div>
+      <!-- Affordability -->
+      <div class="card" id="affordabilityCard">
+        <h2 class="flexSpace">Affordability</h2>
+        <form class="grid2">
+          <label class="col1" for="affordability">Desired Monthly Payment</label>
+            <input
+              class="input col2 usdFormat"
+              type="text"
+              id="affordability"
+              placeholder="$0.00">
+            </input>
+          <label class="col1" for="affordApr">APR</label>
+            <input
+              class="input inputTax col2"
+              type="text"
+              id="affordApr"
+              placeholder="5.99%">
+            </input>
+          <label class="col1" for="affordTerm">TERM (months)</label>
+            <input
+              class="input inputTax col2"
+              type="number"
+              id="affordTerm"
+              min="24"
+              max="96"
+              value="72"
+              placeholder="72">
+            </input>
+        </form>
+        <div class="flexEnd">
+          <label class="bigOutput" for="maxAmountFinanced">MAX AMOUNT FINANCED</label>
+            <output
+              class="bigOutput usdFormat"
+              type="text"
+              id="maxAmountFinanced"
+              placeholder="$0.00">
+            </output>
+        </div>
+        <output class="note flexEnd" id="maxPrice"></output>
+        <output class="note flexEnd" id="reqAPR_TERM"></output>
+      </div>
+    </div> <!-- Close flexCards div -->
+
+      <!-- Modals -->
+      <div
+        id="editFeeModal"
+        class="modalOverlay"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="editFeeModalTitle"
+      >
+        <div class="card modalCard">
+          <header class="modalHeader">
+            <h3 id="editFeeModalTitle">Edit Fee</h3>
+            <button
+              type="button"
+              class="modalClose"
+              aria-label="Close edit fee dialog"
+              data-editfee-action="close"
+            >
+              ×
+            </button>
+          </header>
+          <form id="editFeeForm" class="modalCard">
+            <label for="editFeeType">Fee Type
+              <select id="editFeeType" class="dropDown" name="type">
+                <option value="dealer">Dealer</option>
+                <option value="gov">Gov't</option>
+              </select>
+            </label>
+            <label for="editFeeName">Description
+              <input
+                id="editFeeName"
+                class="input"
+                type="text"
+                name="description"
+                placeholder="e.g. Doc Fee"
+                required
+              />
+            </label>
+            <label for="editFeeAmount">Amount
+              <input
+                id="editFeeAmount"
+                class="input usdFormat"
+                type="text"
+                name="amount"
+                placeholder="$0.00"
+                required
+              />
+            </label>
+            <footer class="modalActions colMerged">
+              <button type="submit" class="modalPrimary">Save</button>
+              <button type="button" class="modalSecondary" data-editfee-action="cancel">
+                Cancel
+              </button>
+            </footer>
+            <p class="modalStatus colMerged" id="editFeeStatus" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+
+      <div
+        id="authModal"
+        class="modalOverlay"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="authModalTitle"
+      >
+        <div class="card modalCard">
+          <header class="modalHeader">
+            <h3 id="authModalTitle">Sign In</h3>
+            <button
+              type="button"
+              class="modalClose"
+              aria-label="Close sign-in dialog"
+              data-auth-action="close"
+            >
+              ×
+            </button>
+          </header>
+          <form id="authForm" class="grid modalGrid">
+            <label class="col1" for="authEmail">Email
+              <input
+                id="authEmail"
+                class="input col2"
+                type="email"
+                name="email"
+                autocomplete="username"
+                required
+              />
+            </label>
+            <label class="col1" for="authPassword">Password
+              <input
+                id="authPassword"
+                class="input col2"
+                type="password"
+                name="password"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <footer class="modalActions colMerged">
+              <button type="submit" class="modalPrimary">Sign In</button>
+              <button
+                type="button"
+                class="modalSecondary"
+                data-auth-action="cancel"
+              >
+                Cancel
+              </button>
+            </footer>
+            <p class="modalStatus colMerged" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+      <div
+        id="vehicleModal"
+        class="modalOverlay"
+        aria-hidden="true"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="vehicleModalTitle"
+      >
+        <div class="card modalCard">
+          <header class="modalHeader">
+            <h3 id="vehicleModalTitle">Save Vehicle</h3>
+            <button
+              type="button"
+              class="modalClose"
+              aria-label="Close vehicle editor"
+              data-modal-action="close"
+            >
+              ×
+            </button>
+          </header>
+          <form id="vehicleModalForm" class="modalCard">
+            <label for="modalVehicleName">Vehicle Nickname
+              <input
+                id="modalVehicleName"
+                class="input"
+                type="text"
+                name="vehicle"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalYear">Year
+              <input
+                id="modalYear"
+                class="input"
+                type="number"
+                name="year"
+                min="1900"
+                max="2099"
+                step="1"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalMake">Make
+              <input
+                id="modalMake"
+                class="input"
+                type="text"
+                name="make"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalModel">Model
+              <input
+                id="modalModel"
+                class="input"
+                type="text"
+                name="model"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalTrim">Trim
+              <input
+                id="modalTrim"
+                class="input"
+                type="text"
+                name="trim"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalMileage">Mileage
+              <input
+                id="modalMileage"
+                class="input"
+                type="number"
+                name="mileage"
+                min="0"
+                step="1"
+                autocomplete="off"
+              />
+            </label>
+            <label for="modalAskingPrice">Asking Price
+              <input
+                id="modalAskingPrice"
+                class="input usdFormat"
+                type="text"
+                name="asking_price"
+                autocomplete="off"
+              />
+            </label>
+            <footer class="modalActions colMerged">
+              <button type="submit" class="modalPrimary">Save</button>
+              <button
+                type="button"
+                class="modalSecondary"
+                data-modal-action="cancel"
+              >
+                Cancel
+              </button>
+            </footer>
+            <p class="modalStatus colMerged" role="status" aria-live="polite"></p>
+          </form>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>
