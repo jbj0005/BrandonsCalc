@@ -7,7 +7,7 @@ const VEHICLES_TABLE = "vehicles";
 
 // Format inputs to accounting-style USD on Enter and on blur.
 // Works for any input with class="usdFormat".
-document.addEventListener("DOMContentLoaded", () => {
+  document.addEventListener("DOMContentLoaded", () => {
   const USD_SELECTOR = ".usdFormat";
   const DEFAULT_APR = 0.0599;
   const DEFAULT_TERM_MONTHS = 72;
@@ -2408,4 +2408,18 @@ document.addEventListener("DOMContentLoaded", () => {
     "[usdFormat] handlers attached:",
     document.querySelectorAll(USD_SELECTOR).length
   );
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/service-worker.js")
+        .then((registration) => {
+          console.debug("Service worker registered", registration.scope);
+          return registration;
+        })
+        .catch((error) => {
+          console.error("Service worker registration failed", error);
+        });
+    });
+  }
 });

@@ -388,19 +388,8 @@ button:hover {
   background-color: transparent;
 }
 
-.modalPrimary {
-  background-color: var(--black);
-  color: var(--bg);
-  border: 1px solid --muted;
-  border-radius: --radius-xl;
-}
-
-.modalPrimary.danger {
+.vehicleButtons.danger {
   background-color: #b00020;
-}
-
-.modalSecondary {
-  background-color: transparent;
 }
 
 .modalOverlay {
