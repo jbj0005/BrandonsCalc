@@ -1,0 +1,44 @@
+[
+  {
+    "id": "tier1",
+    "label": "780+",
+    "minScore": 780,
+    "maxScore": 850,
+    "aprAdjustment": 0
+  },
+  {
+    "id": "tier2",
+    "label": "740-779",
+    "minScore": 740,
+    "maxScore": 779,
+    "aprAdjustment": 0.4
+  },
+  {
+    "id": "tier3",
+    "label": "700-739",
+    "minScore": 700,
+    "maxScore": 739,
+    "aprAdjustment": 0.9
+  },
+  {
+    "id": "tier4",
+    "label": "660-699",
+    "minScore": 660,
+    "maxScore": 699,
+    "aprAdjustment": 1.5
+  },
+  {
+    "id": "tier5",
+    "label": "620-659",
+    "minScore": 620,
+    "maxScore": 659,
+    "aprAdjustment": 2.4
+  },
+  {
+    "id": "tier6",
+    "label": "300-619",
+    "minScore": 300,
+    "maxScore": 619,
+    "aprAdjustment": 3.5
+  }
+]

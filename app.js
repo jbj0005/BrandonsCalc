@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import creditTiers from "./config/credit-tiers.json";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
@@ -7,7 +8,7 @@ const VEHICLES_TABLE = "vehicles";
 
 // Format inputs to accounting-style USD on Enter and on blur.
 // Works for any input with class="usdFormat".
-  document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const USD_SELECTOR = ".usdFormat";
   const DEFAULT_APR = 0.0599;
   const DEFAULT_TERM_MONTHS = 72;
@@ -16,6 +17,71 @@ const VEHICLES_TABLE = "vehicles";
   const MAX_AFFORD_APR = 0.25;
   const MIN_TERM_MONTHS = 0;
   const MAX_TERM_MONTHS = 96;
+  const RATE_SOURCE_MANUAL = "manual";
+  const RATE_SOURCE_NFCU = "nfcu";
+  const MIN_CREDIT_SCORE = 300;
+  const MAX_CREDIT_SCORE = 850;
+  const NFCU_SOURCE = "NFCU";
+
+  const CREDIT_TIERS = (() => {
+    if (!Array.isArray(creditTiers)) {
+      return [
+        {
+          id: "default",
+          label: "All Scores",
+          minScore: MIN_CREDIT_SCORE,
+          maxScore: MAX_CREDIT_SCORE,
+          aprAdjustment: 0,
+        },
+      ];
+    }
+    const normalized = creditTiers
+      .map((tier, index) => {
+        const rawMin = Number(tier?.minScore ?? tier?.min ?? tier?.min_score);
+        const rawMax = Number(tier?.maxScore ?? tier?.max ?? tier?.max_score);
+        if (!Number.isFinite(rawMin) || !Number.isFinite(rawMax)) {
+          return null;
+        }
+        const minScore = Math.max(MIN_CREDIT_SCORE, Math.round(rawMin));
+        const maxScore = Math.min(MAX_CREDIT_SCORE, Math.round(rawMax));
+        if (maxScore < minScore) return null;
+        const id =
+          typeof tier?.id === "string" && tier.id.trim()
+            ? tier.id.trim()
+            : `tier${index + 1}`;
+        const label =
+          typeof tier?.label === "string" && tier.label.trim()
+            ? tier.label.trim()
+            : id;
+        const adjustmentRaw = Number(
+          tier?.aprAdjustment ?? tier?.apr_adjustment
+        );
+        const aprAdjustment = Number.isFinite(adjustmentRaw)
+          ? Math.round(adjustmentRaw * 100) / 100
+          : 0;
+        return {
+          id,
+          label,
+          minScore,
+          maxScore,
+          aprAdjustment,
+        };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.minScore - a.minScore);
+    if (normalized.length === 0) {
+      return [
+        {
+          id: "default",
+          label: "All Scores",
+          minScore: MIN_CREDIT_SCORE,
+          maxScore: MAX_CREDIT_SCORE,
+          aprAdjustment: 0,
+        },
+      ];
+    }
+    return normalized;
+  })();
 
   const usdFormatter = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -229,6 +295,7 @@ const VEHICLES_TABLE = "vehicles";
   const tradePayoffInput = document.getElementById("tradePayoff");
   const equityOutput = document.getElementById("equity");
   const cashDifferenceOutput = document.getElementById("cashDifference");
+  const netTradeOutput = document.getElementById("netTrade");
   const savingsNote = document.getElementById("savingsNote");
   const totalFeesOutput = document.getElementById("totalTF");
   const totalDealerFeesOutput = document.getElementById("totalDealerFees");
@@ -286,18 +353,34 @@ const VEHICLES_TABLE = "vehicles";
   const financeTFCheckbox = document.getElementById("financeTF");
   const financeNegEquityCheckbox = document.getElementById("financeNegEquity");
   const cashOutEquityCheckbox = document.getElementById("cashOutEquity");
+  const financeNegEquityLabel = document.querySelector(
+    "label[for='financeNegEquity']"
+  );
+  const cashOutEquityLabel = document.querySelector(
+    "label[for='cashOutEquity']"
+  );
   const cashDownInput = document.getElementById("cashDown");
   const cashToBuyerOutput = document.getElementById("cash2Buyer");
   const cashDueOutput = document.getElementById("cashDue");
   const amountFinancedOutput = document.getElementById("amountFinanced");
   const financeAprInput = document.getElementById("financeApr");
   const financeTermInput = document.getElementById("financeTerm");
+  const rateSourceSelect = document.getElementById("rateSource");
+  const vehicleConditionSelect = document.getElementById("vehicleCondition");
+  const creditScoreInput = document.getElementById("creditScore");
   const monthlyPaymentOutput = document.getElementById("monthlyPmt");
+  const rateSourceStatusOutput = document.getElementById("rateSourceStatus");
+  const financeTFNoteOutput = document.getElementById("financeTFNote");
+  const financeNegEquityNoteOutput = document.getElementById(
+    "financeNegEquityNote"
+  );
+  const cashOutEquityNoteOutput = document.getElementById("cashOutEquityNote");
   const affordabilityPaymentInput = document.getElementById("affordability");
   const affordabilityAprInput = document.getElementById("affordApr");
   const affordabilityTermInput = document.getElementById("affordTerm");
   const maxAmountFinancedOutput = document.getElementById("maxAmountFinanced");
   const maxPriceNoteOutput = document.getElementById("maxPrice");
+  const affordabilityGapNoteOutput = document.getElementById("affordabilityGap");
   const affordabilityStatusOutput = document.getElementById("reqAPR_TERM");
   const editFeeButton = document.getElementById("editFeeButton");
   const editFeeModal = document.getElementById("editFeeModal");
@@ -355,6 +438,12 @@ const VEHICLES_TABLE = "vehicles";
   let govFeeGroup = null;
   const dealerFeeSetState = { id: null, items: [] };
   const govFeeSetState = { id: null, items: [] };
+  const nfcuRateState = {
+    rates: [],
+    effectiveAt: null,
+    loadingPromise: null,
+    lastError: null,
+  };
 
   /**
    * f(s) = formatted currency string, where
@@ -671,13 +760,31 @@ const VEHICLES_TABLE = "vehicles";
     setCurrencyOutput(equityOutput, equityValue);
     updateEquityColor(equityValue);
 
+    const hasSalePrice = Number.isFinite(salePrice);
+    const hasTradeOfferValue = Number.isFinite(tradeOffer);
+    if (!hasSalePrice && !hasTradeOfferValue) {
+      setCurrencyOutput(cashDifferenceOutput, null);
+    } else {
+      const normalizedSale = hasSalePrice ? salePrice ?? 0 : 0;
+      const normalizedTradeOffer = hasTradeOfferValue ? tradeOffer ?? 0 : 0;
+      const cashDifference = normalizedSale - normalizedTradeOffer;
+      setCurrencyOutput(cashDifferenceOutput, cashDifference);
+    }
+
+    if (!hasSalePrice && !Number.isFinite(equityValue)) {
+      setCurrencyOutput(netTradeOutput, null);
+    } else {
+      const normalizedSale = hasSalePrice ? salePrice ?? 0 : 0;
+      const normalizedEquity = Number.isFinite(equityValue)
+        ? equityValue ?? 0
+        : 0;
+      const netTradeDifference = normalizedSale - normalizedEquity;
+      setCurrencyOutput(netTradeOutput, netTradeDifference);
+    }
+
     let effectiveSalePrice = salePrice;
     if (salePrice == null) {
       effectiveSalePrice = 0;
-      setCurrencyOutput(cashDifferenceOutput, null);
-    } else {
-      const cashDifference = salePrice - (equityValue ?? 0);
-      setCurrencyOutput(cashDifferenceOutput, cashDifference);
     }
 
     setSavingsDisplay(askingPrice, salePrice);
@@ -978,6 +1085,274 @@ const VEHICLES_TABLE = "vehicles";
     return value < 0 ? `(${formatted}%)` : `${formatted}%`;
   }
 
+  function calculateMonthlyPayment(principal, aprRate, termMonths) {
+    if (!Number.isFinite(principal) || principal <= 0) return 0;
+    if (!Number.isFinite(termMonths) || termMonths <= 0) return 0;
+    const months = Math.round(termMonths);
+    const rate = Number.isFinite(aprRate) ? aprRate : DEFAULT_APR;
+    const monthlyRate = rate / 12;
+    if (Math.abs(monthlyRate) < 1e-9) {
+      return principal / months;
+    }
+    const factor = Math.pow(1 + monthlyRate, months);
+    const denominator = factor - 1;
+    if (Math.abs(denominator) < 1e-9) {
+      return principal / months;
+    }
+    return principal * ((monthlyRate * factor) / denominator);
+  }
+
+  function setCheckboxNote(outputEl, message = "") {
+    if (!outputEl) return;
+    outputEl.textContent = message ?? "";
+  }
+
+  function setCheckboxAvailability(checkbox, label, enabled) {
+    const allow = Boolean(enabled);
+    if (checkbox instanceof HTMLInputElement) {
+      if (!allow) {
+        checkbox.checked = false;
+      }
+      checkbox.disabled = !allow;
+    }
+    if (label instanceof HTMLElement) {
+      label.classList.toggle("checkboxDisabled", !allow);
+    }
+  }
+
+  function setRateSourceStatus(message = "", tone = "info") {
+    if (!rateSourceStatusOutput) return;
+    rateSourceStatusOutput.textContent = message ?? "";
+    if (!message || tone === "info") {
+      rateSourceStatusOutput.removeAttribute("data-tone");
+    } else {
+      rateSourceStatusOutput.dataset.tone = tone;
+    }
+  }
+
+  function normalizeLoanType(value) {
+    const raw = String(value ?? "").toLowerCase();
+    if (raw.includes("used")) return "used";
+    return "new";
+  }
+
+  function getCreditTierForScore(score) {
+    if (!Number.isFinite(score)) return null;
+    return (
+      CREDIT_TIERS.find(
+        (tier) => score >= tier.minScore && score <= tier.maxScore
+      ) ?? null
+    );
+  }
+
+  function findNfcuRateMatch({ term, creditScore, loanType }) {
+    const normalizedLoanType = normalizeLoanType(loanType);
+    return (
+      nfcuRateState.rates.find((rate) => {
+        if (rate.loanType !== normalizedLoanType) return false;
+        if (term < rate.termMin || term > rate.termMax) return false;
+        if (
+          creditScore < rate.creditScoreMin ||
+          creditScore > rate.creditScoreMax
+        ) {
+          return false;
+        }
+        return true;
+      }) ?? null
+    );
+  }
+
+  async function ensureNfcuRatesLoaded() {
+    if (nfcuRateState.rates.length && !nfcuRateState.lastError) {
+      return nfcuRateState.rates;
+    }
+    if (nfcuRateState.loadingPromise) {
+      return nfcuRateState.loadingPromise;
+    }
+
+    const fetchPromise = supabase
+      .from("auto_rates")
+      .select(
+        "loan_type, term_range_min, term_range_max, term_label, credit_score_min, credit_score_max, credit_tier, credit_tier_label, apr_percent, base_apr_percent, apr_adjustment, effective_at"
+      )
+      .eq("source", NFCU_SOURCE)
+      .order("effective_at", { ascending: false, nullsFirst: false })
+      .order("term_range_min", { ascending: true })
+      .order("credit_score_min", { ascending: false })
+      .then(({ data, error }) => {
+        if (error) throw error;
+        const list = Array.isArray(data) ? data : [];
+        const latestEffective = list.reduce((acc, row) => {
+          if (!row?.effective_at) return acc;
+          return !acc || row.effective_at > acc ? row.effective_at : acc;
+        }, null);
+        const relevant = latestEffective
+          ? list.filter((row) => row.effective_at === latestEffective)
+          : list;
+        nfcuRateState.rates = relevant
+          .map((row) => {
+            const termMin = Number(row?.term_range_min);
+            const termMax = Number(row?.term_range_max);
+            const creditMin = Number(row?.credit_score_min);
+            const creditMax = Number(row?.credit_score_max);
+            const aprPercent = Number(row?.apr_percent);
+            if (
+              !Number.isFinite(termMin) ||
+              !Number.isFinite(termMax) ||
+              !Number.isFinite(creditMin) ||
+              !Number.isFinite(creditMax) ||
+              !Number.isFinite(aprPercent)
+            ) {
+              return null;
+            }
+            return {
+              loanType: normalizeLoanType(row?.loan_type),
+              termMin,
+              termMax,
+              termLabel:
+                typeof row?.term_label === "string" && row.term_label.trim()
+                  ? row.term_label.trim()
+                  : `${termMin}-${termMax} mos.`,
+              creditTier:
+                typeof row?.credit_tier === "string" ? row.credit_tier : "",
+              creditTierLabel:
+                typeof row?.credit_tier_label === "string" &&
+                row.credit_tier_label.trim()
+                  ? row.credit_tier_label.trim()
+                  : typeof row?.credit_tier === "string"
+                  ? row.credit_tier
+                  : "",
+              creditScoreMin: creditMin,
+              creditScoreMax: creditMax,
+              aprPercent,
+              baseAprPercent: Number(row?.base_apr_percent ?? aprPercent),
+              aprAdjustment: Number(row?.apr_adjustment ?? 0),
+              effectiveAt: latestEffective ?? row?.effective_at ?? null,
+            };
+          })
+          .filter(Boolean);
+        nfcuRateState.effectiveAt = latestEffective ?? null;
+        nfcuRateState.lastError = null;
+        return nfcuRateState.rates;
+      })
+      .catch((error) => {
+        nfcuRateState.rates = [];
+        nfcuRateState.effectiveAt = null;
+        nfcuRateState.lastError = error;
+        throw error;
+      })
+      .finally(() => {
+        nfcuRateState.loadingPromise = null;
+      });
+
+    nfcuRateState.loadingPromise = fetchPromise;
+    return fetchPromise;
+  }
+
+  function syncAprInputReadOnly() {
+    const isNfcu = rateSourceSelect?.value === RATE_SOURCE_NFCU;
+    if (financeAprInput instanceof HTMLInputElement) {
+      financeAprInput.readOnly = Boolean(isNfcu);
+      financeAprInput.classList.toggle("input--readonly", Boolean(isNfcu));
+    }
+  }
+
+  async function applyNfcuRate({ silent = false } = {}) {
+    if (!rateSourceSelect || rateSourceSelect.value !== RATE_SOURCE_NFCU) {
+      return;
+    }
+    const termMonths =
+      parseInteger(financeTermInput?.value) ?? DEFAULT_TERM_MONTHS;
+    const creditScore = parseInteger(creditScoreInput?.value);
+    const loanType = normalizeLoanType(vehicleConditionSelect?.value);
+
+    if (creditScore == null) {
+      setRateSourceStatus(
+        "Enter a credit score to pull NFCU rates.",
+        "warning"
+      );
+      return;
+    }
+    if (creditScore < MIN_CREDIT_SCORE || creditScore > MAX_CREDIT_SCORE) {
+      setRateSourceStatus(
+        `Credit score must be between ${MIN_CREDIT_SCORE} and ${MAX_CREDIT_SCORE}.`,
+        "error"
+      );
+      return;
+    }
+
+    const tier = getCreditTierForScore(creditScore);
+    if (!tier) {
+      setRateSourceStatus(
+        "No credit tier configuration matches that score.",
+        "error"
+      );
+      return;
+    }
+
+    setRateSourceStatus("Loading NFCU rates...");
+    try {
+      await ensureNfcuRatesLoaded();
+    } catch (error) {
+      console.error("Failed to load NFCU rates", error);
+      setRateSourceStatus(
+        "Unable to load NFCU rates right now. Try again later.",
+        "error"
+      );
+      return;
+    }
+
+    if (nfcuRateState.rates.length === 0) {
+      setRateSourceStatus(
+        "No NFCU rate data available yet. Run the Supabase import script first.",
+        "warning"
+      );
+      return;
+    }
+
+    const match = findNfcuRateMatch({
+      term: termMonths,
+      creditScore,
+      loanType,
+    });
+
+    if (!match) {
+      setRateSourceStatus(
+        `No NFCU rate for ${
+          loanType === "used" ? "used" : "new"
+        } vehicles at ${termMonths}-month terms in tier ${tier.label}.`,
+        "warning"
+      );
+      return;
+    }
+
+    const aprPercent = Number(match.aprPercent);
+    if (!Number.isFinite(aprPercent)) {
+      setRateSourceStatus("Invalid APR received from NFCU data.", "error");
+      return;
+    }
+    const aprDecimal = Math.max(aprPercent / 100, MIN_APR);
+
+    if (financeAprInput instanceof HTMLInputElement) {
+      financeAprInput.value = formatPercent(aprDecimal);
+      financeAprInput.dataset.numericValue = String(aprDecimal);
+    }
+
+    const effectiveDetails = match.effectiveAt
+      ? ` (effective ${match.effectiveAt})`
+      : "";
+    const tierLabel = tier.label ? ` • Tier ${tier.label}` : "";
+    setRateSourceStatus(
+      `NFCU ${loanType === "used" ? "Used" : "New"} ${
+        match.termLabel
+      }: ${aprPercent.toFixed(2)}%${tierLabel}${effectiveDetails}`
+    );
+
+    if (!silent) {
+      recomputeDeal();
+    }
+  }
+
   function evaluateExpression(raw) {
     if (raw == null) return null;
     let expr = String(raw).trim();
@@ -1160,30 +1535,44 @@ const VEHICLES_TABLE = "vehicles";
       termValue != null && termValue > 0 ? termValue : DEFAULT_TERM_MONTHS;
 
     const financeTF = financeTFCheckbox?.checked ?? false;
-    const financeNegEquity = financeNegEquityCheckbox?.checked ?? false;
-    const cashOutEquity = cashOutEquityCheckbox?.checked ?? false;
+    let financeNegEquity = financeNegEquityCheckbox?.checked ?? false;
+    let cashOutEquity = cashOutEquityCheckbox?.checked ?? false;
 
     const posEquity = equity > 0 ? equity : 0;
     const negEquity = equity < 0 ? -equity : 0;
 
-    let amountFinanced = sale - tradeOfferValue + tradePayoffValue;
+    setCheckboxAvailability(
+      financeNegEquityCheckbox,
+      financeNegEquityLabel,
+      negEquity > 0
+    );
+    setCheckboxAvailability(
+      cashOutEquityCheckbox,
+      cashOutEquityLabel,
+      posEquity > 0
+    );
+
+    financeNegEquity = financeNegEquityCheckbox?.checked ?? false;
+    cashOutEquity = cashOutEquityCheckbox?.checked ?? false;
+
+    let totalFinanced = sale - tradeOfferValue + tradePayoffValue;
 
     if (!financeNegEquity && negEquity > 0) {
-      amountFinanced -= negEquity;
+      totalFinanced -= negEquity;
     }
 
     if (cashOutEquity && posEquity > 0) {
-      amountFinanced += posEquity;
+      totalFinanced += posEquity;
     }
 
     if (financeTF) {
-      amountFinanced += totalFeesAndTaxes;
+      totalFinanced += totalFeesAndTaxes;
     }
 
-    amountFinanced -= cashDown;
-    amountFinanced = Math.max(amountFinanced, 0);
+    totalFinanced -= cashDown;
+    totalFinanced = Math.max(totalFinanced, 0);
 
-    setCurrencyOutput(amountFinancedOutput, amountFinanced, {
+    setCurrencyOutput(amountFinancedOutput, totalFinanced, {
       forceZero: true,
     });
 
@@ -1195,31 +1584,84 @@ const VEHICLES_TABLE = "vehicles";
       dueFeesTaxes + dueNegEquity - equityApplied,
       0
     );
-    const cashDue = cashDown + cashDueBeforeDown;
+    let cashDue = cashDown + cashDueBeforeDown;
+
+    if (cashOutEquity && !financeTF && posEquity > 0) {
+      cashDue = Math.max(cashDue - posEquity, 0);
+    }
 
     setCurrencyOutput(cashDueOutput, cashDue, { forceZero: true });
-    setCurrencyOutput(cashToBuyerOutput, cashOutEquity ? posEquity : 0, {
+    const netCashToBuyer = cashOutEquity
+      ? Math.max(posEquity - Math.max(cashDown, 0), 0)
+      : 0;
+    setCurrencyOutput(cashToBuyerOutput, netCashToBuyer, {
       forceZero: true,
     });
 
-    let monthlyPayment = 0;
-    if (amountFinanced > 0 && termMonths > 0) {
-      const monthlyRate = aprRate / 12;
-      if (Math.abs(monthlyRate) < 1e-9) {
-        monthlyPayment = amountFinanced / termMonths;
-      } else {
-        const factor = Math.pow(1 + monthlyRate, termMonths);
-        const denominator = factor - 1;
-        if (Math.abs(denominator) > 1e-9) {
-          monthlyPayment =
-            amountFinanced * ((monthlyRate * factor) / denominator);
+    const monthlyPayment = calculateMonthlyPayment(
+      totalFinanced,
+      aprRate,
+      termMonths
+    );
+
+    setCurrencyOutput(monthlyPaymentOutput, monthlyPayment, {
+      forceZero: totalFinanced > 0 || termMonths > 0,
+    });
+
+    if (financeTFNoteOutput) {
+      if (financeTF && totalFeesAndTaxes > 0 && monthlyPayment > 0) {
+        const altAmount = Math.max(totalFinanced - totalFeesAndTaxes, 0);
+        const altPayment = calculateMonthlyPayment(
+          altAmount,
+          aprRate,
+          termMonths
+        );
+        const savings = monthlyPayment - altPayment;
+        if (savings > 0.01) {
+          setCheckboxNote(
+            financeTFNoteOutput,
+            `+ ${formatCurrency(savings)}/mo.`
+          );
+        } else {
+          setCheckboxNote(financeTFNoteOutput, "");
         }
+      } else {
+        setCheckboxNote(financeTFNoteOutput, "");
       }
     }
 
-    setCurrencyOutput(monthlyPaymentOutput, monthlyPayment, {
-      forceZero: amountFinanced > 0 || termMonths > 0,
-    });
+    if (financeNegEquityNoteOutput) {
+      if (financeNegEquity && negEquity > 0 && monthlyPayment > 0) {
+        const altAmount = Math.max(totalFinanced - negEquity, 0);
+        const altPayment = calculateMonthlyPayment(
+          altAmount,
+          aprRate,
+          termMonths
+        );
+        const savings = monthlyPayment - altPayment;
+        if (savings > 0.01) {
+          setCheckboxNote(
+            financeNegEquityNoteOutput,
+            `+${formatCurrency(savings)}/mo.`
+          );
+        } else {
+          setCheckboxNote(financeNegEquityNoteOutput, "");
+        }
+      } else {
+        setCheckboxNote(financeNegEquityNoteOutput, "");
+      }
+    }
+
+    if (cashOutEquityNoteOutput) {
+      if (cashOutEquity && posEquity > 0) {
+        setCheckboxNote(
+          cashOutEquityNoteOutput,
+          `+ ${formatCurrency(posEquity)} Total Financed`
+        );
+      } else {
+        setCheckboxNote(cashOutEquityNoteOutput, "");
+      }
+    }
 
     return {
       financeTaxesFees: financeTF,
@@ -1331,6 +1773,27 @@ const VEHICLES_TABLE = "vehicles";
       }
     }
 
+    if (affordabilityGapNoteOutput) {
+      if (loanLimit > 0) {
+        const currentFinanced = amountFinancedOutput?.dataset?.value
+          ? Number(amountFinancedOutput.dataset.value)
+          : null;
+        const gap =
+          currentFinanced != null && Number.isFinite(currentFinanced)
+            ? currentFinanced - vehicleBudget
+            : null;
+        if (gap != null && Math.abs(gap) > 0.01) {
+          const descriptor = gap > 0 ? "Over budget by" : "Room left";
+          const formattedGap = formatCurrency(Math.abs(gap));
+          affordabilityGapNoteOutput.textContent = `${descriptor}: ${formattedGap}`;
+        } else {
+          affordabilityGapNoteOutput.textContent = "Fits current financing.";
+        }
+      } else {
+        affordabilityGapNoteOutput.textContent = "";
+      }
+    }
+
     if (loanLimit > 0 && loanLimit <= extrasFinanced) {
       statusMessages.push(
         "Monthly payment only covers taxes, fees, and adjustments. Increase payment or term."
@@ -1401,6 +1864,9 @@ const VEHICLES_TABLE = "vehicles";
     if (maxPriceNoteOutput) {
       maxPriceNoteOutput.textContent = "";
       maxPriceNoteOutput.value = "";
+    }
+    if (affordabilityGapNoteOutput) {
+      affordabilityGapNoteOutput.textContent = "";
     }
     if (affordabilityStatusOutput) {
       affordabilityStatusOutput.textContent = "";
@@ -2249,6 +2715,39 @@ const VEHICLES_TABLE = "vehicles";
     });
   }
 
+  rateSourceSelect?.addEventListener("change", () => {
+    syncAprInputReadOnly();
+    if (rateSourceSelect.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: false });
+    } else {
+      setRateSourceStatus("");
+    }
+  });
+
+  vehicleConditionSelect?.addEventListener("change", () => {
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: false });
+    }
+  });
+
+  creditScoreInput?.addEventListener("input", () => {
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: true });
+    }
+  });
+
+  creditScoreInput?.addEventListener("blur", () => {
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: false });
+    }
+  });
+
+  financeTermInput?.addEventListener("change", () => {
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: false });
+    }
+  });
+
   [
     salePriceInput,
     tradeOfferInput,
@@ -2280,6 +2779,9 @@ const VEHICLES_TABLE = "vehicles";
   editFeeButton?.addEventListener("click", () => {
     openEditFeeModal();
   });
+
+  syncAprInputReadOnly();
+  setRateSourceStatus("");
 
   editFeeTypeSelect?.addEventListener("change", () => {
     updateEditFeeNameList(editFeeTypeSelect.value);

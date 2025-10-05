@@ -6,7 +6,6 @@
   --radius-sm: 6px;
   --radius-md: 9px;
   --bg: white;
-  --black: black;
   --inputBG: rgb(209, 232, 251);
   --muted: rgb(135, 135, 135);
   --rootPad: 0.3rem;
@@ -31,20 +30,100 @@ h2 {
 }
 
 .note {
-  font-size: 0.7rem;
+  font-family: roboto;
+  font-size: 0.8rem;
   color: var(--muted);
-  margin: 0.25rem;
+  margin-right: 1rem;
+}
+
+#rateSourceStatus[data-tone="warning"] {
+  color: #b07900;
+}
+
+#rateSourceStatus[data-tone="error"] {
+  color: #b00020;
+}
+
+.checkboxNote {
+  align-self: center;
+  justify-self: flex-start;
+  text-align: left;
+  max-width: 15rem;
+}
+
+.checkboxDisabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.labelWithTooltip {
+  position: relative;
+  cursor: help;
+}
+
+.labelWithTooltip[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 0;
+  top: 100%;
+  transform: translateY(0.4rem);
+  background-color: rgba(11, 31, 42, 0.95);
+  color: #fff;
+  font-family: roboto;
+  font-size: 0.7rem;
+  line-height: 1.3;
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  max-width: 18rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 4;
+}
+
+.labelWithTooltip[data-tooltip]::before {
+  content: "";
+  position: absolute;
+  left: 0.75rem;
+  top: 100%;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(11, 31, 42, 0.95);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 4;
+}
+
+.labelWithTooltip[data-tooltip]:hover::after,
+.labelWithTooltip[data-tooltip]:hover::before,
+.labelWithTooltip[data-tooltip]:focus::after,
+.labelWithTooltip[data-tooltip]:focus::before {
+  opacity: 1;
+}
+
+.labelWithTooltip[data-tooltip]:hover::after,
+.labelWithTooltip[data-tooltip]:focus::after {
+  transform: translateY(0.55rem);
 }
 
 .dropDown {
   font-family: roboto;
+  color: var(--black);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--muted);
+  border: 1px solid var(--black);
   text-align: center;
   background-color: var(--inputBG);
-  max-width: fit-content;
+  width: 8rem;
   padding: var(--rootPad);
   margin: 0rem 0rem 0.5rem 0rem;
+  box-sizing: border-box;
+}
+
+.wideDropdown {
+  min-width: 20rem;
 }
 
 button:hover {
@@ -54,13 +133,14 @@ button:hover {
 
 .output {
   font-family: poppins;
-  color: --black;
+  color: var(--black);
   border-radius: var(--radius-sm);
   text-align: end;
   background-color: transparent;
   padding: var(--rootPad);
   height: 1.4rem;
   margin: var(--rootMargin);
+  min-width: 8rem;
 }
 
 .mutedOutput {
@@ -77,16 +157,17 @@ button:hover {
 
 .input {
   font-family: poppins;
-  color: --black;
+  color: var(--black);
   border-radius: var(--radius-sm);
-  border: 1px solid var(--muted);
+  border: 1px solid var(--black);
   text-align: end;
   align-content: center;
   background-color: var(--inputBG);
   padding: var(--rootPad);
   outline: none;
-  max-width: 7rem;
+  min-width: 8rem;
   margin: var(--rootMargin);
+  box-sizing: border-box;
 }
 
 .input:focus {
@@ -94,9 +175,15 @@ button:hover {
   box-shadow: 0 6px 24px 0 rgba(0, 0, 0, 0.18), 0 4px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
+.input--readonly {
+  background-color: rgba(209, 232, 251, 0.6);
+  cursor: not-allowed;
+  color: var(--muted);
+}
+
 .inputFeeDesc {
   font-family: roboto;
-  color: --black;
+  color: var(--black);
   border-radius: var(--radius-sm);
   border: 1px solid var(--muted);
   text-align: end;
@@ -109,7 +196,7 @@ button:hover {
 
 .inputFeeAmount {
   font-family: roboto;
-  color: --black;
+  color: var(--black);
   border-radius: var(--radius-sm);
   border: 1px solid var(--muted);
   text-align: end;
@@ -119,34 +206,62 @@ button:hover {
   padding: var(--rootPad);
   margin: 0.2rem 0rem 0.2rem 0.3rem;
   max-width: 5rem;
+  box-sizing: border-box;
 }
 
 .inputTax {
   max-width: 6ch;
   min-width: 6ch;
   padding: 0.1rem;
+  justify-items: center;
+  box-sizing: border-box;
+}
+.formatted {
+  font-family: roboto;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--black);
+  text-align: end;
+  margin: 0.2rem 0rem 0.2rem 1rem;
+  width: 8rem;
+  box-sizing: border-box;
+}
+
+/* Remove number input spinners (Chrome, Safari, Edge, Opera) */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Remove number input spinners (Firefox) */
+input[type="number"] {
+  -moz-appearance: textfield;
 }
 
 .feeHeaders {
   font-family: roboto;
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--black);
+  color: --black;
   margin: 0.2rem 0rem 0.2rem 0rem;
+  justify-self: center;
 }
 
 .feeLabels {
   font-family: roboto;
   font-size: 0.8rem;
-  color: var(--black);
+  color: --black;
   margin: 0.2rem 0.3rem 0.2rem 0rem;
+  justify-self: end;
 }
 
 .mutedFeeLabels {
   font-family: roboto;
   font-size: 0.8rem;
-  color: var(--black);
+  color: --black;
   margin: 0.2rem 0rem 0.2rem 0.8rem;
+  justify-self: end;
 }
 
 .mutedFeeOutput {
@@ -154,6 +269,7 @@ button:hover {
   font-size: 0.8rem;
   color: var(--black);
   margin: 0.2rem 0rem 0.2rem 0.8rem;
+  justify-self: center;
 }
 
 .flexSpace {
@@ -226,13 +342,12 @@ button:hover {
   justify-self: center;
   background-color: rgb(255, 255, 255);
   height: fit-content;
-  padding: 0.5rem;
+  padding: 0.2rem;
   border-radius: var(--radius-md);
   box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1), 0 1.5px 4px 0 rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.25s cubic-bezier(0.4, 0.2, 0.2, 1);
   margin-top: 1.2rem;
-  max-width: calc(card - 30px);
-  min-width: max-width;
+  max-width: calc(card - 15px);
 }
 
 /* Corner modifiers */
@@ -266,7 +381,6 @@ button:hover {
   justify-content: end;
   justify-items: end;
   margin: 0.3rem;
-  max-width: 100%;
 }
 
 .grid3 {
@@ -345,7 +459,7 @@ button:hover {
   border: 1px solid var(--muted);
   width: 5rem;
   background-color: transparent;
-  color: var(--black);
+  color: --black;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   margin: 0.4rem;
@@ -354,7 +468,7 @@ button:hover {
 .signInButton {
   font-family: poppins;
   font-size: 0.7rem;
-  color: var(--black);
+  color: --black;
   letter-spacing: 0.03em;
   border: none;
   border-radius: var(--radius-sm);
@@ -374,7 +488,7 @@ button:hover {
   padding: 0.15rem;
   border: 0px solid var(--muted);
   background-color: rgb(241, 241, 241);
-  color: var(--black);
+  color: --black;
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
   margin: var(--rootMargin);
@@ -433,7 +547,7 @@ button:hover {
   font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;
-  color: var(--black);
+  color: --black;
 }
 
 .modalActions {
@@ -446,7 +560,7 @@ button:hover {
 .modalStatus {
   font-size: 0.85rem;
   font-family: montserrat;
-  color: var(--black);
+  color: --black;
   min-height: 1em;
   margin: 1rem;
 }
