@@ -273,7 +273,7 @@
                 tabindex="0"
               >STATE TAXES</label>
                 <input
-                  class="cell inputTax col2 usdFormat"
+                  class="cell shortCell col2 percentFormat"
                   type="text"
                   id="stateTax"
                   placeholder="6.0%">
@@ -291,7 +291,7 @@
                 tabindex="0"
               >COUNTY TAXES</label>
               <input
-                  class="cell inputTax col2 usdFormat"
+                  class="cell shortCell col2 percentFormat"
                   type="text"
                   id="countyTax"
                   placeholder="1.0%">
@@ -467,15 +467,15 @@
                   placeholder="5.99%">
                 </input>
               <label class="col1" for="affordTerm">TERM (months)</label>
-                <input
-                  class="cell  col2"
-                  type="number"
-                  id="affordTerm"
-                  min="24"
-                  max="96"
-                  value="72"
-                  placeholder="72">
-                </input>
+                <select class="cell  col2" id="affordTerm">
+                  <option value="24">24</option>
+                  <option value="36">36</option>
+                  <option value="48">48</option>
+                  <option value="60">60</option>
+                  <option value="72" selected>72</option>
+                  <option value="84">84</option>
+                  <option value="96">96</option>
+                </select>
             </form>
         <div class="flexEnd">
           <label class="output bigOutput" for="maxAmountFinanced">MAX TOTAL FINANCED</label>
