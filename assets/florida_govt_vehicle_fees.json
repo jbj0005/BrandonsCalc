@@ -1,0 +1,116 @@
+[
+  {
+    "Fee Type": "Gov't",
+    "Description": "Initial Registration Fee",
+    "Amount": 225.0,
+    "Notes": "When a customer has no existing Florida plate to transfer (first-time registration)"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Base Registration / License Plate / Tag Fee",
+    "Amount": "14.50\u201332.50",
+    "Notes": "Annually or for the registration cycle, based on vehicle weight or class"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Title Fee (Electronic Title)",
+    "Amount": 77.25,
+    "Notes": "Whenever you issue or transfer a title (new or used)"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Title Transfer / Duplicate Title",
+    "Amount": 75.25,
+    "Notes": "Ownership transfer, when changing name, or issuing duplicate"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Lien Filing / Recording Fee",
+    "Amount": 2.0,
+    "Notes": "When there is a secured creditor (financing)"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Fast / Same-Day Title Print Fee",
+    "Amount": 10.0,
+    "Notes": "If the buyer requests a rush / expedited title"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Paper Title Print Fee / Service & Handling",
+    "Amount": 2.5,
+    "Notes": "If one requests a physical (paper) title instead of electronic"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "New License Plate / Plate Issuance Fee",
+    "Amount": 28.0,
+    "Notes": "When a new plate is required instead of transferring an existing one"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "License Plate Mailing / Decal Mailing Fee",
+    "Amount": "0.85\u20135.45",
+    "Notes": "When plates or decals must be mailed rather than issued in person"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Replacement Plate / Decal / Duplicate Registration Fee",
+    "Amount": "3.00\u201336.90",
+    "Notes": "When the license plate, registration decal, or registration certificate is lost or damaged"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Registration Transfer Fee",
+    "Amount": 4.6,
+    "Notes": "When transferring a registration from one vehicle to another (if allowed)"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Branch / Issuing Agency / Processing Fee",
+    "Amount": 0.5,
+    "Notes": "For administrative overhead at county or tax collector offices"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Air Pollution Control Fee",
+    "Amount": 1.0,
+    "Notes": "Flat environmental fee for registered vehicles"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Advanced / Replacement Fee",
+    "Amount": 2.8,
+    "Notes": "Fees imposed for replacing something (e.g., advanced replacement plates)"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Initial Additional Fee / Annual Additional Fee",
+    "Amount": "1.50 / 4.00",
+    "Notes": "Statutory extra fees as allowed under Florida law"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Authentication / Historical Plate Fee",
+    "Amount": 10.0,
+    "Notes": "Special plate issuance for historic or older vehicles"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Decal Fee",
+    "Amount": 1.0,
+    "Notes": "The ownership decal (sticker) for plate"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Delinquent / Late Fees",
+    "Amount": 20.0,
+    "Notes": "For registration/title processing past legal deadline"
+  },
+  {
+    "Fee Type": "Gov't",
+    "Description": "Commercial Motor Vehicle / Heavy Vehicle Surcharge",
+    "Amount": "Varies",
+    "Notes": "Additional taxes or surcharges for high-weight or commercial vehicles"
+  }
+]

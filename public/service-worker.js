@@ -31,14 +31,16 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   event.respondWith(
-    if (event.request.method !== "GET") {
-      return fetch(event.request);
-    }
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
         return cachedResponse;
       }
+
       return fetch(event.request).then((networkResponse) => {
         if (
           !networkResponse ||
@@ -47,10 +49,12 @@ self.addEventListener('fetch', (event) => {
         ) {
           return networkResponse;
         }
+
         const responseToCache = networkResponse.clone();
         caches.open(CACHE_NAME).then((cache) => {
           cache.put(event.request, responseToCache);
         });
+
         return networkResponse;
       });
     })

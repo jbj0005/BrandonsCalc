@@ -10,6 +10,7 @@ const VEHICLES_TABLE = "vehicles";
 // Works for any input with class="usdFormat".
 document.addEventListener("DOMContentLoaded", () => {
   const USD_SELECTOR = ".usdFormat";
+  const PERCENT_SELECTOR = ".percentFormat";
   const DEFAULT_APR = 0.0599;
   const DEFAULT_TERM_MONTHS = 72;
   const MIN_APR = 0;
@@ -362,13 +363,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const cashDownInput = document.getElementById("cashDown");
   const cashToBuyerOutput = document.getElementById("cash2Buyer");
   const cashDueOutput = document.getElementById("cashDue");
+  const calculatorCard = document.getElementById("calculatorCard");
   const amountFinancedOutput = document.getElementById("amountFinanced");
   const financeAprInput = document.getElementById("financeApr");
   const financeTermInput = document.getElementById("financeTerm");
   const rateSourceSelect = document.getElementById("rateSource");
   const vehicleConditionSelect = document.getElementById("vehicleCondition");
   const creditScoreInput = document.getElementById("creditScore");
+  const floatingPaymentCard = document.getElementById("floatingPaymentCard");
+  const floatingAprOutput = document.getElementById("floatingAprValue");
+  const floatingTermOutput = document.getElementById("floatingTermValue");
+  const floatingMaxFinancedOutput = document.getElementById(
+    "floatingMaxFinanced"
+  );
+  const floatingMonthlyPaymentOutput =
+    document.getElementById("floatingMonthlyPmt");
   const monthlyPaymentOutput = document.getElementById("monthlyPmt");
+  const monthlyPaymentOutputs = [
+    monthlyPaymentOutput,
+    floatingMonthlyPaymentOutput,
+  ].filter(Boolean);
   const rateSourceStatusOutput = document.getElementById("rateSourceStatus");
   const financeTFNoteOutput = document.getElementById("financeTFNote");
   const financeNegEquityNoteOutput = document.getElementById(
@@ -380,7 +394,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const affordabilityTermInput = document.getElementById("affordTerm");
   const maxAmountFinancedOutput = document.getElementById("maxAmountFinanced");
   const maxPriceNoteOutput = document.getElementById("maxPrice");
-  const affordabilityGapNoteOutput = document.getElementById("affordabilityGap");
+  const affordabilityGapNoteOutput =
+    document.getElementById("affordabilityGap");
   const affordabilityStatusOutput = document.getElementById("reqAPR_TERM");
   const editFeeButton = document.getElementById("editFeeButton");
   const editFeeModal = document.getElementById("editFeeModal");
@@ -438,6 +453,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let govFeeGroup = null;
   const dealerFeeSetState = { id: null, items: [] };
   const govFeeSetState = { id: null, items: [] };
+  let affordAprUserOverride = false;
   const nfcuRateState = {
     rates: [],
     effectiveAt: null,
@@ -502,6 +518,11 @@ document.addEventListener("DOMContentLoaded", () => {
         delete el.dataset.numericValue;
         el.value = "";
       }
+      recomputeDeal();
+      return;
+    }
+    if (el.classList.contains("percentFormat")) {
+      normalizePercentInput(el);
       recomputeDeal();
       return;
     }
@@ -816,6 +837,7 @@ document.addEventListener("DOMContentLoaded", () => {
       negEquityFinanced: financingSnapshot?.negEquityFinanced ?? 0,
       cashOutAmount: financingSnapshot?.cashOutAmount ?? 0,
     });
+    updateFloatingPaymentPosition();
   }
 
   function createFeeGroup({
@@ -1387,6 +1409,52 @@ document.addEventListener("DOMContentLoaded", () => {
     return Math.abs(value) >= 1 ? value / 100 : value;
   }
 
+  function normalizePercentInput(input) {
+    if (!(input instanceof HTMLInputElement)) return;
+    const raw = input.value;
+    if (!raw || raw.trim() === "") {
+      delete input.dataset.numericValue;
+      return;
+    }
+    const numericValue = evaluatePercentValue(raw, null);
+    if (numericValue == null) {
+      delete input.dataset.numericValue;
+      return;
+    }
+    input.dataset.numericValue = String(numericValue);
+    const formatted = formatPercent(numericValue);
+    if (input.value !== formatted) {
+      input.value = formatted;
+      if (!input.readOnly && document.activeElement === input) {
+        const caret = formatted.endsWith("%")
+          ? Math.max(formatted.length - 1, 0)
+          : formatted.length;
+        input.setSelectionRange(caret, caret);
+      }
+    }
+  }
+
+  function syncAffordAprWithFinance({ force = false } = {}) {
+    if (!affordabilityAprInput || !financeAprInput) return;
+    if (!force && affordAprUserOverride) return;
+    const financeApr = getPercentInputValue(financeAprInput, DEFAULT_APR);
+    const aprValue = Number.isFinite(financeApr) ? financeApr : DEFAULT_APR;
+    affordabilityAprInput.value = formatPercent(aprValue);
+    affordabilityAprInput.dataset.numericValue = String(aprValue);
+  }
+
+  function updateFloatingPaymentPosition() {
+    if (!floatingPaymentCard || !calculatorCard) return;
+    const prefersDesktop = window.matchMedia("(min-width: 768px)").matches;
+    if (!prefersDesktop) {
+      floatingPaymentCard.style.top = "0px";
+      return;
+    }
+    const rect = calculatorCard.getBoundingClientRect();
+    const top = Math.max(rect.top, 0);
+    floatingPaymentCard.style.top = `${top}px`;
+  }
+
   function setCurrencyOutput(outputEl, value, { forceZero = false } = {}) {
     if (!outputEl) return;
     if (value == null && !forceZero) {
@@ -1528,6 +1596,7 @@ document.addEventListener("DOMContentLoaded", () => {
         financeAprInput.value = formatPercent(aprRate);
       }
     }
+    syncAffordAprWithFinance();
     const termValue = financeTermInput
       ? parseInteger(financeTermInput.value)
       : null;
@@ -1578,17 +1647,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const dueFeesTaxes = financeTF ? 0 : totalFeesAndTaxes;
     const dueNegEquity = financeNegEquity ? 0 : negEquity;
-    const equityApplied = cashOutEquity ? 0 : posEquity;
+    const equityApplied = !cashOutEquity && financeTF ? posEquity : 0;
 
     const cashDueBeforeDown = Math.max(
       dueFeesTaxes + dueNegEquity - equityApplied,
       0
     );
     let cashDue = cashDown + cashDueBeforeDown;
-
-    if (cashOutEquity && !financeTF && posEquity > 0) {
-      cashDue = Math.max(cashDue - posEquity, 0);
-    }
 
     setCurrencyOutput(cashDueOutput, cashDue, { forceZero: true });
     const netCashToBuyer = cashOutEquity
@@ -1604,9 +1669,19 @@ document.addEventListener("DOMContentLoaded", () => {
       termMonths
     );
 
-    setCurrencyOutput(monthlyPaymentOutput, monthlyPayment, {
-      forceZero: totalFinanced > 0 || termMonths > 0,
+    const shouldForceMonthly = totalFinanced > 0 || termMonths > 0;
+    monthlyPaymentOutputs.forEach((outputEl) => {
+      setCurrencyOutput(outputEl, monthlyPayment, {
+        forceZero: shouldForceMonthly,
+      });
     });
+
+    if (floatingAprOutput) {
+      floatingAprOutput.textContent = formatPercent(aprRate);
+    }
+    if (floatingTermOutput) {
+      floatingTermOutput.textContent = `${termMonths} mo`;
+    }
 
     if (financeTFNoteOutput) {
       if (financeTF && totalFeesAndTaxes > 0 && monthlyPayment > 0) {
@@ -1751,12 +1826,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const availableForVehicle = Math.max(loanLimit - extrasFinanced, 0);
 
     const vehicleBudget = availableForVehicle;
-    if (loanLimit > 0) {
-      setCurrencyOutput(maxAmountFinancedOutput, vehicleBudget, {
+    const maxFinancedValue = loanLimit > 0 ? vehicleBudget : 0;
+    if (maxAmountFinancedOutput) {
+      setCurrencyOutput(maxAmountFinancedOutput, maxFinancedValue, {
         forceZero: true,
       });
-    } else {
-      setCurrencyOutput(maxAmountFinancedOutput, null);
+    }
+    if (floatingMaxFinancedOutput) {
+      setCurrencyOutput(floatingMaxFinancedOutput, maxFinancedValue, {
+        forceZero: true,
+      });
     }
 
     if (maxPriceNoteOutput) {
@@ -1783,7 +1862,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ? currentFinanced - vehicleBudget
             : null;
         if (gap != null && Math.abs(gap) > 0.01) {
-          const descriptor = gap > 0 ? "Over budget by" : "Room left";
+          const descriptor = gap > 0 ? "Over budget" : "Remaining budget";
           const formattedGap = formatCurrency(Math.abs(gap));
           affordabilityGapNoteOutput.textContent = `${descriptor}: ${formattedGap}`;
         } else {
@@ -1848,18 +1927,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (affordabilityPaymentInput instanceof HTMLInputElement) {
-      affordabilityPaymentInput.value = "";
-      delete affordabilityPaymentInput.dataset.numericValue;
+      affordabilityPaymentInput.value = "1000";
+      formatInputEl(affordabilityPaymentInput);
     }
+    affordAprUserOverride = false;
     if (affordabilityAprInput instanceof HTMLInputElement) {
-      affordabilityAprInput.value = `${(DEFAULT_APR * 100).toFixed(2)}%`;
-      formatInputEl(affordabilityAprInput);
+      syncAffordAprWithFinance({ force: true });
     }
     if (affordabilityTermInput instanceof HTMLInputElement) {
       affordabilityTermInput.value = String(DEFAULT_TERM_MONTHS);
     }
+    if (creditScoreInput instanceof HTMLInputElement) {
+      creditScoreInput.value = "750";
+    }
     if (maxAmountFinancedOutput) {
-      setCurrencyOutput(maxAmountFinancedOutput, null);
+      setCurrencyOutput(maxAmountFinancedOutput, 0, { forceZero: true });
+    }
+    if (floatingMaxFinancedOutput) {
+      setCurrencyOutput(floatingMaxFinancedOutput, 0, { forceZero: true });
     }
     if (maxPriceNoteOutput) {
       maxPriceNoteOutput.textContent = "";
@@ -1915,13 +2000,24 @@ document.addEventListener("DOMContentLoaded", () => {
     setCurrencyOutput(cashToBuyerOutput, 0, { forceZero: true });
     setCurrencyOutput(cashDueOutput, 0, { forceZero: true });
     setCurrencyOutput(amountFinancedOutput, 0, { forceZero: true });
-    setCurrencyOutput(monthlyPaymentOutput, 0, { forceZero: true });
+    monthlyPaymentOutputs.forEach((outputEl) => {
+      setCurrencyOutput(outputEl, 0, { forceZero: true });
+    });
+    if (floatingAprOutput) {
+      floatingAprOutput.textContent = formatPercent(DEFAULT_APR);
+    }
+    if (floatingTermOutput) {
+      floatingTermOutput.textContent = `${DEFAULT_TERM_MONTHS} mo`;
+    }
     formatInputEl(tradeOfferInput);
     formatInputEl(tradePayoffInput);
     syncSalePriceWithSelection();
     formatInputEl(salePriceInput);
-
-    recomputeDeal();
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      void applyNfcuRate({ silent: false });
+    } else {
+      recomputeDeal();
+    }
   }
 
   function applySession(session) {
@@ -2658,7 +2754,11 @@ document.addEventListener("DOMContentLoaded", () => {
     ev.preventDefault();
     ev.stopPropagation();
 
-    if (t.matches(USD_SELECTOR) || t.classList.contains("inputTax")) {
+    if (
+      t.matches(USD_SELECTOR) ||
+      t.classList.contains("inputTax") ||
+      t.matches(PERCENT_SELECTOR)
+    ) {
       formatInputEl(t);
     }
 
@@ -2672,7 +2772,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const t = ev.target;
       if (
         t instanceof HTMLInputElement &&
-        (t.matches(USD_SELECTOR) || t.classList.contains("inputTax"))
+        (t.matches(USD_SELECTOR) ||
+          t.classList.contains("inputTax") ||
+          t.matches(PERCENT_SELECTOR))
       ) {
         formatInputEl(t);
       }
@@ -2684,6 +2786,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("form").forEach((form) => {
     form.addEventListener("submit", () => {
       form.querySelectorAll(USD_SELECTOR).forEach(formatInputEl);
+      form.querySelectorAll(PERCENT_SELECTOR).forEach(formatInputEl);
       // If you're developing and don't want the page to reload yet,
       // uncomment the next line:
       // event.preventDefault();
@@ -2697,22 +2800,23 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  document.querySelectorAll(PERCENT_SELECTOR).forEach((el) => {
+    if (el instanceof HTMLInputElement && el.value && el.value.trim() !== "") {
+      normalizePercentInput(el);
+    }
+  });
+
   if (salePriceInput instanceof HTMLInputElement) {
     salePriceInput.addEventListener("input", () => {
       delete salePriceInput.dataset.calculatedSalePrice;
     });
   }
 
-  if (financeAprInput instanceof HTMLInputElement) {
-    financeAprInput.addEventListener("input", () => {
-      delete financeAprInput.dataset.numericValue;
+  if (floatingPaymentCard) {
+    window.addEventListener("scroll", updateFloatingPaymentPosition, {
+      passive: true,
     });
-  }
-
-  if (affordabilityAprInput instanceof HTMLInputElement) {
-    affordabilityAprInput.addEventListener("input", () => {
-      delete affordabilityAprInput.dataset.numericValue;
-    });
+    window.addEventListener("resize", updateFloatingPaymentPosition);
   }
 
   rateSourceSelect?.addEventListener("change", () => {
@@ -2742,6 +2846,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  affordabilityAprInput?.addEventListener("blur", () => {
+    if (!affordabilityAprInput) return;
+    if (!affordabilityAprInput.value || !affordabilityAprInput.value.trim()) {
+      affordAprUserOverride = false;
+      syncAffordAprWithFinance({ force: true });
+    }
+  });
+
   financeTermInput?.addEventListener("change", () => {
     if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
       void applyNfcuRate({ silent: false });
@@ -2764,6 +2876,15 @@ document.addEventListener("DOMContentLoaded", () => {
     affordabilityTermInput,
   ].forEach((input) => {
     input?.addEventListener("input", () => {
+      if (
+        input instanceof HTMLInputElement &&
+        input.matches(PERCENT_SELECTOR)
+      ) {
+        delete input.dataset.numericValue;
+        if (input === affordabilityAprInput) {
+          affordAprUserOverride = true;
+        }
+      }
       recomputeDeal();
     });
   });
@@ -2899,8 +3020,41 @@ document.addEventListener("DOMContentLoaded", () => {
     formatInputEl(affordabilityPaymentInput);
     formatInputEl(affordabilityAprInput);
     formatInputEl(editFeeAmountInput);
+    if (creditScoreInput instanceof HTMLInputElement) {
+      if (!creditScoreInput.value || !creditScoreInput.value.trim()) {
+        creditScoreInput.value = "750";
+      }
+    }
+    normalizePercentInput(financeAprInput);
+    normalizePercentInput(affordabilityAprInput);
+    affordAprUserOverride = false;
+    syncAffordAprWithFinance({ force: true });
+    if (floatingAprOutput) {
+      const aprDisplay = getPercentInputValue(financeAprInput, DEFAULT_APR);
+      floatingAprOutput.textContent = formatPercent(aprDisplay ?? DEFAULT_APR);
+    }
+    if (floatingTermOutput) {
+      const termDisplay =
+        parseInteger(financeTermInput?.value) ?? DEFAULT_TERM_MONTHS;
+      floatingTermOutput.textContent = `${termDisplay} mo`;
+    }
+    if (floatingMaxFinancedOutput) {
+      setCurrencyOutput(floatingMaxFinancedOutput, 0, { forceZero: true });
+    }
     await loadVehicles();
-    recomputeDeal();
+    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+      try {
+        await applyNfcuRate({ silent: false });
+      } catch (error) {
+        console.error("Initial NFCU rate sync failed", error);
+        recomputeDeal();
+      }
+    } else {
+      recomputeDeal();
+    }
+    requestAnimationFrame(() => {
+      updateFloatingPaymentPosition();
+    });
   }
 
   void initializeApp();
@@ -2915,7 +3069,7 @@ document.addEventListener("DOMContentLoaded", () => {
     window.addEventListener("load", () => {
       const swUrl = new URL(
         "service-worker.js",
-        import.meta.env.BASE_URL || "/"
+        window.location.href
       ).toString();
       navigator.serviceWorker
         .register(swUrl)

@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "fetch:nfcu": "node scripts/fetch-nfcu-rates.mjs",
+    "import:gov-fees": "node scripts/import-gov-fees.mjs",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

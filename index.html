@@ -43,18 +43,18 @@
       <!-- Open Card Wrapper -->
       <div class="flexCards">
           <!-- Saved Vehicle Card -->
-          <div class="card cornerAnchor" id="savedVehicleCard">
+          <div class="card cornerAnchor" id="SavedVehicleCard">
             <img
-              class="cornerBadge cornerBadge--top-right"
+              class="cornerBadge cornerBadge--top-left"
               src="./assets/brandons_calculator_patch_1_120px.png"
-              alt="Brandon's Calculator seal"
+              alt="Brandon's Calculator logo"
             />
             <div>
-              <h2 class="flexSpace">Saved Vehicles</h2>
+              <h2 class="flexEnd">Saved Vehicles</h2>
             </div>
             <div>
               <form class="flexCenter" id="vehicleForm">
-                <select class="dropDown wideDropdown" id="vehicleSelect">
+                <select class="cell wideCell" id="vehicleSelect">
                   <option value="">--Select a Saved Vehicle--</option>
                 </select>
                   <div class="vehicleButtons">
@@ -65,10 +65,36 @@
               </form>
             </div>
           </div>
+          <!-- Location Card -->
+          <div class="card" id="locationCard">
+            <h2 class="flexSpace">Location</h2>
+          </div>
+          <!-- Pmt Floater -->
+          <div
+            class="floatingPmtNote"
+            id="floatingPaymentCard"
+            aria-live="polite">
+              <div class="floatingPmtNote__meta">
+                <span class="floatingPmtNote__metaLabel">PMT</span>
+                <output
+                  class="floatingPmtNote__metaValue usdFormat"
+                  type="text"
+                  id="floatingMonthlyPmt"
+                  data-role="monthly-payment"
+                  aria-label="Monthly payment">$0.00
+                </output>
+                  <span class="floatingPmtNote__metaLabel">APR</span>
+                  <span class="floatingPmtNote__metaValue" id="floatingAprValue">5.99%</span>        
+                  <span class="floatingPmtNote__metaLabel">TERM</span>
+                  <span class="floatingPmtNote__metaValue" id="floatingTermValue">72</span>              
+              </div>
+          </div>
           <!-- Calculator Card -->
           <div class="card" id="calculatorCard">
-            <div class="vehicleButtons flexSpace">
+            <div class="flexSpace">
               <h2>Calculator</h2>
+            </div>
+            <div class="flexEnd vehicleButtons">
               <button>CLEAR</button>
             </div>
             <!-- Savings Note-->
@@ -81,7 +107,7 @@
               <!-- Sale Price -->
               <label class="col1" for="salePrice">SALE PRICE</label>
                 <input
-                  class="input col2 usdFormat"
+                  class="cell col2 usdFormat"
                   type="text"
                   id="salePrice"
                   placeholder="$0.00">
@@ -90,7 +116,7 @@
               <!-- Trade Offer -->
               <label class="col1" for="tradeOffer">TRADE OFFER</label>
                 <input
-                  class="input col2 usdFormat"
+                  class="cell  col2 usdFormat"
                   type="text"
                   id="tradeOffer"
                   placeholder="$0.00">
@@ -99,7 +125,7 @@
               <!-- Trade Payoff -->
               <label class="col1" for="tradePayoff">TRADE PAYOFF</label>
                 <input
-                  class="input col2 usdFormat"
+                  class="cell  col2 usdFormat"
                   type="text"
                   id="tradePayoff"
                   placeholder="$0.00">
@@ -108,7 +134,7 @@
               <!-- Equity -->
               <label class="col1" for="equity">EQUITY</label>
                 <output
-                  class="col2 output output mutedOutput"
+                  class="col2 output  mutedOutput"
                   id="equity"
                   placeholder="$0.00">
                 </output>
@@ -120,7 +146,7 @@
                 tabindex="0"
               >CASH DIFFERENCE</label>
                 <output
-                  class="col2 output mutedOutput"
+                  class="col2 output  mutedOutput"
                   id="cashDifference"
                   placeholder="$0.00">
                 </output>
@@ -132,7 +158,7 @@
                 tabindex="0"
               >NET TRADE DIFFERENCE</label>
                 <output
-                  class="col2 output mutedOutput"
+                  class="col2 output  mutedOutput"
                   id="netTrade"
                   placeholder="$0.00">
                 </output>
@@ -140,33 +166,35 @@
           </div>
           <!-- Fees Card-->
           <div class="card" id="feesCard">
-            <div class="flexSpace vehicleButtons">
+            <div class="flexSpace">
               <h2>Dealer & Gov't Fees</h2>
+            </div>
+            <div class="flexEnd vehicleButtons">
               <button id="editFeeButton" type="button">EDIT</button>
             </div>
               <!-- Fee Headers -->
             <form class="grid5">
-              <label
+              <header
                 class="col1 feeHeaders">TYPE
-              </label>
-              <label
+              </header>
+              <header
                 class="col2 feeHeaders">DESCRIPTION
-              </label>
-              <label
+              </header>
+              <header
                 class="col3 feeHeaders">AMOUNT
-              </label>
+              </header>
 
               <!-- Dealer Fees -->
-              <label class="col1 feeLabels" for="dealerFeeDesc dealerFeeAmount">DEALER</label>
+              <label class="col1 feeLabels" for="dealerFeeDesc">DEALER</label>
                 <input
                   id="dealerFeeDesc"
-                  class="inputFeeDesc col2"
+                  class="cellFeeDesc col2"
                   type="text"
                   placeholder="e.g. Doc Fee">
                 </input>
                 <input
                   id="dealerFeeAmount"
-                  class="inputFeeAmount col3 usdFormat"
+                  class="cellFeeAmount col3 usdFormat"
                   type="text"
                   placeholder="$0.00">
                 </input>
@@ -183,16 +211,16 @@
                   </output>
 
               <!-- Gov't Fees -->
-              <label class="col1 feeLabels" for="govtFeeDesc govtFeeAmount">GOV'T</label>
+              <label class="col1 feeLabels" for="govtFeeDesc">GOV'T</label>
                 <input
                   id="govtFeeDesc" 
-                  class="inputFeeDesc col2"
+                  class="cellFeeDesc col2"
                   type="text"
                   placeholder="e.g. Electronic Title">
                 </input>
                 <input
                   id="govtFeeAmount"
-                  class="inputFeeAmount col3 usdFormat"
+                  class="cellFeeAmount col3 usdFormat"
                   type="text"
                   placeholder="$0.00">
                 </input>
@@ -211,9 +239,9 @@
 
                 <!-- Total Fees -->
               <div class="flexEnd">
-                <label class="bigOutput" for="totalTF">TOTAL FEES</label>
+                <label class="output bigOutput" for="totalTF">TOTAL FEES</label>
                   <output
-                    class="bigOutput usdFormat"
+                    class="output bigOutput usdFormat"
                     type="text"
                     id="totalTF"
                     placeholder="$0.00">
@@ -229,7 +257,7 @@
               <label
                 class="col1 labelWithTooltip"
                 for="taxableBase"
-                data-tooltip="Max(Sale Price - Trade Offer, 0) + Dealer Fees"
+                data-tooltip="(Sale Price - Trade Offer) + Dealer Fees"
                 tabindex="0"
               >TAXABLE BASE</label>
                 <output
@@ -245,7 +273,7 @@
                 tabindex="0"
               >STATE TAXES</label>
                 <input
-                  class="input inputTax col2 usdFormat"
+                  class="cell inputTax col2 usdFormat"
                   type="text"
                   id="stateTax"
                   placeholder="6.0%">
@@ -259,11 +287,11 @@
               <label
                 class="col1 labelWithTooltip"
                 for="countyTax"
-                data-tooltip="County Tax Base (max $5,000) × County Tax Rate"
+                data-tooltip="County Tax Base (Max $5k) × County Tax Rate"
                 tabindex="0"
               >COUNTY TAXES</label>
               <input
-                  class="input inputTax col2 usdFormat"
+                  class="cell inputTax col2 usdFormat"
                   type="text"
                   id="countyTax"
                   placeholder="1.0%">
@@ -277,13 +305,13 @@
             <!-- Total Taxes -->
             <div class="flexEnd">
               <label
-                class="bigOutput labelWithTooltip"
+                class="output bigOutput labelWithTooltip"
                 for="totalTaxes"
                 data-tooltip="State Taxes + County Taxes"
                 tabindex="0"
               >TOTAL TAXES</label>
               <output
-                class=" bigOutput usdFormat"
+                class=" output bigOutput usdFormat"
                 type="text"
                 id="totalTaxes"
                 placeholder="$0.00">
@@ -328,7 +356,7 @@
             <form class="grid2">
               <label class="col1" for="cashDown">CASH DOWN</label>
                 <input
-                  class="input formatted col2 usdFormat"
+                  class="cell  col2 usdFormat"
                   type="text"
                   id="cashDown"
                   placeholder="$0.00">
@@ -353,12 +381,12 @@
               <!-- Amount Financed -->
             <div class="flexEnd">
               <label
-                class="bigOutput"
+                class="output bigOutput"
                 for="amountFinanced">TOTAL FINANCED
               </label>
                 <output
                   id="amountFinanced"
-                  class=" bigOutput usdFormat"
+                  class=" output bigOutput usdFormat"
                   type="text"
                   placeholder="$0.00">
                 </output>        
@@ -369,34 +397,35 @@
             <h2 class="flexSpace">Monthly Payment</h2>
             <form class="grid2">
               <label class="col1" for="rateSource">APR SOURCE</label>
-                <select class="dropDown formatted col2" id="rateSource">
-                  <option value="manual" selected>Manual</option>
-                  <option value="nfcu">NFCU Rates</option>
+                <select class="cell  col2" id="rateSource">
+                  <option value="manual">Manual</option>
+                  <option value="nfcu" selected>NFCU Rates</option>
                 </select>
               <label class="col1" for="creditScore">CREDIT SCORE</label>
                 <input
-                  class="input formatted col2"
+                  class="cell  col2"
                   type="number"
                   id="creditScore"
                   min="300"
                   max="850"
+                  value="750"
                   placeholder="750">
                 </input>
               <label class="col1" for="vehicleCondition">VEHICLE CONDITION</label>
-                <select class="dropDown formatted col2" id="vehicleCondition">
+                <select class="cell  col2" id="vehicleCondition">
                   <option value="new" selected>New</option>
                   <option value="used">Used</option>
                 </select>
               <label class="col1" for="financeApr">APR</label>
                 <input
-                  class="input formatted col2"
+                  class="cell  col2 percentFormat"
                   type="text"
                   id="financeApr"
                   value="5.99%"
                   placeholder="5.99%">
                 </input>
               <label class="col1" for="financeTerm">TERM (months)</label>
-                <select class="dropDown formatted col2" id="financeTerm">
+                <select class="cell  col2" id="financeTerm">
                   <option value="24">24</option>
                   <option value="36">36</option>
                   <option value="48">48</option>
@@ -407,11 +436,12 @@
                 </select>
             </form>
               <div class="flexEnd">
-                <label class="bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
+                <label class="output bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
                   <output
-                    class="bigOutput usdFormat"
+                    class="output bigOutput usdFormat"
                     type="text"
                     id="monthlyPmt"
+                    data-role="monthly-payment"
                     placeholder="$0.00">
                   </output>
                   <output class="note" id="rateSourceStatus"></output>
@@ -423,21 +453,22 @@
             <form class="grid2">
               <label class="col1" for="affordability">Desired Monthly Payment</label>
                 <input
-                  class="input formatted col2 usdFormat"
+                  class="cell  col2 usdFormat"
                   type="text"
                   id="affordability"
+                  value="1000"
                   placeholder="$0.00">
                 </input>
               <label class="col1" for="affordApr">APR</label>
                 <input
-                  class="input formatted col2"
+                  class="cell  col2 percentFormat"
                   type="text"
                   id="affordApr"
                   placeholder="5.99%">
                 </input>
               <label class="col1" for="affordTerm">TERM (months)</label>
                 <input
-                  class="input formatted col2"
+                  class="cell  col2"
                   type="number"
                   id="affordTerm"
                   min="24"
@@ -447,9 +478,9 @@
                 </input>
             </form>
         <div class="flexEnd">
-          <label class="bigOutput" for="maxAmountFinanced">MAX TOTAL FINANCED</label>
+          <label class="output bigOutput" for="maxAmountFinanced">MAX TOTAL FINANCED</label>
             <output
-              class="bigOutput usdFormat"
+              class="output bigOutput usdFormat"
               type="text"
               id="maxAmountFinanced"
               placeholder="$0.00">
@@ -490,7 +521,7 @@
           </header>
           <form id="editFeeForm" class="modalCard">
             <label for="editFeeType">Fee Type
-              <select id="editFeeType" class="dropDown" name="type">
+              <select id="editFeeType" class="cell" name="type">
                 <option value="dealer">Dealer</option>
                 <option value="gov">Gov't</option>
               </select>
@@ -498,7 +529,7 @@
             <label for="editFeeName">Description
               <input
                 id="editFeeName"
-                class="input"
+                class="cell"
                 type="text"
                 name="description"
                 placeholder="e.g. Doc Fee"
@@ -508,7 +539,7 @@
             <label for="editFeeAmount">Amount
               <input
                 id="editFeeAmount"
-                class="input usdFormat"
+                class="cell usdFormat"
                 type="text"
                 name="amount"
                 placeholder="$0.00"
@@ -550,7 +581,7 @@
             <label class="col1" for="authEmail">Email
               <input
                 id="authEmail"
-                class="input col2"
+                class="cell col2"
                 type="email"
                 name="email"
                 autocomplete="username"
@@ -560,7 +591,7 @@
             <label class="col1" for="authPassword">Password
               <input
                 id="authPassword"
-                class="input col2"
+                class="cell col2"
                 type="password"
                 name="password"
                 autocomplete="current-password"
@@ -606,7 +637,7 @@
             <label for="modalVehicleName">Vehicle Nickname
               <input
                 id="modalVehicleName"
-                class="input"
+                class="cell"
                 type="text"
                 name="vehicle"
                 autocomplete="off"
@@ -615,7 +646,7 @@
             <label for="modalYear">Year
               <input
                 id="modalYear"
-                class="input"
+                class="cell"
                 type="number"
                 name="year"
                 min="1900"
@@ -627,7 +658,7 @@
             <label for="modalMake">Make
               <input
                 id="modalMake"
-                class="input"
+                class="cell"
                 type="text"
                 name="make"
                 autocomplete="off"
@@ -636,7 +667,7 @@
             <label for="modalModel">Model
               <input
                 id="modalModel"
-                class="input"
+                class="cell"
                 type="text"
                 name="model"
                 autocomplete="off"
@@ -645,7 +676,7 @@
             <label for="modalTrim">Trim
               <input
                 id="modalTrim"
-                class="input"
+                class="cell"
                 type="text"
                 name="trim"
                 autocomplete="off"
@@ -654,7 +685,7 @@
             <label for="modalMileage">Mileage
               <input
                 id="modalMileage"
-                class="input"
+                class="cell"
                 type="number"
                 name="mileage"
                 min="0"
@@ -665,7 +696,7 @@
             <label for="modalAskingPrice">Asking Price
               <input
                 id="modalAskingPrice"
-                class="input usdFormat"
+                class="cell usdFormat"
                 type="text"
                 name="asking_price"
                 autocomplete="off"

@@ -9,6 +9,14 @@ import { createClient } from "@supabase/supabase-js";
 
 const SOURCE_NAME = "NFCU";
 const SOURCE_URL = "https://www.navyfederal.org/loans-cards/auto-loans.html";
+const DISCOVERY_START_URLS = [
+  SOURCE_URL,
+  "https://www.navyfederal.org/loans-cards/vehicle-loans.html",
+  "https://www.navyfederal.org/loans-cards/auto-loans/index.html",
+  "https://www.navyfederal.org/loans-cards/"
+];
+const NAVY_ROOT = "https://www.navyfederal.org";
+const MAX_DISCOVERY_PAGES = 12;
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36";
 const MIN_CREDIT_SCORE = 300;
@@ -158,13 +166,13 @@ function extractBaseRates(html) {
   return { baseRates, effectiveDate };
 }
 
-function expandRates({ baseRates, effectiveDate }, creditTiers) {
+function expandRates({ baseRates, effectiveDate }, creditTiers, sourceUrl = SOURCE_URL) {
   const rows = [];
   baseRates.forEach((rate) => {
     creditTiers.forEach((tier) => {
       rows.push({
         source: SOURCE_NAME,
-        source_url: SOURCE_URL,
+        source_url: sourceUrl,
         loan_type: rate.loanType,
         term_label: rate.termLabel,
         term_range_min: rate.termMin,
@@ -236,19 +244,95 @@ async function upsertRates(rows, effectiveDate, { dryRun = false } = {}) {
   console.log(`[nfcu] Upserted ${data?.length ?? rows.length} rate rows.`);
 }
 
+function isInternalAutoRatesLink(href, textContent) {
+  if (!href) return false;
+  const normalizedText = (textContent ?? "").toLowerCase();
+  const normalizedHref = href.toLowerCase();
+  const hasAuto = normalizedText.includes("auto") || normalizedHref.includes("auto");
+  const hasRate = normalizedText.includes("rate") || normalizedHref.includes("rate");
+  const hasLoan = normalizedText.includes("loan") || normalizedHref.includes("loan");
+  if (!(hasAuto && hasRate && hasLoan)) return false;
+  try {
+    const url = new URL(href, NAVY_ROOT);
+    return url.origin === NAVY_ROOT;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function discoverRatePage() {
+  console.warn(`[nfcu] Attempting discovery crawl because primary URL failed (${SOURCE_URL}).`);
+  const queue = [...new Set(DISCOVERY_START_URLS)];
+  const visited = new Set();
+
+  while (queue.length && visited.size < MAX_DISCOVERY_PAGES) {
+    const candidate = queue.shift();
+    if (!candidate || visited.has(candidate)) continue;
+    visited.add(candidate);
+
+    let html;
+    try {
+      html = await fetchHtml(candidate);
+    } catch (error) {
+      console.warn(`[nfcu] Discovery fetch failed for ${candidate}:`, error.message ?? error);
+      continue;
+    }
+
+    try {
+      const base = extractBaseRates(html);
+      console.info(`[nfcu] Discovered rate table at ${candidate}`);
+      return { url: candidate, base };
+    } catch (error) {
+      // Not a valid rate table; continue crawling.
+    }
+
+    const $ = load(html);
+    $("a[href]")
+      .toArray()
+      .forEach((anchor) => {
+        const el = $(anchor);
+        const href = el.attr("href");
+        const text = el.text();
+        if (!isInternalAutoRatesLink(href, text)) return;
+        try {
+          const resolved = new URL(href, candidate).toString();
+          if (!visited.has(resolved)) {
+            queue.push(resolved);
+          }
+        } catch (error) {
+          // Ignore malformed URLs.
+        }
+      });
+  }
+
+  throw new Error(
+    "Unable to discover NFCU auto-loan rate page automatically. Please update SOURCE_URL manually."
+  );
+}
+
 async function main() {
   try {
     const args = new Set(process.argv.slice(2));
     const dryRun = args.has("--dry-run");
     const printJson = args.has("--print-json");
 
-    const [creditTiers, html] = await Promise.all([
-      loadCreditTiers(),
-      fetchHtml(SOURCE_URL),
-    ]);
+    const creditTiers = await loadCreditTiers();
 
-    const base = extractBaseRates(html);
-    const rows = expandRates(base, creditTiers);
+    let sourceUrl = SOURCE_URL;
+    let base;
+    try {
+      const html = await fetchHtml(sourceUrl);
+      base = extractBaseRates(html);
+    } catch (primaryError) {
+      console.warn(
+        `[nfcu] Primary URL failed (${sourceUrl}): ${primaryError.message ?? primaryError}. Starting discovery.`
+      );
+      const discovery = await discoverRatePage();
+      sourceUrl = discovery.url;
+      base = discovery.base;
+    }
+
+    const rows = expandRates(base, creditTiers, sourceUrl);
 
     if (printJson) {
       console.log(JSON.stringify(rows, null, 2));
