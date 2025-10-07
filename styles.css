@@ -1,5 +1,6 @@
 :root {
   font-family: montserrat;
+  --terminalFont: vt323;
   font-size: 0.9rem;
   letter-spacing: 0.001em;
   --black: black;
@@ -47,7 +48,6 @@ output:not(:placeholder-shown) {
   font-family: roboto;
   font-size: 0.8rem;
   color: var(--muted);
-  margin-right: 1rem;
 }
 
 #rateSourceStatus[data-tone="warning"] {
@@ -62,7 +62,6 @@ output:not(:placeholder-shown) {
   align-self: center;
   justify-self: flex-start;
   text-align: left;
-  max-width: 15rem;
 }
 
 .checkboxDisabled {
@@ -128,16 +127,32 @@ button:hover {
   box-shadow: 0 6px 24px 0 rgba(0, 0, 0, 0.18), 0 4px 12px 0 rgba(0, 0, 0, 0.1);
 }
 
-.output {
-  font-family: poppins;
-  color: var(--black);
+output {
+  font-family: roboto;
+  color: var(--muted);
   border-radius: var(--radius-sm);
   text-align: end;
-  background-color: transparent;
   padding: var(--rootPad);
-  height: 1.4rem;
-  margin: var(--rootMargin);
+  margin: 0.2rem 0rem 0.2rem 1rem;
+  box-sizing: border-box;
+
+  background-color: transparent;
+  height: 1.7rem;
+  border-radius: var(--radius-sm);
+}
+
+.short {
+  max-width: max-content;
+}
+
+.stdWidth {
   max-width: 8rem;
+  min-width: 8rem;
+}
+
+.locationInput {
+  width: 100%;
+  min-width: 12rem;
 }
 
 .mutedOutput {
@@ -149,7 +164,7 @@ button:hover {
   font-weight: 600;
   text-align: end;
   background-color: transparent;
-  margin: 0.6rem;
+  margin: 0.4rem 0rem 0.2rem 1rem;
   min-width: max-content;
 }
 
@@ -160,13 +175,12 @@ button:hover {
   border: 1px solid var(--black);
   text-align: end;
   background-color: var(--inputBG);
-  width: 8rem;
   padding: var(--rootPad);
   margin: 0.2rem 0rem 0.2rem 1rem;
   box-sizing: border-box;
 }
 
-.wideCell {
+.vehicleDropDown {
   min-width: 20rem;
   text-align: center;
 }
@@ -215,7 +229,7 @@ button:hover {
   box-sizing: border-box;
 }
 
-.cellTax {
+.shortWidth {
   max-width: 6ch;
   min-width: 6ch;
   padding: 0.1rem;
@@ -248,7 +262,6 @@ input[type="number"] {
   font-family: roboto;
   font-size: 0.8rem;
   color: var(--black);
-  margin: 0.2rem 0.3rem 0.2rem 0rem;
   justify-self: end;
 }
 
@@ -256,7 +269,6 @@ input[type="number"] {
   font-family: roboto;
   font-size: 0.8rem;
   color: var(--black);
-  margin: 0.2rem 0rem 0.2rem 0.8rem;
   justify-self: end;
 }
 
@@ -264,7 +276,6 @@ input[type="number"] {
   font-family: roboto;
   font-size: 0.8rem;
   color: var(--black);
-  margin: 0.2rem 0rem 0.2rem 0.8rem;
   justify-self: center;
 }
 
@@ -283,15 +294,18 @@ input[type="number"] {
 .flexCenter {
   display: flex;
   flex-wrap: wrap;
+  flex-direction: column;
   align-content: center;
   justify-content: center;
   align-items: center;
+  justify-self: center;
 }
 
 .flexEnd {
   display: flex;
+  flex-direction: row;
   flex-wrap: wrap;
-  align-content: end;
+  align-content: center;
   justify-content: end;
   align-items: center;
 }
@@ -327,13 +341,14 @@ input[type="number"] {
 /* Floating payment quick summary */
 .floatingPmtNote {
   position: fixed;
-  top: 0;
-  /* left: 1rem; */
-  z-index: 20;
+  margin-top: 25vh;
+  left: 1.2rem;
+  z-index: 100;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 14rem;
+  align-items: center;
+  text-align: center;
+  width: max-content;
   padding: 0.75rem 1rem;
 
   /* iOS Glassmorphism */
@@ -344,7 +359,7 @@ input[type="number"] {
   border-radius: var(--radius-md);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   color: var(--black);
-  transition: top 0.3s ease, box-shadow 0.3s ease;
+  transition: box-shadow 0.3s ease;
 }
 
 .floatingPmtNote:hover {
@@ -387,9 +402,8 @@ input[type="number"] {
 
 @media (max-width: 767px) {
   .floatingPmtNote {
-    position: sticky;
-    top: 0;
-    margin-bottom: 1rem;
+    top: 0.75rem;
+    left: 0.75rem;
   }
 }
 
@@ -411,7 +425,7 @@ input[type="number"] {
   border-radius: var(--radius-md);
   box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1), 0 1.5px 4px 0 rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.25s cubic-bezier(0.4, 0.2, 0.2, 1);
-  margin-top: 1.2rem;
+  margin: 0.5rem 0rem 0.5rem 0rem;
   max-width: calc(card - 15px);
 }
 
@@ -440,30 +454,40 @@ input[type="number"] {
 
 .grid2 {
   display: grid;
-  grid-template-columns: auto auto;
+  grid-template-columns: repeat(2, max-content);
   grid-auto-rows: auto;
   align-items: center;
   justify-content: end;
   justify-items: end;
-  margin: 0.3rem;
+  justify-self: center;
 }
 
 .grid3 {
   display: grid;
-  grid-template-columns: auto auto auto;
+  grid-template-columns: repeat(3, max-content);
   grid-auto-rows: auto;
   align-items: center;
   justify-items: end;
-  margin: 0.3rem;
+  justify-content: end;
+  max-width: 100%;
+}
+
+.grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, max-content);
+  grid-auto-rows: auto;
+  align-items: center;
+  justify-content: end;
   max-width: 100%;
 }
 
 .grid5 {
   display: grid;
-  grid-template-columns: max-content max-content max-content max-content max-content;
+  grid-template-columns: repeat(5, max-content);
   grid-auto-rows: auto;
   align-items: center;
-  margin: 0.5rem;
+  justify-self: center;
+  justify-content: center;
   max-width: 100%;
 }
 
@@ -638,16 +662,6 @@ input[type="number"] {
   color: #146614;
 }
 
-#floatingInfo {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-  z-index: 200;
-  width: 280px;
-  max-width: 280px;
-  min-width: 280px;
-}
-
 main {
   display: flex;
   flex-direction: column;
@@ -690,4 +704,81 @@ main {
   bottom: 0;
   left: 0;
   transform: translate(-35%, 35%);
+}
+#affordabilityGap {
+  padding: 0.25rem 0.4rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+
+#affordabilityGap[data-tone="over"] {
+  color: #842029;
+  background-color: #f8d7da;
+}
+
+#affordabilityGap[data-tone="under"] {
+  color: #0f5132;
+  background-color: #d1f5d3;
+}
+#maxSalePrice.affordability--exceeded {
+  color: #842029;
+  background-color: #fcebea;
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.3rem;
+}
+
+#maxTotalFinanced {
+  color: var(--black);
+}
+
+/* Styling for the calculator display area */
+.calculator-screen {
+  background-color: transparent; /* Dark background for contrast */
+  color: #67aa53; /* White text for readability */
+  font-family: vt323; /* Clear, readable font */
+  font-size: 1.3em; /* Large font size for visibility */
+  padding: var(--rootPad); /* Internal spacing */
+  text-align: right; /* Align text to the right, like a physical calculator */
+  border: 1px solid var(--black);
+  outline: none;
+  border-radius: var(--radius-sm); /* Slightly rounded corners */
+  margin-bottom: 0.3rem; /* Space below the screen */
+  min-height: 1rem; /* Ensure a minimum height for the display */
+  display: flex; /* Use flexbox for content alignment */
+  align-items: center; /* Align content to the bottom */
+  justify-content: flex-end; /* Align content to the right */
+  overflow-x: auto; /* Allow horizontal scrolling if content overflows */
+  white-space: nowrap; /* Prevent text from wrapping */
+  width: 20rem;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Optional: Styling for the scrollbar if overflow-x: auto is used */
+.calculator-screen::-webkit-scrollbar {
+  height: 5px;
+}
+
+.calculator-screen::-webkit-scrollbar-track {
+  background: #333;
+}
+
+.calculator-screen::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 5px;
+}
+
+.calculator-screen:hover {
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
+}
+
+#locationForm {
+  align-self: center;
+  justify-items: center;
+  justify-content: center;
+}
+
+.terminalFont {
+  font-size: 1.4rem;
+  font-family: var(--terminalFont);
 }

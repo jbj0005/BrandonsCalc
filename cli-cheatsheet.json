@@ -58,5 +58,11 @@
     "name": "Import FL Gov fees (with backup)",
     "description": "Back up existing fees before importing new ones",
     "command": "npm run import:gov-fees -- --backup backups/gov-fees-$(date +%Y%m%d).json"
+  },
+  {
+    "category": "Supabase",
+    "name": "Import Tax Rates",
+    "description": "Parse a tax file and push to Supabase",
+    "command": "npm run import:tax -- --file <path> --state FL --effective 2024-01-01 --push"
   }
 ]
