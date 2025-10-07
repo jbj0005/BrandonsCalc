@@ -3,9 +3,13 @@ import process from "node:process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createInterface } from "node:readline/promises";
 
 import { load } from "cheerio";
 import { createClient } from "@supabase/supabase-js";
+
+import { hydrateEnv } from "./utils/env.mjs";
+import { ensureSupabaseCredentials, createSupabaseAdminClient } from "./utils/supabase.mjs";
 
 const SOURCE_NAME = "NFCU";
 const SOURCE_URL = "https://www.navyfederal.org/loans-cards/auto-loans.html";
@@ -24,7 +28,49 @@ const MAX_CREDIT_SCORE = 850;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 const creditTierPath = path.resolve(__dirname, "../config/credit-tiers.json");
+
+await hydrateEnv({ rootDir: PROJECT_ROOT });
+
+let supabaseAdmin = null;
+
+async function getSupabaseAdmin() {
+  if (supabaseAdmin) return supabaseAdmin;
+  const credentials = await ensureSupabaseCredentials({ projectRoot: PROJECT_ROOT });
+  supabaseAdmin = createSupabaseAdminClient(createClient, credentials);
+  return supabaseAdmin;
+}
+
+async function askYesNo(rl, prompt, defaultValue = true, prefix = "[nfcu]") {
+  const suffix = defaultValue ? "Y/n" : "y/N";
+  while (true) {
+    const answer = (await rl.question(`${prefix} ${prompt} (${suffix}): `)).trim().toLowerCase();
+    if (!answer) return defaultValue;
+    if (answer === "y" || answer === "yes") return true;
+    if (answer === "n" || answer === "no") return false;
+    console.warn(`${prefix} Please respond with y or n.`);
+  }
+}
+
+async function promptForConfig() {
+  if (process.argv.length > 2) {
+    console.warn(
+      "[nfcu] Command-line flags are no longer needed; interactive prompts will guide the run."
+    );
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    console.info("[nfcu] Preparing to fetch and process NFCU rate data.");
+    const dryRun = await askYesNo(rl, "Preview only (skip Supabase updates)?", false);
+    const push = dryRun ? false : await askYesNo(rl, "Push rates to Supabase when complete?", true);
+    const printJson = await askYesNo(rl, "Print full rate payload as JSON?", false);
+    return { dryRun, push, printJson };
+  } finally {
+    rl.close();
+  }
+}
 
 async function loadCreditTiers() {
   const raw = await readFile(creditTierPath, "utf8");
@@ -191,57 +237,27 @@ function expandRates({ baseRates, effectiveDate }, creditTiers, sourceUrl = SOUR
   return rows;
 }
 
-function resolveSupabaseCredentials() {
-  const url =
-    process.env.SUPABASE_URL ||
-    process.env.VITE_SUPABASE_URL ||
-    process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_KEY ||
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!url || !key) {
-    throw new Error(
-      "Supabase credentials not provided. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY."
-    );
-  }
-
-  return { url, key };
-}
-
 async function upsertRates(rows, effectiveDate, { dryRun = false } = {}) {
   if (dryRun) {
     console.log(`-- dry run -- would upsert ${rows.length} rows (effective ${effectiveDate ?? "n/a"})`);
     return;
   }
-  const { url, key } = resolveSupabaseCredentials();
-  const supabase = createClient(url, key);
-
-  if (effectiveDate) {
-    const { error: deleteError } = await supabase
-      .from("auto_rates")
-      .delete()
-      .eq("source", SOURCE_NAME)
-      .eq("effective_at", effectiveDate);
-    if (deleteError && deleteError.code !== "PGRST204") {
-      throw deleteError;
-    }
-  }
-
-  const { data, error } = await supabase
+  const supabase = await getSupabaseAdmin();
+  console.info(`[nfcu] Removing existing rows for source=${SOURCE_NAME}`);
+  const { error: deleteError } = await supabase
     .from("auto_rates")
-    .upsert(rows, {
-      onConflict:
-        "source,loan_type,term_range_min,term_range_max,credit_tier,credit_score_min,credit_score_max",
-    })
-    .select("id");
-
-  if (error) {
-    throw error;
+    .delete()
+    .eq("source", SOURCE_NAME);
+  if (deleteError) {
+    throw deleteError;
   }
-  console.log(`[nfcu] Upserted ${data?.length ?? rows.length} rate rows.`);
+
+  const { error: insertError } = await supabase.from("auto_rates").insert(rows);
+
+  if (insertError) {
+    throw insertError;
+  }
+  console.log(`[nfcu] Inserted ${rows.length} rate rows.`);
 }
 
 function isInternalAutoRatesLink(href, textContent) {
@@ -312,9 +328,7 @@ async function discoverRatePage() {
 
 async function main() {
   try {
-    const args = new Set(process.argv.slice(2));
-    const dryRun = args.has("--dry-run");
-    const printJson = args.has("--print-json");
+    const config = await promptForConfig();
 
     const creditTiers = await loadCreditTiers();
 
@@ -333,12 +347,30 @@ async function main() {
     }
 
     const rows = expandRates(base, creditTiers, sourceUrl);
+    console.info(
+      "[nfcu] Expansion complete",
+      {
+        baseRows: base.baseRates?.length ?? 0,
+        expandedRows: rows.length,
+        effectiveDate: base.effectiveDate ?? null,
+        sourceUrl,
+      }
+    );
 
-    if (printJson) {
+    if (config.printJson) {
       console.log(JSON.stringify(rows, null, 2));
     }
 
-    await upsertRates(rows, base.effectiveDate, { dryRun });
+    const shouldUpsert = config.push && !config.dryRun;
+    if (!shouldUpsert) {
+      console.info(
+        "[nfcu] Supabase update skipped",
+        config.dryRun ? { reason: "dry-run" } : { reason: "user request" }
+      );
+    }
+
+    await upsertRates(rows, base.effectiveDate, { dryRun: !shouldUpsert });
+    console.info("[nfcu] Fetch process complete");
   } catch (error) {
     console.error("[nfcu] Failed to fetch or store rates", error);
     process.exitCode = 1;

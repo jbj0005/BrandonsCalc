@@ -1412,7 +1412,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const script = document.createElement("script");
     script.id = "google-maps-script";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initLocationAutocomplete`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initLocationAutocomplete&loading=async`;
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);

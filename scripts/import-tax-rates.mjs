@@ -12,84 +12,143 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
+import { hydrateEnv } from "./utils/env.mjs";
+import {
+  ensureSupabaseCredentials,
+  confirmSupabasePush,
+  createSupabaseAdminClient,
+} from "./utils/supabase.mjs";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, "..");
 
-function usage(message) {
-  console.error(`\n${message ?? ""}`);
-  console.error(`
-Usage: node scripts/import-tax-rates.mjs --file <path> --state <STATE> --effective <YYYY-MM-DD> [options]
+await hydrateEnv({ rootDir: PROJECT_ROOT });
 
-Options:
-  --file <path>           Required. Source file (CSV, XLSX/XLS, PDF, DOCX)
-  --state <code>          Required. Two-letter state code (e.g. FL)
-  --effective <date>      Required. Effective date for inserted rows (YYYY-MM-DD)
-  --expiration <date>     Optional. Expiration date
-  --component <label>     "total" (default) or "component"
-  --output <path>         Where to write JSON (default ./output/tax-<STATE>.json)
-  --push                  Push results to Supabase (requires SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
-  --source-version <str>  Optional metadata string stored in source_version column
-  --format <type>         Force parser (csv,xlsx,pdf,docx)
-  --dry-run               Print summary without writing JSON or pushing to Supabase
-`);
-  process.exit(1);
+let supabaseAdmin = null;
+
+async function getSupabaseAdminClient() {
+  if (supabaseAdmin) return supabaseAdmin;
+  const credentials = await ensureSupabaseCredentials({
+    projectRoot: PROJECT_ROOT,
+  });
+  supabaseAdmin = createSupabaseAdminClient(createClient, credentials);
+  return supabaseAdmin;
 }
 
-function parseArgs(argv) {
-  const args = {
-    component: "total",
-    push: false,
-    dryRun: false,
-    format: null,
-    output: null,
-    sourceVersion: null,
-    expiration: null,
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const token = argv[i];
-    switch (token) {
-      case "--file":
-        args.file = argv[++i];
-        break;
-      case "--state":
-        args.state = argv[++i];
-        break;
-      case "--effective":
-        args.effective = argv[++i];
-        break;
-      case "--expiration":
-        args.expiration = argv[++i];
-        break;
-      case "--component":
-        args.component = argv[++i] ?? "total";
-        break;
-      case "--output":
-        args.output = argv[++i];
-        break;
-      case "--push":
-        args.push = true;
-        break;
-      case "--source-version":
-        args.sourceVersion = argv[++i];
-        break;
-      case "--format":
-        args.format = (argv[++i] ?? "").toLowerCase();
-        break;
-      case "--dry-run":
-        args.dryRun = true;
-        break;
-      default:
-        usage(`Unknown option: ${token}`);
+function resolveUserPath(inputPath) {
+  if (!inputPath) return null;
+  const expanded = inputPath.startsWith("~")
+    ? path.join(process.env.HOME ?? "", inputPath.slice(1))
+    : inputPath;
+  return path.isAbsolute(expanded)
+    ? expanded
+    : path.resolve(process.cwd(), expanded);
+}
+
+async function askQuestion(rl, prompt, { defaultValue = "" } = {}) {
+  const hint = defaultValue ? ` (${defaultValue})` : "";
+  const answer = (
+    await rl.question(`${prompt}${hint ? `${hint}` : ""}: `)
+  ).trim();
+  return answer || defaultValue;
+}
+
+async function askRequired(rl, prompt, { defaultValue = "" } = {}) {
+  let value = "";
+  do {
+    value = await askQuestion(rl, prompt, { defaultValue });
+    if (!value) {
+      console.warn("[tax-import] A value is required. Please try again.");
     }
+  } while (!value);
+  return value;
+}
+
+async function askYesNo(rl, prompt, defaultValue = false) {
+  const suffix = defaultValue ? "Y/n" : "y/N";
+  while (true) {
+    const answer = (await rl.question(`${prompt} (${suffix}): `))
+      .trim()
+      .toLowerCase();
+    if (!answer) return defaultValue;
+    if (["y", "yes"].includes(answer)) return true;
+    if (["n", "no"].includes(answer)) return false;
+    console.warn("[tax-import] Please answer with 'y' or 'n'.");
   }
-  if (!args.file) usage("Missing --file");
-  if (!args.state) usage("Missing --state");
-  if (!args.effective) usage("Missing --effective");
-  if (!/^[A-Z]{2}$/i.test(args.state)) usage("State must be 2-letter code");
-  return args;
+}
+
+async function promptForConfig() {
+  if (process.argv.length > 2) {
+    console.warn(
+      "[tax-import] Command-line options detected but will be ignored. Interactive prompts are in use."
+    );
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    console.info("[tax-import] Let's gather the details for this import run.");
+    const file = await askRequired(rl, "Source file path");
+    const state = await askRequired(rl, "State code (e.g. FL)", {
+      defaultValue: "FL",
+    });
+    const effective = await askRequired(rl, "Effective date (YYYY-MM-DD)");
+    const expiration = await askQuestion(
+      rl,
+      "Expiration date (optional, YYYY-MM-DD)"
+    );
+    const componentInput = await askQuestion(
+      rl,
+      "Component label (total | component)",
+      {
+        defaultValue: "total",
+      }
+    );
+    const format = await askQuestion(
+      rl,
+      "Force parser format (csv, xls, xlsx, pdf, docx) or leave blank for auto"
+    );
+    const sourceVersion = await askQuestion(
+      rl,
+      "Source version metadata (optional)"
+    );
+    const outputOverride = await askQuestion(
+      rl,
+      "Custom JSON output path (leave blank for default)"
+    );
+    const dryRun = await askYesNo(
+      rl,
+      "Dry run only (skip writing and push)?",
+      false
+    );
+    const push = dryRun
+      ? false
+      : await askYesNo(
+          rl,
+          "Push entries to Supabase after writing JSON?",
+          false
+        );
+
+    return {
+      file,
+      state,
+      effective,
+      expiration: expiration || null,
+      component:
+        componentInput?.toLowerCase() === "component" ? "component" : "total",
+      format: format ? format.toLowerCase() : null,
+      sourceVersion: sourceVersion || null,
+      output: outputOverride ? resolveUserPath(outputOverride) : null,
+      dryRun,
+      push,
+    };
+  } finally {
+    rl.close();
+  }
 }
 
 function normalizeRate(value) {
@@ -117,7 +176,10 @@ function normalizeCounty(value) {
 function extractEntriesFromText(text, stateCode) {
   const entries = [];
   if (!text) return entries;
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   const regex = /^([A-Za-z'\-().\s]+?)\s+(\d+(?:\.\d+)?)\s*%/;
   lines.forEach((line) => {
     const match = line.match(regex);
@@ -135,9 +197,9 @@ function extractEntriesFromText(text, stateCode) {
 }
 
 async function parsePdf(filePath, stateCode) {
-  const { default: pdfParse } = await import("pdf-parse");
+  const { pdf } = await import("pdf-parse");
   const dataBuffer = await fs.readFile(filePath);
-  const { text } = await pdfParse(dataBuffer);
+  const { text } = await pdf(dataBuffer);
   return extractEntriesFromText(text, stateCode);
 }
 
@@ -182,7 +244,13 @@ function normalizeStructuredRow(row, stateCode) {
   }
 
   const countyRaw = getField("county", "county_name", "county/parish");
-  const rateRaw = getField("rate", "surtax", "tax", "rate_percent", "rate_decimal");
+  const rateRaw = getField(
+    "rate",
+    "surtax",
+    "tax",
+    "rate_percent",
+    "rate_decimal"
+  );
   const effectiveRaw = getField("effective", "effective_date", "eff_date");
   const expirationRaw = getField("expiration", "expiration_date", "exp_date");
   const componentRaw = getField("component_label", "component");
@@ -197,7 +265,9 @@ function normalizeStructuredRow(row, stateCode) {
     county_name: county,
     rate_decimal: rateDecimal,
     county_fips: fipsRaw ? String(fipsRaw).trim() : null,
-    component_label: componentRaw ? String(componentRaw).trim().toLowerCase() : null,
+    component_label: componentRaw
+      ? String(componentRaw).trim().toLowerCase()
+      : null,
     effective_date: effectiveRaw ? String(effectiveRaw).trim() : null,
     expiration_date: expirationRaw ? String(expirationRaw).trim() : null,
   };
@@ -209,7 +279,10 @@ async function parseFile(filePath, format, stateCode) {
     throw new Error("Unable to determine file type; use --format to specify");
   }
 
-  switch (ext.replace(/^[.]/, "")) {
+  const cleanExt = ext.replace(/^[.]/, "").toLowerCase();
+  console.info(`[tax-import] Using parser for .${cleanExt} source`);
+
+  switch (cleanExt) {
     case "csv":
       return parseCsv(filePath, stateCode);
     case "xls":
@@ -225,7 +298,10 @@ async function parseFile(filePath, format, stateCode) {
   }
 }
 
-function normalizeEntries(entries, { component, effective, expiration, file, sourceVersion }) {
+function normalizeEntries(
+  entries,
+  { component, effective, expiration, file, sourceVersion }
+) {
   const componentLabel = component === "component" ? "component" : "total";
   const effectiveDate = effective;
   const expirationDate = expiration ?? null;
@@ -249,22 +325,13 @@ function normalizeEntries(entries, { component, effective, expiration, file, sou
 }
 
 async function writeJsonFile(entries, outputPath) {
-  const resolved = outputPath ?? path.resolve(__dirname, "../output", `tax-${Date.now()}.json`);
+  const resolved =
+    outputPath ??
+    path.resolve(__dirname, "../output", `tax-${Date.now()}.json`);
   await fs.mkdir(path.dirname(resolved), { recursive: true });
+  console.info(`[tax-import] Writing ${entries.length} entries to ${resolved}`);
   await fs.writeFile(resolved, `${JSON.stringify(entries, null, 2)}\n`, "utf8");
   return resolved;
-}
-
-function getSupabaseClient() {
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.SUPABASE_SECRET_KEY ||
-    process.env.SUPABASE_KEY;
-  if (!url || !key) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required to push data");
-  }
-  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 async function pushToSupabase(entries) {
@@ -272,19 +339,70 @@ async function pushToSupabase(entries) {
     console.warn("[tax-import] No entries to push");
     return;
   }
-  const supabase = getSupabaseClient();
-  const { error } = await supabase.from("county_surtax_windows").insert(entries);
+  try {
+    await confirmSupabasePush(entries);
+  } catch (error) {
+    if (error?.message === "Supabase push cancelled by user") {
+      console.warn(
+        "[tax-import] Supabase push cancelled by user. Skipping upload."
+      );
+      return;
+    }
+    throw error;
+  }
+  console.info(`[tax-import] Pushing ${entries.length} entries to Supabase`);
+  const supabase = await getSupabaseAdminClient();
+  const stateCodes = Array.from(
+    new Set(
+      entries
+        .map((entry) => entry.state_code)
+        .filter((code) => typeof code === "string" && code.trim() !== "")
+    )
+  );
+  if (stateCodes.length > 0) {
+    console.info(
+      `[tax-import] Removing existing rows for state_code IN (${stateCodes.join(
+        ", "
+      )})`
+    );
+    const { error: deleteError } = await supabase
+      .from("county_surtax_windows")
+      .delete()
+      .in("state_code", stateCodes);
+    if (deleteError) {
+      throw deleteError;
+    }
+  }
+  const { error } = await supabase
+    .from("county_surtax_windows")
+    .insert(entries);
   if (error) {
     throw error;
   }
-  console.log(`[tax-import] Inserted ${entries.length} rows into county_surtax_windows`);
+  console.info(
+    `[tax-import] Inserted ${entries.length} rows into county_surtax_windows`
+  );
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const filePath = path.resolve(process.cwd(), args.file);
-  const format = args.format;
-  const stateCode = args.state.toUpperCase();
+  const config = await promptForConfig();
+  const filePath = resolveUserPath(config.file);
+  if (!filePath) {
+    throw new Error("Invalid file path provided");
+  }
+  const format = config.format;
+  const stateCode = config.state.toUpperCase();
+
+  console.info("[tax-import] Starting import", {
+    file: filePath,
+    state: stateCode,
+    effective: config.effective,
+    expiration: config.expiration ?? null,
+    component: config.component,
+    push: Boolean(config.push),
+    dryRun: Boolean(config.dryRun),
+    format: format ?? "auto",
+  });
 
   const entriesRaw = await parseFile(filePath, format, stateCode);
   if (!entriesRaw.length) {
@@ -292,29 +410,33 @@ async function main() {
   }
 
   const normalizedEntries = normalizeEntries(entriesRaw, {
-    component: args.component,
-    effective: args.effective,
-    expiration: args.expiration,
+    component: config.component,
+    effective: config.effective,
+    expiration: config.expiration,
     file: filePath,
-    sourceVersion: args.sourceVersion,
+    sourceVersion: config.sourceVersion,
   }).filter((entry) => entry.rate_decimal != null);
 
-  console.log(`[tax-import] Parsed ${normalizedEntries.length} entries.`);
-
-  if (!args.dryRun) {
+  console.info(`[tax-import] Normalized ${normalizedEntries.length} entries`);
+  if (!config.dryRun) {
     const jsonPath = await writeJsonFile(
       normalizedEntries,
-      args.output
-        ? path.resolve(process.cwd(), args.output)
-        : path.resolve(__dirname, "../output", `tax-${stateCode.toLowerCase()}.json`)
+      config.output
+        ? config.output
+        : path.resolve(
+            __dirname,
+            "../output",
+            `tax-${stateCode.toLowerCase()}.json`
+          )
     );
-    console.log(`[tax-import] JSON saved to ${jsonPath}`);
+    console.info(`[tax-import] JSON saved to ${jsonPath}`);
 
-    if (args.push) {
+    if (config.push) {
       await pushToSupabase(normalizedEntries);
     }
+    console.info("[tax-import] Import complete");
   } else {
-    console.log("[tax-import] Dry run complete. No files written.");
+    console.info("[tax-import] Dry run complete. No files written.");
   }
 }
 

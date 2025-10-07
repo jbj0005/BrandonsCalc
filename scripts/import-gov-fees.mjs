@@ -4,50 +4,85 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import process from 'node:process';
+import { createInterface } from 'node:readline/promises';
 import { createClient } from '@supabase/supabase-js';
+
+import { hydrateEnv } from './utils/env.mjs';
+import { ensureSupabaseCredentials, createSupabaseAdminClient } from './utils/supabase.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const PROJECT_ROOT = path.resolve(__dirname, '..');
 
-function parseArgs(argv) {
-  const args = { file: null, set: null, dryRun: false, backup: null };
-  for (let i = 0; i < argv.length; i += 1) {
-    const current = argv[i];
-    if (current === '--file' || current === '-f') {
-      args.file = argv[i + 1];
-      i += 1;
-    } else if (current === '--set' || current === '-s') {
-      args.set = argv[i + 1];
-      i += 1;
-    } else if (current === '--dry-run' || current === '--dryrun') {
-      args.dryRun = true;
-    } else if (current === '--backup') {
-      args.backup = argv[i + 1] ?? '';
-      i += 1;
-    } else if (current === '--help' || current === '-h') {
-      args.help = true;
+await hydrateEnv({ rootDir: PROJECT_ROOT });
+
+let supabaseAdmin = null;
+
+async function getSupabaseAdmin() {
+  if (supabaseAdmin) return supabaseAdmin;
+  const credentials = await ensureSupabaseCredentials({ projectRoot: PROJECT_ROOT });
+  supabaseAdmin = createSupabaseAdminClient(createClient, credentials);
+  return supabaseAdmin;
+}
+
+function resolveUserPath(inputPath, fallback = null) {
+  if (!inputPath) return fallback;
+  const expanded = inputPath.startsWith('~')
+    ? path.join(process.env.HOME ?? '', inputPath.slice(1))
+    : inputPath;
+  if (path.isAbsolute(expanded)) return expanded;
+  return path.resolve(process.cwd(), expanded);
+}
+
+async function askQuestion(rl, prompt, { defaultValue = '' } = {}) {
+  const hint = defaultValue ? ` (${defaultValue})` : '';
+  const response = (await rl.question(`${prompt}${hint}: `)).trim();
+  return response || defaultValue;
+}
+
+async function askYesNo(rl, prompt, defaultValue = true) {
+  const suffix = defaultValue ? 'Y/n' : 'y/N';
+  while (true) {
+    const answer = (await rl.question(`${prompt} (${suffix}): `)).trim().toLowerCase();
+    if (!answer) return defaultValue;
+    if (answer === 'y' || answer === 'yes') return true;
+    if (answer === 'n' || answer === 'no') return false;
+    console.warn('[gov-fees] Please respond with y or n.');
+  }
+}
+
+async function promptForConfig() {
+  if (process.argv.length > 2) {
+    console.warn('[gov-fees] Command-line flags detected but are no longer required. Interactive prompts will be used.');
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    console.info('[gov-fees] Ready to import government fee data.');
+    const defaultFile = path.resolve(__dirname, '..', 'assets', 'florida_govt_vehicle_fees.json');
+    const sourceFileInput = await askQuestion(rl, 'Source JSON file', { defaultValue: defaultFile });
+    const filePath = resolveUserPath(sourceFileInput, defaultFile);
+    const setId = await askQuestion(rl, 'Target gov_fee_sets ID (leave blank for active)');
+    const backupWanted = await askYesNo(rl, 'Create a backup of current items before updating?', false);
+    let backupPath = null;
+    if (backupWanted) {
+      const defaultBackup = path.resolve(process.cwd(), 'gov-fees-backup.json');
+      const backupInput = await askQuestion(rl, 'Backup file destination', { defaultValue: defaultBackup });
+      backupPath = resolveUserPath(backupInput, defaultBackup);
     }
-  }
-  return args;
-}
+    const dryRun = await askYesNo(rl, 'Run in dry-run mode (skip Supabase update)?', false);
+    const applyUpdate = dryRun ? false : await askYesNo(rl, 'Apply mapped fees to Supabase?', true);
 
-function printHelp() {
-  console.log(`Update the active gov_fee_sets.items array from a JSON file.\n\n` +
-    `Usage: node scripts/import-gov-fees.mjs [options]\n\n` +
-    `Options:\n` +
-    `  --file, -f   Path to the JSON file (default: assets/florida_govt_vehicle_fees.json)\n` +
-    `  --set, -s    Explicit gov_fee_sets id to update (default: active set)\n` +
-    `  --dry-run    Parse and preview without updating Supabase\n` +
-    `  --backup     Write the currently stored items to the given file before updating\n` +
-    `  --help       Show this message\n`);
-}
-
-function ensurePath(inputPath, fallback) {
-  if (inputPath) {
-    if (path.isAbsolute(inputPath)) return inputPath;
-    return path.resolve(process.cwd(), inputPath);
+    return {
+      filePath,
+      setId: setId || null,
+      backupPath,
+      dryRun,
+      applyUpdate,
+    };
+  } finally {
+    rl.close();
   }
-  return fallback;
 }
 
 function parseAmount(value) {
@@ -114,19 +149,6 @@ function mapFees(records) {
   });
 }
 
-async function ensureSupabaseClient() {
-  const url = process.env.SUPABASE_URL ?? 'https://txndueuqljeujlccngbj.supabase.co';
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_KEY ??
-    'sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X';
-  if (!key) {
-    throw new Error('Missing Supabase key. Set SUPABASE_SERVICE_ROLE_KEY or SUPABASE_ANON_KEY.');
-  }
-  return createClient(url, key, { auth: { persistSession: false } });
-}
-
 async function resolveTargetSet(supabase, explicitId) {
   if (explicitId) {
     const { data, error } = await supabase
@@ -157,27 +179,31 @@ async function resolveTargetSet(supabase, explicitId) {
 
 async function writeBackup(items, destination) {
   if (!destination) return null;
-  const outputPath = ensurePath(destination, path.resolve(process.cwd(), 'gov-fees-backup.json'));
+  const outputPath = resolveUserPath(destination, path.resolve(process.cwd(), 'gov-fees-backup.json'));
   await fs.writeFile(outputPath, `${JSON.stringify(items, null, 2)}\n`, 'utf8');
   return outputPath;
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (args.help) {
-    printHelp();
-    return;
+  const config = await promptForConfig();
+
+  console.info('[gov-fees] Starting import with configuration:', {
+    file: config.filePath,
+    setId: config.setId ?? 'active',
+    backup: config.backupPath ?? false,
+    dryRun: config.dryRun,
+    applyUpdate: config.applyUpdate,
+  });
+
+  const filePath = config.filePath;
+  if (!filePath) {
+    throw new Error('A source file path is required.');
   }
 
-  const defaultFile = path.resolve(__dirname, '..', 'assets', 'florida_govt_vehicle_fees.json');
-  const filePath = ensurePath(args.file, defaultFile);
+  const supabase = await getSupabaseAdmin();
+  const records = await readJson(filePath);
 
-  const [supabase, records] = await Promise.all([
-    ensureSupabaseClient(),
-    readJson(filePath),
-  ]);
-
-  const target = await resolveTargetSet(supabase, args.set);
+  const target = await resolveTargetSet(supabase, config.setId);
   const mapped = mapFees(records);
 
   console.log(`Loaded ${records.length} fee entries from ${path.relative(process.cwd(), filePath)}`);
@@ -185,13 +211,15 @@ async function main() {
   console.log('Preview of first 3 rows:');
   console.table(mapped.slice(0, 3));
 
-  if (args.dryRun) {
-    console.log('Dry run enabled — no changes written to Supabase.');
+  if (config.dryRun || !config.applyUpdate) {
+    console.log('No changes will be written to Supabase (dry run or update skipped).');
     return;
   }
 
+  console.info(`[gov-fees] Replacing all existing items for set ${target.id}.`);
+
   if (target.items) {
-    const backupPath = await writeBackup(target.items, args.backup);
+    const backupPath = await writeBackup(target.items, config.backupPath);
     if (backupPath) {
       console.log(`Previous items saved to ${path.relative(process.cwd(), backupPath)}`);
     }
