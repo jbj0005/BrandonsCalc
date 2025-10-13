@@ -157,6 +157,15 @@ output {
   min-width: 8rem;
 }
 
+.modalCard input.cell {
+  max-width: 14rem;
+  min-width: 14rem;
+}
+
+#locationSearch {
+  min-width: 95%;
+}
+
 .locationInput {
   width: 100%;
   min-width: 12rem;

@@ -412,7 +412,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const totalFeesOutput = document.getElementById("totalTF");
   const totalDealerFeesOutput = document.getElementById("totalDealerFees");
   const totalGovtFeesOutput = document.getElementById("totalGovtFees");
-  const calculatorForm = document.querySelector("#calculatorCard form.grid");
+  const calculatorForm = document.querySelector("#saleSummaryCard form.grid");
   const feesForm =
     document.querySelector("#feesCard form.grid3") ||
     document.querySelector("#feesCard form.grid5") ||
@@ -474,7 +474,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const cashDownInput = document.getElementById("cashDown");
   const cashToBuyerOutput = document.getElementById("cash2Buyer");
   const cashDueOutput = document.getElementById("cashDue");
-  const calculatorCard = document.getElementById("calculatorCard");
+  const saleSummaryCard = document.getElementById("saleSummaryCard");
   const amountFinancedOutput = document.getElementById("amountFinanced");
   const financeAprInput = document.getElementById("financeApr");
   const financeTermInput = document.getElementById("financeTerm");
@@ -1808,9 +1808,7 @@ document.addEventListener("DOMContentLoaded", () => {
       winner.provider?.source ||
       "Provider";
     const winnerShortName =
-      winner.provider?.shortName ||
-      winner.provider?.source ||
-      winnerLongName;
+      winner.provider?.shortName || winner.provider?.source || winnerLongName;
 
     if (financeAprInput instanceof HTMLInputElement) {
       const aprDecimal = Math.max(winner.apr, MIN_APR);
@@ -2127,28 +2125,22 @@ document.addEventListener("DOMContentLoaded", () => {
       new Promise((resolve) => {
         try {
           const geocoder = new maps.Geocoder();
-          geocoder.geocode(
-            {
-              location: loc,
-              result_type: ["administrative_area_level_2"],
-            },
-            (results, status) => {
-              if (status === "OK" && Array.isArray(results) && results[0]) {
-                const comps = results[0].address_components || [];
-                for (const component of comps) {
-                  if (
-                    Array.isArray(component.types) &&
-                    component.types.includes("administrative_area_level_2")
-                  ) {
-                    const raw = component.long_name || component.short_name || "";
-                    resolve(raw.replace(/\s*County$/i, "").trim());
-                    return;
-                  }
+          geocoder.geocode({ location: loc }, (results, status) => {
+            if (status === "OK" && Array.isArray(results) && results[0]) {
+              const comps = results[0].address_components || [];
+              for (const component of comps) {
+                if (
+                  Array.isArray(component.types) &&
+                  component.types.includes("administrative_area_level_2")
+                ) {
+                  const raw = component.long_name || component.short_name || "";
+                  resolve(raw.replace(/\s*County$/i, "").trim());
+                  return;
                 }
               }
-              resolve("");
             }
-          );
+            resolve("");
+          });
         } catch (error) {
           console.warn("[places] county reverse geocode failed", error);
           resolve("");
@@ -3833,6 +3825,25 @@ document.addEventListener("DOMContentLoaded", () => {
     void applyCurrentRate({ silent: false });
   });
 
+  affordabilityAprInput?.addEventListener("blur", () => {
+    if (!affordabilityAprInput) return;
+    if (!affordabilityAprInput.value || !affordabilityAprInput.value.trim()) {
+      affordAprUserOverride = false;
+      syncAffordAprWithFinance({ force: true });
+    }
+  });
+
+  // --- Event wiring so lowest/provider paths react to changes ---
+  financeTermInput?.addEventListener("input", () => {
+    void applyCurrentRate({ silent: true });
+  });
+
+  financeTermInput?.addEventListener("change", () => {
+    syncAffordTermWithFinance();
+    recomputeDeal();
+    void applyCurrentRate({ silent: false });
+  });
+
   vehicleConditionSelect?.addEventListener("change", () => {
     void applyCurrentRate({ silent: false });
   });
@@ -3842,24 +3853,6 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   creditScoreInput?.addEventListener("blur", () => {
-    void applyCurrentRate({ silent: false });
-  });
-
-  affordabilityAprInput?.addEventListener("blur", () => {
-    if (!affordabilityAprInput) return;
-    if (!affordabilityAprInput.value || !affordabilityAprInput.value.trim()) {
-      affordAprUserOverride = false;
-      syncAffordAprWithFinance({ force: true });
-    }
-  });
-
-  financeTermInput?.addEventListener("input", () => {
-    void applyCurrentRate({ silent: true });
-  });
-
-  financeTermInput?.addEventListener("change", () => {
-    syncAffordTermWithFinance();
-    recomputeDeal();
     void applyCurrentRate({ silent: false });
   });
 
