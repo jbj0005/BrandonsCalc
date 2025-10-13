@@ -59,11 +59,7 @@ const PROVIDERS = [
   "ccu_il",
   "ccu_online",
   "ccu_mi",
-  "tru",
-  "boa",
 ];
-const RETIRED_PROVIDERS = new Set(["sccu", "tru", "boa"]);
-const ACTIVE_PROVIDERS = PROVIDERS.filter((p) => !RETIRED_PROVIDERS.has(p));
 
 // Short/long display names for each provider (used for JSON headers/enrichment)
 const PROVIDER_NAMES_STATIC = {
@@ -624,85 +620,8 @@ async function fetchCCU_MI() {
   };
 }
 
-// --- Truist ---
-async function fetchTru() {
-  const url = "https://www.truist.com/loans/auto-loans";
-  const { html } = await fetchPage(url);
-  const document = parseDocument(html);
-  const text = normalizedText(document.body);
-
-  // Extract "Up to 84-month terms available" and the rate range "4.95% to 18.00% APR"
-  const mTerm = text.match(/Up\s+to\s+(\d{1,3})\s*-?\s*month/i);
-  const mRate = text.match(
-    /(\d+(?:\.[0-9]+)?)%\s*to\s*(\d+(?:\.[0-9]+)?)%\s*APR/i
-  );
-  if (!mTerm || !mRate) throw new Error("Truist terms or rates not found");
-  const termMax = Number(mTerm[1]);
-  const minApr = Number(mRate[1]) / 100; // use "as low as" APR for seeding
-
-  const matrix = [];
-  for (const loan_type of ["purchase", "refinance"]) {
-    matrix.push({
-      termMin: 0,
-      termMax,
-      apr: minApr,
-      vehicle_condition: "new_or_used",
-      loan_type,
-    });
-  }
-  return {
-    provider: "tru",
-    shortName: PROVIDER_NAMES.tru.short,
-    longName: PROVIDER_NAMES.tru.long,
-    sourceUrl: url,
-    effectiveDate: todayISO(),
-    loanType: null,
-    matrix,
-  };
-}
-
-// --- Bank of America ---
-async function fetchBoA() {
-  const url = "https://www.bankofamerica.com/auto-loans/";
-  const { html } = await fetchPage(url);
-  const document = parseDocument(html);
-  const text = normalizedText(document.body);
-
-  // Try to find "Fixed rates as low as X.XX% APR" if present; the page is often script-rendered
-  const m = text.match(/as\s+low\s+as\s+(\d+(?:\.[0-9]+)?)%\s*APR/i);
-  const matrix = [];
-  if (m) {
-    const apr = Number(m[1]) / 100;
-    // Common online app terms listed: 48, 60, 72 months
-    const terms = [48, 60, 72];
-    for (const t of terms) {
-      for (const loan_type of ["purchase", "refinance"]) {
-        matrix.push({
-          termMin: t,
-          termMax: t,
-          apr,
-          vehicle_condition: "new_or_used",
-          loan_type,
-        });
-      }
-    }
-  }
-  if (!matrix.length) {
-    // If we cannot parse a numeric APR, skip BoA to avoid inserting placeholder data
-    return null;
-  }
-  return {
-    provider: "boa",
-    shortName: PROVIDER_NAMES.boa.short,
-    longName: PROVIDER_NAMES.boa.long,
-    sourceUrl: url,
-    effectiveDate: todayISO(),
-    loanType: null,
-    matrix,
-  };
-}
-
 const PROVIDER_FETCHERS = {
+  sccu: fetchSCCU,
   nfcu: fetchNFCU,
   ngfcu: fetchNGFCU,
   ccufl: fetchCCUFL,
@@ -2111,7 +2030,91 @@ function extractRatesFromTable(table) {
     }
   }
 
+  if (results.length) return results;
+  return extractRowMajorRates(table, headers);
+}
+
+function extractRowMajorRates(table, headers) {
+  const rows = Array.from(table.querySelectorAll("tbody tr")).filter((tr) =>
+    tr.querySelector("td,th")
+  );
+  if (!rows.length) return [];
+
+  const termHeaderPattern = /(payment\s*period|term|months?|length|loan\s*term)/i;
+  let termIndex = headers.findIndex((h) => termHeaderPattern.test(h));
+  let aprIndex = headers.findIndex((h) => /\bapr\b|rate/i.test(h));
+
+  const expandedRows = rows.map((row) =>
+    expandTableCells(Array.from(row.querySelectorAll(":scope > th, :scope > td")))
+  );
+
+  if (termIndex === -1) {
+    for (const cells of expandedRows) {
+      termIndex = cells.findIndex((cell) => {
+        if (!cell) return false;
+        const { min, max } = parseTermGeneric(cell.text);
+        return min != null && max != null;
+      });
+      if (termIndex !== -1) break;
+    }
+  }
+
+  if (aprIndex === -1) {
+    for (const cells of expandedRows) {
+      aprIndex = cells.findIndex((cell) => cell && extractAprFromText(cell.text) != null);
+      if (aprIndex !== -1) break;
+    }
+  }
+
+  if (termIndex === -1 || aprIndex === -1) return [];
+
+  const captionNode = table.querySelector("caption");
+  const headingNode =
+    captionNode?.querySelector("h1,h2,h3,h4,h5,h6") ||
+    captionNode ||
+    findPreviousHeading(table);
+  const baseLabel =
+    (headingNode ? normalizedText(headingNode) : "") ||
+    (headers[aprIndex] || headers[termIndex] || "Auto Loan Rates");
+  const programLabel = baseLabel.replace(/effective date:.*/i, "").trim() || "Auto Loan Rates";
+
+  const results = [];
+  const seen = new Set();
+
+  for (const cells of expandedRows) {
+    const termCell = cells[termIndex];
+    const aprCell = cells[aprIndex];
+    if (!termCell || !aprCell) continue;
+
+    const { min, max } = parseTermGeneric(termCell.text);
+    if (min == null || max == null) continue;
+    const apr = extractAprFromText(aprCell.text);
+    if (apr == null) continue;
+
+    const condition = deduceVehicleConditionFromLabel(programLabel, `${termCell.text} ${aprCell.text}`);
+    const key = `${min}|${max}|${apr}|${condition}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    results.push({
+      termMin: min,
+      termMax: max,
+      apr,
+      vehicle_condition: condition,
+      program_label: programLabel,
+    });
+  }
+
   return results;
+}
+
+function findPreviousHeading(node) {
+  let walker = node.previousElementSibling;
+  while (walker) {
+    if (/^H[1-6]$/i.test(walker.tagName)) return walker;
+    walker = walker.previousElementSibling;
+  }
+  return null;
 }
 
 function legacyParseAutoRatesFromDocument(document) {
@@ -2172,7 +2175,7 @@ function parseAutoRatesFromHTML(html) {
   document.querySelectorAll("table").forEach((table) => {
     const tableItems = extractRatesFromTable(table);
     for (const item of tableItems) {
-      const key = `${item.termMin}|${item.termMax}|${item.vehicle_condition}|${item.apr}`;
+      const key = `${item.termMin}|${item.termMax}|${item.vehicle_condition}|${item.apr}|${item.program_label}`;
       if (seen.has(key)) continue;
       seen.add(key);
       items.push(item);
@@ -2998,18 +3001,12 @@ async function insertRows(sb, rows) {
   if (error) throw error;
 }
 
-async function maybeWriteFailureReport({
-  failedProviders,
-  skippedProviders,
-  retiredProviders,
-}) {
+async function maybeWriteFailureReport({ failedProviders, skippedProviders }) {
   const priority = {
-    retired: 3,
     failed: 2,
     skipped: 1,
   };
   const reasonLabels = {
-    retired: "Retired (incomplete rate table)",
     failed: "Fetch failure",
     skipped: "No parsed rate rows",
   };
@@ -3020,14 +3017,10 @@ async function maybeWriteFailureReport({
       register.set(provider, { type, priority: priority[type] });
     }
   };
-  for (const provider of retiredProviders || []) {
-    upsert(provider, "retired");
-  }
   for (const provider of failedProviders || []) {
     upsert(provider, "failed");
   }
   for (const provider of skippedProviders || []) {
-    if (RETIRED_PROVIDERS.has(provider)) continue;
     upsert(provider, "skipped");
   }
   const entries = Array.from(register.entries()).sort((a, b) => {
@@ -3100,36 +3093,18 @@ async function maybeWriteFailureReport({
     return;
   }
 
-  const todo = ONLY ? [ONLY] : ACTIVE_PROVIDERS;
+  const todo = ONLY ? [ONLY] : PROVIDERS;
   const results = [];
   const failedProviders = [];
   const skippedProviders = [];
-  if (!ONLY && RETIRED_PROVIDERS.size) {
-    const retiredNames = Array.from(RETIRED_PROVIDERS).map((p) =>
-      formatProviderLabel(p)
-    );
-    console.warn(
-      `[warn] Skipping retired providers (incomplete rate tables): ${retiredNames.join(
-        ", "
-      )}`
-    );
-  }
   if (!todo.length) {
-    console.warn("[warn] No active providers scheduled for fetching.");
+    console.warn("[warn] No providers scheduled for fetching.");
   } else {
     console.log(
       `[info] Preparing to fetch rates for ${todo.length} provider(s).`
     );
   }
   for (const [index, p] of todo.entries()) {
-    if (RETIRED_PROVIDERS.has(p)) {
-      console.warn(
-        `[warn] ${formatProviderLabel(
-          p
-        )} is retired and excluded from fetching.`
-      );
-      continue;
-    }
     const fetcher = PROVIDER_FETCHERS[p];
     if (!fetcher) {
       console.warn(
@@ -3210,11 +3185,9 @@ async function maybeWriteFailureReport({
     console.log(JSON.stringify(rowsEnriched, null, 2));
   }
 
-  const retiredForReporting = Array.from(RETIRED_PROVIDERS);
   const unresolved = [
     ...failedProviders.map((p) => ({ type: "failed", provider: p })),
     ...skippedProviders.map((p) => ({ type: "skipped", provider: p })),
-    ...retiredForReporting.map((p) => ({ type: "retired", provider: p })),
   ];
   if (unresolved.length) {
     const label = (p) => PROVIDER_NAMES[p]?.long ?? p;
@@ -3223,9 +3196,6 @@ async function maybeWriteFailureReport({
       .map((item) => label(item.provider));
     const skipped = unresolved
       .filter((item) => item.type === "skipped")
-      .map((item) => label(item.provider));
-    const retired = unresolved
-      .filter((item) => item.type === "retired")
       .map((item) => label(item.provider));
     if (failed.length) {
       console.warn(
@@ -3241,48 +3211,25 @@ async function maybeWriteFailureReport({
         )}. Investigate their markup.`
       );
     }
-    if (retired.length) {
-      console.warn(
-        `[warn] Retired providers removed from processing: ${retired.join(
-          ", "
-        )}`
-      );
-    }
   }
 
   await maybeWriteFailureReport({
     failedProviders,
     skippedProviders,
-    retiredProviders: retiredForReporting,
   });
 
   // Determine which providers actually succeeded to avoid deleting good data on a failed scrape
   const fetchedProviders = results.map((r) => r.provider);
-  const retiredForRemoval = retiredForReporting;
 
   if (!DRY && !PRINT_JSON) {
     const sb = getClient();
     if (!sb) {
       console.warn("[warn] Supabase env not set; skipped push");
-    } else {
-      const providersToDelete = Array.from(
-        new Set([...fetchedProviders, ...retiredForRemoval])
-      );
-      if (providersToDelete.length) {
-        const removed = await deleteOldRows(sb, providersToDelete);
-        if (removed.length) {
-          const removedRetired = removed.filter((p) =>
-            RETIRED_PROVIDERS.has(p)
-          );
-          if (removedRetired.length) {
-            console.log(
-              `[info] Purged Supabase rows for retired providers: ${removedRetired
-                .map((p) => formatProviderLabel(p))
-                .join(", ")}`
-            );
-          }
+      } else {
+        const providersToDelete = Array.from(new Set(fetchedProviders));
+        if (providersToDelete.length) {
+          await deleteOldRows(sb, providersToDelete);
         }
-      }
       if (fetchedProviders.length) {
         await insertRows(sb, allRows);
         console.log(
