@@ -1,9 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import creditTiers from "./config/credit-tiers.json";
+import lendersConfig from "./config/lenders.json";
+import { createRatesEngine } from "./rates/provider-engine.mjs";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const ratesEngine = createRatesEngine({ supabase });
 const VEHICLES_TABLE = "vehicles";
 
 // Format inputs to accounting-style USD on Enter and on blur.
@@ -33,10 +36,104 @@ document.addEventListener("DOMContentLoaded", () => {
     },
   };
   const RATE_SOURCE_USER_DEFINED = "userDefined";
-  const RATE_SOURCE_NFCU = "nfcu";
   const MIN_CREDIT_SCORE = 300;
   const MAX_CREDIT_SCORE = 850;
+  const RATE_SOURCE_NFCU = "nfcu";
   const NFCU_SOURCE = "NFCU";
+
+  const LENDERS = Array.isArray(lendersConfig) ? lendersConfig : [];
+  const providerMetaByUpper = new Map();
+  const providerMetaByNormalized = new Map();
+
+  function normalizeToken(value, { stripCommon = false } = {}) {
+    const lower = String(value ?? "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "");
+    if (!stripCommon) return lower;
+    return lower.replace(
+      /(federal|credit|union|bank|loan|loans|car|auto|buyingservice|corp|inc|llc|association|cooperative|cu)/g,
+      ""
+    );
+  }
+
+  function normalizeHomepageUrl(value) {
+    const raw = typeof value === "string" ? value.trim() : "";
+    if (!raw) return null;
+    const candidate = /^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`;
+    try {
+      const url = new URL(candidate);
+      if (!/^https?:$/i.test(url.protocol)) return null;
+      return url.href;
+    } catch {
+      return null;
+    }
+  }
+
+  function formatEffectiveDate(value) {
+    if (!value) return "";
+    try {
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return String(value);
+      return date.toISOString().slice(0, 10);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function registerProviderMeta(key, meta) {
+    if (!key) return;
+    const upper = String(key).toUpperCase();
+    if (upper && !providerMetaByUpper.has(upper)) {
+      providerMetaByUpper.set(upper, meta);
+    }
+    const normalized = normalizeToken(key, { stripCommon: true });
+    if (normalized && !providerMetaByNormalized.has(normalized)) {
+      providerMetaByNormalized.set(normalized, meta);
+    }
+  }
+
+  LENDERS.forEach((lender) => {
+    const fallbackKey = String(
+      lender?.source || lender?.id || lender?.shortName || ""
+    ).toUpperCase();
+    if (!fallbackKey) return;
+    const homepageUrl =
+      normalizeHomepageUrl(
+        lender?.website || lender?.homepage || lender?.url || null
+      ) ?? null;
+    const sourceUrl = normalizeHomepageUrl(lender?.sourceUrl || null);
+    const meta = {
+      shortName: lender?.shortName || fallbackKey,
+      longName: lender?.longName || lender?.shortName || fallbackKey,
+      enabled: lender?.enabled !== false,
+      homepageUrl: homepageUrl ?? sourceUrl ?? null,
+      sourceUrl: sourceUrl ?? null,
+    };
+    registerProviderMeta(lender?.source, meta);
+    registerProviderMeta(lender?.id, meta);
+    registerProviderMeta(lender?.shortName, meta);
+    registerProviderMeta(fallbackKey, meta);
+  });
+
+  function resolveProviderMeta(token) {
+    if (!token) return null;
+    const upper = String(token).toUpperCase();
+    if (providerMetaByUpper.has(upper)) {
+      return providerMetaByUpper.get(upper);
+    }
+    const normalized = normalizeToken(token, { stripCommon: true });
+    if (normalized && providerMetaByNormalized.has(normalized)) {
+      return providerMetaByNormalized.get(normalized);
+    }
+    return null;
+  }
+
+  if (typeof window !== "undefined") {
+    window.excelcalcResolveProviderMeta = resolveProviderMeta;
+  }
+
+  let rateProviders = [];
+  let lowestAprProviderName = "";
 
   const CREDIT_TIERS = (() => {
     if (!Array.isArray(creditTiers)) {
@@ -382,6 +479,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const financeAprInput = document.getElementById("financeApr");
   const financeTermInput = document.getElementById("financeTerm");
   const rateSourceSelect = document.getElementById("rateSource");
+  const rateSourceNameOutput = document.getElementById("rateSourceName");
   const vehicleConditionSelect = document.getElementById("vehicleCondition");
   const creditScoreInput = document.getElementById("creditScore");
   const floatingPaymentCard = document.getElementById("floatingPaymentCard");
@@ -410,7 +508,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const affordabilityGapNoteOutput =
     document.getElementById("affordabilityGap");
   const affordabilityStatusOutput = document.getElementById("reqAPR_TERM");
-  const locationSearchInput = document.getElementById("locationSearch");
   const locationStateOutput = document.getElementById("locationState");
   const locationCountyOutput = document.getElementById("locationCounty");
   const locationStateTaxOutput = document.getElementById("locationStateTax");
@@ -1278,6 +1375,469 @@ document.addEventListener("DOMContentLoaded", () => {
     );
   }
 
+  function getProviderDefinition(providerId) {
+    if (!providerId) return null;
+    const id = String(providerId).toLowerCase();
+    return rateProviders.find((provider) => provider.id === id) || null;
+  }
+
+  function normalizeSourceKey(value) {
+    return String(value || "").toUpperCase();
+  }
+
+  function describeProvider(sourceValue, effectiveAt = null) {
+    if (!sourceValue) return null;
+    const sourceRaw = String(sourceValue ?? "").trim();
+    if (!sourceRaw) return null;
+    const sourceUpper = normalizeSourceKey(sourceRaw);
+    const meta = resolveProviderMeta(sourceUpper) ||
+      resolveProviderMeta(sourceRaw) || {
+        shortName: sourceUpper || sourceRaw,
+        longName: sourceUpper || sourceRaw,
+        enabled: true,
+      };
+    const idSource = sourceUpper || sourceRaw;
+    return {
+      id: idSource.toLowerCase(),
+      source: sourceRaw,
+      sourceUpper,
+      shortName: meta.shortName || idSource,
+      longName: meta.longName || meta.shortName || idSource,
+      enabled: meta.enabled !== false,
+      homepageUrl: meta.homepageUrl || meta.sourceUrl || null,
+      sourceUrl: meta.sourceUrl || null,
+      effectiveAt,
+    };
+  }
+
+  async function loadAvailableRateProviders() {
+    const sb = window.supabase || supabase;
+    if (!sb) {
+      return LENDERS.filter((l) => l?.enabled !== false)
+        .map((l) =>
+          describeProvider(l?.source || l?.id || l?.shortName || "", null)
+        )
+        .filter(Boolean);
+    }
+
+    try {
+      const { data, error } = await sb
+        .from("auto_rates")
+        .select("source, effective_at")
+        .order("effective_at", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      const latestBySource = new Map();
+      for (const row of Array.isArray(data) ? data : []) {
+        const sourceRaw =
+          typeof row?.source === "string" && row.source.trim()
+            ? row.source.trim()
+            : "";
+        const sourceUpper = normalizeSourceKey(sourceRaw);
+        if (!sourceUpper) continue;
+        const effectiveAt = row?.effective_at ?? null;
+        const existing = latestBySource.get(sourceUpper);
+        if (!existing || (effectiveAt && effectiveAt > existing.effectiveAt)) {
+          latestBySource.set(sourceUpper, {
+            effectiveAt,
+            sourceRaw: sourceRaw || sourceUpper,
+          });
+        }
+      }
+      const result = Array.from(latestBySource.entries())
+        .map(([sourceUpper, info]) =>
+          describeProvider(info.sourceRaw ?? sourceUpper, info.effectiveAt)
+        )
+        .filter((provider) => provider && provider.enabled !== false);
+      if (result.length) return result;
+    } catch (error) {
+      console.warn(
+        "[rates] Unable to load provider list from Supabase; falling back to configuration.",
+        error
+      );
+    }
+
+    return LENDERS.filter((l) => l?.enabled !== false)
+      .map((l) =>
+        describeProvider(l?.source || l?.id || l?.shortName || "", null)
+      )
+      .filter((provider) => provider && provider.enabled !== false);
+  }
+
+  function renderRateSourceOptions({ preserveSelection = true } = {}) {
+    if (!(rateSourceSelect instanceof HTMLSelectElement)) return;
+
+    const baseOptions = [
+      { value: RATE_SOURCE_USER_DEFINED, label: "User Defined" },
+      { value: "lowest", label: "Lowest Price by APR" },
+    ];
+
+    const previousValue = preserveSelection
+      ? rateSourceSelect.value
+      : RATE_SOURCE_USER_DEFINED;
+
+    rateSourceSelect.textContent = "";
+    baseOptions.forEach(({ value, label }) => {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = label;
+      rateSourceSelect.append(option);
+    });
+
+    rateProviders.forEach((provider) => {
+      const option = document.createElement("option");
+      option.value = provider.id;
+      option.textContent = `${provider.shortName} Rates`;
+      option.dataset.longName = provider.longName;
+      if (provider.effectiveAt) {
+        option.dataset.effectiveAt = provider.effectiveAt;
+      } else {
+        option.removeAttribute("data-effective-at");
+      }
+      if (provider.homepageUrl) {
+        option.dataset.homepageUrl = provider.homepageUrl;
+      } else {
+        delete option.dataset.homepageUrl;
+      }
+      rateSourceSelect.append(option);
+    });
+
+    const validValues = new Set([
+      ...baseOptions.map((opt) => opt.value),
+      ...rateProviders.map((provider) => provider.id),
+    ]);
+
+    let nextValue = previousValue;
+    if (!validValues.has(nextValue)) {
+      nextValue = rateProviders[0]?.id || RATE_SOURCE_USER_DEFINED;
+    }
+    const changed = rateSourceSelect.value !== nextValue;
+    rateSourceSelect.value = nextValue;
+    if (changed) {
+      rateSourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    syncRateSourceName();
+  }
+
+  async function initializeRateSourceOptions({
+    preserveSelection = true,
+  } = {}) {
+    try {
+      const providers = await loadAvailableRateProviders();
+      rateProviders = providers;
+    } catch (error) {
+      console.error("[rates] Failed to load rate providers", error);
+    }
+    renderRateSourceOptions({ preserveSelection });
+  }
+
+  function syncRateSourceName(providerOverride = null) {
+    if (!rateSourceNameOutput) return;
+    const selected = rateSourceSelect?.value || "";
+    if (!selected || selected === RATE_SOURCE_USER_DEFINED) {
+      rateSourceNameOutput.textContent = "User Defined APR";
+      return;
+    }
+    if (selected === "lowest") {
+      rateSourceNameOutput.textContent =
+        lowestAprProviderName || "Lowest Price by APR";
+      return;
+    }
+    const providerMeta =
+      providerOverride ??
+      getProviderDefinition(selected) ??
+      resolveProviderMeta(selected) ??
+      resolveProviderMeta(normalizeSourceKey(selected)) ??
+      null;
+    if (providerMeta) {
+      rateSourceNameOutput.textContent =
+        providerMeta.longName ||
+        providerMeta.shortName ||
+        providerMeta.source ||
+        providerMeta.sourceUpper ||
+        selected.toUpperCase();
+      return;
+    }
+    rateSourceNameOutput.textContent = selected
+      ? String(selected).toUpperCase()
+      : "";
+  }
+
+  function clearFinanceAprInput() {
+    if (!(financeAprInput instanceof HTMLInputElement)) return;
+    delete financeAprInput.dataset.numericValue;
+    financeAprInput.value = "";
+  }
+
+  function refreshRateSourceAvailability() {
+    syncAprInputReadOnly();
+    syncRateSourceName();
+  }
+
+  async function applyCurrentRate({ silent = false } = {}) {
+    if (!rateSourceSelect) return;
+    const selected = rateSourceSelect.value;
+    if (selected !== "lowest") {
+      lowestAprProviderName = "";
+    }
+    syncRateSourceName();
+
+    if (!selected || selected === RATE_SOURCE_USER_DEFINED) {
+      setRateSourceStatus("");
+      if (!silent) {
+        try {
+          recomputeDeal();
+        } catch (error) {
+          console.warn("[rates] recompute failed after rate reset", error);
+        }
+      }
+      return;
+    }
+
+    if (selected === "lowest") {
+      await applyLowestApr({ silent });
+      return;
+    }
+
+    const provider = getProviderDefinition(selected);
+    syncRateSourceName(provider);
+    if (!provider) {
+      clearFinanceAprInput();
+      setRateSourceStatus("Selected rate provider is unavailable.", "warning");
+      return;
+    }
+
+    const termMonths =
+      parseInteger(financeTermInput?.value) ?? DEFAULT_TERM_MONTHS;
+    if (!Number.isFinite(termMonths) || termMonths <= 0) {
+      clearFinanceAprInput();
+      setRateSourceStatus("Enter a valid term to fetch rates.", "warning");
+      return;
+    }
+
+    const creditScoreRaw = parseInteger(creditScoreInput?.value);
+    if (
+      creditScoreRaw != null &&
+      (creditScoreRaw < MIN_CREDIT_SCORE || creditScoreRaw > MAX_CREDIT_SCORE)
+    ) {
+      clearFinanceAprInput();
+      setRateSourceStatus(
+        `Credit score must be between ${MIN_CREDIT_SCORE} and ${MAX_CREDIT_SCORE}.`,
+        "error"
+      );
+      return;
+    }
+
+    const condition = normalizeLoanType(vehicleConditionSelect?.value);
+    const creditScore =
+      creditScoreRaw != null ? Math.round(creditScoreRaw) : null;
+
+    if (!silent) {
+      setRateSourceStatus(`Loading ${provider.shortName} rates…`, "info");
+    }
+    let result;
+    try {
+      result = await ratesEngine.applyProviderRate(provider, {
+        term: termMonths,
+        condition,
+        creditScore,
+      });
+    } catch (error) {
+      console.error(
+        `[rates] unexpected failure applying ${provider.source}`,
+        error
+      );
+      clearFinanceAprInput();
+      setRateSourceStatus(
+        `Unable to load ${provider.shortName} rates right now.`,
+        "error"
+      );
+      return;
+    }
+
+    if (result.status === "matched" && Number.isFinite(result.aprDecimal)) {
+      const aprDecimal = Math.max(result.aprDecimal, MIN_APR);
+      if (financeAprInput instanceof HTMLInputElement) {
+        financeAprInput.value = formatPercent(aprDecimal);
+        financeAprInput.dataset.numericValue = String(aprDecimal);
+      }
+      if (!silent) {
+        setRateSourceStatus(result.note ?? "", "info");
+      } else if (result.note) {
+        setRateSourceStatus(result.note, "info");
+      }
+      if (!silent) {
+        try {
+          recomputeDeal();
+        } catch (error) {
+          console.warn(
+            "[rates] recompute failed after provider rate apply",
+            error
+          );
+        }
+      }
+      return;
+    }
+
+    clearFinanceAprInput();
+
+    switch (result.status) {
+      case "needsCreditScore":
+        setRateSourceStatus(
+          `${provider.shortName} requires a credit score for this term.`,
+          "warning"
+        );
+        break;
+      case "noMatch":
+        setRateSourceStatus(
+          `${provider.shortName} has no rate for ${condition} vehicles at ${termMonths}-month terms.`,
+          "warning"
+        );
+        break;
+      case "noMatchForScore":
+        setRateSourceStatus(
+          `${provider.shortName} has no rate for a credit score of ${
+            creditScore ?? "?"
+          } at ${termMonths}-month ${condition} terms.`,
+          "warning"
+        );
+        break;
+      case "noRates":
+        setRateSourceStatus(
+          `${provider.shortName} rates are not available.`,
+          "warning"
+        );
+        break;
+      case "invalidTerm":
+        setRateSourceStatus("Enter a valid term to fetch rates.", "warning");
+        break;
+      case "error":
+      default:
+        if (result.error) {
+          console.error(
+            `[rates] failed to load rates for ${provider.source}`,
+            result.error
+          );
+        }
+        setRateSourceStatus(
+          `Unable to load ${provider.shortName} rates right now.`,
+          "error"
+        );
+        break;
+    }
+  }
+
+  async function applyLowestApr({ silent = false } = {}) {
+    const termMonths =
+      parseInteger(financeTermInput?.value) ?? DEFAULT_TERM_MONTHS;
+    if (!Number.isFinite(termMonths) || termMonths <= 0) {
+      clearFinanceAprInput();
+      lowestAprProviderName = "";
+      syncRateSourceName();
+      setRateSourceStatus(
+        "Enter a valid term to find the lowest APR.",
+        "warning"
+      );
+      return;
+    }
+
+    const condition = normalizeLoanType(vehicleConditionSelect?.value);
+    const scoreRaw = parseInteger(creditScoreInput?.value);
+    const creditScore =
+      scoreRaw != null &&
+      scoreRaw >= MIN_CREDIT_SCORE &&
+      scoreRaw <= MAX_CREDIT_SCORE
+        ? Math.round(scoreRaw)
+        : null;
+
+    if (!silent) {
+      setRateSourceStatus("Finding lowest APR…", "info");
+    }
+
+    const candidates = [];
+    let sawNeedsScore = false;
+
+    for (const provider of rateProviders) {
+      if (!provider?.enabled) continue;
+      try {
+        const res = await ratesEngine.applyProviderRate(provider, {
+          term: termMonths,
+          condition,
+          creditScore,
+        });
+        if (res?.status === "matched" && Number.isFinite(res.aprDecimal)) {
+          candidates.push({
+            provider,
+            apr: res.aprDecimal,
+            note: res.note || "",
+          });
+        } else if (res?.status === "needsCreditScore") {
+          sawNeedsScore = true;
+        }
+      } catch (error) {
+        console.warn(
+          `[rates] skipping ${provider?.source ?? provider?.id} for lowest APR`,
+          error
+        );
+      }
+    }
+
+    if (!candidates.length) {
+      clearFinanceAprInput();
+      lowestAprProviderName = "";
+      syncRateSourceName();
+      if (sawNeedsScore) {
+        setRateSourceStatus(
+          "Enter a credit score to compare lowest APRs for this term.",
+          "warning"
+        );
+      } else {
+        setRateSourceStatus(
+          "No provider has a rate for this term/condition.",
+          "warning"
+        );
+      }
+      return;
+    }
+
+    const winner = candidates.reduce((best, candidate) =>
+      candidate.apr < best.apr ? candidate : best
+    );
+    const winnerLongName =
+      winner.provider?.longName ||
+      winner.provider?.shortName ||
+      winner.provider?.source ||
+      "Provider";
+    const winnerShortName =
+      winner.provider?.shortName ||
+      winner.provider?.source ||
+      winnerLongName;
+
+    if (financeAprInput instanceof HTMLInputElement) {
+      const aprDecimal = Math.max(winner.apr, MIN_APR);
+      financeAprInput.value = formatPercent(aprDecimal);
+      financeAprInput.dataset.numericValue = String(aprDecimal);
+    }
+
+    lowestAprProviderName = `Lowest Price by APR — ${winnerLongName}`;
+    syncRateSourceName();
+    const winnerDisplay =
+      winnerShortName === winnerLongName
+        ? winnerLongName
+        : `${winnerShortName} (${winnerLongName})`;
+    const statusNote =
+      winner.note ||
+      `Best available rate: ${winnerDisplay} at ${formatPercent(winner.apr)}`;
+    setRateSourceStatus(statusNote, "info");
+
+    if (!silent) {
+      try {
+        recomputeDeal();
+      } catch (error) {
+        console.warn("[rates] recompute failed after lowest APR apply", error);
+      }
+    }
+  }
+
   function findNfcuRateMatch({ term, creditScore, loanType }) {
     const normalizedLoanType = normalizeLoanType(loanType);
     return (
@@ -1383,16 +1943,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function syncAprInputReadOnly() {
-    const isNfcu = rateSourceSelect?.value === RATE_SOURCE_NFCU;
+    const selected = rateSourceSelect?.value;
+    const isLocked =
+      selected && selected !== RATE_SOURCE_USER_DEFINED && selected !== null;
     if (financeAprInput instanceof HTMLInputElement) {
-      financeAprInput.readOnly = Boolean(isNfcu);
-      financeAprInput.classList.toggle("input--readonly", Boolean(isNfcu));
+      financeAprInput.readOnly = Boolean(isLocked);
+      financeAprInput.classList.toggle("input--readonly", Boolean(isLocked));
     }
   }
 
   function ensureUserDefinedAprForCustomEntry(reason = "") {
     if (!rateSourceSelect) return;
-    if (rateSourceSelect.value !== RATE_SOURCE_NFCU) return;
+    const current = rateSourceSelect.value;
+    if (
+      !current ||
+      current === RATE_SOURCE_USER_DEFINED ||
+      current === "lowest"
+    ) {
+      return;
+    }
     rateSourceSelect.value = RATE_SOURCE_USER_DEFINED;
     rateSourceSelect.dispatchEvent(new Event("change", { bubbles: true }));
     const message =
@@ -1412,7 +1981,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const script = document.createElement("script");
     script.id = "google-maps-script";
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initLocationAutocomplete&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initLocationAutocomplete&loading=async&v=beta`;
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
@@ -1494,37 +2063,162 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function initLocationAutocomplete() {
-    if (!locationSearchInput || !window.google?.maps?.places) return;
-    const autocomplete = new google.maps.places.Autocomplete(
-      locationSearchInput,
-      {
+    const maps = window.google?.maps;
+    const places = maps?.places;
+    if (!places) return;
+
+    const anchorInput = document.getElementById("locationSearch");
+    if (!anchorInput) return;
+
+    if (typeof places.PlaceAutocompleteElement !== "function") {
+      // Fallback for legacy environments that do not yet expose the new component.
+      const autocomplete = new places.Autocomplete(anchorInput, {
         fields: ["address_components", "formatted_address"],
         types: ["(regions)"],
-      }
-    );
-    autocomplete.addListener("place_changed", () => {
-      const place = autocomplete.getPlace();
-      const components = place?.address_components ?? [];
+      });
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace();
+        const components = place?.address_components ?? [];
+        let stateCode = "";
+        let countyName = "";
+        components.forEach((component) => {
+          const types = component.types ?? [];
+          if (types.includes("administrative_area_level_1")) {
+            stateCode = component.short_name ?? component.long_name ?? "";
+          }
+          if (types.includes("administrative_area_level_2")) {
+            countyName = (component.long_name ?? component.short_name ?? "")
+              .replace(/ County$/i, "")
+              .trim();
+          }
+        });
+        applyLocale({ stateCode, countyName });
+      });
+      return;
+    }
+
+    const extractStateCountyFromComponents = (components) => {
       let stateCode = "";
       let countyName = "";
-      components.forEach((component) => {
-        const types = component.types ?? [];
+      for (const component of Array.isArray(components) ? components : []) {
+        const types = component?.types ?? [];
         if (types.includes("administrative_area_level_1")) {
-          stateCode = component.short_name ?? component.long_name ?? "";
+          stateCode =
+            component.shortText ||
+            component.short_name ||
+            component.longText ||
+            component.long_name ||
+            "";
         }
         if (types.includes("administrative_area_level_2")) {
-          countyName = (component.long_name ?? component.short_name ?? "")
-            .replace(/ County$/i, "")
-            .trim();
+          const raw =
+            component.longText ||
+            component.long_name ||
+            component.shortText ||
+            component.short_name ||
+            "";
+          countyName = raw.replace(/\s*County$/i, "").trim();
+        }
+      }
+      return { stateCode, countyName };
+    };
+
+    const geocodeCountyByLocation = (loc) =>
+      new Promise((resolve) => {
+        try {
+          const geocoder = new maps.Geocoder();
+          geocoder.geocode(
+            {
+              location: loc,
+              result_type: ["administrative_area_level_2"],
+            },
+            (results, status) => {
+              if (status === "OK" && Array.isArray(results) && results[0]) {
+                const comps = results[0].address_components || [];
+                for (const component of comps) {
+                  if (
+                    Array.isArray(component.types) &&
+                    component.types.includes("administrative_area_level_2")
+                  ) {
+                    const raw = component.long_name || component.short_name || "";
+                    resolve(raw.replace(/\s*County$/i, "").trim());
+                    return;
+                  }
+                }
+              }
+              resolve("");
+            }
+          );
+        } catch (error) {
+          console.warn("[places] county reverse geocode failed", error);
+          resolve("");
         }
       });
-      applyLocale({ stateCode, countyName });
+
+    const replaceTarget =
+      anchorInput.parentElement &&
+      anchorInput.parentElement.classList?.contains("pac-wrapper")
+        ? anchorInput.parentElement
+        : anchorInput;
+
+    const pac = new places.PlaceAutocompleteElement();
+    pac.id = "locationSearch";
+    if (anchorInput.className) pac.className = anchorInput.className;
+    if (anchorInput.placeholder) {
+      pac.setAttribute("placeholder", anchorInput.placeholder);
+    }
+    if (anchorInput.getAttribute("aria-label")) {
+      pac.setAttribute("aria-label", anchorInput.getAttribute("aria-label"));
+    }
+
+    if (replaceTarget && replaceTarget.parentElement) {
+      replaceTarget.parentElement.replaceChild(pac, replaceTarget);
+    } else if (anchorInput.parentElement) {
+      anchorInput.parentElement.replaceChild(pac, anchorInput);
+    } else {
+      anchorInput.replaceWith(pac);
+    }
+
+    pac.addEventListener("gmp-select", async (event) => {
+      try {
+        const prediction = event?.placePrediction;
+        if (!prediction || typeof prediction.toPlace !== "function") return;
+        const place = prediction.toPlace();
+        await place.fetchFields({
+          fields: ["addressComponents", "formattedAddress", "location"],
+        });
+
+        let { stateCode, countyName } = extractStateCountyFromComponents(
+          place.addressComponents
+        );
+
+        if ((!countyName || countyName === "") && place.location) {
+          const resolvedCounty = await geocodeCountyByLocation(place.location);
+          if (resolvedCounty) {
+            countyName = resolvedCounty;
+          }
+        }
+
+        applyLocale({ stateCode, countyName });
+      } catch (error) {
+        console.error("[places] selection handling failed", error);
+      }
     });
   }
 
   if (typeof window !== "undefined") {
     window.initLocationAutocomplete = initLocationAutocomplete;
+    window.refreshRateSourceAvailability = refreshRateSourceAvailability;
   }
+
+  initializeRateSourceOptions({ preserveSelection: true })
+    .catch((error) => {
+      console.error("[rates] Failed to initialize rate source options", error);
+    })
+    .finally(() => {
+      refreshRateSourceAvailability();
+      void applyCurrentRate({ silent: true });
+    });
   async function applyNfcuRate({ silent = false } = {}) {
     if (!rateSourceSelect || rateSourceSelect.value !== RATE_SOURCE_NFCU) {
       return;
@@ -2311,9 +3005,10 @@ document.addEventListener("DOMContentLoaded", () => {
     syncSalePriceWithSelection();
     formatInputEl(salePriceInput);
     recomputeDeal();
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
-      void applyNfcuRate({ silent: false }).catch((error) => {
-        console.error("[clear] NFCU rate refresh failed", error);
+    const selectedSource = rateSourceSelect?.value;
+    if (selectedSource && selectedSource !== RATE_SOURCE_USER_DEFINED) {
+      void applyCurrentRate({ silent: false }).catch((error) => {
+        console.error("[clear] rate refresh failed", error);
         recomputeDeal();
       });
     }
@@ -3077,6 +3772,7 @@ document.addEventListener("DOMContentLoaded", () => {
       t.matches(PERCENT_SELECTOR)
     ) {
       formatInputEl(t);
+      recomputeDeal();
     }
 
     focusNextField(t);
@@ -3094,6 +3790,7 @@ document.addEventListener("DOMContentLoaded", () => {
           t.matches(PERCENT_SELECTOR))
       ) {
         formatInputEl(t);
+        recomputeDeal();
       }
     },
     true
@@ -3132,33 +3829,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   rateSourceSelect?.addEventListener("change", () => {
     syncAprInputReadOnly();
-    if (rateSourceSelect.value === RATE_SOURCE_NFCU) {
-      if (financeAprInput instanceof HTMLInputElement) {
-        delete financeAprInput.dataset.numericValue;
-        financeAprInput.value = "";
-      }
-      void applyNfcuRate({ silent: false });
-    } else {
-      setRateSourceStatus("");
-    }
+    syncRateSourceName();
+    void applyCurrentRate({ silent: false });
   });
 
   vehicleConditionSelect?.addEventListener("change", () => {
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
-      void applyNfcuRate({ silent: false });
-    }
+    void applyCurrentRate({ silent: false });
   });
 
   creditScoreInput?.addEventListener("input", () => {
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
-      void applyNfcuRate({ silent: true });
-    }
+    void applyCurrentRate({ silent: true });
   });
 
   creditScoreInput?.addEventListener("blur", () => {
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
-      void applyNfcuRate({ silent: false });
-    }
+    void applyCurrentRate({ silent: false });
   });
 
   affordabilityAprInput?.addEventListener("blur", () => {
@@ -3169,12 +3853,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  financeTermInput?.addEventListener("input", () => {
+    void applyCurrentRate({ silent: true });
+  });
+
   financeTermInput?.addEventListener("change", () => {
     syncAffordTermWithFinance();
     recomputeDeal();
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
-      void applyNfcuRate({ silent: false });
-    }
+    void applyCurrentRate({ silent: false });
   });
 
   [
@@ -3384,11 +4070,12 @@ document.addEventListener("DOMContentLoaded", () => {
       setCurrencyOutput(floatingMaxFinancedOutput, 0, { forceZero: true });
     }
     await loadVehicles();
-    if (rateSourceSelect?.value === RATE_SOURCE_NFCU) {
+    const initialSource = rateSourceSelect?.value;
+    if (initialSource && initialSource !== RATE_SOURCE_USER_DEFINED) {
       try {
-        await applyNfcuRate({ silent: false });
+        await applyCurrentRate({ silent: false });
       } catch (error) {
-        console.error("Initial NFCU rate sync failed", error);
+        console.error("Initial rate sync failed", error);
         recomputeDeal();
       }
     } else {

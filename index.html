@@ -23,356 +23,344 @@
     <!-- PWA Manifest-->
     <link rel="manifest" href="site.webmanifest">
     <meta name="theme-color" content="#0b1f2a">
+    <!-- Supabase credentials (fill these values) -->
+    <meta name="supabase-url" content="">
+    <meta name="supabase-anon-key" content="">
     <script type="module" src="app.js"></script>
   </head>
-  <body>
-    <!-- Floating Payment Sidebar -->
-    <div class="floatingPmtNote" id="floatingPaymentCard" aria-live="polite">
-      <div class="floatingPmtNote__meta">
-        <span class="floatingPmtNote__metaLabel">PMT</span>
-        <span
-          class="floatingPmtNote__metaValue usdFormat"
-          type="text"
-          id="floatingMonthlyPmt"
-          data-role="monthly-payment"
-          aria-label="Monthly payment"
-        >$0.00</span>
-        <span class="floatingPmtNote__metaLabel">APR</span>
-        <span class="floatingPmtNote__metaValue" id="floatingAprValue">5.99%</span>
-        <span class="floatingPmtNote__metaLabel">TERM</span>
-        <span class="floatingPmtNote__metaValue" id="floatingTermValue">72</span>
+    <body>
+      <!-- Floating Payment Sidebar -->
+      <div class="floatingPmtNote" id="floatingPaymentCard" aria-live="polite">
+        <div class="floatingPmtNote__meta">
+          <span class="floatingPmtNote__metaLabel">PMT</span>
+          <span
+            class="floatingPmtNote__metaValue usdFormat"
+            type="text"
+            id="floatingMonthlyPmt"
+            data-role="monthly-payment"
+            aria-label="Monthly payment"
+          >$0.00</span>
+          <span class="floatingPmtNote__metaLabel">APR</span>
+          <span class="floatingPmtNote__metaValue" id="floatingAprValue">5.99%</span>
+          <span class="floatingPmtNote__metaLabel">TERM</span>
+          <span class="floatingPmtNote__metaValue" id="floatingTermValue">72</span>
+        </div>
       </div>
-    </div>
-    <main>
-      <!-- Open Card Wrapper -->
-      <div class="flexCards">
-        <!-- Saved Vehicle Card -->
-        <div class="card cornerAnchor" id="SavedVehicleCard">
-          <!-- Logo -->
-          <img
-            class="cornerBadge cornerBadge--top-left"
-            src="./assets/brandons_calculator_patch_1_120px.png"
-            alt="Brandon's Calculator logo"
-          />            
-          <!-- Saved Vehicles -->
-          <div>
-            <h2 class="flexEnd">Saved Vehicles</h2>
+      <!-- All Cards -->
+      <main>
+        <!-- Open Card Wrapper -->
+        <div class="flexCards">
+          <!-- Saved Vehicle Card -->
+          <div class="card cornerAnchor" id="SavedVehicleCard">
+            <!-- Logo -->
+            <img
+              class="cornerBadge cornerBadge--top-left"
+              src="./assets/brandons_calculator_patch_1_120px.png"
+              alt="Brandon's Calculator logo"
+            />            
+            <!-- Saved Vehicles -->
+            <div>
+              <h2 class="flexEnd">Saved Vehicles</h2>
+            </div>
+            <div>
+              <form class="flexCenter" id="vehicleForm">
+                <select class="cell vehicleDropDown" id="vehicleSelect">
+                  <option value="">--Select a Saved Vehicle--</option>
+                </select>
+                  <div class="vehicleButtons">
+                    <button type="button" data-vehicle-action="add">ADD</button>
+                    <button type="button" data-vehicle-action="update">UPDATE</button>
+                    <button type="button" data-vehicle-action="delete">DELETE</button>
+                  </div>
+              </form>
+            </div>
           </div>
-          <div>
-            <form class="flexCenter" id="vehicleForm">
-              <select class="cell vehicleDropDown" id="vehicleSelect">
-                <option value="">--Select a Saved Vehicle--</option>
-              </select>
-                <div class="vehicleButtons">
-                  <button type="button" data-vehicle-action="add">ADD</button>
-                  <button type="button" data-vehicle-action="update">UPDATE</button>
-                  <button type="button" data-vehicle-action="delete">DELETE</button>
-                </div>
+          <!-- Location Card -->
+          <div class="card" id="locationCard">
+            <h2 class="flexSpace">Home Address</h2>
+              <div class="flexCenter">
+                <input
+                  type="text"
+                  id="locationSearch"
+                  placeholder="Enter Location">
+                </input>
+              </div>
+              <div class="grid2" id="localeNote">
+                <p class="row2">Required to Compute Registration, Fees, and Sales Tax</p>
+              </div>
+          </div>
+          <!-- Calculator Card -->
+          <div class="card" id="calculatorCard">
+            <div class="flexSpace">
+              <h2>Calculator</h2>
+            </div>
+            <div class="flexEnd vehicleButtons">
+              <button>CLEAR</button>
+            </div>
+            <!-- Savings Note-->
+            <form class="grid2">
+              <output
+                id="savingsNote"
+                class="note col2">
+              </output>
+            
+              <!-- Sale Price -->
+              <label class="col1" for="salePrice">SALE PRICE</label>
+                <input
+                  class="cell output stdWidth col2 usdFormat"
+                  type="text"
+                  id="salePrice"
+                  placeholder="$0.00">
+                </input>
+
+              <!-- Trade Offer -->
+              <label class="col1" for="tradeOffer">TRADE OFFER</label>
+                <input
+                  class="cell output stdWidth col2 usdFormat"
+                  type="text"
+                  id="tradeOffer"
+                  placeholder="$0.00">
+                </input>
+
+              <!-- Trade Payoff -->
+              <label class="col1" for="tradePayoff">TRADE PAYOFF</label>
+                <input
+                  class="cell output stdWidth col2 usdFormat"
+                  type="text"
+                  id="tradePayoff"
+                  placeholder="$0.00">
+                </input>
+
+              <!-- Equity -->
+              <label class="col1" for="equity">EQUITY</label>
+                <output
+                  class="output col2 stdWidth mutedOutput"
+                  id="equity"
+                  placeholder="$0.00">
+                </output>
+              <!-- Cash Difference -->
+              <label
+                class="col1 labelWithTooltip"
+                for="tradeDifference"
+                data-tooltip="Sale Price - Trade Offer"
+                tabindex="0"
+              >TRADE DIFFERENCE</label>
+                <output
+                  class="output col2 stdWidth mutedOutput"
+                  id="tradeDifference"
+                  placeholder="$0.00">
+                </output>
+              <!-- Net Trade Difference -->
+              <label
+                class="col1 labelWithTooltip"
+                for="netTrade"
+                data-tooltip="Sale Price - Equity"
+                tabindex="0"
+              >NET TRADE DIFFERENCE</label>
+                <output
+                  class="output col2 stdWidth mutedOutput"
+                  id="netTrade"
+                  placeholder="$0.00">
+                </output>
             </form>
           </div>
-        </div>
-        <!-- Location Card -->
-        <div class="card" id="locationCard">
-          <h2 class="flexSpace">Location</h2>
-            <div class="flexCenter">
-              <input
-                class="calculator-screen"
-                type="text"
-                id="locationSearch"
-                placeholder="Enter Location"
-              />
+          <!-- Fees Card-->
+          <div class="card" id="feesCard">
+            <div class="flexSpace">
+              <h2>Dealer & Gov't Fees</h2>
             </div>
-            <form class="grid2 flexCenter" id="locationForm" autocomplete="off">
-              <output
-                class="output stdWidth flexCenter terminalFont col1 row3"
-                id="locationState">
-              </output>  
-              <output
-                class="output stdWidth flexCenter terminalFont col2 row3"
-                id="locationCounty">
-              </output>
-              <output
-                class="terminalFont col1 row2"
-                id="locationStateTax">
-              </output>
-              <output
-                class="terminalFont col2 row2"
-                id="locationCountyTax">
-              </output>
+            <div class="flexEnd vehicleButtons">
+              <button id="editFeeButton" type="button">EDIT</button>
+            </div>
+              <!-- Fee Headers -->
+            <form class="grid5">
+              <header
+                class="col1 feeHeaders">TYPE
+              </header>
+              <header
+                class="col2 feeHeaders">DESCRIPTION
+              </header>
+              <header
+                class="col3 feeHeaders">AMOUNT
+              </header>
+
+              <!-- Dealer Fees -->
+              <label class="col1 feeLabels" for="dealerFeeDesc">DEALER</label>
+                <input
+                  id="dealerFeeDesc"
+                  class="cellFeeDesc col2"
+                  type="text"
+                  placeholder="e.g. Doc Fee">
+                </input>
+                <input
+                  id="dealerFeeAmount"
+                  class="cellFeeAmount col3 usdFormat"
+                  type="text"
+                  placeholder="$0.00">
+                </input>
+                <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
+                <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
+                
+                <!-- Dealer Fees Total -->
+                <label class="col2 mutedFeeLabels" for="totalDealerFees">TOTAL DEALER FEES</label>
+                  <output
+                    class="mutedFeeOutput col3"
+                    type="text"
+                    id="totalDealerFees"
+                    placeholder="$0.00">
+                  </output>
+
+              <!-- Gov't Fees -->
+              <label class="col1 feeLabels" for="govtFeeDesc">GOV'T</label>
+                <input
+                  id="govtFeeDesc" 
+                  class="cellFeeDesc col2"
+                  type="text"
+                  placeholder="e.g. Electronic Title">
+                </input>
+                <input
+                  id="govtFeeAmount"
+                  class="cellFeeAmount col3 usdFormat"
+                  type="text"
+                  placeholder="$0.00">
+                </input>
+                <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
+                <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
+
+              <!-- Gov't Fees Total -->
+                <label class="col2 mutedFeeLabels" for="totalGovtFees">TOTAL GOV'T FEES</label>
+                  <output
+                    class="mutedFeeOutput col3"
+                    type="text"
+                    id="totalGovtFees"
+                    placeholder="$0.00">
+                  </output>
             </form>
-        </div>
-        <!-- Calculator Card -->
-        <div class="card" id="calculatorCard">
-          <div class="flexSpace">
-            <h2>Calculator</h2>
+
+                <!-- Total Fees -->
+              <div class="flexEnd">
+                <label class="output bigOutput" for="totalTF">TOTAL FEES</label>
+                  <output
+                    class="output bigOutput usdFormat"
+                    type="text"
+                    id="totalTF"
+                    placeholder="$0.00">
+                  </output>
+              </div>
           </div>
-          <div class="flexEnd vehicleButtons">
-            <button>CLEAR</button>
-          </div>
-          <!-- Savings Note-->
-          <form class="grid2">
-            <output
-              id="savingsNote"
-              class="note col2">
-            </output>
-          
-            <!-- Sale Price -->
-            <label class="col1" for="salePrice">SALE PRICE</label>
-              <input
-                class="cell output stdWidth col2 usdFormat"
-                type="text"
-                id="salePrice"
-                placeholder="$0.00">
-              </input>
-
-            <!-- Trade Offer -->
-            <label class="col1" for="tradeOffer">TRADE OFFER</label>
-              <input
-                class="cell output stdWidth col2 usdFormat"
-                type="text"
-                id="tradeOffer"
-                placeholder="$0.00">
-              </input>
-
-            <!-- Trade Payoff -->
-            <label class="col1" for="tradePayoff">TRADE PAYOFF</label>
-              <input
-                class="cell output stdWidth col2 usdFormat"
-                type="text"
-                id="tradePayoff"
-                placeholder="$0.00">
-              </input>
-
-            <!-- Equity -->
-            <label class="col1" for="equity">EQUITY</label>
+          <!-- Taxes Card-->
+          <div class="card" id="taxesCard">
+            <h2 class="flexSpace">Taxes</h2>
+            <div class="note" id="taxNote"></div>
+            <form class="grid3 flexEnd">
+              <!-- Taxable Base -->
+              <label
+                class="col1 labelWithTooltip"
+                for="taxableBase"
+                data-tooltip="(Sale Price - Trade Offer) + Dealer Fees"
+                tabindex="0"
+              >TAXABLE BASE</label>
               <output
-                class="output col2 stdWidth mutedOutput"
-                id="equity"
+                class="col3 output mutedOutput"
+                id="taxableBase"
                 placeholder="$0.00">
               </output>
-            <!-- Cash Difference -->
-            <label
-              class="col1 labelWithTooltip"
-              for="cashDifference"
-              data-tooltip="Sale Price - Trade Offer"
-              tabindex="0"
-            >CASH DIFFERENCE</label>
-              <output
-                class="output col2 stdWidth mutedOutput"
-                id="cashDifference"
-                placeholder="$0.00">
-              </output>
-            <!-- Net Trade Difference -->
-            <label
-              class="col1 labelWithTooltip"
-              for="netTrade"
-              data-tooltip="Sale Price - Equity"
-              tabindex="0"
-            >NET TRADE DIFFERENCE</label>
-              <output
-                class="output col2 stdWidth mutedOutput"
-                id="netTrade"
-                placeholder="$0.00">
-              </output>
-          </form>
-        </div>
-        <!-- Fees Card-->
-        <div class="card" id="feesCard">
-          <div class="flexSpace">
-            <h2>Dealer & Gov't Fees</h2>
-          </div>
-          <div class="flexEnd vehicleButtons">
-            <button id="editFeeButton" type="button">EDIT</button>
-          </div>
-            <!-- Fee Headers -->
-          <form class="grid5">
-            <header
-              class="col1 feeHeaders">TYPE
-            </header>
-            <header
-              class="col2 feeHeaders">DESCRIPTION
-            </header>
-            <header
-              class="col3 feeHeaders">AMOUNT
-            </header>
-
-            <!-- Dealer Fees -->
-            <label class="col1 feeLabels" for="dealerFeeDesc">DEALER</label>
+              <!-- State Tax -->
+              <label
+                class="col1 labelWithTooltip"
+                for="stateTax"
+                data-tooltip="Taxable Base × State Tax Rate"
+                tabindex="0"
+              >STATE TAXES</label>
               <input
-                id="dealerFeeDesc"
-                class="cellFeeDesc col2"
-                type="text"
-                placeholder="e.g. Doc Fee">
-              </input>
-              <input
-                id="dealerFeeAmount"
-                class="cellFeeAmount col3 usdFormat"
-                type="text"
-                placeholder="$0.00">
-              </input>
-              <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
-              <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
-              
-              <!-- Dealer Fees Total -->
-              <label class="col2 mutedFeeLabels" for="totalDealerFees">TOTAL DEALER FEES</label>
-                <output
-                  class="mutedFeeOutput col3"
-                  type="text"
-                  id="totalDealerFees"
-                  placeholder="$0.00">
-                </output>
-
-            <!-- Gov't Fees -->
-            <label class="col1 feeLabels" for="govtFeeDesc">GOV'T</label>
-              <input
-                id="govtFeeDesc" 
-                class="cellFeeDesc col2"
-                type="text"
-                placeholder="e.g. Electronic Title">
-              </input>
-              <input
-                id="govtFeeAmount"
-                class="cellFeeAmount col3 usdFormat"
-                type="text"
-                placeholder="$0.00">
-              </input>
-              <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
-              <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
-
-            <!-- Gov't Fees Total -->
-              <label class="col2 mutedFeeLabels" for="totalGovtFees">TOTAL GOV'T FEES</label>
-                <output
-                  class="mutedFeeOutput col3"
-                  type="text"
-                  id="totalGovtFees"
-                  placeholder="$0.00">
-                </output>
-          </form>
-
-              <!-- Total Fees -->
-            <div class="flexEnd">
-              <label class="output bigOutput" for="totalTF">TOTAL FEES</label>
-                <output
-                  class="output bigOutput usdFormat"
-                  type="text"
-                  id="totalTF"
-                  placeholder="$0.00">
-                </output>
-            </div>
-        </div>
-        <!-- Taxes Card-->
-        <div class="card" id="taxesCard">
-          <h2 class="flexSpace">Taxes</h2>
-          <div class="note" id="taxNote"></div>
-          <form class="grid3 flexEnd">
-            <!-- Taxable Base -->
-            <label
-              class="col1 labelWithTooltip"
-              for="taxableBase"
-              data-tooltip="(Sale Price - Trade Offer) + Dealer Fees"
-              tabindex="0"
-            >TAXABLE BASE</label>
-            <output
-              class="col3 output mutedOutput"
-              id="taxableBase"
-              placeholder="$0.00">
-            </output>
-            <!-- State Tax -->
-            <label
-              class="col1 labelWithTooltip"
-              for="stateTax"
-              data-tooltip="Taxable Base × State Tax Rate"
-              tabindex="0"
-            >STATE TAXES</label>
-            <input
-              class="cell output shortWidth col2 percentFormat"
-              type="text"
-              id="stateTax"
-              placeholder="6.0%">
-            </input>
-            <output
-              class="output mutedOutput col3"
-              id="stateTaxTotal"
-              placeholder="$0.00">$0.00
-            </output>
-            <!-- County Tax -->
-            <label
-              class="col1 labelWithTooltip"
-              for="countyTax"
-              data-tooltip="County Tax Base (Max $5k) × County Tax Rate"
-              tabindex="0"
-            >COUNTY TAXES</label>
-            <input
                 class="cell output shortWidth col2 percentFormat"
                 type="text"
-                id="countyTax"
-                placeholder="1.0%">
-            </input>
-            <output
-                class="output mutedOutput col3"
-                id="countyTaxTotal"
-                placeholder="$0.00">$0.00
-            </output>
-          </form>
-          <!-- Total Taxes -->
-          <div class="flexEnd">
-            <label
-              class="output bigOutput labelWithTooltip"
-              for="totalTaxes"
-              data-tooltip="State Taxes + County Taxes"
-              tabindex="0"
-            >TOTAL TAXES</label>
-            <output
-              class=" output bigOutput usdFormat"
-              type="text"
-              id="totalTaxes"
-              placeholder="$0.00">
-            </output>
-          </div>
-        </div>
-        <!-- Financing Card-->
-        <div class="card" id="financingCard">
-          <h2 class="flexSpace">Financing</h2>
-          <div class=" insideCard grid2">
-            <label class="feeLabels col2 row1" for="financeTF">Finance Taxes & Fees?
-              <input
-                type="checkbox"
-                id="financeTF"
-                checked>
-            </label><span>
-            <output
-              id="financeTFNote"
-              class="note checkboxNote col1 row1"
-            ></output></span>
-            <label class="feeLabels col2 row2" for="financeNegEquity">Finance Neg Equity?
-              <input
-                type="checkbox"
-                id="financeNegEquity"
-                checked>
-            </label>
-            <output
-              id="financeNegEquityNote"
-              class="note checkboxNote col1 row2"
-            ></output>
-            <label class="feeLabels col2 row3" for="cashOutEquity">Cash Out Equity?
-              <input
-                type="checkbox"
-                id="cashOutEquity">
-            </label>
-            <output
-              id="cashOutEquityNote"
-              class="note checkboxNote col1 row3"
-            ></output>
-          </div>
-          <!-- Cash Down -->
-          <form class="grid2">
-            <label class="col1" for="cashDown">CASH DOWN</label>
-              <input
-                class="cell output stdWidth col2 usdFormat"
-                type="text"
-                id="cashDown"
-                placeholder="$0.00">
+                id="stateTax"
+                placeholder="6.0%">
               </input>
+              <output
+                class="output mutedOutput col3"
+                id="stateTaxTotal"
+                placeholder="$0.00">$0.00
+              </output>
+              <!-- County Tax -->
+              <label
+                class="col1 labelWithTooltip"
+                for="countyTax"
+                data-tooltip="County Tax Base (Max $5k) × County Tax Rate"
+                tabindex="0"
+              >COUNTY TAXES</label>
+              <input
+                  class="cell output shortWidth col2 percentFormat"
+                  type="text"
+                  id="countyTax"
+                  placeholder="1.0%">
+              </input>
+              <output
+                  class="output mutedOutput col3"
+                  id="countyTaxTotal"
+                  placeholder="$0.00">$0.00
+              </output>
+            </form>
+            <!-- Total Taxes -->
+            <div class="flexEnd">
+              <label
+                class="output bigOutput labelWithTooltip"
+                for="totalTaxes"
+                data-tooltip="State Taxes + County Taxes"
+                tabindex="0"
+              >TOTAL TAXES</label>
+              <output
+                class=" output bigOutput usdFormat"
+                type="text"
+                id="totalTaxes"
+                placeholder="$0.00">
+              </output>
+            </div>
+          </div>
+          <!-- Cash Balance Card-->
+          <div class="card" id="cashBalanceCard">
+            <h2 class="flexSpace">Cash Balance</h2>
+            <div class="insideCard grid2">
+              <label class="col2 row1" for="financeTF">Finance Taxes & Fees?
+                <input
+                  type="checkbox"
+                  id="financeTF"
+                  checked>
+              </label>
+              <output
+                id="financeTFNote"
+                class="col1 row1"
+              ></output>
+              <label class="col2 row2" for="financeNegEquity">Finance Neg Equity?
+                <input
+                  type="checkbox"
+                  id="financeNegEquity"
+                  checked>
+              </label>
+              <output
+                id="financeNegEquityNote"
+                class="col1 row2"
+              ></output>
+              <label class="col2 row3" for="cashOutEquity">Cash Out Equity?
+                <input
+                  type="checkbox"
+                  id="cashOutEquity">
+              </label>
+              <output
+                id="cashOutEquityNote"
+                class="col1 row3"
+              ></output>
+            </div>
+            <!-- Cash Down -->
+            <form class="grid2">
+              <label class="col1" for="cashDown">CASH DOWN</label>
+                <input
+                  class="cell output stdWidth col2 usdFormat"
+                  type="text"
+                  id="cashDown"
+                  placeholder="$0.00">
+                </input>
               <!-- Cash 2 Buyer -->
               <label class="col1" for="cash2Buyer">CASH TO BUYER</label>
                 <output
@@ -381,355 +369,358 @@
                   id="cash2Buyer"
                   placeholder="$0.00">
                 </output>
-              <!-- Cash Due -->
-              <label class="col1" for="cashDue">CASH DUE AT SIGNING</label>
+                <!-- Cash Due -->
+                <label class="col1" for="cashDue">CASH DUE AT SIGNING</label>
+                  <output
+                    class="output col2 stdWidth usdFormat"
+                    type="text"
+                    id="cashDue"
+                    placeholder="$0.00">
+                  </output>
+            </form>
+              <!-- Amount Financed -->
+            <div class="flexEnd">
+              <label
+                class="output bigOutput"
+                for="amountFinanced">TOTAL FINANCED
+              </label>
                 <output
-                  class="output col2 stdWidth usdFormat"
+                  id="amountFinanced"
+                  class=" output bigOutput usdFormat"
                   type="text"
-                  id="cashDue"
+                  placeholder="$0.00">
+                </output>        
+            </div>
+          </div>
+          <!-- Financing Card -->
+          <div class="card" id="financingCard">
+            <h2 class="flexSpace">Financing</h2>
+            <span class="flexEnd" aria-hidden="true"></span>
+              <output
+                class="note"
+                id="rateSourceName"
+                aria-live="polite">
+                User Defined APR
+              </output>
+            <form class="grid2">
+              <label class="col1" for="rateSource">APR SOURCE</label>
+                <select class="cell output stdWidth col2" id="rateSource">
+                  <option value="userDefined">User Defined</option>
+                  <option value="lowest">Lowest Price by APR</option>
+                </select>
+              <label class="col1" for="creditScore">CREDIT SCORE</label>
+                <input
+                  class="cell output col2 stdWidth"
+                  type="number"
+                  id="creditScore"
+                  min="300"
+                  max="850"
+                  value="750"
+                  placeholder="750">
+                </input>
+              <label class="col1" for="vehicleCondition">VEHICLE CONDITION</label>
+                <select class="cell output col2 stdWidth" id="vehicleCondition">
+                  <option value="new" selected>New</option>
+                  <option value="used">Used</option>
+                </select>
+              <label class="col1" for="financeApr">APR</label>
+                <input
+                  class="cell output col2 stdWidth percentFormat"
+                  type="text"
+                  id="financeApr"
+                  value="5.99%"
+                  placeholder="5.99%">
+                </input>
+              <label class="col1" for="financeTerm">TERM (months)</label>
+                <select class="cell output col2 stdWidth" id="financeTerm">
+                  <option value="24">24</option>
+                  <option value="36">36</option>
+                  <option value="48">48</option>
+                  <option value="60">60</option>
+                  <option value="72" selected>72</option>
+                  <option value="84">84</option>
+                  <option value="96">96</option>
+                </select>
+            </form>
+              <div class="flexEnd">
+                <label class="output bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
+                  <output
+                    class="output bigOutput usdFormat"
+                    type="text"
+                    id="monthlyPmt"
+                    data-role="monthly-payment"
+                    placeholder="$0.00">
+                  </output>
+                  <output class="note" id="rateSourceStatus"></output>
+              </div>
+          </div>
+          <!-- Affordability -->
+          <div class="card" id="affordabilityCard">
+            <h2 class="flexSpace">Affordability</h2>
+            <form class="grid2">
+              <label class="col1" for="affordability">MAX MONTHLY PMT</label>
+                <input
+                  class="cell output stdWidth col2 usdFormat"
+                  type="text"
+                  id="affordability"
+                  value="1000"
+                  placeholder="$0.00">
+                </input>
+              <label class="col1" for="affordApr">APR</label>
+                <output
+                  class="output stdWidth col2 percentFormat"
+                  id="affordApr"
+                  aria-live="polite">
+                </output>
+              <label class="col1" for="affordTerm">TERM (months)</label>
+                <output
+                  class="output stdWidth col2 percentFormat"
+                  id="affordTerm"
+                  aria-live="polite">
+                </output>
+            </form>
+            <div class="flexEnd">
+              <label class="bigOutput" for="maxTotalFinanced">MAX TOTAL FINANCED</label>
+                <output
+                  class="output stdWidth bigOutput usdFormat"
+                  type="text"
+                  id="maxTotalFinanced"
                   placeholder="$0.00">
                 </output>
-          </form>
-            <!-- Amount Financed -->
-          <div class="flexEnd">
-            <label
-              class="output bigOutput"
-              for="amountFinanced">TOTAL FINANCED
-            </label>
-              <output
-                id="amountFinanced"
-                class=" output bigOutput usdFormat"
-                type="text"
-                placeholder="$0.00">
-              </output>        
+            </div>
+            <div class="flexEnd">
+              <output class="output short note" id="affordabilityGap"></output>
+            </div>
           </div>
         </div>
-        <!-- Monthly Payment -->
-        <div class="card" id="monthPmtCard">
-          <h2 class="flexSpace">Monthly Payment</h2>
-          <form class="grid2">
-            <label class="col1" for="rateSource">APR SOURCE</label>
-              <select class="cell output stdWidth col2" id="rateSource">
-                <option value="userDefined">User Defined</option>
-                <option value="nfcu" selected>NFCU Rates</option>
-              </select>
-            <label class="col1" for="creditScore">CREDIT SCORE</label>
-              <input
-                class="cell output col2 stdWidth"
-                type="number"
-                id="creditScore"
-                min="300"
-                max="850"
-                value="750"
-                placeholder="750">
-              </input>
-            <label class="col1" for="vehicleCondition">VEHICLE CONDITION</label>
-              <select class="cell output col2 stdWidth" id="vehicleCondition">
-                <option value="new" selected>New</option>
-                <option value="used">Used</option>
-              </select>
-            <label class="col1" for="financeApr">APR</label>
-              <input
-                class="cell output col2 stdWidth percentFormat"
-                type="text"
-                id="financeApr"
-                value="5.99%"
-                placeholder="5.99%">
-              </input>
-            <label class="col1" for="financeTerm">TERM (months)</label>
-              <select class="cell output col2 stdWidth" id="financeTerm">
-                <option value="24">24</option>
-                <option value="36">36</option>
-                <option value="48">48</option>
-                <option value="60">60</option>
-                <option value="72" selected>72</option>
-                <option value="84">84</option>
-                <option value="96">96</option>
-              </select>
-          </form>
-            <div class="flexEnd">
-              <label class="output bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
-                <output
-                  class="output bigOutput usdFormat"
-                  type="text"
-                  id="monthlyPmt"
-                  data-role="monthly-payment"
-                  placeholder="$0.00">
-                </output>
-                <output class="note" id="rateSourceStatus"></output>
-            </div>
-        </div>
-        <!-- Affordability -->
-        <div class="card" id="affordabilityCard">
-          <h2 class="flexSpace">Affordability</h2>
-          <form class="grid2">
-            <label class="col1" for="affordability">DESIRED MONTHLY PMT</label>
-              <input
-                class="cell output stdWidth col2 usdFormat"
-                type="text"
-                id="affordability"
-                value="1000"
-                placeholder="$0.00">
-              </input>
-            <label class="col1" for="affordApr">APR</label>
-              <output
-                class="output stdWidth col2 percentFormat"
-                id="affordApr"
-                aria-live="polite">
-              </output>
-            <label class="col1" for="affordTerm">TERM (months)</label>
-              <output
-                class="output stdWidth col2 percentFormat"
-                id="affordTerm"
-                aria-live="polite">
-              </output>
-          </form>
-      <div class="flexEnd">
-        <label class="bigOutput" for="maxTotalFinanced">MAX TOTAL FINANCED</label>
-          <output
-            class="output stdWidth bigOutput usdFormat"
-            type="text"
-            id="maxTotalFinanced"
-            placeholder="$0.00">
-          </output>
-      </div>
-      <div class="flexEnd">
-        <output class="output short note" id="affordabilityGap"></output>
-      </div>
-        </div>
-      </div>
-      <!-- Close Card Wrapper-->
+        <!-- Close Card Wrapper-->
 
 
-
-
-
-
-      <!-- Modals -->
-      <div
-        id="editFeeModal"
-        class="modalOverlay"
-        aria-hidden="true"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="editFeeModalTitle"
-      >
-        <div class="card modalCard">
-          <header class="modalHeader">
-            <h3 id="editFeeModalTitle">Edit Fee</h3>
-            <button
-              type="button"
-              class="modalClose"
-              aria-label="Close edit fee dialog"
-              data-editfee-action="close"
-            >
-              ×
-            </button>
-          </header>
-          <form id="editFeeForm" class="modalCard">
-            <label for="editFeeType">Fee Type
-              <select id="editFeeType" class="cell" name="type">
-                <option value="dealer">Dealer</option>
-                <option value="gov">Gov't</option>
-              </select>
-            </label>
-            <label for="editFeeName">Description
-              <input
-                id="editFeeName"
-                class="cell"
-                type="text"
-                name="description"
-                placeholder="e.g. Doc Fee"
-                required
-              />
-            </label>
-            <label for="editFeeAmount">Amount
-              <input
-                id="editFeeAmount"
-                class="cell usdFormat"
-                type="text"
-                name="amount"
-                placeholder="$0.00"
-                required
-              />
-            </label>
-            <footer class="modalActions">
-              <button type="submit" class="modalPrimary">Save</button>
-              <button type="button" class="modalSecondary" data-editfee-action="cancel">
-                Cancel
-              </button>
-            </footer>
-            <p class="modalStatus colMerged" id="editFeeStatus" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-      </div>
-      <!-- Authorization Modal -->
-      <div
-        id="authModal"
-        class="modalOverlay"
-        aria-hidden="true"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="authModalTitle"
-      >
-        <div class="card modalCard">
+        <!-- Modals -->
+        <div
+          id="editFeeModal"
+          class="modalOverlay"
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editFeeModalTitle"
+        >
+          <div class="card modalCard">
             <header class="modalHeader">
-              <h3 id="authModalTitle">Sign In</h3>
+              <h3 id="editFeeModalTitle">Edit Fee</h3>
               <button
                 type="button"
                 class="modalClose"
-                aria-label="Close sign-in dialog"
-                data-auth-action="close"
+                aria-label="Close edit fee dialog"
+                data-editfee-action="close"
               >
                 ×
               </button>
-          
-          </header>
-          <form id="authForm" class="grid2">
-              <label class="col1 row1" for="authEmail">Email
+            </header>
+            <form id="editFeeForm" class="modalCard">
+              <label for="editFeeType">Fee Type
+                <select id="editFeeType" class="cell" name="type">
+                  <option value="dealer">Dealer</option>
+                  <option value="gov">Gov't</option>
+                </select>
+              </label>
+              <label for="editFeeName">Description
                 <input
-                  id="authEmail"
-                  class="cell col2 row1"
-                  type="email"
-                  name="email"
-                  autocomplete="username"
+                  id="editFeeName"
+                  class="cell"
+                  type="text"
+                  name="description"
+                  placeholder="e.g. Doc Fee"
                   required
                 />
-            </label>
-            <label class="col1 row2" for="authPassword">Password
-              <input
-                id="authPassword"
-                class="cell col2 row2"
-                type="password"
-                name="password"
-                autocomplete="current-password"
-                required
-              />
-            </label>
-            <footer class="modalActions">
-              <button type="submit" class="modalPrimary">Sign In</button>
+              </label>
+              <label for="editFeeAmount">Amount
+                <input
+                  id="editFeeAmount"
+                  class="cell usdFormat"
+                  type="text"
+                  name="amount"
+                  placeholder="$0.00"
+                  required
+                />
+              </label>
+              <footer class="modalActions">
+                <button type="submit" class="modalPrimary">Save</button>
+                <button type="button" class="modalSecondary" data-editfee-action="cancel">
+                  Cancel
+                </button>
+              </footer>
+              <p class="modalStatus colMerged" id="editFeeStatus" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+        <!-- Authorization Modal -->
+        <div
+          id="authModal"
+          class="modalOverlay"
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="authModalTitle"
+        >
+          <div class="card modalCard">
+              <header class="modalHeader">
+                <h3 id="authModalTitle">Sign In</h3>
+                <button
+                  type="button"
+                  class="modalClose"
+                  aria-label="Close sign-in dialog"
+                  data-auth-action="close"
+                >
+                  ×
+                </button>
+            
+            </header>
+            <form id="authForm" class="grid2">
+                <label class="col1 row1" for="authEmail">Email
+                  <input
+                    id="authEmail"
+                    class="cell col2 row1"
+                    type="email"
+                    name="email"
+                    autocomplete="username"
+                    required
+                  />
+              </label>
+              <label class="col1 row2" for="authPassword">Password
+                <input
+                  id="authPassword"
+                  class="cell col2 row2"
+                  type="password"
+                  name="password"
+                  autocomplete="current-password"
+                  required
+                />
+              </label>
+              <footer class="modalActions">
+                <button type="submit" class="modalPrimary">Sign In</button>
+                <button
+                  type="button"
+                  class="modalSecondary"
+                  data-auth-action="cancel"
+                >
+                  Cancel
+                </button>
+              </footer>
+              <p class="modalStatus" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+        </div>
+        <!-- Vehicle Modal -->
+        <div
+          id="vehicleModal"
+          class="modalOverlay"
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="vehicleModalTitle"
+        >
+          <div class="card modalCard">
+            <header class="modalHeader">
+              <h3 id="vehicleModalTitle">Save Vehicle</h3>
               <button
                 type="button"
-                class="modalSecondary"
-                data-auth-action="cancel"
+                class="modalClose"
+                aria-label="Close vehicle editor"
+                data-modal-action="close"
               >
-                Cancel
+                ×
               </button>
-            </footer>
-            <p class="modalStatus" role="status" aria-live="polite"></p>
-          </form>
+            </header>
+            <form id="vehicleModalForm" class="modalCard">
+              <label for="modalVehicleName">Vehicle Nickname
+                <input
+                  id="modalVehicleName"
+                  class="cell"
+                  type="text"
+                  name="vehicle"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalYear">Year
+                <input
+                  id="modalYear"
+                  class="cell"
+                  type="number"
+                  name="year"
+                  min="1900"
+                  max="2099"
+                  step="1"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalMake">Make
+                <input
+                  id="modalMake"
+                  class="cell"
+                  type="text"
+                  name="make"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalModel">Model
+                <input
+                  id="modalModel"
+                  class="cell"
+                  type="text"
+                  name="model"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalTrim">Trim
+                <input
+                  id="modalTrim"
+                  class="cell"
+                  type="text"
+                  name="trim"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalMileage">Mileage
+                <input
+                  id="modalMileage"
+                  class="cell"
+                  type="number"
+                  name="mileage"
+                  min="0"
+                  step="1"
+                  autocomplete="off"
+                />
+              </label>
+              <label for="modalAskingPrice">Asking Price
+                <input
+                  id="modalAskingPrice"
+                  class="cell usdFormat"
+                  type="text"
+                  name="asking_price"
+                  autocomplete="off"
+                />
+              </label>
+              <footer class="modalActions colMerged">
+                <button type="submit" class="modalPrimary">Save</button>
+                <button
+                  type="button"
+                  class="modalSecondary"
+                  data-modal-action="cancel"
+                >
+                  Cancel
+                </button>
+              </footer>
+              <p class="modalStatus" role="status" aria-live="polite"></p>
+            </form>
+          </div>
         </div>
-      </div>
-      <!-- Vehicle Modal -->
-      <div
-        id="vehicleModal"
-        class="modalOverlay"
-        aria-hidden="true"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="vehicleModalTitle"
-      >
-        <div class="card modalCard">
-          <header class="modalHeader">
-            <h3 id="vehicleModalTitle">Save Vehicle</h3>
-            <button
-              type="button"
-              class="modalClose"
-              aria-label="Close vehicle editor"
-              data-modal-action="close"
-            >
-              ×
-            </button>
-          </header>
-          <form id="vehicleModalForm" class="modalCard">
-            <label for="modalVehicleName">Vehicle Nickname
-              <input
-                id="modalVehicleName"
-                class="cell"
-                type="text"
-                name="vehicle"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalYear">Year
-              <input
-                id="modalYear"
-                class="cell"
-                type="number"
-                name="year"
-                min="1900"
-                max="2099"
-                step="1"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalMake">Make
-              <input
-                id="modalMake"
-                class="cell"
-                type="text"
-                name="make"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalModel">Model
-              <input
-                id="modalModel"
-                class="cell"
-                type="text"
-                name="model"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalTrim">Trim
-              <input
-                id="modalTrim"
-                class="cell"
-                type="text"
-                name="trim"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalMileage">Mileage
-              <input
-                id="modalMileage"
-                class="cell"
-                type="number"
-                name="mileage"
-                min="0"
-                step="1"
-                autocomplete="off"
-              />
-            </label>
-            <label for="modalAskingPrice">Asking Price
-              <input
-                id="modalAskingPrice"
-                class="cell usdFormat"
-                type="text"
-                name="asking_price"
-                autocomplete="off"
-              />
-            </label>
-            <footer class="modalActions colMerged">
-              <button type="submit" class="modalPrimary">Save</button>
-              <button
-                type="button"
-                class="modalSecondary"
-                data-modal-action="cancel"
-              >
-                Cancel
-              </button>
-            </footer>
-            <p class="modalStatus colMerged" role="status" aria-live="polite"></p>
-          </form>
-        </div>
-      </div>
-    </main>
-    <script
-      id="google-maps-script"
-      src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC5LXJ43CBBfA5d-zAl03NBXwMVML2FMA8&libraries=places&callback=initLocationAutocomplete"
-      async
-      defer
-    ></script>
-  </body>
+      </main>
+      <!-- Google Maps Script -->
+      <script
+        id="google-maps-script"
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC5LXJ43CBBfA5d-zAl03NBXwMVML2FMA8&libraries=places&callback=initLocationAutocomplete&loading=async"
+        defer
+      ></script>
+    </body>
 </html>

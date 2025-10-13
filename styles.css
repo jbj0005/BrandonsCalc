@@ -13,6 +13,8 @@
   --rootPad: 0.3rem;
   --rootMargin: 0.2rem 0rem 0.2rem 0.4rem;
   --calculator-top: 200px; /* adjust until visually aligned with Calculator card top */
+  --floating-offset-x: 1.5rem; /* horizontal offset from the left screen edge */
+  --floating-offset-y: 17vh; /* vertical offset from the top screen edge */
 }
 
 .logo {
@@ -115,6 +117,11 @@ output:not(:placeholder-shown) {
 .labelWithTooltip[data-tooltip]:focus::after,
 .labelWithTooltip[data-tooltip]:focus::before {
   opacity: 1;
+}
+
+select option:disabled,
+select option.selectOptionDisabled {
+  color: #9aa0a6;
 }
 
 .labelWithTooltip[data-tooltip]:hover::after,
@@ -244,11 +251,6 @@ input[type="number"]::-webkit-outer-spin-button {
   margin: 0;
 }
 
-/* Remove number input spinners (Firefox) */
-input[type="number"] {
-  -moz-appearance: textfield;
-}
-
 .feeHeaders {
   font-family: roboto;
   font-size: 0.8rem;
@@ -263,6 +265,7 @@ input[type="number"] {
   font-size: 0.8rem;
   color: var(--black);
   justify-self: end;
+  justify-items: center;
 }
 
 .mutedFeeLabels {
@@ -341,8 +344,8 @@ input[type="number"] {
 /* Floating payment quick summary */
 .floatingPmtNote {
   position: fixed;
-  margin-top: 25vh;
-  left: 1.2rem;
+  top: var(--floating-offset-y);
+  left: calc(env(safe-area-inset-left) + var(--floating-offset-x));
   z-index: 100;
   display: flex;
   flex-direction: column;
@@ -391,6 +394,7 @@ input[type="number"] {
 }
 
 .floatingPmtNote__metaLabel {
+  font-family: roboto;
   font-size: 0.6rem;
   letter-spacing: 0.08em;
 }
@@ -402,8 +406,8 @@ input[type="number"] {
 
 @media (max-width: 767px) {
   .floatingPmtNote {
-    top: 0.75rem;
-    left: 0.75rem;
+    top: var(--floating-offset-y);
+    left: calc(env(safe-area-inset-left) + var(--floating-offset-x));
   }
 }
 
@@ -418,15 +422,15 @@ input[type="number"] {
 .insideCard {
   display: flex;
   flex-direction: column;
-  justify-self: center;
+  align-self: center;
   background-color: rgb(255, 255, 255);
   height: fit-content;
-  padding: 0.2rem;
+  padding: 0.3rem;
   border-radius: var(--radius-md);
   box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1), 0 1.5px 4px 0 rgba(0, 0, 0, 0.06);
   transition: box-shadow 0.25s cubic-bezier(0.4, 0.2, 0.2, 1);
-  margin: 0.5rem 0rem 0.5rem 0rem;
-  max-width: calc(card - 15px);
+  margin: 0.5rem;
+  width: 90%;
 }
 
 /* Corner modifiers */
@@ -735,7 +739,7 @@ main {
 .calculator-screen {
   background-color: transparent; /* Dark background for contrast */
   color: #67aa53; /* White text for readability */
-  font-family: vt323; /* Clear, readable font */
+  font-family: roboto; /* Clear, readable font */
   font-size: 1.3em; /* Large font size for visibility */
   padding: var(--rootPad); /* Internal spacing */
   text-align: right; /* Align text to the right, like a physical calculator */
@@ -778,7 +782,8 @@ main {
   justify-content: center;
 }
 
-.terminalFont {
-  font-size: 1.4rem;
-  font-family: var(--terminalFont);
+#localeNote {
+  font-family: roboto;
+  font-size: small;
+  align-self: center;
 }

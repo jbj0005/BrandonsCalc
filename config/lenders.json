@@ -1,0 +1,138 @@
+[
+  {
+    "id": "nfcu",
+    "source": "NFCU",
+    "longName": "Navy Federal Credit Union",
+    "shortName": "NFCU",
+    "enabled": true,
+    "scraper": "nfcu",
+    "website": "https://www.navyfederal.org",
+    "sourceUrl": "https://www.navyfederal.org/loans-cards/auto-loans.html",
+    "notes": "Real web scraping with Cheerio"
+  },
+  {
+    "id": "sccu",
+    "source": "SCCU",
+    "longName": "Space Coast Credit Union",
+    "shortName": "SCCU",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.sccu.com",
+    "sourceUrl": "https://www.sccu.com/loans/auto-loans",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 72,
+        "termMax": 72,
+        "baseApr": 6.25
+      },
+      {
+        "loanType": "used",
+        "termMin": 72,
+        "termMax": 72,
+        "baseApr": 6.49
+      }
+    ],
+    "notes": "Stub data - real scraping not yet implemented"
+  },
+  {
+    "id": "penfed",
+    "source": "PENFED",
+    "longName": "Pentagon Federal Credit Union",
+    "shortName": "PENFED",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.penfed.org",
+    "sourceUrl": "https://www.penfed.org/auto/rates",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 36,
+        "termMax": 84,
+        "baseApr": 5.99
+      },
+      {
+        "loanType": "used",
+        "termMin": 36,
+        "termMax": 72,
+        "baseApr": 6.49
+      }
+    ],
+    "notes": "Disabled by default - enable when needed"
+  },
+  {
+    "id": "dcu",
+    "source": "DCU",
+    "longName": "Digital Federal Credit Union",
+    "shortName": "DCU",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.dcu.org",
+    "sourceUrl": "https://www.dcu.org/borrow/vehicle-loans.html",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 60,
+        "termMax": 65,
+        "baseApr": 5.74
+      },
+      {
+        "loanType": "used",
+        "termMin": 60,
+        "termMax": 65,
+        "baseApr": 5.74
+      }
+    ],
+    "notes": "Disabled by default - enable when needed"
+  },
+  {
+    "id": "alliant",
+    "source": "ALLIANT",
+    "longName": "Alliant Credit Union",
+    "shortName": "ALLIANT",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.alliantcreditunion.org",
+    "sourceUrl": "https://www.alliantcreditunion.org/bank/auto-loans",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 60,
+        "termMax": 84,
+        "baseApr": 6.24
+      },
+      {
+        "loanType": "used",
+        "termMin": 60,
+        "termMax": 72,
+        "baseApr": 6.74
+      }
+    ],
+    "notes": "Disabled by default - enable when needed"
+  },
+  {
+    "id": "northropgrummancredi",
+    "source": "NGFCU",
+    "longName": "Northrop Grumman Credit Union",
+    "shortName": "NGFCU",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.ngfcu.us",
+    "sourceUrl": "https://www.ngfcu.us/borrow/credit-cards/lower-rates",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 60,
+        "termMax": 72,
+        "baseApr": 5.99
+      },
+      {
+        "loanType": "used",
+        "termMin": 60,
+        "termMax": 72,
+        "baseApr": 6.49
+      }
+    ],
+    "notes": "Auto-discovered on 2025-10-08 - Review and verify rates before enabling"
+  }
+]
