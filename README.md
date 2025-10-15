@@ -2,11 +2,10 @@
 
 ExcelCalc is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
 
-## v1.0.0 Highlights
-- Redesigned borrower UX with floating payment summary, affordability calculator, and side-by-side lender rate sourcing.
-- Supabase-backed `rates/provider-engine` for ingesting, matching, and applying lowest APR programs (including the cleaned CCUFL note output).
-- Scriptable data pipelines for rates, tax tables, and government fees (`scripts/fetch-rates.mjs`, `scripts/import-*.mjs`).
-- Configurable MarketCheck vehicle lookups, Google Maps visualization, and VIN utilities for sales desk workflows.
+## v1.0.1 Highlights
+- Hardened Google Maps routing: gracefully fall back to Florida view when directions fail or only partial dealer info is available.
+- Improved dealer geocoding: parse partial addresses, filter invalid coordinates, and avoid rendering `0,0` markers.
+- Vehicle modal updates now reuse cached rows, preserve selection order, and refresh Supabase data inline.
 
 ## Project Structure
 - `index.html` – Entry point, meta tags, and calculator layout.

@@ -2566,12 +2566,18 @@ document.addEventListener("DOMContentLoaded", () => {
     return marker;
   }
 
+  function isValidCoordinatePair(lat, lng) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+    if (Math.abs(lat) < 0.0001 && Math.abs(lng) < 0.0001) return false;
+    return true;
+  }
+
   function updateMarker(marker, latLng, title = "") {
     if (!marker) return;
-    const hasLatLng =
-      latLng && Number.isFinite(latLng.lat) && Number.isFinite(latLng.lng);
-    if (hasLatLng) {
-      const position = { lat: latLng.lat, lng: latLng.lng };
+    const latValue = latLng?.lat;
+    const lngValue = latLng?.lng;
+    if (latLng && isValidCoordinatePair(latValue, lngValue)) {
+      const position = { lat: latValue, lng: lngValue };
       marker.position = position;
       if (title) {
         marker.title = title;
@@ -2588,7 +2594,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const line1 = street || address || "";
     const line2 = [city, state].filter(Boolean).join(", ");
     const parts = [line1, line2, zip]
-      .map((part) => (typeof part === "string" ? part.trim() : ""))
+      .map((part) => {
+        if (part == null) return "";
+        const str = typeof part === "string" ? part : String(part);
+        return str.trim();
+      })
       .filter((part) => part.length > 0);
     return parts.join(", ");
   }
@@ -3068,8 +3078,16 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const home = homeLocationState.latLng;
-    const dealer = dealerLocationState.latLng;
+    const rawHome = homeLocationState.latLng;
+    const home =
+      rawHome && isValidCoordinatePair(rawHome.lat, rawHome.lng)
+        ? rawHome
+        : null;
+    const rawDealer = dealerLocationState.latLng;
+    const dealer =
+      rawDealer && isValidCoordinatePair(rawDealer.lat, rawDealer.lng)
+        ? rawDealer
+        : null;
 
     if (!dealer) {
       updateMarker(mapState.dealerMarker, null);
@@ -3167,12 +3185,28 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch((error) => {
         console.warn("[maps] directions failed", error);
         mapState.directionsRenderer?.set("directions", null);
-        mapState.map.setCenter(dealer);
-        mapState.map.setZoom(12);
-        setDealerMapStatus(
-          "Unable to calculate directions. Showing dealer location only.",
-          "error"
-        );
+        if (home) {
+          try {
+            const bounds = new maps.LatLngBounds();
+            bounds.extend(new maps.LatLng(home.lat, home.lng));
+            bounds.extend(new maps.LatLng(dealer.lat, dealer.lng));
+            mapState.map.fitBounds(bounds, 60);
+          } catch {
+            mapState.map.setCenter(dealer);
+            mapState.map.setZoom(12);
+          }
+          setDealerMapStatus(
+            "Unable to calculate directions. Showing your home and dealer locations.",
+            "error"
+          );
+        } else {
+          mapState.map.setCenter(DEFAULT_MAP_CENTER);
+          mapState.map.setZoom(6);
+          setDealerMapStatus(
+            "Unable to calculate directions. Showing Florida map until a home address is entered.",
+            "error"
+          );
+        }
       });
   }
 
@@ -3198,10 +3232,11 @@ document.addEventListener("DOMContentLoaded", () => {
       vehicle.dealer_longitude ??
       vehicle.dealerLongitude ??
       null;
-    let latLng =
-      Number.isFinite(latRaw) && Number.isFinite(lngRaw)
-        ? { lat: Number(latRaw), lng: Number(lngRaw) }
-        : null;
+    const latNumeric = parseFloatOrNull(latRaw);
+    const lngNumeric = parseFloatOrNull(lngRaw);
+    let latLng = isValidCoordinatePair(latNumeric, lngNumeric)
+      ? { lat: latNumeric, lng: lngNumeric }
+      : null;
     const address = buildDealerAddress({
       street: vehicle.dealer_street ?? vehicle.dealer_address,
       city: vehicle.dealer_city,
@@ -3236,10 +3271,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const dealerMeta = await resolveDealerMetadataForListing(listing);
-    let latLng =
-      Number.isFinite(dealerMeta?.lat) && Number.isFinite(dealerMeta?.lng)
-        ? { lat: Number(dealerMeta.lat), lng: Number(dealerMeta.lng) }
-        : null;
+    const metaLat = parseFloatOrNull(dealerMeta?.lat);
+    const metaLng = parseFloatOrNull(dealerMeta?.lng);
+    let latLng = isValidCoordinatePair(metaLat, metaLng)
+      ? { lat: metaLat, lng: metaLng }
+      : null;
     const address = buildDealerAddress({
       street: dealerMeta?.street,
       city: dealerMeta?.city,
@@ -4536,7 +4572,7 @@ document.addEventListener("DOMContentLoaded", () => {
       renderVehicleSelectOptions([]);
       return;
     }
-    const selectCols = `${VEHICLE_SELECT_COLUMNS}, created_at, inserted_at`;
+    const selectCols = `${VEHICLE_SELECT_COLUMNS}, inserted_at`;
     const { data, error } = await supabase
       .from(VEHICLES_TABLE)
       .select(selectCols)
@@ -4644,6 +4680,15 @@ document.addEventListener("DOMContentLoaded", () => {
     recomputeDeal();
   }
 
+  async function enrichVehicleModalFromListing(vehicle) {
+    if (!vehicle) return;
+    try {
+      await Promise.resolve(setDealerLocationFromVehicle?.(vehicle));
+    } catch (error) {
+      console.warn("[vehicles] enrichVehicleModalFromListing failed", error);
+    }
+  }
+
   async function ensureVehiclesLoaded({ preserveSelection = true } = {}) {
     if (!vehicleSelect) return;
     if (!currentUserId) return;
@@ -4651,6 +4696,194 @@ document.addEventListener("DOMContentLoaded", () => {
     const targetId =
       preserveSelection && currentVehicleId ? String(currentVehicleId) : "";
     await loadVehicles(targetId);
+  }
+
+  async function fetchVehicleById(id) {
+    if (!id) return null;
+    if (!currentUserId) return null;
+    try {
+      const { data, error } = await supabase
+        .from(VEHICLES_TABLE)
+        .select(VEHICLE_SELECT_COLUMNS)
+        .eq("id", id)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+      if (error) {
+        if (error.code !== "PGRST116") {
+          console.warn("[vehicles] fetchVehicleById failed", error);
+        }
+        return null;
+      }
+      if (!data) return null;
+      return {
+        ...data,
+        id:
+          typeof data.id === "number" || typeof data.id === "bigint"
+            ? String(data.id)
+            : data.id ?? "",
+      };
+    } catch (error) {
+      console.warn("[vehicles] fetchVehicleById threw", error);
+      return null;
+    }
+  }
+
+  function moneyToNumber(value) {
+    if (typeof evaluateCurrencyValue === "function") {
+      const evaluated = evaluateCurrencyValue(value ?? "");
+      if (Number.isFinite(evaluated)) return evaluated;
+    }
+    const parsed = parseDecimal(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function collectVehicleModalPayload() {
+    if (!modalFields) {
+      return { vin: "", payload: {} };
+    }
+
+    const vin = normalizeVin(modalFields.vin?.value ?? "");
+    const yearValue = parseInteger(modalFields.year?.value);
+    const makeValue = modalFields.make?.value?.trim() || "";
+    const modelValue = modalFields.model?.value?.trim() || "";
+    const trimValue = modalFields.trim?.value?.trim() || "";
+    const mileageValue = parseInteger(modalFields.mileage?.value);
+    const vehicleName = modalFields.vehicle?.value?.trim() || "";
+
+    const askingPriceRaw = moneyToNumber(modalFields.asking_price?.value ?? "");
+    const askingPrice =
+      askingPriceRaw != null ? normalizeCurrencyNumber(askingPriceRaw) : undefined;
+
+    const dealerName = modalFields.dealer_name?.value?.trim() || "";
+    const dealerPhone = modalFields.dealer_phone?.value?.trim() || "";
+    const dealerStreet = modalFields.dealer_street?.value?.trim() || "";
+    const dealerCity = modalFields.dealer_city?.value?.trim() || "";
+    const dealerState = modalFields.dealer_state?.value?.trim() || "";
+    const dealerZip = modalFields.dealer_zip?.value?.trim() || "";
+    const dealerLat = parseFloatOrNull(modalFields.dealer_lat?.value ?? "");
+    const dealerLng = parseFloatOrNull(modalFields.dealer_lng?.value ?? "");
+
+    const normalizedVehicleLabel = (vehicleName ||
+      [
+        yearValue != null ? String(yearValue) : "",
+        [makeValue, modelValue].filter(Boolean).join(" "),
+        trimValue,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim()) || null;
+
+    const payload = pickDefined({
+      vin: vin || undefined,
+      vehicle: normalizedVehicleLabel || undefined,
+      year: yearValue ?? undefined,
+      make: makeValue || undefined,
+      model: modelValue || undefined,
+      trim: trimValue || undefined,
+      mileage: mileageValue ?? undefined,
+      asking_price: askingPrice,
+      dealer_name: dealerName || undefined,
+      dealer_phone: dealerPhone || undefined,
+      dealer_street: dealerStreet || undefined,
+      dealer_city: dealerCity || undefined,
+      dealer_state: dealerState || undefined,
+      dealer_zip: dealerZip || undefined,
+      dealer_lat: dealerLat ?? undefined,
+      dealer_lng: dealerLng ?? undefined,
+    });
+
+    return { vin, payload };
+  }
+
+  async function updateSelectedVehicleFromModal({
+    triggerButton = null,
+    closeModalAfter = false,
+  } = {}) {
+    if (!modalFields) return false;
+    const hasUser = await requireUser(true);
+    if (!hasUser) return false;
+
+    if (!currentVehicleId) {
+      setModalStatus("Select a vehicle to update.", "error");
+      return false;
+    }
+
+    const { vin, payload } = collectVehicleModalPayload();
+    if (!vin || vin.length !== 17) {
+      setModalStatus("Enter a valid 17-character VIN.", "error");
+      modalFields.vin?.focus();
+      return false;
+    }
+
+    payload.vin = vin;
+
+    if (!Object.keys(payload).length) {
+      setModalStatus("Nothing to update.", "info");
+      return false;
+    }
+
+    const restoreButton = (() => {
+      if (!(triggerButton instanceof HTMLButtonElement)) return () => {};
+      const originalText = triggerButton.textContent;
+      triggerButton.disabled = true;
+      triggerButton.textContent = "Updating…";
+      return () => {
+        triggerButton.disabled = false;
+        triggerButton.textContent = originalText ?? "Update";
+      };
+    })();
+
+    setModalInputsDisabled(true);
+    modalPrimaryBtn?.setAttribute("disabled", "true");
+    setModalStatus("Saving vehicle…", "info");
+
+    try {
+      const { data, error } = await supabase
+        .from(VEHICLES_TABLE)
+        .update(payload)
+        .eq("id", currentVehicleId)
+        .eq("user_id", currentUserId)
+        .select(VEHICLE_SELECT_COLUMNS)
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error("Vehicle update returned no data.");
+
+      const normalized = {
+        ...data,
+        id:
+          typeof data.id === "number" || typeof data.id === "bigint"
+            ? String(data.id)
+            : data.id ?? "",
+      };
+
+      currentVehicleId = normalized.id || String(currentVehicleId);
+      upsertVehicleInCache(normalized);
+      renderVehicleSelectOptions(vehiclesCache);
+      setSalePriceFromVehicle?.(normalized);
+      await Promise.resolve(setDealerLocationFromVehicle?.(normalized));
+      try {
+        recomputeDeal?.();
+      } catch (error) {
+        console.warn("[vehicles] recompute failed after update", error);
+      }
+      setModalStatus("Vehicle updated.", "success");
+      if (closeModalAfter) {
+        closeModal();
+      }
+      return true;
+    } catch (error) {
+      console.error("Vehicle update failed", error);
+      const message =
+        (error && typeof error === "object" && "message" in error
+          ? String(error.message)
+          : "Unable to update vehicle.");
+      setModalStatus(message, "error");
+      return false;
+    } finally {
+      setModalInputsDisabled(false);
+      modalPrimaryBtn?.removeAttribute("disabled");
+      restoreButton();
+    }
   }
 
   function setModalStatus(message = "", tone = "info") {
@@ -7971,8 +8204,37 @@ document.addEventListener("DOMContentLoaded", () => {
   vehicleActionButtons.forEach((button) => {
     const action = button.getAttribute("data-vehicle-action");
     if (!action || action === "find") return;
-    button.addEventListener("click", () => {
-      void openModal(action);
+
+    if (action === "update") {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        void (async () => {
+          const hasUser = await requireUser(true);
+          if (!hasUser) return;
+          await ensureVehiclesLoaded({ preserveSelection: true });
+          const modalVisible =
+            vehicleModal?.getAttribute("aria-hidden") === "false";
+          if (!modalVisible) {
+            await openModal("update");
+            return;
+          }
+          await updateSelectedVehicleFromModal({
+            triggerButton: button,
+            closeModalAfter: true,
+          });
+        })();
+      });
+      return;
+    }
+
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      void (async () => {
+        const hasUser = await requireUser(true);
+        if (!hasUser) return;
+        await ensureVehiclesLoaded({ preserveSelection: true });
+        await openModal(action);
+      })();
     });
   });
 
@@ -8200,91 +8462,37 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    if (modalMode === "update") {
+      await updateSelectedVehicleFromModal({ closeModalAfter: true });
+      return;
+    }
+
     const hasUser = await requireUser(true);
     if (!hasUser) return;
 
-    const vin = normalizeVin(modalFields.vin?.value ?? "");
+    const { vin, payload } = collectVehicleModalPayload();
     if (!vin || vin.length !== 17) {
       setModalStatus("Enter a valid 17-character VIN.", "error");
       modalFields.vin?.focus();
       return;
     }
 
-    const vehicleName = modalFields.vehicle?.value?.trim() ?? "";
-    const yearValue = parseInteger(modalFields.year?.value);
-    const makeValue = modalFields.make?.value?.trim() ?? "";
-    const modelValue = modalFields.model?.value?.trim() ?? "";
-    const trimValue = modalFields.trim?.value?.trim() ?? "";
-    const mileageValue = parseInteger(modalFields.mileage?.value);
-    const askingPriceValue = evaluateCurrencyValue(
-      modalFields.asking_price?.value ?? ""
-    );
-    const dealerStreet = modalFields.dealer_street?.value?.trim() ?? "";
-    const dealerCity = modalFields.dealer_city?.value?.trim() ?? "";
-    const dealerState = modalFields.dealer_state?.value?.trim() ?? "";
-    const dealerZip = modalFields.dealer_zip?.value?.trim() ?? "";
-    const dealerNameHidden = modalFields.dealer_name?.value?.trim() ?? "";
-    const dealerPhoneHidden = modalFields.dealer_phone?.value?.trim() ?? "";
-    const dealerLat = parseFloatOrNull(modalFields.dealer_lat?.value ?? "");
-    const dealerLng = parseFloatOrNull(modalFields.dealer_lng?.value ?? "");
-
-    const displayName =
-      vehicleName ||
-      [yearValue != null ? String(yearValue) : null, makeValue, modelValue, trimValue]
-        .filter(Boolean)
-        .join(" ");
-
-    const record = {
-      user_id: currentUserId,
+    const record = pickDefined({
+      ...payload,
       vin,
-      vehicle: displayName || null,
-    };
-
-    if (vehicleName) record.vehicle = vehicleName;
-    if (yearValue != null) record.year = yearValue;
-    if (makeValue) record.make = makeValue;
-    if (modelValue) record.model = modelValue;
-    if (trimValue) record.trim = trimValue;
-    if (mileageValue != null) record.mileage = mileageValue;
-    if (askingPriceValue != null) {
-      record.asking_price = normalizeCurrencyNumber(askingPriceValue);
-    }
-    if (dealerNameHidden) record.dealer_name = dealerNameHidden;
-    if (dealerPhoneHidden) record.dealer_phone = dealerPhoneHidden;
-    if (dealerStreet) record.dealer_street = dealerStreet;
-    if (dealerCity) record.dealer_city = dealerCity;
-    if (dealerState) record.dealer_state = dealerState;
-    if (dealerZip) record.dealer_zip = dealerZip;
-    if (Number.isFinite(dealerLat)) record.dealer_lat = dealerLat;
-    if (Number.isFinite(dealerLng)) record.dealer_lng = dealerLng;
-
-    if (modalMode === "update" && currentVehicleId) {
-      record.id = currentVehicleId;
-    }
+      user_id: currentUserId,
+    });
 
     setModalInputsDisabled(true);
     modalPrimaryBtn?.setAttribute("disabled", "true");
     setModalStatus("Saving vehicle…", "info");
 
     try {
-      let response;
-      if (modalMode === "update" && currentVehicleId) {
-        response = await supabase
-          .from(VEHICLES_TABLE)
-          .update(record)
-          .eq("id", currentVehicleId)
-          .eq("user_id", currentUserId)
-          .select(VEHICLE_SELECT_COLUMNS)
-          .single();
-      } else {
-        response = await supabase
-          .from(VEHICLES_TABLE)
-          .insert(record)
-          .select(VEHICLE_SELECT_COLUMNS)
-          .single();
-      }
-
-      const { data, error } = response;
+      const { data, error } = await supabase
+        .from(VEHICLES_TABLE)
+        .insert(record)
+        .select(VEHICLE_SELECT_COLUMNS)
+        .single();
       if (error) throw error;
 
       if (data?.id != null) {
@@ -8293,7 +8501,7 @@ document.addEventListener("DOMContentLoaded", () => {
       upsertVehicleInCache(data);
       renderVehicleSelectOptions(vehiclesCache);
       setSalePriceFromVehicle(data);
-      void setDealerLocationFromVehicle(data);
+      await Promise.resolve(setDealerLocationFromVehicle?.(data));
       setModalStatus("Vehicle saved.", "success");
       closeModal();
       await loadVehicles(currentVehicleId);
