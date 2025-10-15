@@ -52,6 +52,25 @@ output:not(:placeholder-shown) {
   color: var(--muted);
 }
 
+.modalVin {
+  font-family: IBM Plex Mono;
+  font-size: x-small;
+  border: none;
+  justify-items: center;
+  letter-spacing: 0.125rem;
+}
+
+.modalVinInput {
+  font-family: IBM Plex Mono;
+  border: none;
+  border-radius: var(--radius-md);
+  justify-items: center;
+  letter-spacing: 0.125rem;
+  background-color: #f3f3f3;
+  padding: 0 1rem 0 1rem;
+  margin: 0.5rem;
+}
+
 #rateSourceStatus[data-tone="warning"] {
   color: #b07900;
 }
@@ -275,6 +294,7 @@ input[type="number"]::-webkit-outer-spin-button {
   color: var(--black);
   justify-self: end;
   justify-items: center;
+  margin: 0.2rem;
 }
 
 .mutedFeeLabels {
@@ -464,6 +484,10 @@ input[type="number"]::-webkit-outer-spin-button {
 .insideCard:hover {
   box-shadow: 0 6px 24px 0 rgba(0, 0, 0, 0.18), 0 4px 12px 0 rgba(0, 0, 0, 0.1);
 }
+#checkboxGrid {
+  display: grid;
+  align-items: stretch;
+}
 
 .grid2 {
   display: grid;
@@ -472,7 +496,7 @@ input[type="number"]::-webkit-outer-spin-button {
   align-items: center;
   justify-content: end;
   justify-items: end;
-  justify-self: center;
+  justify-self: end;
 }
 
 .grid3 {
@@ -505,22 +529,18 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 
 .row1 {
-  align-items: center;
   grid-row: 1;
 }
 
 .row2 {
-  align-items: center;
   grid-row: 2;
 }
 
 .row3 {
-  align-items: center;
   grid-row: 3;
 }
 
 .row4 {
-  align-items: center;
   grid-row: 4;
 }
 
@@ -547,6 +567,7 @@ input[type="number"]::-webkit-outer-spin-button {
 .modalCard {
   display: flex;
   flex-direction: column;
+  align-self: center;
   align-items: end;
 }
 
@@ -630,6 +651,12 @@ input[type="number"]::-webkit-outer-spin-button {
   padding: 1rem;
 }
 
+#findVehicleModal .modalCard {
+  width: min(840px, 95vw);
+  align-items: stretch;
+  gap: 1rem;
+}
+
 .modalHeader {
   display: flex;
   justify-content: space-between;
@@ -673,6 +700,161 @@ input[type="number"]::-webkit-outer-spin-button {
 
 .modalStatus[data-tone="success"] {
   color: #146614;
+}
+
+.modalNote {
+  font-size: 0.85rem;
+  margin: 0.5rem 0 0;
+  color: var(--text-muted, #5a6b7a);
+}
+
+.linkButton {
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  color: #1166cc;
+  cursor: pointer;
+  text-decoration: underline;
+  font: inherit;
+}
+
+.linkButton:hover,
+.linkButton:focus {
+  color: #0d4f9a;
+}
+
+.vehicleSearchForm {
+  width: 100%;
+  align-items: stretch;
+}
+
+.vehicleSearchFilters {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.vehicleSearchFilters label {
+  display: flex;
+  flex-direction: column;
+  font-family: poppins;
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--black);
+  gap: 0.35rem;
+}
+
+.vehicleSearchFilters input,
+.vehicleSearchFilters select {
+  font-family: montserrat;
+  font-size: 0.9rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--muted);
+  background: #fff;
+  color: var(--black);
+}
+
+.vehicleSearchActions {
+  justify-content: flex-end;
+  margin-top: 0;
+}
+
+.vehicleSearchResults {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.vehicleSearchEmpty {
+  margin: 0.5rem 0;
+  font-family: montserrat;
+  font-size: 0.9rem;
+  color: var(--mutedText, #4a4a4a);
+}
+
+.vehicleResultCard {
+  border: 1px solid var(--muted);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  background: #fff;
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+
+.vehicleResultCard h4 {
+  margin: 0;
+  font-family: montserrat;
+  font-size: 1rem;
+  font-weight: 600;
+  grid-column: 1 / -1;
+}
+
+.vehicleResultMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+  font-family: montserrat;
+  font-size: 0.85rem;
+  color: var(--black);
+}
+
+.vehicleResultMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.vehicleResultActions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.vehicleResultActions button,
+.vehicleResultActions a {
+  width: 8rem;
+  text-align: center;
+}
+
+.vehicleResultDealer {
+  grid-column: 1 / -1;
+  font-family: montserrat;
+  font-size: 0.85rem;
+  color: var(--mutedText, #4a4a4a);
+}
+
+.mapCanvas {
+  display: flex;
+  flex-direction: column;
+  align-self: center;
+  justify-items: center;
+  width: 100%;
+  min-height: 260px;
+  border-radius: var(--radius-md);
+  margin-top: 0.5rem;
+  margin-bottom: 0.2rem;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 main {
@@ -744,47 +926,6 @@ main {
   color: var(--black);
 }
 
-/* Styling for the calculator display area */
-.calculator-screen {
-  background-color: transparent; /* Dark background for contrast */
-  color: #67aa53; /* White text for readability */
-  font-family: roboto; /* Clear, readable font */
-  font-size: 1.3em; /* Large font size for visibility */
-  padding: var(--rootPad); /* Internal spacing */
-  text-align: right; /* Align text to the right, like a physical calculator */
-  border: 1px solid var(--black);
-  outline: none;
-  border-radius: var(--radius-sm); /* Slightly rounded corners */
-  margin-bottom: 0.3rem; /* Space below the screen */
-  min-height: 1rem; /* Ensure a minimum height for the display */
-  display: flex; /* Use flexbox for content alignment */
-  align-items: center; /* Align content to the bottom */
-  justify-content: flex-end; /* Align content to the right */
-  overflow-x: auto; /* Allow horizontal scrolling if content overflows */
-  white-space: nowrap; /* Prevent text from wrapping */
-  width: 20rem;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-/* Optional: Styling for the scrollbar if overflow-x: auto is used */
-.calculator-screen::-webkit-scrollbar {
-  height: 5px;
-}
-
-.calculator-screen::-webkit-scrollbar-track {
-  background: #333;
-}
-
-.calculator-screen::-webkit-scrollbar-thumb {
-  background: #888;
-  border-radius: 5px;
-}
-
-.calculator-screen:hover {
-  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.25);
-}
-
 #locationForm {
   align-self: center;
   justify-items: center;
@@ -795,4 +936,8 @@ main {
   font-family: roboto;
   font-size: small;
   align-self: center;
+}
+
+.input-container {
+  width: 100%;
 }

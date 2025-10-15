@@ -1,5 +1,82 @@
 const MIN_CREDIT_SCORE = 300;
 const MAX_CREDIT_SCORE = 850;
+const DOC_WRITE_TAG_RE =
+  /document\.write\((['"`])([\s\S]*?)\1\.tagReplace\(\)\s*\);?/gi;
+
+function decodeBasicEntities(value) {
+  if (!value) return "";
+  return String(value)
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'");
+}
+
+function normalizeTokenForDedup(token) {
+  return token.replace(/^[^A-Za-z0-9*]+|[^A-Za-z0-9*]+$/g, "").toLowerCase();
+}
+
+function chooseToken(firstToken, secondToken) {
+  const closingPunctRe = /[)\]\}]/;
+  if (closingPunctRe.test(secondToken) && !closingPunctRe.test(firstToken)) {
+    return secondToken;
+  }
+  return firstToken;
+}
+
+function collapseDuplicateSequences(text) {
+  const tokens = text.split(" ").filter(Boolean);
+  const result = [];
+  let i = 0;
+  while (i < tokens.length) {
+    let matched = false;
+    const maxSpan = Math.min(6, Math.floor((tokens.length - i) / 2));
+    for (let span = maxSpan; span >= 1; span--) {
+      let same = true;
+      for (let j = 0; j < span; j++) {
+        if (
+          normalizeTokenForDedup(tokens[i + j]) !==
+          normalizeTokenForDedup(tokens[i + span + j])
+        ) {
+          same = false;
+          break;
+        }
+      }
+      if (same) {
+        for (let j = 0; j < span; j++) {
+          const firstToken = tokens[i + j];
+          const secondToken = tokens[i + span + j];
+          result.push(chooseToken(firstToken, secondToken));
+        }
+        i += span * 2;
+        matched = true;
+        break;
+      }
+    }
+    if (!matched) {
+      result.push(tokens[i]);
+      i += 1;
+    }
+  }
+  return result.join(" ");
+}
+
+function cleanRateText(value) {
+  if (value == null) return "";
+  let text = String(value);
+  if (!text) return "";
+  text = text.replace(DOC_WRITE_TAG_RE, (_, __, inner) => {
+    const decoded = decodeBasicEntities(inner).replace(/\u00a0/g, " ");
+    return decoded ? ` ${decoded} ` : " ";
+  });
+  text = decodeBasicEntities(text).replace(/\u00a0/g, " ");
+  text = text.replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  text = collapseDuplicateSequences(text);
+  return text.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+}
 
 function normalizeCondition(value) {
   const raw = String(value ?? "").toLowerCase();
@@ -43,7 +120,7 @@ function normalizeCreditRange(minRaw, maxRaw) {
 
 function buildTermLabel({ termMin, termMax, explicitLabel }) {
   if (explicitLabel && explicitLabel.trim()) {
-    return explicitLabel.trim();
+    return cleanRateText(explicitLabel);
   }
   if (termMin === termMax) {
     return `${termMin} mos.`;
@@ -52,13 +129,15 @@ function buildTermLabel({ termMin, termMax, explicitLabel }) {
 }
 
 function deriveProgramLabel({ creditTierLabel, creditTier, fallback }) {
-  if (creditTierLabel && creditTierLabel.trim()) {
-    return creditTierLabel.trim();
+  const label = cleanRateText(creditTierLabel);
+  if (label) {
+    return label;
   }
-  if (creditTier && creditTier.trim()) {
-    return creditTier.trim();
+  const tier = cleanRateText(creditTier);
+  if (tier) {
+    return tier;
   }
-  return fallback ?? "";
+  return cleanRateText(fallback) || "";
 }
 
 function normalizeRateRow(row, provider, datasetEffectiveAt) {

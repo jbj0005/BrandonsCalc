@@ -9,6 +9,13 @@ export default defineConfig({
     port: 5173, // dev server port
     open: true, // auto-open browser on start
     host: true, // listen on 0.0.0.0 for LAN testing
+    proxy: {
+      "/api": {
+        target: "http://localhost:5174",
+        changeOrigin: true,
+        secure: false,
+      },
+    },
   },
   preview: {
     port: 4173,
