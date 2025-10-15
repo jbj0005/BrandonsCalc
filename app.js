@@ -4467,6 +4467,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (previous !== currentUserId) {
       void loadSavedVehicles();
+      void ensureVehiclesLoaded({ preserveSelection: true });
     }
   }
 
@@ -4643,6 +4644,15 @@ document.addEventListener("DOMContentLoaded", () => {
     recomputeDeal();
   }
 
+  async function ensureVehiclesLoaded({ preserveSelection = true } = {}) {
+    if (!vehicleSelect) return;
+    if (!currentUserId) return;
+    if (vehiclesCache.length) return;
+    const targetId =
+      preserveSelection && currentVehicleId ? String(currentVehicleId) : "";
+    await loadVehicles(targetId);
+  }
+
   function setModalStatus(message = "", tone = "info") {
     if (!modalStatusEl) return;
     modalStatusEl.textContent = message ?? "";
@@ -4754,6 +4764,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (result) {
       await hydrateSession();
       await loadSavedVehicles();
+      await ensureVehiclesLoaded({ preserveSelection: false });
     }
     return Boolean(result);
   }
@@ -7918,6 +7929,17 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  if (vehicleSelect instanceof HTMLSelectElement) {
+    const preloadVehicles = () => {
+      void ensureVehiclesLoaded({ preserveSelection: true });
+    };
+    ["focus", "pointerdown"].forEach((eventName) => {
+      vehicleSelect.addEventListener(eventName, preloadVehicles, {
+        once: false,
+      });
+    });
+  }
+
   vehicleSelect?.addEventListener("change", (event) => {
     const select = event.target;
     currentVehicleId =
@@ -8287,6 +8309,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function initializeApp() {
     attachCalculatorEventListeners();
     await initAuthAndVehicles();
+    await ensureVehiclesLoaded({ preserveSelection: true });
     await Promise.all([loadDealerFeeSuggestions(), loadGovFeeSuggestions()]);
     updateEditFeeNameList(editFeeTypeSelect?.value ?? "dealer");
     if (stateTaxInput) {
