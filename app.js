@@ -7930,13 +7930,34 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (vehicleSelect instanceof HTMLSelectElement) {
-    const preloadVehicles = () => {
-      void ensureVehiclesLoaded({ preserveSelection: true });
+    const handleVehicleSelectIntent = async (event) => {
+      if (!currentUserId) {
+        event?.preventDefault?.();
+        const hasUser = await requireUser(true);
+        if (!hasUser) {
+          vehicleSelect.blur();
+          return;
+        }
+      }
+      await ensureVehiclesLoaded({ preserveSelection: true });
     };
-    ["focus", "pointerdown"].forEach((eventName) => {
-      vehicleSelect.addEventListener(eventName, preloadVehicles, {
-        once: false,
-      });
+
+    vehicleSelect.addEventListener("pointerdown", (event) => {
+      void handleVehicleSelectIntent(event);
+    });
+
+    vehicleSelect.addEventListener("focus", (event) => {
+      void handleVehicleSelectIntent(event);
+    });
+
+    vehicleSelect.addEventListener("keydown", (event) => {
+      if (
+        !currentUserId &&
+        ["Enter", " ", "ArrowDown", "ArrowUp"].includes(event.key)
+      ) {
+        event.preventDefault();
+        void handleVehicleSelectIntent(event);
+      }
     });
   }
 
