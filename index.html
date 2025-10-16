@@ -54,7 +54,7 @@
         <!-- Open Card Wrapper -->
         <div class="flexCards">
           <!-- Saved Vehicle Card -->
-          <div class="card cornerAnchor" id="SavedVehicleCard">
+          <div class="savedVehicleCard cornerAnchor" id="SavedVehicleCard">
             <!-- Logo -->
             <img
               class="cornerBadge cornerBadge--top-left"
@@ -77,7 +77,12 @@
                   </div>
               </form>
             </div>
+            <!-- Login Tab -->
+            <div class="flexCenter" id="loginTab">
+              <a type="button" class="linkButton" data-auth-link="open">Login</a>
+            </div>
           </div>
+
           <!-- Location Card -->
           <div class="card" id="locationCard">
             <h2 class="flexSpace">Home Address</h2>
@@ -573,12 +578,12 @@
         </div>
         <!-- Vehicle Modal -->
         <div
-          id="vehicleModal"
-          class="modalOverlay"
-          aria-hidden="true"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="vehicleModalTitle">
+            id="vehicleModal"
+            class="modalOverlay"
+            aria-hidden="true"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="vehicleModalTitle">
             <div class="card modalCard">
               <header class="modalHeader">
                 <h3 id="vehicleModalTitle">Save Vehicle</h3>
@@ -591,138 +596,139 @@
                   ×
                 </button>
               </header>
-            <form id="vehicleModalForm" class="modalCard">
-              <div class="insideCard flexCenter">
-                <label for="modalVin" class="flexCenter modalVin">VEHICLE IDENTIFICATION NUMBER (VIN)
+              <form id="vehicleModalForm" class="modalCard">
+                <div class="insideCard flexCenter">
+                  <label for="modalVin" class="flexCenter modalVin">VEHICLE IDENTIFICATION NUMBER (VIN)
+                    <input
+                      id="modalVin"
+                      class="modalVinInput flexCenter"
+                      type="text"
+                      name="vin"
+                      maxlength="17"
+                      inputmode="text"
+                      autocomplete="off"
+                      placeholder="Insert a VIN">
+                    </input>
+                  </label>
+                  <span class="note flexCenter" id="vinNote">Enter a VIN to Auto-Populate the Remaining Fields</span>
+                </div>
+                  <label for="modalVehicleName">Vehicle
                   <input
-                    id="modalVin"
-                    class="modalVinInput flexCenter"
-                    type="text"
-                    name="vin"
-                    maxlength="17"
-                    inputmode="text"
-                    autocomplete="off"
-                    placeholder="Insert a VIN">
-                  </input>
-                </label>
-                <span class="note flexCenter" id="vinNote">Enter a VIN to Auto-Populate the Remaining Fields</span>
-              </div>
-                <label for="modalVehicleName">Vehicle
-                <input
-                  id="modalVehicleName"
-                  class="softInput"
-                  type="text"
-                  name="vehicle"
-                  autocomplete="off"
-                />
-              </label>
-
-              </label>
-              <label for="modalYear">Year
-                <input
-                  id="modalYear"
-                  class="softInput"
-                  type="text"
-                />
-              </label>
-              <label for="modalMake">Make
-                <input
-                  id="modalMake"
-                  class="softInput"
-                  type="text"
-                  name="make"
-                  autocomplete="off"
-                />
-              </label>
-              <label for="modalModel">Model
-                <input
-                  id="modalModel"
-                  class="softInput"
-                  type="text"
-                  name="model"
-                  autocomplete="off"
-                />
-              </label>
-              <label for="modalTrim">Trim
-                <input
-                  id="modalTrim"
-                  class="softInput"
-                  type="text"
-                  name="trim"
-                  autocomplete="off"
-                />
-              </label>
-              </label>
-              <label for="modalMileage">Mileage
-                <input
-                  id="modalMileage"
-                  class="softInput"
-                  type="number"
-                  name="mileage"
-                  min="0"
-                  step="1"
-                  autocomplete="off"
-                />
-              </label>
-              <label for="modalAskingPrice">Asking Price
-                <input
-                  id="modalAskingPrice"
-                  class="softInput usdFormat"
-                  type="text"
-                  name="asking_price"
-                  autocomplete="off"
-                />
-              </label>
-              <div class="flexEnd">
-                <label>Dealer
-                  <input class="softInput" id="modalDealerName" name="dealer_name" />
-                </label>
-                <label>Street Address
-                  <input class="softInput" id="modalDealerStreet" name="dealer_street" />
-                </label>
-                <label>City
-                  <input class="softInput" id="modalDealerCity" name="dealer_city" />
-                </label>
-                <label>State
-                  <input class="softInput" id="modalDealerState" name="dealer_state" />
-                </label>
-                <label>Zip Code
-                  <input class="softInput" id="modalDealerZip" name="dealer_zip" />
-                </label>
-                  <input type="hidden" id="modalDealerLat" name="dealer_lat" />
-                  <input type="hidden" id="modalDealerLng" name="dealer_lng" />
-                  <input type="hidden" id="modalDealerPhone" name="dealer_phone" />
-              </div>
-              <p class="modalNote">
-                Have an account?
-                <button type="button" class="linkButton" data-auth-link="open">
-                  Sign in
-                </button>
-                to save vehicles.
-              </p>
-                <label class="flexSpace" for="modalDealerAddress">Dealer Search
-                  <input
-                    id="modalDealerAddress"
+                    id="modalVehicleName"
                     class="softInput"
                     type="text"
-                    name="dealer_address"
-                    placeholder="Search dealer or address"
-                    autocomplete="off">
-                  </input>
+                    name="vehicle"
+                    autocomplete="off"
+                  />
                 </label>
-              <footer class="modalActions">
-                <button type="submit" class="modalPrimary">Save</button>
-                <button
-                  type="button"
-                  class="modalSecondary"
-                  data-modal-action="cancel"
-                >
-                  Cancel
-                </button>
-              </footer>
-              <p class="modalStatus" role="status" aria-live="polite"></p>
-            </form>
+
+                </label>
+                <label for="modalYear">Year
+                  <input
+                    id="modalYear"
+                    class="softInput"
+                    type="text"
+                  />
+                </label>
+                <label for="modalMake">Make
+                  <input
+                    id="modalMake"
+                    class="softInput"
+                    type="text"
+                    name="make"
+                    autocomplete="off"
+                  />
+                </label>
+                <label for="modalModel">Model
+                  <input
+                    id="modalModel"
+                    class="softInput"
+                    type="text"
+                    name="model"
+                    autocomplete="off"
+                  />
+                </label>
+                <label for="modalTrim">Trim
+                  <input
+                    id="modalTrim"
+                    class="softInput"
+                    type="text"
+                    name="trim"
+                    autocomplete="off"
+                  />
+                </label>
+                </label>
+                <label for="modalMileage">Mileage
+                  <input
+                    id="modalMileage"
+                    class="softInput"
+                    type="number"
+                    name="mileage"
+                    min="0"
+                    step="1"
+                    autocomplete="off"
+                  />
+                </label>
+                <label for="modalAskingPrice">Asking Price
+                  <input
+                    id="modalAskingPrice"
+                    class="softInput usdFormat"
+                    type="text"
+                    name="asking_price"
+                    autocomplete="off"
+                  />
+                </label>
+                <div class="flexEnd">
+                  <label>Dealer
+                    <input class="softInput" id="modalDealerName" name="dealer_name" />
+                  </label>
+                  <label>Street Address
+                    <input class="softInput" id="modalDealerStreet" name="dealer_street" />
+                  </label>
+                  <label>City
+                    <input class="softInput" id="modalDealerCity" name="dealer_city" />
+                  </label>
+                  <label>State
+                    <input class="softInput" id="modalDealerState" name="dealer_state" />
+                  </label>
+                  <label>Zip Code
+                    <input class="softInput" id="modalDealerZip" name="dealer_zip" />
+                  </label>
+                    <input type="hidden" id="modalDealerLat" name="dealer_lat" />
+                    <input type="hidden" id="modalDealerLng" name="dealer_lng" />
+                    <input type="hidden" id="modalDealerPhone" name="dealer_phone" />
+                </div>
+                <p class="modalNote">
+                  Have an account?
+                  <button type="button" class="linkButton" data-auth-link="open">
+                    Sign in
+                  </button>
+                  to save vehicles.
+                </p>
+                  <label class="flexSpace" for="modalDealerAddress">Dealer Search
+                    <input
+                      id="modalDealerAddress"
+                      class="softInput"
+                      type="text"
+                      name="dealer_address"
+                      placeholder="Search dealer or address"
+                      autocomplete="off">
+                    </input>
+                  </label>
+                <footer class="modalActions">
+                  <button type="submit" class="modalPrimary">Save</button>
+                  <button
+                    type="button"
+                    class="modalSecondary"
+                    data-modal-action="cancel"
+                  >
+                    Cancel
+                  </button>
+                </footer>
+                <p class="modalStatus" role="status" aria-live="polite"></p>
+              </form>
           </div>
+        </div>
         <!-- Authorization Modal -->
         <div
           id="authModal"
@@ -748,7 +754,7 @@
               <label class="flexEnd" for="authEmail">Email
                 <input
                   id="authEmail"
-                  class="cell"
+                  class="softInput"
                   type="email"
                   name="email"
                   autocomplete="username"
@@ -758,7 +764,7 @@
               <label class="flexEnd" for="authPassword">Password
                 <input
                   id="authPassword"
-                  class="cell"
+                  class="softInput"
                   type="password"
                   name="password"
                   autocomplete="current-password"
@@ -784,7 +790,7 @@
       <script
         id="google-maps-script"
         src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC5LXJ43CBBfA5d-zAl03NBXwMVML2FMA8&libraries=places&callback=initLocationAutocomplete&loading=async"
-        defer
-      ></script>
+        defer>
+      </script>
     </body>
 </html>
