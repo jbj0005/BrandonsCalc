@@ -121,15 +121,30 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
     const radius = Number(req.query.radius || 200);
     const pick = req.query.pick === "freshest" ? "freshest" : "nearest";
 
-    const searchUrl = mcUrl("/search/car/active", {
+    const buildSearchParams = (useZip) => ({
       vin,
-      zip: zip || undefined,
-      radius: zip ? radius : undefined,
+      zip: useZip && zip ? zip : undefined,
+      radius: useZip && zip ? radius : undefined,
       rows: 25,
       start: 0,
-      sort_by: zip ? "dist" : "price",
+      sort_by: useZip && zip ? "dist" : "price",
     });
-    const search = await getJson(searchUrl);
+    let search = null;
+    try {
+      const searchUrl = mcUrl("/search/car/active", buildSearchParams(true));
+      search = await getJson(searchUrl);
+    } catch (err) {
+      if (zip && err?.status === 422) {
+        console.warn(
+          "[/by-vin] zip-aware search failed, retrying without zip:",
+          err?.body || err?.message || err
+        );
+        const fallbackUrl = mcUrl("/search/car/active", buildSearchParams(false));
+        search = await getJson(fallbackUrl);
+      } else {
+        throw err;
+      }
+    }
     const best = pickBestListing(search?.listings || [], { pick });
     if (!best?.id) return res.json({ ok: true, found: false, vin });
 
