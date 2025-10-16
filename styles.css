@@ -14,7 +14,7 @@
   --rootMargin: 0.2rem 0rem 0.2rem 0.4rem;
   --calculator-top: 200px; /* adjust until visually aligned with Calculator card top */
   --floating-offset-x: 1.5rem; /* horizontal offset from the left screen edge */
-  --floating-offset-y: 17vh; /* vertical offset from the top screen edge */
+  --floating-offset-y: 83vh; /* vertical offset from the top screen edge */
 }
 
 .logo {
@@ -52,6 +52,45 @@ output:not(:placeholder-shown) {
   color: var(--muted);
 }
 
+.dealerMapStatus {
+  font-family: roboto;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.dealerMapStatus__grid {
+  display: grid;
+  grid-auto-rows: auto;
+  row-gap: 0.2rem;
+  align-items: start;
+}
+
+.dealerMapStatus__row {
+  display: block;
+  line-height: 1.3;
+}
+
+.dealerMapStatus__name {
+  font-weight: 600;
+  color: var(--black);
+}
+
+.dealerMapStatus__dealer {
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.dealerMapStatus__location {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.dealerMapStatus__meta {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+
 .modalVin {
   font-family: IBM Plex Mono;
   font-size: x-small;
@@ -65,10 +104,21 @@ output:not(:placeholder-shown) {
   border: none;
   border-radius: var(--radius-md);
   justify-items: center;
-  letter-spacing: 0.125rem;
+  letter-spacing: 0.3;
   background-color: #f3f3f3;
   padding: 0 1rem 0 1rem;
   margin: 0.5rem;
+}
+
+.softInput {
+  font-family: IBM Plex Mono;
+  border: none;
+  border-radius: var(--radius-md);
+  justify-items: end;
+  background-color: #f3f3f3;
+  padding: 0 1rem 0 1rem;
+  margin: 0.5rem;
+  width: 15rem;
 }
 
 #rateSourceStatus[data-tone="warning"] {

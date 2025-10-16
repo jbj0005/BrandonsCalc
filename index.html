@@ -89,7 +89,7 @@
                 </input>
               </div>
               <div class="grid2" id="localeNote">
-                <p class="row2">Required to Compute Registration, Fees, and Sales Tax</p>
+                <p class="row2">Required to Compute Gov't Fees and Sales Tax</p>
               </div>
           <!-- Dealer Directions Card -->
           <div class="mapCanvas" id="dealerMapCard">
@@ -101,7 +101,7 @@
             ></div>
             <p
               id="dealerMapStatus"
-              class="note"
+              class="dealerMapStatus"
               role="status"
               aria-live="polite"
             >
@@ -602,7 +602,7 @@
                     maxlength="17"
                     inputmode="text"
                     autocomplete="off"
-                    placeholder="ENTER VIN">
+                    placeholder="Insert a VIN">
                   </input>
                 </label>
                 <span class="note flexCenter" id="vinNote">Enter a VIN to Auto-Populate the Remaining Fields</span>
@@ -610,7 +610,7 @@
                 <label for="modalVehicleName">Vehicle
                 <input
                   id="modalVehicleName"
-                  class="cell"
+                  class="softInput"
                   type="text"
                   name="vehicle"
                   autocomplete="off"
@@ -621,19 +621,14 @@
               <label for="modalYear">Year
                 <input
                   id="modalYear"
-                  class="cell stdWidth"
-                  type="number"
-                  name="year"
-                  min="1900"
-                  max="2099"
-                  step="1"
-                  autocomplete="off"
+                  class="softInput"
+                  type="text"
                 />
               </label>
               <label for="modalMake">Make
                 <input
                   id="modalMake"
-                  class="cell"
+                  class="softInput"
                   type="text"
                   name="make"
                   autocomplete="off"
@@ -642,7 +637,7 @@
               <label for="modalModel">Model
                 <input
                   id="modalModel"
-                  class="cell"
+                  class="softInput"
                   type="text"
                   name="model"
                   autocomplete="off"
@@ -651,16 +646,17 @@
               <label for="modalTrim">Trim
                 <input
                   id="modalTrim"
-                  class="cell"
+                  class="softInput"
                   type="text"
                   name="trim"
                   autocomplete="off"
                 />
               </label>
+              </label>
               <label for="modalMileage">Mileage
                 <input
                   id="modalMileage"
-                  class="cell"
+                  class="softInput"
                   type="number"
                   name="mileage"
                   min="0"
@@ -671,28 +667,30 @@
               <label for="modalAskingPrice">Asking Price
                 <input
                   id="modalAskingPrice"
-                  class="cell usdFormat"
+                  class="softInput usdFormat"
                   type="text"
                   name="asking_price"
                   autocomplete="off"
                 />
               </label>
               <div class="flexEnd">
+                <label>Dealer
+                  <input class="softInput" id="modalDealerName" name="dealer_name" />
+                </label>
                 <label>Street Address
-                  <input class="cell" id="modalDealerStreet" name="dealer_street" />
+                  <input class="softInput" id="modalDealerStreet" name="dealer_street" />
                 </label>
                 <label>City
-                  <input class="cell" id="modalDealerCity" name="dealer_city" />
+                  <input class="softInput" id="modalDealerCity" name="dealer_city" />
                 </label>
                 <label>State
-                  <input class="cell" id="modalDealerState" name="dealer_state" />
+                  <input class="softInput" id="modalDealerState" name="dealer_state" />
                 </label>
                 <label>Zip Code
-                  <input class="cell" id="modalDealerZip" name="dealer_zip" />
+                  <input class="softInput" id="modalDealerZip" name="dealer_zip" />
                 </label>
                   <input type="hidden" id="modalDealerLat" name="dealer_lat" />
                   <input type="hidden" id="modalDealerLng" name="dealer_lng" />
-                  <input type="hidden" id="modalDealerName" name="dealer_name" />
                   <input type="hidden" id="modalDealerPhone" name="dealer_phone" />
               </div>
               <p class="modalNote">
@@ -702,7 +700,17 @@
                 </button>
                 to save vehicles.
               </p>
-                <footer class="modalActions colMerged">
+                <label class="flexSpace" for="modalDealerAddress">Dealer Search
+                  <input
+                    id="modalDealerAddress"
+                    class="softInput"
+                    type="text"
+                    name="dealer_address"
+                    placeholder="Search dealer or address"
+                    autocomplete="off">
+                  </input>
+                </label>
+              <footer class="modalActions">
                 <button type="submit" class="modalPrimary">Save</button>
                 <button
                   type="button"

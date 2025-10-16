@@ -638,9 +638,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const authModalSecondaryBtn =
     authForm?.querySelector(".modalSecondary") ?? null;
   const authModalCloseBtn = authModal?.querySelector(".modalClose") ?? null;
-  const loginLinks = Array.from(
-    document.querySelectorAll("[data-auth-link]")
-  );
+  const loginLinks = Array.from(document.querySelectorAll("[data-auth-link]"));
   const modalTitle = document.getElementById("vehicleModalTitle");
   const modalStatusEl = vehicleModalForm?.querySelector(".modalStatus") ?? null;
   const modalPrimaryBtn =
@@ -653,6 +651,8 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   const dealerMapContainer = document.getElementById("dealerMap");
   const dealerMapStatusEl = document.getElementById("dealerMapStatus");
+  const initialDealerMapStatusMessage =
+    dealerMapStatusEl?.textContent?.trim?.() ?? "";
 
   const modalFields = vehicleModalForm
     ? {
@@ -715,6 +715,11 @@ document.addEventListener("DOMContentLoaded", () => {
     phone: "",
     url: "",
     listingId: "",
+    city: "",
+    state: "",
+    zip: "",
+    vehicleLabel: "",
+    listingSource: "",
   };
   const mapState = {
     map: null,
@@ -1303,14 +1308,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (diff > 0) {
-      savingsNote.textContent = `You are saving ${formatCurrency(diff)}`;
+      savingsNote.textContent = `Saving ${formatCurrency(diff)}!`;
       savingsNote.dataset.value = String(diff);
       return;
     }
 
-    savingsNote.textContent = `Paying ${formatCurrency(
-      Math.abs(diff)
-    )} above asking`;
+    savingsNote.textContent = `+ ${formatCurrency(Math.abs(diff))}`;
     savingsNote.dataset.value = String(diff);
   }
 
@@ -2419,12 +2422,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setDealerMapStatus(message = "", tone = "") {
     if (!dealerMapStatusEl) return;
-    dealerMapStatusEl.textContent = message ?? "";
+    const normalized =
+      message == null
+        ? ""
+        : typeof message === "string"
+        ? message
+        : String(message);
+    dealerMapStatusEl.replaceChildren();
+    const trimmed = normalized.trim();
+    if (trimmed) {
+      const lines = normalized
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
+      const grid = document.createElement("div");
+      grid.className = "dealerMapStatus__grid";
+      lines.forEach((line, index) => {
+        const row = document.createElement("div");
+        row.classList.add("dealerMapStatus__row");
+        if (index === 0) {
+          row.classList.add("dealerMapStatus__name");
+        } else if (index === 1) {
+          row.classList.add("dealerMapStatus__dealer");
+        } else if (index === 2) {
+          row.classList.add("dealerMapStatus__location");
+        } else {
+          row.classList.add("dealerMapStatus__meta");
+        }
+        row.textContent = line;
+        grid.append(row);
+      });
+      dealerMapStatusEl.append(grid);
+    }
     if (!tone) {
       dealerMapStatusEl.removeAttribute("data-tone");
     } else {
       dealerMapStatusEl.dataset.tone = tone;
     }
+  }
+
+  if (initialDealerMapStatusMessage) {
+    setDealerMapStatus(initialDealerMapStatusMessage);
   }
 
   function toLatLngLiteral(value) {
@@ -2826,6 +2864,8 @@ document.addEventListener("DOMContentLoaded", () => {
         zip: "",
         formattedAddress: "",
         latLng: null,
+        name: "",
+        phone: "",
       };
     }
     const components =
@@ -2843,10 +2883,28 @@ document.addEventListener("DOMContentLoaded", () => {
     const latLng = toLatLngLiteral(
       place.location || place.geometry?.location || null
     );
+    const displayName =
+      (place.displayName && place.displayName.text) || place.displayName || "";
+    const rawName =
+      (typeof displayName === "string" && displayName) ||
+      (typeof place.name === "string" && place.name) ||
+      "";
+    const rawPhone =
+      (typeof place.formattedPhoneNumber === "string" &&
+        place.formattedPhoneNumber) ||
+      (typeof place.formatted_phone_number === "string" &&
+        place.formatted_phone_number) ||
+      (typeof place.internationalPhoneNumber === "string" &&
+        place.internationalPhoneNumber) ||
+      (typeof place.international_phone_number === "string" &&
+        place.international_phone_number) ||
+      "";
     return {
       ...addressParts,
       formattedAddress,
       latLng,
+      name: rawName,
+      phone: rawPhone,
     };
   }
 
@@ -2894,45 +2952,95 @@ document.addEventListener("DOMContentLoaded", () => {
         dealerLocationAutocomplete = element;
         attachDealerAddressInputListeners(element);
         const handleDealerPlace = async (place) => {
-          try {
-            if (!place || typeof place.fetchFields !== "function") return;
-            await place.fetchFields({
-              fields: [
-                "addressComponents",
-                "formattedAddress",
-                "location",
-                "displayName",
-                "name",
-              ],
-            });
-            const details = extractDealerLocationFromPlace(place);
-            applyModalDealerLocation({
-              street: details.street,
-              city: details.city,
-              state: details.state,
-              zip: details.zip,
-              lat: details.latLng?.lat ?? null,
-              lng: details.latLng?.lng ?? null,
-              formattedAddress: details.formattedAddress,
-            });
-            if (details.latLng) {
-              const placeName =
-                place.displayName?.text ||
-                place.displayName ||
-                place.name ||
-                details.formattedAddress;
-              setDealerLocation({
-                address: details.formattedAddress,
-                latLng: details.latLng,
-                name: placeName,
+          if (!place) return;
+          if (typeof place.fetchFields === "function") {
+            try {
+              await place.fetchFields({
+                fields: [
+                  "addressComponents",
+                  "formattedAddress",
+                  "location",
+                  "displayName",
+                ],
               });
+            } catch (error) {
+              console.error(
+                "[places] dealer PlaceAutocompleteElement base fetch failed",
+                error
+              );
             }
-          } catch (error) {
-            console.error(
-              "[places] dealer PlaceAutocompleteElement failed",
-              error
-            );
+            const phoneFieldCandidates = [
+              "formattedPhoneNumber",
+              "internationalPhoneNumber",
+            ];
+            let phoneFieldsToFetch = phoneFieldCandidates;
+            const { availableFields } = place;
+            if (Array.isArray(availableFields)) {
+              phoneFieldsToFetch = phoneFieldCandidates.filter((field) =>
+                availableFields.includes(field)
+              );
+            } else if (
+              availableFields &&
+              typeof availableFields === "object" &&
+              typeof availableFields.has === "function"
+            ) {
+              phoneFieldsToFetch = phoneFieldCandidates.filter((field) =>
+                availableFields.has(field)
+              );
+            } else if (typeof place.isFieldAvailable === "function") {
+              phoneFieldsToFetch = phoneFieldCandidates.filter((field) =>
+                place.isFieldAvailable(field)
+              );
+            }
+            if (phoneFieldsToFetch.length > 0) {
+              try {
+                await place.fetchFields({
+                  fields: phoneFieldsToFetch,
+                });
+              } catch (error) {
+                // Phone fields aren't available for every place type; skip quietly.
+                console.debug(
+                  "[places] dealer PlaceAutocompleteElement phone fetch skipped",
+                  error?.message ?? error
+                );
+              }
+            }
           }
+          const details = extractDealerLocationFromPlace(place);
+          const placeName =
+            details.name ||
+            place.displayName?.text ||
+            place.displayName ||
+            place.name ||
+            details.formattedAddress;
+          const placePhone =
+            details.phone ||
+            place.formattedPhoneNumber ||
+            place.formatted_phone_number ||
+            place.internationalPhoneNumber ||
+            place.international_phone_number ||
+            "";
+          applyModalDealerLocation({
+            street: details.street,
+            city: details.city,
+            state: details.state,
+            zip: details.zip,
+            lat: details.latLng?.lat ?? null,
+            lng: details.latLng?.lng ?? null,
+            formattedAddress: details.formattedAddress,
+            name: placeName,
+            phone: placePhone,
+          });
+          setDealerLocation({
+            address: details.formattedAddress,
+            latLng: details.latLng,
+            name: placeName,
+            phone: placePhone,
+            city: details.city,
+            state: details.state,
+            zip: details.zip,
+            vehicleLabel: getModalVehicleLabel() || getSelectedVehicleLabel(),
+          });
         };
 
         const dealerPlaceListener = async (event) => {
@@ -2972,6 +3080,13 @@ document.addEventListener("DOMContentLoaded", () => {
         const place = dealerLocationAutocomplete?.getPlace?.();
         if (!place) return;
         const details = extractDealerLocationFromPlace(place);
+        const placeName =
+          details.name || place.name || details.formattedAddress || "";
+        const placePhone =
+          details.phone ||
+          place.formatted_phone_number ||
+          place.international_phone_number ||
+          "";
         applyModalDealerLocation({
           street: details.street,
           city: details.city,
@@ -2980,14 +3095,19 @@ document.addEventListener("DOMContentLoaded", () => {
           lat: details.latLng?.lat ?? null,
           lng: details.latLng?.lng ?? null,
           formattedAddress: details.formattedAddress,
+          name: placeName,
+          phone: placePhone,
         });
-        if (details.formattedAddress) {
-          setDealerLocation({
-            address: details.formattedAddress,
-            latLng: details.latLng,
-            name: place.name || details.formattedAddress,
-          });
-        }
+        setDealerLocation({
+          address: details.formattedAddress,
+          latLng: details.latLng,
+          name: placeName,
+          phone: placePhone,
+          city: details.city,
+          state: details.state,
+          zip: details.zip,
+          vehicleLabel: getModalVehicleLabel() || getSelectedVehicleLabel(),
+        });
       });
     } catch (error) {
       console.warn("[places] dealer autocomplete init failed", error);
@@ -3014,14 +3134,74 @@ document.addEventListener("DOMContentLoaded", () => {
     phone = "",
     url = "",
     listingId = "",
+    city = "",
+    state = "",
+    zip = "",
+    vehicleLabel = "",
+    listingSource,
   } = {}) {
     dealerLocationState.address = address ?? "";
-    dealerLocationState.latLng = latLng;
+    dealerLocationState.latLng =
+      latLng && isValidCoordinatePair(latLng.lat, latLng.lng)
+        ? { lat: Number(latLng.lat), lng: Number(latLng.lng) }
+        : null;
     dealerLocationState.name = name ?? "";
     dealerLocationState.phone = phone ?? "";
     dealerLocationState.url = url ?? "";
     dealerLocationState.listingId = listingId ?? "";
+    dealerLocationState.city = city ?? "";
+    dealerLocationState.state = state ?? "";
+    dealerLocationState.zip = zip ?? "";
+    dealerLocationState.vehicleLabel = vehicleLabel ?? "";
+    if (listingSource !== undefined) {
+      dealerLocationState.listingSource = listingSource ?? "";
+    }
     void updateDirectionsMap();
+  }
+
+  function getSelectedVehicleLabel() {
+    if (!currentVehicleId) return "";
+    const match = vehiclesCache.find((item) => {
+      const id = item?.id;
+      if (id == null) return false;
+      return String(id) === String(currentVehicleId);
+    });
+    return match ? buildVehicleLabel(match) : "";
+  }
+
+  function getModalVehicleLabel() {
+    if (!modalFields) return "";
+    const explicit = modalFields.vehicle?.value?.trim?.();
+    if (explicit) return explicit;
+    const year = modalFields.year?.value?.trim?.() || "";
+    const make = modalFields.make?.value?.trim?.() || "";
+    const model = modalFields.model?.value?.trim?.() || "";
+    const trim = modalFields.trim?.value?.trim?.() || "";
+    const makeModel = [make, model].filter(Boolean).join(" ").trim();
+    return [year, makeModel || null, trim]
+      .filter(Boolean)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function formatCityStateZip(city, state, zip, fallback = "") {
+    const cityPart = typeof city === "string" ? city.trim() : "";
+    const statePart = typeof state === "string" ? state.trim() : "";
+    const zipPart = typeof zip === "string" ? zip.trim() : "";
+    const segments = [];
+    if (cityPart) segments.push(cityPart);
+    const stateSegments = [];
+    if (statePart) stateSegments.push(statePart);
+    if (zipPart) stateSegments.push(zipPart);
+    if (stateSegments.length) {
+      const joiner = stateSegments.length > 1 ? ", " : "";
+      segments.push(stateSegments.join(joiner));
+    }
+    if (!segments.length && fallback) {
+      return fallback;
+    }
+    return segments.join(", ");
   }
 
   function geocodeAddress(address) {
@@ -3089,6 +3269,31 @@ document.addEventListener("DOMContentLoaded", () => {
         ? rawDealer
         : null;
 
+    const vehicleLineCandidate = (
+      dealerLocationState.vehicleLabel ||
+      getSelectedVehicleLabel() ||
+      getModalVehicleLabel() ||
+      dealerLocationState.name ||
+      ""
+    ).trim();
+    const dealerNameCandidate = (dealerLocationState.name || "").trim();
+    const vehicleLine = vehicleLineCandidate || dealerNameCandidate || "Dealer";
+    const vehicleLineLower = vehicleLine.toLowerCase();
+    const dealerLineRaw =
+      dealerNameCandidate || dealerLocationState.listingSource || "";
+    const dealerLine = dealerLineRaw.trim();
+    const dealerLineDisplay =
+      dealerLine && dealerLine.toLowerCase() !== vehicleLineLower
+        ? dealerLine
+        : "";
+    const baseLocationLine = formatCityStateZip(
+      dealerLocationState.city,
+      dealerLocationState.state,
+      dealerLocationState.zip,
+      ""
+    );
+    const fallbackAddress = dealerLocationState.address || "";
+
     if (!dealer) {
       updateMarker(mapState.dealerMarker, null);
       if (home) {
@@ -3096,7 +3301,14 @@ document.addEventListener("DOMContentLoaded", () => {
         mapState.map.setCenter(home);
         mapState.map.setZoom(11);
         setDealerMapStatus(
-          "Select a vehicle with dealer details to preview directions.",
+          [
+            vehicleLine,
+            dealerLineDisplay,
+            baseLocationLine || fallbackAddress,
+            "Select a vehicle with dealer details to preview directions.",
+          ]
+            .filter((line) => line && line.trim().length > 0)
+            .join("\n"),
           ""
         );
       } else {
@@ -3104,7 +3316,14 @@ document.addEventListener("DOMContentLoaded", () => {
         mapState.map.setCenter({ lat: 28.5383, lng: -81.3792 });
         mapState.map.setZoom(7);
         setDealerMapStatus(
-          "Enter your home address and select a vehicle to view directions.",
+          [
+            vehicleLine,
+            dealerLineDisplay,
+            baseLocationLine || fallbackAddress,
+            "Enter your home address and select a vehicle to view directions.",
+          ]
+            .filter((line) => line && line.trim().length > 0)
+            .join("\n"),
           ""
         );
       }
@@ -3123,13 +3342,17 @@ document.addEventListener("DOMContentLoaded", () => {
       mapState.directionsRenderer?.set("directions", null);
       mapState.map.setCenter(dealer);
       mapState.map.setZoom(12);
-      const dealerLine = [dealerLocationState.name, dealerLocationState.address]
-        .filter(Boolean)
-        .join(" • ");
+      const locationLine =
+        baseLocationLine || formatCityStateZip("", "", "", fallbackAddress);
       setDealerMapStatus(
-        `${
-          dealerLine || "Dealer location ready"
-        }. Enter your home address to calculate directions.`,
+        [
+          vehicleLine,
+          dealerLineDisplay,
+          locationLine,
+          "Enter your home address to calculate directions.",
+        ]
+          .filter((line) => line && line.trim().length > 0)
+          .join("\n"),
         "info"
       );
       return;
@@ -3162,13 +3385,24 @@ document.addEventListener("DOMContentLoaded", () => {
         mapState.directionsRenderer?.setDirections(response);
         const leg = response?.routes?.[0]?.legs?.[0];
         if (leg) {
-          const infoParts = [
-            dealerLocationState.name || "Dealer",
-            dealerLocationState.address,
-            leg.distance?.text ? `Distance: ${leg.distance.text}` : "",
-            leg.duration?.text ? `ETA: ${leg.duration.text}` : "",
-          ].filter(Boolean);
-          setDealerMapStatus(infoParts.join(" • "), "success");
+          const locationLine = formatCityStateZip(
+            dealerLocationState.city,
+            dealerLocationState.state,
+            dealerLocationState.zip,
+            leg.end_address || fallbackAddress
+          );
+          const distance = leg.distance?.text
+            ? `Distance: ${leg.distance.text}`
+            : "";
+          const eta = leg.duration?.text ? `ETA: ${leg.duration.text}` : "";
+          const metaLine = [distance, eta].filter(Boolean).join(" | ");
+          const bodyLines = [
+            vehicleLine,
+            dealerLineDisplay,
+            locationLine,
+            metaLine,
+          ].filter((line) => line && line.trim().length > 0);
+          setDealerMapStatus(bodyLines.join("\n"), "success");
         } else {
           setDealerMapStatus(
             "Directions ready. Review the map for details.",
@@ -3195,15 +3429,37 @@ document.addEventListener("DOMContentLoaded", () => {
             mapState.map.setCenter(dealer);
             mapState.map.setZoom(12);
           }
+          const locationLine =
+            baseLocationLine ||
+            formatCityStateZip(
+              dealerLocationState.city,
+              dealerLocationState.state,
+              dealerLocationState.zip,
+              fallbackAddress
+            );
           setDealerMapStatus(
-            "Unable to calculate directions. Showing your home and dealer locations.",
+            [
+              vehicleLine,
+              dealerLineDisplay,
+              locationLine,
+              "Unable to calculate directions. Showing your home and dealer locations.",
+            ]
+              .filter(Boolean)
+              .join("\n"),
             "error"
           );
         } else {
           mapState.map.setCenter(DEFAULT_MAP_CENTER);
           mapState.map.setZoom(6);
           setDealerMapStatus(
-            "Unable to calculate directions. Showing Florida map until a home address is entered.",
+            [
+              vehicleLine,
+              dealerLineDisplay,
+              baseLocationLine || fallbackAddress,
+              "Unable to calculate directions. Showing Florida map until a home address is entered.",
+            ]
+              .filter(Boolean)
+              .join("\n"),
             "error"
           );
         }
@@ -3219,6 +3475,11 @@ document.addEventListener("DOMContentLoaded", () => {
         phone: "",
         url: "",
         listingId: "",
+        city: "",
+        state: "",
+        zip: "",
+        vehicleLabel: "",
+        listingSource: "",
       });
       return;
     }
@@ -3255,13 +3516,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    const vehicleLabel = buildVehicleLabel(vehicle) || vehicle.vehicle || "";
+    const dealerName = vehicle.dealer_name || "";
+
     setDealerLocation({
       address: displayAddress,
       latLng,
-      name: vehicle.dealer_name ?? vehicle.vehicle ?? "",
+      name: dealerName,
       phone: vehicle.dealer_phone ?? "",
       url: vehicle.listing_url ?? "",
       listingId: vehicle.listing_id ?? "",
+      city: vehicle.dealer_city ?? "",
+      state: vehicle.dealer_state ?? "",
+      zip: vehicle.dealer_zip ?? "",
+      vehicleLabel,
+      listingSource: vehicle.listing_source ?? "",
     });
   }
 
@@ -3295,10 +3564,13 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    const dealerNameFromListing =
+      dealerMeta?.name || listing.dealer?.name || listing.dealer_name || "";
+
     setDealerLocation({
       address: displayAddress,
       latLng,
-      name: dealerMeta?.name ?? listing.heading ?? "",
+      name: dealerNameFromListing,
       phone: dealerMeta?.phone ?? "",
       url:
         listing.vdp_url ||
@@ -3313,6 +3585,17 @@ document.addEventListener("DOMContentLoaded", () => {
         listing.listing_id ||
         listing.vin ||
         "",
+      city: dealerMeta?.city ?? "",
+      state: dealerMeta?.state ?? "",
+      zip: dealerMeta?.zip ?? "",
+      vehicleLabel:
+        listing.heading ||
+        listing.title ||
+        listing.vehicle ||
+        dealerMeta?.name ||
+        "",
+      listingSource:
+        listing.source || listing.listing_source || listing.listingSource || "",
     });
   }
 
@@ -4742,7 +5025,8 @@ document.addEventListener("DOMContentLoaded", () => {
       return { vin: "", payload: {} };
     }
 
-    const vin = normalizeVin(modalFields.vin?.value ?? "");
+    const rawVin = normalizeVin(modalFields.vin?.value ?? "");
+    const vin = rawVin.length ? rawVin : null;
     const yearValue = parseInteger(modalFields.year?.value);
     const makeValue = modalFields.make?.value?.trim() || "";
     const modelValue = modalFields.model?.value?.trim() || "";
@@ -4752,7 +5036,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const askingPriceRaw = moneyToNumber(modalFields.asking_price?.value ?? "");
     const askingPrice =
-      askingPriceRaw != null ? normalizeCurrencyNumber(askingPriceRaw) : undefined;
+      askingPriceRaw != null
+        ? normalizeCurrencyNumber(askingPriceRaw)
+        : undefined;
 
     const dealerName = modalFields.dealer_name?.value?.trim() || "";
     const dealerPhone = modalFields.dealer_phone?.value?.trim() || "";
@@ -4763,7 +5049,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const dealerLat = parseFloatOrNull(modalFields.dealer_lat?.value ?? "");
     const dealerLng = parseFloatOrNull(modalFields.dealer_lng?.value ?? "");
 
-    const normalizedVehicleLabel = (vehicleName ||
+    const normalizedVehicleLabel =
+      vehicleName ||
       [
         yearValue != null ? String(yearValue) : "",
         [makeValue, modelValue].filter(Boolean).join(" "),
@@ -4771,10 +5058,10 @@ document.addEventListener("DOMContentLoaded", () => {
       ]
         .filter(Boolean)
         .join(" ")
-        .trim()) || null;
+        .trim() ||
+      null;
 
     const payload = pickDefined({
-      vin: vin || undefined,
       vehicle: normalizedVehicleLabel || undefined,
       year: yearValue ?? undefined,
       make: makeValue || undefined,
@@ -4809,15 +5096,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     const { vin, payload } = collectVehicleModalPayload();
-    if (!vin || vin.length !== 17) {
+    if (vin && vin.length !== 17) {
       setModalStatus("Enter a valid 17-character VIN.", "error");
       modalFields.vin?.focus();
       return false;
     }
 
-    payload.vin = vin;
-
-    if (!Object.keys(payload).length) {
+    const updatePayload = { ...payload, vin };
+    if (!Object.keys(updatePayload).length) {
       setModalStatus("Nothing to update.", "info");
       return false;
     }
@@ -4840,7 +5126,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const { data, error } = await supabase
         .from(VEHICLES_TABLE)
-        .update(payload)
+        .update(updatePayload)
         .eq("id", currentVehicleId)
         .eq("user_id", currentUserId)
         .select(VEHICLE_SELECT_COLUMNS)
@@ -4874,9 +5160,9 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch (error) {
       console.error("Vehicle update failed", error);
       const message =
-        (error && typeof error === "object" && "message" in error
+        error && typeof error === "object" && "message" in error
           ? String(error.message)
-          : "Unable to update vehicle.");
+          : "Unable to update vehicle.";
       setModalStatus(message, "error");
       return false;
     } finally {
@@ -5687,6 +5973,11 @@ document.addEventListener("DOMContentLoaded", () => {
         name: mergedName || (modalFields.vehicle?.value ?? ""),
         phone: mergedPhone || "",
         listingId: prefill.listing_id ?? "",
+        city: mergedCity,
+        state: mergedState,
+        zip: mergedZip,
+        vehicleLabel:
+          getModalVehicleLabel() || prefill.vehicle || mergedName || "",
       });
       updated = true;
     }
@@ -5821,7 +6112,9 @@ document.addEventListener("DOMContentLoaded", () => {
         : "";
 
     const modelLabel = [make, model].filter(Boolean).join(" ");
-    const mainLabel = [year, modelLabel || model, trim].filter(Boolean).join(" ");
+    const mainLabel = [year, modelLabel || model, trim]
+      .filter(Boolean)
+      .join(" ");
     const fallback = vehicle.vehicle ? String(vehicle.vehicle) : "Vehicle";
     const base = mainLabel || fallback;
 
@@ -6181,6 +6474,11 @@ document.addEventListener("DOMContentLoaded", () => {
         phone: "",
         url: "",
         listingId: "",
+        city: "",
+        state: "",
+        zip: "",
+        vehicleLabel: "",
+        listingSource: "",
       });
       return;
     }
@@ -6194,10 +6492,11 @@ document.addEventListener("DOMContentLoaded", () => {
       vehicle.dealer_longitude ??
       vehicle.dealerLongitude ??
       null;
-    let latLng =
-      Number.isFinite(latRaw) && Number.isFinite(lngRaw)
-        ? { lat: Number(latRaw), lng: Number(lngRaw) }
-        : null;
+    const latNumeric = parseFloatOrNull(latRaw);
+    const lngNumeric = parseFloatOrNull(lngRaw);
+    let latLng = isValidCoordinatePair(latNumeric, lngNumeric)
+      ? { lat: latNumeric, lng: lngNumeric }
+      : null;
     const address = buildDealerAddress({
       street: vehicle.dealer_street ?? vehicle.dealer_address,
       city: vehicle.dealer_city,
@@ -6216,13 +6515,21 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     }
 
+    const vehicleLabel = buildVehicleLabel(vehicle) || vehicle.vehicle || "";
+    const dealerName = vehicle.dealer_name || "";
+
     setDealerLocation({
       address: displayAddress,
       latLng,
-      name: vehicle.dealer_name ?? vehicle.vehicle ?? "",
+      name: dealerName || vehicleLabel || "Dealer",
       phone: vehicle.dealer_phone ?? "",
       url: vehicle.listing_url ?? "",
       listingId: vehicle.listing_id ?? "",
+      city: vehicle.dealer_city ?? "",
+      state: vehicle.dealer_state ?? "",
+      zip: vehicle.dealer_zip ?? "",
+      vehicleLabel,
+      listingSource: vehicle.listing_source ?? "",
     });
   }
 
@@ -6232,10 +6539,11 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     const dealerMeta = await resolveDealerMetadataForListing(listing);
-    let latLng =
-      Number.isFinite(dealerMeta?.lat) && Number.isFinite(dealerMeta?.lng)
-        ? { lat: Number(dealerMeta.lat), lng: Number(dealerMeta.lng) }
-        : null;
+    const metaLat = parseFloatOrNull(dealerMeta?.lat);
+    const metaLng = parseFloatOrNull(dealerMeta?.lng);
+    let latLng = isValidCoordinatePair(metaLat, metaLng)
+      ? { lat: metaLat, lng: metaLng }
+      : null;
     const address = buildDealerAddress({
       street: dealerMeta?.street,
       city: dealerMeta?.city,
@@ -6273,6 +6581,17 @@ document.addEventListener("DOMContentLoaded", () => {
         listing.listing_id ||
         listing.vin ||
         "",
+      city: dealerMeta?.city ?? "",
+      state: dealerMeta?.state ?? "",
+      zip: dealerMeta?.zip ?? "",
+      vehicleLabel:
+        listing.heading ||
+        listing.title ||
+        listing.vehicle ||
+        dealerMeta?.name ||
+        "",
+      listingSource:
+        listing.source || listing.listing_source || listing.listingSource || "",
     });
   }
 
@@ -8471,7 +8790,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!hasUser) return;
 
     const { vin, payload } = collectVehicleModalPayload();
-    if (!vin || vin.length !== 17) {
+    if (vin && vin.length !== 17) {
       setModalStatus("Enter a valid 17-character VIN.", "error");
       modalFields.vin?.focus();
       return;
@@ -8479,9 +8798,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const record = pickDefined({
       ...payload,
-      vin,
       user_id: currentUserId,
     });
+    record.vin = vin;
 
     setModalInputsDisabled(true);
     modalPrimaryBtn?.setAttribute("disabled", "true");
@@ -8510,9 +8829,9 @@ document.addEventListener("DOMContentLoaded", () => {
       const rlsRegex = /row-level security/i;
       const message = rlsRegex.test(error?.message || "")
         ? "Supabase blocked the save because row-level security is still enforced. Update the public.vehicles policies to allow this operation or sign in."
-        : (error && typeof error === "object" && "message" in error
-            ? String(error.message)
-            : "Unable to save vehicle.");
+        : error && typeof error === "object" && "message" in error
+        ? String(error.message)
+        : "Unable to save vehicle.";
       setModalStatus(message, "error");
     } finally {
       setModalInputsDisabled(false);

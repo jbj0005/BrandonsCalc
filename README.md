@@ -2,6 +2,11 @@
 
 ExcelCalc is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
 
+## v1.0.2 Highlights
+- Update Vehicle modal now auto-fills `modalDealerName` with the Google Places dealer selection, keeping dealer details in sync with the rest of the address fields.
+- Places autocomplete gracefully skips unsupported phone fields so address/city/state/zip population stays reliable without console noise.
+- Dealer location state now tracks additional metadata (city/state/zip, vehicle label) to keep downstream cards aligned with modal edits.
+
 ## v1.0.1 Highlights
 - Hardened Google Maps routing: gracefully fall back to Florida view when directions fail or only partial dealer info is available.
 - Improved dealer geocoding: parse partial addresses, filter invalid coordinates, and avoid rendering `0,0` markers.
