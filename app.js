@@ -233,6 +233,48 @@ document.addEventListener("DOMContentLoaded", () => {
     registerProviderMeta(fallbackKey, meta);
   });
 
+  const PROVIDER_META_OVERRIDES = {
+    CCUFL: {
+      shortName: "CCUFL",
+      longName: "Community Credit Union of Florida",
+    },
+    CCU_IL: {
+      shortName: "CCU",
+      longName: "Consumers Credit Union (IL)",
+    },
+    CCU_ONLINE: {
+      shortName: "CCU-Online",
+      longName: "Consumers Credit Union (Online via Car Buying Service)",
+    },
+    CCU_MI: {
+      shortName: "Consumers CU",
+      longName: "Consumers Credit Union (MI)",
+    },
+    NGFCU: {
+      shortName: "NGFCU",
+      longName: "Northrop Grumman Federal Credit Union",
+    },
+    TRU: {
+      shortName: "Tru",
+      longName: "Truist Bank",
+    },
+    BOA: {
+      shortName: "BoA",
+      longName: "Bank of America",
+    },
+  };
+
+  Object.entries(PROVIDER_META_OVERRIDES).forEach(([key, meta]) => {
+    if (!key) return;
+    registerProviderMeta(key, {
+      shortName: meta?.shortName || meta?.short || key,
+      longName: meta?.longName || meta?.long || meta?.name || key,
+      enabled: meta?.enabled !== false,
+      homepageUrl: meta?.homepageUrl || meta?.website || null,
+      sourceUrl: meta?.sourceUrl || null,
+    });
+  });
+
   function resolveProviderMeta(token) {
     if (!token) return null;
     const upper = String(token).toUpperCase();
@@ -244,6 +286,50 @@ document.addEventListener("DOMContentLoaded", () => {
       return providerMetaByNormalized.get(normalized);
     }
     return null;
+  }
+
+  function formatProviderDisplayName(provider) {
+    const fallbackName = "Provider";
+    if (!provider) return fallbackName;
+
+    const lookupKeys = [
+      provider?.sourceUpper,
+      provider?.source,
+      provider?.id,
+      provider?.shortName,
+    ].filter(Boolean);
+
+    let meta = null;
+    for (const key of lookupKeys) {
+      meta = resolveProviderMeta(key);
+      if (meta) break;
+    }
+
+    const longName =
+      meta?.longName ||
+      provider?.longName ||
+      meta?.shortName ||
+      provider?.source ||
+      provider?.sourceUpper ||
+      provider?.shortName ||
+      fallbackName;
+
+    const shortName =
+      meta?.shortName ||
+      provider?.shortName ||
+      provider?.source ||
+      provider?.sourceUpper ||
+      "";
+
+    if (
+      shortName &&
+      longName &&
+      shortName.trim().toLowerCase() !== longName.trim().toLowerCase()
+    ) {
+      return `${longName} (${shortName})`;
+    }
+
+    return longName || shortName || fallbackName;
   }
 
   if (typeof window !== "undefined") {
@@ -2349,13 +2435,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const winner = candidates.reduce((best, candidate) =>
       candidate.apr < best.apr ? candidate : best
     );
-    const winnerLongName =
-      winner.provider?.longName ||
-      winner.provider?.shortName ||
-      winner.provider?.source ||
-      "Provider";
-    const winnerShortName =
-      winner.provider?.shortName || winner.provider?.source || winnerLongName;
 
     if (financeAprInput instanceof HTMLInputElement) {
       const aprDecimal = Math.max(winner.apr, MIN_APR);
@@ -2363,15 +2442,16 @@ document.addEventListener("DOMContentLoaded", () => {
       financeAprInput.dataset.numericValue = String(aprDecimal);
     }
 
-    lowestAprProviderName = `Lowest Price by APR — ${winnerLongName}`;
+    const lowestProviderDisplayName = formatProviderDisplayName(
+      winner.provider
+    );
+    lowestAprProviderName = `Lowest Price by APR — ${lowestProviderDisplayName}`;
     syncRateSourceName();
-    const winnerDisplay =
-      winnerShortName === winnerLongName
-        ? winnerLongName
-        : `${winnerShortName} (${winnerLongName})`;
     const statusNote =
       winner.note ||
-      `Best available rate: ${winnerDisplay} at ${formatPercent(winner.apr)}`;
+      `Best available rate: ${lowestProviderDisplayName} at ${formatPercent(
+        winner.apr
+      )}`;
     setRateSourceStatus(statusNote, "info");
 
     if (!silent) {
