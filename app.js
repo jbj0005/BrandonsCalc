@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import creditTiers from "./config/credit-tiers.json";
 import lendersConfig from "./config/lenders.json";
 import { createRatesEngine } from "./rates/provider-engine.mjs";
+import savedVehicleLabelConfig from "./config/saved-vehicle-label.json";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
@@ -6374,25 +6375,286 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  const DEFAULT_VEHICLE_LABEL_CONFIG_RAW = {
+    segments: [
+      {
+        fields: ["year", "make", "model", "trim"],
+        join: " ",
+      },
+      {
+        fields: [{ field: "asking_price", format: "currency" }],
+        prefix: "• ",
+      },
+    ],
+    fallbackFields: ["vehicle", "vin"],
+  };
+
+  const VEHICLE_LABEL_CONFIG = normalizeVehicleLabelConfig(
+    savedVehicleLabelConfig,
+    DEFAULT_VEHICLE_LABEL_CONFIG_RAW
+  );
+
+  function normalizeVehicleLabelConfig(rawConfig, defaultConfig) {
+    const baseConfig =
+      rawConfig && typeof rawConfig === "object" ? rawConfig : {};
+    const resolvedSegments = Array.isArray(baseConfig.segments)
+      ? baseConfig.segments
+      : Array.isArray(defaultConfig?.segments)
+      ? defaultConfig.segments
+      : [];
+
+    const segments = resolvedSegments
+      .map(normalizeVehicleLabelSegment)
+      .filter(Boolean);
+
+    if (!segments.length && Array.isArray(defaultConfig?.segments)) {
+      defaultConfig.segments
+        .map(normalizeVehicleLabelSegment)
+        .filter(Boolean)
+        .forEach((segment) => segments.push(segment));
+    }
+
+    const fallbackSource = Array.isArray(baseConfig.fallbackFields)
+      ? baseConfig.fallbackFields
+      : Array.isArray(defaultConfig?.fallbackFields)
+      ? defaultConfig.fallbackFields
+      : [];
+    const fallbackFields = fallbackSource
+      .map((field) => String(field ?? "").trim())
+      .filter(Boolean);
+
+    return {
+      segments,
+      fallbackFields: fallbackFields.length
+        ? fallbackFields
+        : Array.isArray(defaultConfig?.fallbackFields)
+        ? defaultConfig.fallbackFields
+        : ["vehicle"],
+    };
+  }
+
+  function normalizeVehicleLabelSegment(segment) {
+    if (!segment) return null;
+    if (typeof segment === "string") {
+      const field = normalizeVehicleLabelField(segment);
+      if (!field) return null;
+      return {
+        fields: [field],
+        fieldJoin: " ",
+        prefix: "",
+        suffix: "",
+        separator: " ",
+      };
+    }
+    if (Array.isArray(segment)) {
+      const fields = segment
+        .map(normalizeVehicleLabelField)
+        .filter(Boolean);
+      if (!fields.length) return null;
+      return {
+        fields,
+        fieldJoin: " ",
+        prefix: "",
+        suffix: "",
+        separator: " ",
+      };
+    }
+    if (typeof segment === "object") {
+      const fieldsSource = Array.isArray(segment.fields)
+        ? segment.fields
+        : segment.field != null
+        ? [segment.field]
+        : [];
+      const fields = fieldsSource
+        .map(normalizeVehicleLabelField)
+        .filter(Boolean);
+      if (!fields.length) return null;
+      const fieldJoin =
+        typeof segment.join === "string" ? segment.join : " ";
+      const prefix =
+        typeof segment.prefix === "string" ? segment.prefix : "";
+      const suffix =
+        typeof segment.suffix === "string" ? segment.suffix : "";
+      const separator =
+        typeof segment.separator === "string"
+          ? segment.separator
+          : " ";
+      return { fields, fieldJoin, prefix, suffix, separator };
+    }
+    return null;
+  }
+
+  function normalizeVehicleLabelField(entry) {
+    if (entry == null) return null;
+    if (typeof entry === "string") {
+      const fieldName = entry.trim();
+      if (!fieldName) return null;
+      return {
+        type: "field",
+        field: fieldName,
+        format: null,
+        prefix: "",
+        suffix: "",
+      };
+    }
+    if (typeof entry === "object") {
+      if ("literal" in entry) {
+        const literalValue = String(entry.literal ?? "");
+        if (!literalValue) return null;
+        return {
+          type: "literal",
+          value: literalValue,
+          prefix: typeof entry.prefix === "string" ? entry.prefix : "",
+          suffix: typeof entry.suffix === "string" ? entry.suffix : "",
+        };
+      }
+      const fieldName =
+        typeof entry.field === "string"
+          ? entry.field
+          : typeof entry.key === "string"
+          ? entry.key
+          : typeof entry.name === "string"
+          ? entry.name
+          : "";
+      const trimmedField = fieldName.trim();
+      if (!trimmedField) return null;
+      const format =
+        typeof entry.format === "string"
+          ? entry.format.toLowerCase()
+          : null;
+      const prefix =
+        typeof entry.prefix === "string" ? entry.prefix : "";
+      const suffix =
+        typeof entry.suffix === "string" ? entry.suffix : "";
+      return {
+        type: "field",
+        field: trimmedField,
+        format,
+        prefix,
+        suffix,
+      };
+    }
+    return null;
+  }
+
+  function getVehicleFieldValue(vehicle, path) {
+    if (!vehicle || !path) return null;
+    const segments = String(path)
+      .split(".")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!segments.length) return null;
+    let value = vehicle;
+    for (const key of segments) {
+      if (value == null || typeof value !== "object") {
+        return null;
+      }
+      value = value[key];
+    }
+    return value;
+  }
+
+  function formatVehicleFieldValue(vehicle, descriptor) {
+    if (!descriptor) return "";
+    if (descriptor.type === "literal") {
+      const literalPrefix =
+        typeof descriptor.prefix === "string" ? descriptor.prefix : "";
+      const literalSuffix =
+        typeof descriptor.suffix === "string" ? descriptor.suffix : "";
+      const literalValue = `${literalPrefix}${descriptor.value ?? ""}${literalSuffix}`;
+      return literalValue.trim() ? literalValue : "";
+    }
+    const rawValue = getVehicleFieldValue(vehicle, descriptor.field);
+    if (rawValue == null) return "";
+    let value =
+      typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    if (value === "") return "";
+
+    switch (descriptor.format) {
+      case "currency":
+        value = formatToUSDString(value);
+        break;
+      case "upper":
+      case "uppercase":
+        value = String(value).toUpperCase();
+        break;
+      case "lower":
+      case "lowercase":
+        value = String(value).toLowerCase();
+        break;
+      case "title":
+      case "titlecase":
+        value = toTitleCase(value);
+        break;
+      default:
+        value = typeof value === "string" ? value : String(value);
+        break;
+    }
+
+    const prefix =
+      typeof descriptor.prefix === "string" ? descriptor.prefix : "";
+    const suffix =
+      typeof descriptor.suffix === "string" ? descriptor.suffix : "";
+    const result = `${prefix}${value}${suffix}`;
+    return result.trim() ? result : "";
+  }
+
+  function renderVehicleLabelSegment(vehicle, segment) {
+    if (!segment || !Array.isArray(segment.fields)) return "";
+    const joiner =
+      typeof segment.fieldJoin === "string" ? segment.fieldJoin : " ";
+    const parts = segment.fields
+      .map((descriptor) => formatVehicleFieldValue(vehicle, descriptor))
+      .filter(Boolean);
+    if (!parts.length) return "";
+    const body = parts.join(joiner).trim();
+    if (!body) return "";
+    const prefix =
+      typeof segment.prefix === "string" ? segment.prefix : "";
+    const suffix =
+      typeof segment.suffix === "string" ? segment.suffix : "";
+    const assembled = `${prefix}${body}${suffix}`;
+    return assembled.trim();
+  }
+
   function buildVehicleLabel(vehicle) {
     if (!vehicle) return "Unnamed Vehicle";
-    const year = vehicle.year != null ? String(vehicle.year) : "";
-    const make = vehicle.make ? String(vehicle.make) : "";
-    const model = vehicle.model ? String(vehicle.model) : "";
-    const trim = vehicle.trim ? String(vehicle.trim) : "";
-    const pricePart =
-      vehicle.asking_price != null
-        ? formatToUSDString(vehicle.asking_price)
-        : "";
+    const segments = Array.isArray(VEHICLE_LABEL_CONFIG.segments)
+      ? VEHICLE_LABEL_CONFIG.segments
+      : [];
+    let label = "";
+    for (const segment of segments) {
+      const rendered = renderVehicleLabelSegment(vehicle, segment);
+      if (!rendered) continue;
+      if (!label) {
+        label = rendered;
+      } else {
+        const separator =
+          typeof segment.separator === "string" ? segment.separator : " ";
+        label = `${label}${separator}${rendered}`;
+      }
+    }
+    label = label.replace(/\s{2,}/g, " ").trim();
+    if (label) {
+      return label;
+    }
 
-    const modelLabel = [make, model].filter(Boolean).join(" ");
-    const mainLabel = [year, modelLabel || model, trim]
-      .filter(Boolean)
-      .join(" ");
-    const fallback = vehicle.vehicle ? String(vehicle.vehicle) : "Vehicle";
-    const base = mainLabel || fallback;
+    const fallbacks = Array.isArray(VEHICLE_LABEL_CONFIG.fallbackFields)
+      ? VEHICLE_LABEL_CONFIG.fallbackFields
+      : [];
+    for (const field of fallbacks) {
+      const fallbackValue = getVehicleFieldValue(vehicle, field);
+      if (fallbackValue == null) continue;
+      const value =
+        typeof fallbackValue === "string"
+          ? fallbackValue.trim()
+          : String(fallbackValue);
+      if (value) {
+        return value;
+      }
+    }
 
-    return pricePart ? `${base} • ${pricePart}` : base;
+    return "Vehicle";
   }
 
   let lastActiveElement = null;
@@ -8923,6 +9185,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
   modalSecondaryBtn?.addEventListener("click", closeModal);
   modalCloseBtn?.addEventListener("click", closeModal);
+  modalPrimaryBtn?.addEventListener("click", () => {
+    if (!vehicleModalForm) return;
+    if (typeof vehicleModalForm.requestSubmit === "function") {
+      vehicleModalForm.requestSubmit();
+    } else {
+      vehicleModalForm.dispatchEvent(
+        new Event("submit", { bubbles: true, cancelable: true })
+      );
+    }
+  });
 
   vehicleModal?.addEventListener("click", (event) => {
     if (event.target === vehicleModal) {

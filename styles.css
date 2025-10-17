@@ -266,7 +266,8 @@ output {
 }
 
 .vehicleDropDown {
-  min-width: 20rem;
+  min-width: 24rem;
+  max-width: 24rem;
   text-align: center;
   justify-self: start;
   justify-items: center;

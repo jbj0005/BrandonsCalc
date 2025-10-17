@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "fields": ["vehicle"],
+      "join": " "
+    },
+    {
+      "fields": [
+        {
+          "field": "asking_price",
+          "format": "currency"
+        }
+      ],
+      "prefix": "• "
+    }
+  ],
+  "fallbackFields": ["vehicle", "vin"]
+}
