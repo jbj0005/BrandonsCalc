@@ -9092,6 +9092,43 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  if (editFeeForm) {
+    editFeeForm.addEventListener("submit", (event) => {
+      void handleEditFeeSubmit(event);
+    });
+  }
+
+  if (editFeeButton) {
+    editFeeButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      void (async () => {
+        const hasUser = await requireUser(true);
+        if (!hasUser) return;
+        updateEditFeeNameList(editFeeTypeSelect?.value ?? "dealer");
+        openEditFeeModal();
+      })();
+    });
+  }
+
+  const editFeeDismissButtons = [editFeeCloseBtn, editFeeCancelBtn];
+  editFeeDismissButtons.forEach((button) => {
+    button?.addEventListener("click", (event) => {
+      event.preventDefault();
+      closeEditFeeModal();
+    });
+  });
+
+  editFeeTypeSelect?.addEventListener("change", (event) => {
+    const { value } = event.target ?? {};
+    updateEditFeeNameList(value === "gov" ? "gov" : "dealer");
+  });
+
+  editFeeModal?.addEventListener("click", (event) => {
+    if (event.target === editFeeModal) {
+      closeEditFeeModal();
+    }
+  });
+
   document.addEventListener("click", (event) => {
     const btn =
       event.target instanceof Element
