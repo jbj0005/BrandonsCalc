@@ -51,10 +51,10 @@
       </div>
       <!-- All Cards -->
       <main>
-        <!-- Open Card Wrapper -->
+        <!-- Card Wrapper -->
         <div class="flexCards">
           <!-- Saved Vehicle Card -->
-          <div class="savedVehicleCard cornerAnchor" id="SavedVehicleCard">
+          <div class="card cornerAnchor" id="SavedVehicleCard">
             <!-- Logo -->
             <img
               class="cornerBadge cornerBadge--top-left"
@@ -63,7 +63,7 @@
             />            
             <!-- Saved Vehicles -->
             <div>
-              <h2 class="flexEnd">Saved Vehicles</h2>
+              <h2 class="flexSpace">Saved Vehicles</h2>
             </div>
             <div>
               <form class="flexCenter" id="vehicleForm">
@@ -75,14 +75,20 @@
                     <button type="button" data-vehicle-action="update">UPDATE</button>
                     <button type="button" data-vehicle-action="delete">DELETE</button>
                   </div>
+                  <div class="authLinks">
+                    <span class="authLinks__text">
+                      To view or save a vehicle, you'll need an account
+                      <a
+                        type="button"
+                        class="linkButton"
+                        data-auth-link="signin">
+                        Sign in
+                      </a>
+                    </span>
+                  </div>
               </form>
             </div>
-            <!-- Login Tab -->
-            <div class="flexCenter" id="loginTab">
-              <a type="button" class="linkButton" data-auth-link="open">Login</a>
-            </div>
           </div>
-
           <!-- Location Card -->
           <div class="card" id="locationCard">
             <h2 class="flexSpace">Home Address</h2>
@@ -515,7 +521,7 @@
             </div>
           </div>
         </div>
-        <!-- Close Card Wrapper-->
+        <!-- Card Wrapper-->
 
 
         <!-- Modals -->
@@ -700,8 +706,12 @@
                 </div>
                 <p class="modalNote">
                   Have an account?
-                  <button type="button" class="linkButton" data-auth-link="open">
+                  <button type="button" class="linkButton" data-auth-link="signin">
                     Sign in
+                  </button>
+                  or
+                  <button type="button" class="linkButton" data-auth-link="signup">
+                    Create one
                   </button>
                   to save vehicles.
                 </p>
@@ -781,6 +791,16 @@
                   Cancel
                 </button>
               </footer>
+              <p class="authToggle">
+                <span data-auth-copy="prompt">Need an account?</span>
+                <button
+                  type="button"
+                  class="linkButton"
+                  data-auth-action="toggle-mode"
+                >
+                  Create one
+                </button>
+              </p>
               <p class="modalStatus" role="status" aria-live="polite"></p>
             </form>
           </div>

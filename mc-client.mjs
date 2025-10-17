@@ -40,3 +40,25 @@ export async function mcListing(id) {
   if (!r.ok) throw new Error(`listing failed (${r.status})`);
   return r.json();
 }
+
+export async function mcHistory(vin) {
+  const cleanVin = String(vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
+  const r = await fetch(`${MC_API_BASE}/history/${encodeURIComponent(cleanVin)}`);
+  if (!r.ok) {
+    const message = `history failed (${r.status})`;
+    let detail = message;
+    try {
+      const body = await r.json();
+      if (body && typeof body === "object") {
+        detail =
+          (typeof body.detail === "string" && body.detail.trim()) ||
+          (typeof body.error === "string" && body.error.trim()) ||
+          message;
+      }
+    } catch {
+      /* ignore body parse errors */
+    }
+    throw new Error(detail);
+  }
+  return r.json();
+}

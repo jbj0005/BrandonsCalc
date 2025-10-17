@@ -34,6 +34,45 @@ const VEHICLE_SELECT_COLUMNS = `
   photo_url,
   marketcheck_payload
 `;
+const VEHICLE_FIELD_LABELS = {
+  vin: "VIN",
+  vehicle: "Vehicle Name",
+  year: "Year",
+  make: "Make",
+  model: "Model",
+  trim: "Trim",
+  mileage: "Mileage",
+  asking_price: "Asking Price",
+  dealer_name: "Dealer Name",
+  dealer_phone: "Dealer Phone",
+  dealer_street: "Dealer Street",
+  dealer_city: "Dealer City",
+  dealer_state: "Dealer State",
+  dealer_zip: "Dealer ZIP",
+  dealer_lat: "Dealer Latitude",
+  dealer_lng: "Dealer Longitude",
+};
+const VEHICLE_FIELD_KEYS = Object.keys(VEHICLE_FIELD_LABELS);
+const DUPLICATE_VEHICLE_REGEX =
+  /duplicate key value violates unique constraint ["']?vehicles_user_vin_unique_idx["']?/i;
+const AUTH_MODE_COPY = {
+  signin: {
+    title: "Sign In",
+    primaryText: "Sign In",
+    prompt: "Need an account?",
+    toggle: "Create one",
+    pending: "Signing in...",
+  },
+  signup: {
+    title: "Create Account",
+    primaryText: "Create Account",
+    prompt: "Already have an account?",
+    toggle: "Sign in",
+    pending: "Creating account...",
+    success:
+      "Check your email to confirm your account. Once verified, sign in to continue.",
+  },
+};
 const MARKETCHECK_META_BASE =
   typeof document !== "undefined"
     ? (
@@ -633,11 +672,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const authForm = document.getElementById("authForm");
   const authEmailInput = document.getElementById("authEmail");
   const authPasswordInput = document.getElementById("authPassword");
+  const authModalTitle = document.getElementById("authModalTitle");
   const authModalStatusEl = authForm?.querySelector(".modalStatus") ?? null;
   const authModalPrimaryBtn = authForm?.querySelector(".modalPrimary") ?? null;
   const authModalSecondaryBtn =
     authForm?.querySelector(".modalSecondary") ?? null;
   const authModalCloseBtn = authModal?.querySelector(".modalClose") ?? null;
+  const authModePromptEl =
+    authForm?.querySelector("[data-auth-copy='prompt']") ?? null;
+  const authModeToggleBtn =
+    authForm?.querySelector("[data-auth-action='toggle-mode']") ?? null;
   const loginLinks = Array.from(document.querySelectorAll("[data-auth-link]"));
   const modalTitle = document.getElementById("vehicleModalTitle");
   const modalStatusEl = vehicleModalForm?.querySelector(".modalStatus") ?? null;
@@ -687,6 +731,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let currentUserId = null;
   let authModalResolve = null;
   let authModalPromise = null;
+  let authMode = "signin";
   let dealerFeeGroup = null;
   let govFeeGroup = null;
   const dealerFeeSetState = { id: null, items: [] };
@@ -895,6 +940,73 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     return result;
   }
+
+  function normalizeValueForComparison(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? Number(value) : null;
+    }
+    if (typeof value === "bigint") {
+      return Number(value);
+    }
+    if (typeof value === "string") {
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      const numeric = Number(trimmed);
+      if (!Number.isNaN(numeric)) {
+        return Number(numeric);
+      }
+      return trimmed;
+    }
+    if (value instanceof Date) {
+      return value.getTime();
+    }
+    if (typeof value === "boolean") {
+      return value;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function setAuthMode(
+    mode,
+    { resetStatus = false, clearPassword = false } = {}
+  ) {
+    const normalized = mode === "signup" ? "signup" : "signin";
+    authMode = normalized;
+    const copy = AUTH_MODE_COPY[normalized] ?? AUTH_MODE_COPY.signin;
+    authForm?.setAttribute("data-auth-mode", normalized);
+    if (authModal) {
+      authModal.setAttribute("data-auth-mode", normalized);
+    }
+    if (authModalTitle) {
+      authModalTitle.textContent = copy.title;
+    }
+    if (authModalPrimaryBtn) {
+      authModalPrimaryBtn.textContent = copy.primaryText;
+    }
+    if (authModePromptEl) {
+      authModePromptEl.textContent = copy.prompt;
+    }
+    if (authModeToggleBtn) {
+      authModeToggleBtn.textContent = copy.toggle;
+    }
+    if (authPasswordInput instanceof HTMLInputElement) {
+      authPasswordInput.autocomplete =
+        normalized === "signup" ? "new-password" : "current-password";
+      if (clearPassword) {
+        authPasswordInput.value = "";
+      }
+    }
+    if (resetStatus) {
+      setAuthModalStatus();
+    }
+  }
+
+  setAuthMode(authMode, { resetStatus: true, clearPassword: true });
 
   function normalizeCurrencyNumber(value) {
     if (!Number.isFinite(value)) return null;
@@ -5036,9 +5148,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const askingPriceRaw = moneyToNumber(modalFields.asking_price?.value ?? "");
     const askingPrice =
-      askingPriceRaw != null
-        ? normalizeCurrencyNumber(askingPriceRaw)
-        : undefined;
+      askingPriceRaw != null ? normalizeCurrencyNumber(askingPriceRaw) : null;
 
     const dealerName = modalFields.dealer_name?.value?.trim() || "";
     const dealerPhone = modalFields.dealer_phone?.value?.trim() || "";
@@ -5049,34 +5159,22 @@ document.addEventListener("DOMContentLoaded", () => {
     const dealerLat = parseFloatOrNull(modalFields.dealer_lat?.value ?? "");
     const dealerLng = parseFloatOrNull(modalFields.dealer_lng?.value ?? "");
 
-    const normalizedVehicleLabel =
-      vehicleName ||
-      [
-        yearValue != null ? String(yearValue) : "",
-        [makeValue, modelValue].filter(Boolean).join(" "),
-        trimValue,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .trim() ||
-      null;
-
     const payload = pickDefined({
-      vehicle: normalizedVehicleLabel || undefined,
-      year: yearValue ?? undefined,
-      make: makeValue || undefined,
-      model: modelValue || undefined,
-      trim: trimValue || undefined,
-      mileage: mileageValue ?? undefined,
+      vehicle: vehicleName || null,
+      year: yearValue ?? null,
+      make: makeValue || null,
+      model: modelValue || null,
+      trim: trimValue || null,
+      mileage: mileageValue ?? null,
       asking_price: askingPrice,
-      dealer_name: dealerName || undefined,
-      dealer_phone: dealerPhone || undefined,
-      dealer_street: dealerStreet || undefined,
-      dealer_city: dealerCity || undefined,
-      dealer_state: dealerState || undefined,
-      dealer_zip: dealerZip || undefined,
-      dealer_lat: dealerLat ?? undefined,
-      dealer_lng: dealerLng ?? undefined,
+      dealer_name: dealerName || null,
+      dealer_phone: dealerPhone || null,
+      dealer_street: dealerStreet || null,
+      dealer_city: dealerCity || null,
+      dealer_state: dealerState || null,
+      dealer_zip: dealerZip || null,
+      dealer_lat: dealerLat ?? null,
+      dealer_lng: dealerLng ?? null,
     });
 
     return { vin, payload };
@@ -5094,6 +5192,11 @@ document.addEventListener("DOMContentLoaded", () => {
       setModalStatus("Select a vehicle to update.", "error");
       return false;
     }
+
+    const previousVehicle =
+      vehiclesCache.find(
+        (item) => String(item?.id ?? "") === String(currentVehicleId)
+      ) ?? null;
 
     const { vin, payload } = collectVehicleModalPayload();
     if (vin && vin.length !== 17) {
@@ -5124,47 +5227,130 @@ document.addEventListener("DOMContentLoaded", () => {
     setModalStatus("Saving vehicle…", "info");
 
     try {
-      const { data, error } = await supabase
-        .from(VEHICLES_TABLE)
-        .update(updatePayload)
-        .eq("id", currentVehicleId)
-        .eq("user_id", currentUserId)
-        .select(VEHICLE_SELECT_COLUMNS)
-        .single();
-      if (error) throw error;
-      if (!data) throw new Error("Vehicle update returned no data.");
-
-      const normalized = {
-        ...data,
-        id:
-          typeof data.id === "number" || typeof data.id === "bigint"
-            ? String(data.id)
-            : data.id ?? "",
+      const performUpdate = async () => {
+        const { data, error } = await supabase
+          .from(VEHICLES_TABLE)
+          .update(updatePayload)
+          .eq("id", currentVehicleId)
+          .eq("user_id", currentUserId)
+          .select(VEHICLE_SELECT_COLUMNS)
+          .single();
+        if (error) throw error;
+        if (!data) throw new Error("Vehicle update returned no data.");
+        return {
+          ...data,
+          id:
+            typeof data.id === "number" || typeof data.id === "bigint"
+              ? String(data.id)
+              : data.id ?? "",
+        };
       };
+
+      let normalized = null;
+      let duplicateHandled = false;
+
+      try {
+        normalized = await performUpdate();
+      } catch (error) {
+        if (DUPLICATE_VEHICLE_REGEX.test(error?.message || "") && vin) {
+          console.warn(
+            "[vehicles] duplicate VIN detected during update, replacing existing record"
+          );
+          try {
+            setModalStatus(
+              "Duplicate vehicle found. Replacing previous save…",
+              "info"
+            );
+            const deleteQuery = supabase
+              .from(VEHICLES_TABLE)
+              .delete()
+              .eq("user_id", currentUserId)
+              .eq("vin", vin);
+            if (currentVehicleId) {
+              deleteQuery.neq("id", currentVehicleId);
+            }
+            const { error: deleteError } = await deleteQuery;
+            if (deleteError) throw deleteError;
+            vehiclesCache = vehiclesCache.filter((vehicle) => {
+              const vehicleVin = normalizeVin(vehicle?.vin ?? "");
+              return (
+                vehicleVin !== vin ||
+                String(vehicle?.id ?? "") === String(currentVehicleId ?? "")
+              );
+            });
+            normalized = await performUpdate();
+            duplicateHandled = true;
+          } catch (replacementError) {
+            console.error(
+              "Vehicle update duplicate replacement failed",
+              replacementError
+            );
+            const message =
+              replacementError &&
+              typeof replacementError === "object" &&
+              "message" in replacementError
+                ? String(replacementError.message)
+                : "Unable to replace existing vehicle.";
+            setModalStatus(message, "error");
+            return false;
+          }
+        } else {
+          console.error("Vehicle update failed", error);
+          const message =
+            error && typeof error === "object" && "message" in error
+              ? String(error.message)
+              : "Unable to update vehicle.";
+          setModalStatus(message, "error");
+          return false;
+        }
+      }
+
+      if (!normalized) {
+        setModalStatus("Vehicle update failed. Please try again.", "error");
+        return false;
+      }
+
+      const changedFields = [];
+      if (previousVehicle) {
+        VEHICLE_FIELD_KEYS.forEach((key) => {
+          if (!(key in updatePayload)) return;
+          const before = normalizeValueForComparison(previousVehicle[key]);
+          const after = normalizeValueForComparison(normalized[key]);
+          if (!Object.is(before, after)) {
+            changedFields.push(VEHICLE_FIELD_LABELS[key] || key);
+          }
+        });
+      } else {
+        VEHICLE_FIELD_KEYS.forEach((key) => {
+          if (key in updatePayload) {
+            changedFields.push(VEHICLE_FIELD_LABELS[key] || key);
+          }
+        });
+      }
 
       currentVehicleId = normalized.id || String(currentVehicleId);
       upsertVehicleInCache(normalized);
       renderVehicleSelectOptions(vehiclesCache);
       setSalePriceFromVehicle?.(normalized);
       await Promise.resolve(setDealerLocationFromVehicle?.(normalized));
+      fillModalFields(normalized);
       try {
         recomputeDeal?.();
       } catch (error) {
         console.warn("[vehicles] recompute failed after update", error);
       }
-      setModalStatus("Vehicle updated.", "success");
+      const updatePrefix = duplicateHandled
+        ? "Vehicle updated after replacing a duplicate"
+        : "Vehicle updated";
+      const statusMessage =
+        changedFields.length > 0
+          ? `${updatePrefix}: ${changedFields.join(", ")}.`
+          : `${updatePrefix} (no field changes detected).`;
+      setModalStatus(statusMessage, "success");
       if (closeModalAfter) {
         closeModal();
       }
       return true;
-    } catch (error) {
-      console.error("Vehicle update failed", error);
-      const message =
-        error && typeof error === "object" && "message" in error
-          ? String(error.message)
-          : "Unable to update vehicle.";
-      setModalStatus(message, "error");
-      return false;
     } finally {
       setModalInputsDisabled(false);
       modalPrimaryBtn?.removeAttribute("disabled");
@@ -5235,6 +5421,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (authPasswordInput instanceof HTMLInputElement) {
       authPasswordInput.disabled = flag;
     }
+    if (authModeToggleBtn instanceof HTMLButtonElement) {
+      if (flag) {
+        authModeToggleBtn.setAttribute("disabled", "true");
+      } else {
+        authModeToggleBtn.removeAttribute("disabled");
+      }
+    }
     if (flag) {
       authModalPrimaryBtn?.setAttribute("disabled", "true");
       authModalSecondaryBtn?.setAttribute("disabled", "true");
@@ -5247,23 +5440,24 @@ document.addEventListener("DOMContentLoaded", () => {
   function closeAuthModal(success = false) {
     if (!authModal) return;
     toggleAuthModal(false);
-    setAuthModalInputsDisabled(false);
-    setAuthModalStatus();
     authForm?.reset();
+    setAuthMode("signin", { resetStatus: true, clearPassword: true });
+    setAuthModalInputsDisabled(false);
     const resolve = authModalResolve;
     authModalResolve = null;
     authModalPromise = null;
     resolve?.(success);
   }
 
-  function openAuthModal() {
+  function openAuthModal(mode = "signin") {
     if (!authModal) return Promise.resolve(false);
     if (authModalResolve) {
+      setAuthMode(mode, { resetStatus: true, clearPassword: true });
       return authModalPromise ?? Promise.resolve(false);
     }
     authForm?.reset();
+    setAuthMode(mode, { resetStatus: true, clearPassword: true });
     setAuthModalInputsDisabled(false);
-    setAuthModalStatus();
     toggleAuthModal(true);
     authModalPromise = new Promise((resolve) => {
       authModalResolve = resolve;
@@ -8539,7 +8733,6 @@ document.addEventListener("DOMContentLoaded", () => {
           }
           await updateSelectedVehicleFromModal({
             triggerButton: button,
-            closeModalAfter: true,
           });
         })();
       });
@@ -8687,8 +8880,21 @@ document.addEventListener("DOMContentLoaded", () => {
   loginLinks.forEach((link) => {
     link.addEventListener("click", (event) => {
       event.preventDefault();
-      void openAuthModal();
+      const attr = link.getAttribute("data-auth-link") || "";
+      const desiredMode = attr.toLowerCase() === "signup" ? "signup" : "signin";
+      void openAuthModal(desiredMode);
     });
+  });
+
+  authModeToggleBtn?.addEventListener("click", (event) => {
+    event.preventDefault();
+    const nextMode = authMode === "signup" ? "signin" : "signup";
+    setAuthMode(nextMode, { resetStatus: true, clearPassword: true });
+    setAuthModalInputsDisabled(false);
+    if (authEmailInput instanceof HTMLInputElement) {
+      authEmailInput.focus();
+      authEmailInput.select?.();
+    }
   });
 
   authModalCloseBtn?.addEventListener("click", () => closeAuthModal(false));
@@ -8706,34 +8912,57 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
+    const copy = AUTH_MODE_COPY[authMode] ?? AUTH_MODE_COPY.signin;
     setAuthModalInputsDisabled(true);
-    setAuthModalStatus("Signing in...");
+    setAuthModalStatus(copy.pending);
 
     try {
+      if (authMode === "signup") {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+        if (error) throw error;
+        if (data?.session) {
+          applySession(data.session);
+          closeAuthModal(true);
+          return;
+        }
+        setAuthModalInputsDisabled(false);
+        setAuthModalStatus(AUTH_MODE_COPY.signup.success, "success");
+        setAuthMode("signin", { resetStatus: false, clearPassword: true });
+        if (authEmailInput instanceof HTMLInputElement) {
+          authEmailInput.value = email;
+          requestAnimationFrame(() => {
+            authEmailInput.focus();
+            authEmailInput.select?.();
+          });
+        }
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
       if (data?.session) {
         applySession(data.session);
       } else {
         await hydrateSession();
       }
       if (!currentUserId) {
-        setAuthModalStatus("Login failed. Please try again.", "error");
         setAuthModalInputsDisabled(false);
+        setAuthModalStatus("Login failed. Please try again.", "error");
         return;
       }
       closeAuthModal(true);
     } catch (error) {
-      console.error("Supabase login failed", error);
+      console.error("Supabase auth failed", error);
       const message =
         (error && typeof error === "object" && "message" in error
           ? String(error.message)
-          : null) ?? "Unable to sign in. Please try again.";
+          : null) ?? "Unable to process request. Please try again.";
       setAuthModalStatus(message, "error");
       setAuthModalInputsDisabled(false);
     }
@@ -8782,7 +9011,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (modalMode === "update") {
-      await updateSelectedVehicleFromModal({ closeModalAfter: true });
+      await updateSelectedVehicleFromModal();
       return;
     }
 
@@ -8807,32 +9036,120 @@ document.addEventListener("DOMContentLoaded", () => {
     setModalStatus("Saving vehicle…", "info");
 
     try {
-      const { data, error } = await supabase
-        .from(VEHICLES_TABLE)
-        .insert(record)
-        .select(VEHICLE_SELECT_COLUMNS)
-        .single();
-      if (error) throw error;
+      const insertRecord = async () => {
+        const { data, error } = await supabase
+          .from(VEHICLES_TABLE)
+          .insert(record)
+          .select(VEHICLE_SELECT_COLUMNS)
+          .single();
+        if (error) throw error;
+        return data;
+      };
 
-      if (data?.id != null) {
-        currentVehicleId = String(data.id);
+      const mapRowToVehicle = (data) =>
+        data
+          ? {
+              ...data,
+              id:
+                typeof data.id === "number" || typeof data.id === "bigint"
+                  ? String(data.id)
+                  : data.id ?? "",
+            }
+          : null;
+
+      let normalized = null;
+      let duplicateHandled = false;
+
+      try {
+        const data = await insertRecord();
+        normalized = mapRowToVehicle(data);
+      } catch (error) {
+        if (DUPLICATE_VEHICLE_REGEX.test(error?.message || "")) {
+          if (!vin) {
+            setModalStatus(
+              "Duplicate vehicle detected. Enter a VIN to replace the existing record.",
+              "error"
+            );
+            return;
+          }
+          try {
+            setModalStatus(
+              "Duplicate vehicle found. Replacing previous save…",
+              "info"
+            );
+            const deleteQuery = supabase
+              .from(VEHICLES_TABLE)
+              .delete()
+              .eq("user_id", currentUserId)
+              .eq("vin", vin);
+            const { error: deleteError } = await deleteQuery;
+            if (deleteError) throw deleteError;
+            vehiclesCache = vehiclesCache.filter((vehicle) => {
+              const vehicleVin = normalizeVin(vehicle?.vin ?? "");
+              return vehicleVin !== vin;
+            });
+            renderVehicleSelectOptions(vehiclesCache);
+            const replacement = await insertRecord();
+            normalized = mapRowToVehicle(replacement);
+            duplicateHandled = true;
+          } catch (replacementError) {
+            console.error(
+              "Vehicle save duplicate replacement failed",
+              replacementError
+            );
+            const message =
+              replacementError &&
+              typeof replacementError === "object" &&
+              "message" in replacementError
+                ? String(replacementError.message)
+                : "Unable to replace existing vehicle.";
+            setModalStatus(message, "error");
+            return;
+          }
+        } else {
+          console.error("Vehicle save failed", error);
+          const rlsRegex = /row-level security/i;
+          const message = rlsRegex.test(error?.message || "")
+            ? "Supabase blocked the save because row-level security is still enforced. Update the public.vehicles policies to allow this operation or sign in."
+            : error && typeof error === "object" && "message" in error
+            ? String(error.message)
+            : "Unable to save vehicle.";
+          setModalStatus(message, "error");
+          return;
+        }
       }
-      upsertVehicleInCache(data);
-      renderVehicleSelectOptions(vehiclesCache);
-      setSalePriceFromVehicle(data);
-      await Promise.resolve(setDealerLocationFromVehicle?.(data));
-      setModalStatus("Vehicle saved.", "success");
-      closeModal();
+
+      if (!normalized) {
+        setModalStatus("Vehicle save failed. Please try again.", "error");
+        return;
+      }
+
+      if (normalized?.id != null) {
+        currentVehicleId = normalized.id;
+      }
+      if (normalized) {
+        upsertVehicleInCache(normalized);
+        renderVehicleSelectOptions(vehiclesCache);
+        setSalePriceFromVehicle(normalized);
+        await Promise.resolve(setDealerLocationFromVehicle?.(normalized));
+        fillModalFields(normalized);
+      } else {
+        renderVehicleSelectOptions(vehiclesCache);
+      }
+
+      modalMode = "update";
+      if (modalTitle) {
+        modalTitle.textContent = "Update Vehicle";
+      }
+      if (modalPrimaryBtn) {
+        modalPrimaryBtn.textContent = "Update";
+      }
+
+      const successMessage = duplicateHandled
+        ? "Vehicle replaced with latest details."
+        : "Vehicle saved.";
+      setModalStatus(successMessage, "success");
       await loadVehicles(currentVehicleId);
-    } catch (error) {
-      console.error("Vehicle save failed", error);
-      const rlsRegex = /row-level security/i;
-      const message = rlsRegex.test(error?.message || "")
-        ? "Supabase blocked the save because row-level security is still enforced. Update the public.vehicles policies to allow this operation or sign in."
-        : error && typeof error === "object" && "message" in error
-        ? String(error.message)
-        : "Unable to save vehicle.";
-      setModalStatus(message, "error");
     } finally {
       setModalInputsDisabled(false);
       modalPrimaryBtn?.removeAttribute("disabled");

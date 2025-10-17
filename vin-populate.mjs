@@ -8,6 +8,93 @@ const SELECT_COLS = `
   marketcheck_payload
 `;
 
+function parseVehicleFromUrl(url) {
+  if (!url) return {};
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname
+      .split("/")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+    let year = null;
+    let model = null;
+    let make = null;
+    for (let i = 0; i < segments.length; i += 1) {
+      const segment = segments[i];
+      if (/^\d{4}$/.test(segment)) {
+        year = Number(segment);
+        if (i >= 1) {
+          model = segments[i - 1];
+        }
+        if (i >= 2) {
+          make = segments[i - 2];
+        }
+        break;
+      }
+    }
+    const normalizeToken = (token) =>
+      token ? token.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() : null;
+    return {
+      year: Number.isFinite(year) ? year : null,
+      make: normalizeToken(make),
+      model: normalizeToken(model),
+    };
+  } catch (error) {
+    console.warn("[vin] failed to parse vehicle from URL", error);
+    return {};
+  }
+}
+
+function buildHistoryFallback(historyEntries, vin) {
+  if (!Array.isArray(historyEntries) || historyEntries.length === 0) {
+    return null;
+  }
+  const sorted = historyEntries
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(b?.last_seen_at || b?.scraped_at || 0) -
+        Number(a?.last_seen_at || a?.scraped_at || 0)
+    );
+  const latest = sorted[0];
+  if (!latest) return null;
+
+  const parsed = parseVehicleFromUrl(latest.vdp_url);
+  const make = parsed.make || null;
+  const model = parsed.model || null;
+  const year = parsed.year || null;
+  const headingBase = [make, model].filter(Boolean).join(" ").trim() || null;
+
+  if (!year && !make && !model && !headingBase) {
+    return null;
+  }
+
+  return {
+    vin,
+    year,
+    make,
+    model,
+    trim: null,
+    heading: headingBase,
+    vehicle: headingBase,
+    mileage: latest.miles ?? latest.mileage ?? null,
+    asking_price: latest.price ?? null,
+    dealer_name:
+      latest.seller_name || latest.dealer_name || latest.dealer || null,
+    dealer_street: latest.dealer_street || latest.street || null,
+    dealer_city: latest.city || latest.dealer_city || null,
+    dealer_state: latest.state || latest.dealer_state || null,
+    dealer_zip: latest.zip || latest.dealer_zip || null,
+    dealer_phone: latest.dealer_phone || null,
+    dealer_lat: latest.latitude ?? null,
+    dealer_lng: latest.longitude ?? null,
+    listing_id: latest.id || latest.listing_id || null,
+    listing_source: latest.source || "MARKETCHECK",
+    listing_url: latest.vdp_url || null,
+    photo_url: null,
+  };
+}
+
 export async function populateVehicleFromVinSecure({
   vin,
   userId,
@@ -26,12 +113,15 @@ export async function populateVehicleFromVinSecure({
     : window?.homeLocationState?.postalCode
     ? String(window.homeLocationState.postalCode).replace(/\D/g, "")
     : "";
-  const { found, payload } = await mcByVin(cleanVin, {
-    zip: normalizedHomeZip,
+  const { found, payload, extras } = await mcByVin(cleanVin, {
     radius: 200,
     pick: "nearest",
   });
-  if (!found) throw new Error("No active listing for this VIN");
+  const historyFallback = buildHistoryFallback(extras?.history ?? [], cleanVin);
+  if (!payload && !historyFallback) {
+    throw new Error("No active listing for this VIN");
+  }
+  const effectivePayload = payload || historyFallback;
 
   const isValidUuid = (value) =>
     typeof value === "string" &&
@@ -50,34 +140,44 @@ export async function populateVehicleFromVinSecure({
       el.value = v == null ? "" : String(v);
     };
     const nickname =
-      payload.vehicle ||
-      payload.heading ||
-      [payload.year, payload.make, payload.model, payload.trim]
+      effectivePayload.vehicle ||
+      effectivePayload.heading ||
+      [
+        effectivePayload.year,
+        effectivePayload.make,
+        effectivePayload.model,
+        effectivePayload.trim,
+      ]
         .filter(Boolean)
         .join(" ");
     set(modalFields.vehicle, nickname);
-    set(modalFields.vin, payload.vin);
-    set(modalFields.year, payload.year);
-    set(modalFields.make, payload.make);
-    set(modalFields.model, payload.model);
-    set(modalFields.trim, payload.trim);
-    set(modalFields.mileage, payload.mileage);
-    set(modalFields.asking_price, payload.asking_price);
-    set(modalFields.dealer_name, payload.dealer_name);
-    set(modalFields.dealer_phone, payload.dealer_phone);
-    set(modalFields.dealer_street, payload.dealer_street);
-    set(modalFields.dealer_city, payload.dealer_city);
-    set(modalFields.dealer_state, payload.dealer_state);
-    set(modalFields.dealer_zip, payload.dealer_zip);
-    set(modalFields.dealer_lat, payload.dealer_lat);
-    set(modalFields.dealer_lng, payload.dealer_lng);
+    set(modalFields.vin, effectivePayload.vin);
+    set(modalFields.year, effectivePayload.year);
+    set(modalFields.make, effectivePayload.make);
+    set(modalFields.model, effectivePayload.model);
+    set(modalFields.trim, effectivePayload.trim);
+    set(modalFields.mileage, effectivePayload.mileage);
+    set(modalFields.asking_price, effectivePayload.asking_price);
+    set(modalFields.dealer_name, effectivePayload.dealer_name);
+    set(modalFields.dealer_phone, effectivePayload.dealer_phone);
+    set(modalFields.dealer_street, effectivePayload.dealer_street);
+    set(modalFields.dealer_city, effectivePayload.dealer_city);
+    set(modalFields.dealer_state, effectivePayload.dealer_state);
+    set(modalFields.dealer_zip, effectivePayload.dealer_zip);
+    set(modalFields.dealer_lat, effectivePayload.dealer_lat);
+    set(modalFields.dealer_lng, effectivePayload.dealer_lng);
   }
 
   const row = {
     ...(vehicleId ? { id: vehicleId } : {}),
     ...(cleanUserId ? { user_id: cleanUserId } : {}),
-    ...Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined)),
-    marketcheck_payload: payload,
+    ...Object.fromEntries(
+      Object.entries(effectivePayload).filter(([, v]) => v !== undefined)
+    ),
+    marketcheck_payload: {
+      payload: effectivePayload,
+      extras: extras ?? null,
+    },
   };
 
   let { data, error } = await supabase
