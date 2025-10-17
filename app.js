@@ -2445,7 +2445,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const lowestProviderDisplayName = formatProviderDisplayName(
       winner.provider
     );
-    lowestAprProviderName = `Lowest Price by APR — ${lowestProviderDisplayName}`;
+    lowestAprProviderName = `Lowest APR — ${lowestProviderDisplayName}`;
     syncRateSourceName();
     const statusNote =
       winner.note ||

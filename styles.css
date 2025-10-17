@@ -62,7 +62,7 @@ output:not(:placeholder-shown) {
   display: grid;
   grid-auto-rows: auto;
   row-gap: 0.2rem;
-  align-items: start;
+  justify-items: end;
 }
 
 .dealerMapStatus__row {
