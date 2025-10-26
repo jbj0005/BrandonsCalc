@@ -15,6 +15,7 @@ import process from "node:process";
 import { createInterface } from "node:readline/promises";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
+import ExcelJS from "exceljs";
 
 import { hydrateEnv } from "./utils/env.mjs";
 import {
@@ -110,7 +111,7 @@ async function promptForConfig() {
     );
     const format = await askQuestion(
       rl,
-      "Force parser format (csv, xls, xlsx, pdf, docx) or leave blank for auto"
+      "Force parser format (csv, xlsx, pdf, docx) or leave blank for auto"
     );
     const sourceVersion = await askQuestion(
       rl,
@@ -218,12 +219,58 @@ async function parseCsv(filePath, stateCode) {
     .filter(Boolean);
 }
 
+function resolveCellValue(cell) {
+  if (cell == null) return "";
+  if (typeof cell !== "object") return cell;
+  if (typeof cell.text !== "undefined") return cell.text;
+  if (typeof cell.result !== "undefined") return cell.result;
+  if (Array.isArray(cell.richText)) {
+    return cell.richText.map((segment) => segment?.text ?? "").join("");
+  }
+  if (typeof cell.value !== "undefined") return cell.value;
+  return "";
+}
+
 async function parseExcel(filePath, stateCode) {
-  const XLSX = await import("xlsx");
-  const workbook = XLSX.readFile(filePath);
-  const sheetName = workbook.SheetNames[0];
-  const sheet = workbook.Sheets[sheetName];
-  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile(filePath);
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return [];
+
+  const sheetValues = worksheet.getSheetValues().slice(1);
+  if (!sheetValues.length) return [];
+
+  const headerRow = sheetValues.shift() ?? [];
+  const headers = [];
+
+  for (let columnIndex = 1; columnIndex < headerRow.length; columnIndex += 1) {
+    const rawHeader = resolveCellValue(headerRow[columnIndex]);
+    const headerName =
+      rawHeader != null && String(rawHeader).trim() !== ""
+        ? String(rawHeader).trim()
+        : `column_${columnIndex}`;
+    headers.push(headerName);
+  }
+
+  const rows = [];
+  for (const rowValues of sheetValues) {
+    if (!rowValues) continue;
+    const record = {};
+    let hasContent = false;
+
+    headers.forEach((header, index) => {
+      const cellValue = resolveCellValue(rowValues[index + 1]);
+      if (cellValue !== "" && cellValue != null) {
+        hasContent = true;
+      }
+      record[header] = cellValue ?? "";
+    });
+
+    if (hasContent) {
+      rows.push(record);
+    }
+  }
+
   return rows
     .map((row) => normalizeStructuredRow(row, stateCode))
     .filter(Boolean);
@@ -285,9 +332,12 @@ async function parseFile(filePath, format, stateCode) {
   switch (cleanExt) {
     case "csv":
       return parseCsv(filePath, stateCode);
-    case "xls":
     case "xlsx":
       return parseExcel(filePath, stateCode);
+    case "xls":
+      throw new Error(
+        "Legacy .xls workbooks are no longer supported. Please convert the file to .xlsx."
+      );
     case "pdf":
       return parsePdf(filePath, stateCode);
     case "doc":
@@ -323,6 +373,18 @@ function normalizeEntries(
     source_version: sourceVersion ?? null,
   }));
 }
+
+export {
+  extractEntriesFromText,
+  normalizeRate,
+  normalizeCounty,
+  parseCsv,
+  parseDocx,
+  parseExcel,
+  parseFile,
+  normalizeStructuredRow,
+  normalizeEntries,
+};
 
 async function writeJsonFile(entries, outputPath) {
   const resolved =
@@ -440,7 +502,12 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error("[tax-import] Failed", error);
-  process.exitCode = 1;
-});
+const shouldRunMain =
+  process.argv[1] && path.resolve(process.argv[1]) === __filename;
+
+if (shouldRunMain) {
+  main().catch((error) => {
+    console.error("[tax-import] Failed", error);
+    process.exitCode = 1;
+  });
+}
