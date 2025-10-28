@@ -29,20 +29,42 @@ ExcelCalc is a dealership-ready finance calculator that surfaces real-time payme
   - Google Custom Search or Brave Search (lead enrichment, optional).
 
 ## Environment Configuration
-Create a `.env.local` (or populate `.env`) with the following keys. The provided `.env` file can be used as a template, but be sure to rotate any keys before deploying publicly.
+The Vite client no longer requires local `.env` keys for MarketCheck or Google Maps. At runtime it calls the Express proxy (`/api/config`), which hydrates settings from Supabase.
 
+1. Populate `server/.env` with your Supabase project credentials (see `server/.env.example`):
+   ```bash
+   SUPABASE_URL=<https://your-project.supabase.co>
+   SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
+   ```
+   These stay local so the proxy can authenticate to Supabase.
+2. Store runtime secrets in the `secure_settings` table. The proxy caches them and serves them to the browser on demand.
+
+Required secrets:
+
+- `marketcheck_api_key` – your real MarketCheck key.
+- `google_maps_api_key` – browser key used to load Google Maps JS.
+
+Optional overrides:
+
+- `marketcheck_api_base` – defaults to `https://api.marketcheck.com/v2`.
+- `google_maps_map_id` – defaults to `DEMO_MAP_ID`.
+
+The proxy also honours `MARKETCHECK_BASE`, `GOOGLE_MAPS_API_KEY`, and `GOOGLE_MAPS_MAP_ID` environment variables as local fallbacks, but Supabase storage keeps credentials out of the repo.
+
+### Secure secret storage
+Apply the migration in `supabase/migrations/20240920_create_secure_settings.sql` (or run the SQL manually) to create the `secure_settings` table with service-role-only access. Then upsert secrets as needed:
+
+```sql
+insert into secure_settings (name, secret)
+values
+  ('marketcheck_api_key', 'YOUR_REAL_MARKETCHECK_KEY'),
+  ('google_maps_api_key', 'YOUR_BROWSER_MAPS_KEY'),
+  ('marketcheck_api_base', 'https://api.marketcheck.com/v2'),
+  ('google_maps_map_id', 'YOUR_MAP_STYLE_ID')
+on conflict (name) do update set secret = excluded.secret;
 ```
-SUPABASE_URL=<https://your-project.supabase.co>
-SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
-MARKETCHECK_API_KEY=<marketcheck-key>
-VITE_MARKETCHECK_API_KEY=<marketcheck-key-exposed-to-client>
-VITE_MARKETCHECK_API_BASE=<marketcheck-api-base>
-VITE_GOOGLE_MAPS_MAP_ID=<google-map-style-id>
-GOOGLE_API_KEY=<google-server-key>
-GOOGLE_CLIENT_ID=<oauth-client-id>
-GOOGLE_CLIENT_ID_SECRET=<oauth-client-secret>
-BRAVE_SEARCH_API_KEY=<optional-brave-key>
-```
+
+You can force the proxy to refresh cached values by calling `/api/config?force=1` while developing.
 
 ## Installation
 ```bash

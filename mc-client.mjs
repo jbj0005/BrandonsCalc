@@ -1,9 +1,18 @@
 const MC_API_BASE = "/api/mc";
+const DEFAULT_RADIUS = 100;
 
-export async function mcByVin(vin, { zip = "", radius = 200, pick = "nearest" } = {}) {
+export async function mcByVin(
+  vin,
+  { zip = "", radius = DEFAULT_RADIUS, pick = "nearest" } = {}
+) {
   const qp = new URLSearchParams();
   if (zip) qp.set("zip", String(zip).replace(/\D/g, ""));
-  if (radius) qp.set("radius", String(radius));
+  const numericRadius = Number(radius);
+  const normalizedRadius =
+    Number.isFinite(numericRadius) && numericRadius > 0
+      ? Math.min(numericRadius, DEFAULT_RADIUS)
+      : 0;
+  if (normalizedRadius) qp.set("radius", String(normalizedRadius));
   if (pick) qp.set("pick", pick);
   const r = await fetch(`${MC_API_BASE}/by-vin/${encodeURIComponent(vin)}?${qp.toString()}`);
   if (!r.ok) {
@@ -37,7 +46,24 @@ export async function mcByVin(vin, { zip = "", radius = 200, pick = "nearest" } 
 
 export async function mcListing(id) {
   const r = await fetch(`${MC_API_BASE}/listing/${encodeURIComponent(id)}`);
-  if (!r.ok) throw new Error(`listing failed (${r.status})`);
+  if (!r.ok) {
+    const error = new Error(`listing failed (${r.status})`);
+    error.status = r.status;
+    try {
+      const body = await r.json();
+      error.body = body;
+      if (body && typeof body === "object") {
+        const detail =
+          (typeof body.detail === "string" && body.detail.trim()) ||
+          (typeof body.error === "string" && body.error.trim()) ||
+          "";
+        if (detail) error.message = detail;
+      }
+    } catch {
+      /* ignore body parse errors */
+    }
+    throw error;
+  }
   return r.json();
 }
 
@@ -58,7 +84,9 @@ export async function mcHistory(vin) {
     } catch {
       /* ignore body parse errors */
     }
-    throw new Error(detail);
+    const error = new Error(detail);
+    error.status = r.status;
+    throw error;
   }
   return r.json();
 }

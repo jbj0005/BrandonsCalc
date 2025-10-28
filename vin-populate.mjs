@@ -12,32 +12,68 @@ function parseVehicleFromUrl(url) {
   if (!url) return {};
   try {
     const parsed = new URL(url);
-    const segments = parsed.pathname
+    const rawSegments = parsed.pathname
       .split("/")
       .map((segment) => segment.trim())
       .filter(Boolean);
+    const vinRegex = /^[A-HJ-NPR-Z0-9]{17}$/i;
+    const disallowedToken = /^(new|used|certified|inventory|sale|car|truck|suv|for|at|with|and)$/i;
+    const tokens = [];
+    for (const segment of rawSegments) {
+      const decoded = decodeURIComponent(segment);
+      const parts = decoded
+        .split(/[-_+]+/g)
+        .map((part) => part.replace(/\s+/g, " ").trim())
+        .filter(Boolean)
+        .filter((part) => !vinRegex.test(part));
+      tokens.push(...parts);
+    }
+    if (!tokens.length) return {};
     let year = null;
-    let model = null;
     let make = null;
-    for (let i = 0; i < segments.length; i += 1) {
-      const segment = segments[i];
-      if (/^\d{4}$/.test(segment)) {
-        year = Number(segment);
-        if (i >= 1) {
-          model = segments[i - 1];
+    let modelTokens = [];
+    let labelTokens = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+      const token = tokens[i];
+      if (!year && /^(19|20)\d{2}$/.test(token)) {
+        year = Number(token);
+        const following = tokens
+          .slice(i + 1, i + 5)
+          .filter((item) => !disallowedToken.test(item));
+        const preceding = tokens
+          .slice(Math.max(0, i - 3), i)
+          .filter((item) => !disallowedToken.test(item));
+        if (following.length) {
+          make = following.shift() || null;
+          modelTokens = following.slice();
+        } else if (preceding.length) {
+          make = preceding.pop() || null;
+          modelTokens = preceding.slice().reverse();
         }
-        if (i >= 2) {
-          make = segments[i - 2];
-        }
+        labelTokens = [
+          year,
+          make,
+          modelTokens.length ? modelTokens.join(" ") : null,
+        ].filter(Boolean);
         break;
       }
     }
-    const normalizeToken = (token) =>
-      token ? token.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim() : null;
+    if (!labelTokens.length) {
+      const fallbackLabel = tokens.filter((item) => !disallowedToken.test(item));
+      labelTokens = fallbackLabel.slice(0, 4);
+    }
     return {
       year: Number.isFinite(year) ? year : null,
-      make: normalizeToken(make),
-      model: normalizeToken(model),
+      make: make ? make.replace(/\s+/g, " ").trim() : null,
+      model: modelTokens.length
+        ? modelTokens.join(" ").replace(/\s+/g, " ").trim()
+        : null,
+      label: labelTokens.length
+        ? labelTokens
+            .map((item) => item.replace(/\s+/g, " ").trim())
+            .filter(Boolean)
+            .join(" ")
+        : null,
     };
   } catch (error) {
     console.warn("[vin] failed to parse vehicle from URL", error);
@@ -63,7 +99,11 @@ function buildHistoryFallback(historyEntries, vin) {
   const make = parsed.make || null;
   const model = parsed.model || null;
   const year = parsed.year || null;
-  const headingBase = [make, model].filter(Boolean).join(" ").trim() || null;
+  const headingBase =
+    parsed.label ||
+    [make, model].filter(Boolean).join(" ").trim() ||
+    latest.seller_name ||
+    null;
 
   if (!year && !make && !model && !headingBase) {
     return null;
@@ -108,16 +148,35 @@ export async function populateVehicleFromVinSecure({
   const cleanVin = String(vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
   if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(cleanVin)) throw new Error("Invalid VIN");
 
-  const normalizedHomeZip = homeZip
+  const resolvedHomeZipRaw = homeZip
     ? String(homeZip).replace(/\D/g, "")
     : window?.homeLocationState?.postalCode
     ? String(window.homeLocationState.postalCode).replace(/\D/g, "")
     : "";
+  const normalizedHomeZip =
+    resolvedHomeZipRaw.length >= 5 ? resolvedHomeZipRaw.slice(0, 5) : "";
   const { found, payload, extras } = await mcByVin(cleanVin, {
-    radius: 200,
+    zip: normalizedHomeZip,
+    radius: 100,
     pick: "nearest",
   });
-  const historyFallback = buildHistoryFallback(extras?.history ?? [], cleanVin);
+  const historyEntriesRaw = extras?.history;
+  const historyEntries = Array.isArray(historyEntriesRaw)
+    ? historyEntriesRaw
+    : Array.isArray(historyEntriesRaw?.listings)
+    ? historyEntriesRaw.listings
+    : Array.isArray(historyEntriesRaw?.listing_history)
+    ? historyEntriesRaw.listing_history
+    : Array.isArray(historyEntriesRaw?.history)
+    ? historyEntriesRaw.history
+    : Array.isArray(historyEntriesRaw?.records)
+    ? historyEntriesRaw.records
+    : Array.isArray(historyEntriesRaw?.data)
+    ? historyEntriesRaw.data
+    : Array.isArray(historyEntriesRaw?.results)
+    ? historyEntriesRaw.results
+    : [];
+  const historyFallback = buildHistoryFallback(historyEntries, cleanVin);
   if (!payload && !historyFallback) {
     throw new Error("No active listing for this VIN");
   }

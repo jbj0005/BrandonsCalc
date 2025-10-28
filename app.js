@@ -3,6 +3,7 @@ import creditTiers from "./config/credit-tiers.json";
 import lendersConfig from "./config/lenders.json";
 import { createRatesEngine } from "./rates/provider-engine.mjs";
 import savedVehicleLabelConfig from "./config/saved-vehicle-label.json";
+import { mcListing, mcHistory } from "./mc-client.mjs";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
@@ -74,62 +75,60 @@ const AUTH_MODE_COPY = {
       "Check your email to confirm your account. Once verified, sign in to continue.",
   },
 };
-const MARKETCHECK_META_BASE =
-  typeof document !== "undefined"
-    ? (
-        document
-          .querySelector("meta[name='marketcheck-api-base']")
-          ?.getAttribute("content") || ""
-      ).trim()
-    : "";
-const MARKETCHECK_META_BASE_VALID =
-  MARKETCHECK_META_BASE && !/^%.*%$/.test(MARKETCHECK_META_BASE)
-    ? MARKETCHECK_META_BASE
-    : "";
-const MARKETCHECK_API_BASE =
-  (typeof import.meta !== "undefined" &&
-    import.meta?.env?.VITE_MARKETCHECK_API_BASE) ||
-  MARKETCHECK_META_BASE_VALID ||
-  "https://api.marketcheck.com/v2";
-const MARKETCHECK_META_KEY =
-  typeof document !== "undefined"
-    ? (
-        document
-          .querySelector("meta[name='marketcheck-api-key']")
-          ?.getAttribute("content") || ""
-      ).trim()
-    : "";
-const MARKETCHECK_META_KEY_VALID =
-  MARKETCHECK_META_KEY && !/^%.*%$/.test(MARKETCHECK_META_KEY)
-    ? MARKETCHECK_META_KEY
-    : "";
-const MARKETCHECK_API_KEY =
-  (typeof import.meta !== "undefined" &&
-    import.meta?.env?.VITE_MARKETCHECK_API_KEY) ||
-  MARKETCHECK_META_KEY_VALID ||
-  (typeof window !== "undefined"
-    ? window.MARKETCHECK_API_KEY || window.__MARKETCHECK_API_KEY__
-    : "") ||
-  "";
-const GOOGLE_MAPS_META_MAP_ID =
-  typeof document !== "undefined"
-    ? (
-        document
-          .querySelector("meta[name='google-maps-map-id']")
-          ?.getAttribute("content") || ""
-      ).trim()
-    : "";
-const GOOGLE_MAPS_MAP_ID =
-  (typeof import.meta !== "undefined" &&
-    import.meta?.env?.VITE_GOOGLE_MAPS_MAP_ID) ||
-  (GOOGLE_MAPS_META_MAP_ID && !/^%.*%$/.test(GOOGLE_MAPS_META_MAP_ID)
-    ? GOOGLE_MAPS_META_MAP_ID
-    : "") ||
-  "DEMO_MAP_ID";
+const DEFAULT_RUNTIME_CONFIG = {
+  marketcheckApiBase: "https://api.marketcheck.com/v2",
+  googleMapsApiKey: "",
+  googleMapsMapId: "DEMO_MAP_ID",
+};
+
+async function fetchRuntimeConfig() {
+  const defaults = { ...DEFAULT_RUNTIME_CONFIG };
+  if (typeof fetch === "undefined") {
+    return defaults;
+  }
+  try {
+    const response = await fetch("/api/config", {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const marketcheckBase =
+      typeof data?.marketcheck?.base === "string"
+        ? data.marketcheck.base.trim()
+        : "";
+    const googleMapsApiKey =
+      typeof data?.googleMaps?.apiKey === "string"
+        ? data.googleMaps.apiKey.trim()
+        : "";
+    const googleMapsMapId =
+      typeof data?.googleMaps?.mapId === "string"
+        ? data.googleMaps.mapId.trim()
+        : "";
+    return {
+      marketcheckApiBase: marketcheckBase || defaults.marketcheckApiBase,
+      googleMapsApiKey,
+      googleMapsMapId: googleMapsMapId || defaults.googleMapsMapId,
+    };
+  } catch (error) {
+    console.warn(
+      "[config] Falling back to default runtime config",
+      error?.message || error
+    );
+    return defaults;
+  }
+}
 
 // Format inputs to accounting-style USD on Enter and on blur.
 // Works for any input with class="usdFormat".
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  const runtimeConfig = await fetchRuntimeConfig();
+  if (typeof window !== "undefined") {
+    window.__BRANDONSCALC_RUNTIME_CONFIG__ = runtimeConfig;
+  }
+  const GOOGLE_MAPS_API_KEY = runtimeConfig.googleMapsApiKey;
+  const GOOGLE_MAPS_MAP_ID = runtimeConfig.googleMapsMapId;
   const USD_SELECTOR = ".usdFormat";
   const PERCENT_SELECTOR = ".percentFormat";
   const DEFAULT_APR = 0.0599;
@@ -143,7 +142,6 @@ document.addEventListener("DOMContentLoaded", () => {
   const MAX_AFFORD_TERM_MONTHS = 96;
   const PAYMENT_TOLERANCE = 0.01;
   const AFFORD_TERM_BUCKETS = [24, 36, 48, 60, 72, 84, 96];
-  const GOOGLE_MAPS_API_KEY = "AIzaSyC5LXJ43CBBfA5d-zAl03NBXwMVML2FMA8";
   const DEFAULT_MAP_CENTER = { lat: 28.5383, lng: -81.3792 };
   const TAX_RATE_CONFIG = {
     FL: {
@@ -1261,32 +1259,20 @@ document.addEventListener("DOMContentLoaded", () => {
     if (marketcheckListingDetailsCache.has(normalizedId)) {
       return marketcheckListingDetailsCache.get(normalizedId) ?? null;
     }
-    if (!MARKETCHECK_API_KEY) {
-      throw new Error(
-        "MarketCheck API key missing. Set VITE_MARKETCHECK_API_KEY to enable listing details."
-      );
-    }
-    const endpointBase = MARKETCHECK_API_BASE.replace(/\/$/, "");
-    const url = `${endpointBase}/listing/car/${encodeURIComponent(
-      normalizedId
-    )}?api_key=${encodeURIComponent(MARKETCHECK_API_KEY)}`;
     try {
-      const response = await fetch(url, {
-        headers: { Accept: "application/json" },
-      });
-      if (response.status === 404) {
+      const result = await mcListing(normalizedId);
+      const data = result?.raw ?? result?.payload ?? null;
+      if (!data) {
         marketcheckListingDetailsCache.set(normalizedId, null);
         return null;
       }
-      if (!response.ok) {
-        throw new Error(
-          `Listing details request failed (${response.status} ${response.statusText})`
-        );
-      }
-      const data = await response.json();
-      marketcheckListingDetailsCache.set(normalizedId, data ?? null);
-      return data ?? null;
+      marketcheckListingDetailsCache.set(normalizedId, data);
+      return data;
     } catch (error) {
+      if (error?.status === 404) {
+        marketcheckListingDetailsCache.set(normalizedId, null);
+        return null;
+      }
       console.error("MarketCheck details lookup failed", error);
       marketcheckListingDetailsCache.delete(normalizedId);
       throw error;
@@ -2599,6 +2585,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function loadGooglePlacesScript() {
     if (typeof document === "undefined") return;
+    if (!GOOGLE_MAPS_API_KEY) {
+      console.warn(
+        "[maps] Google Maps API key missing; skipping script load."
+      );
+      return;
+    }
     if (document.getElementById("google-maps-script")) {
       if (typeof window !== "undefined" && window.google?.maps?.places) {
         initLocationAutocomplete();
@@ -6060,42 +6052,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (vinHistoryCache.has(normalizedVin)) {
       return vinHistoryCache.get(normalizedVin) ?? [];
     }
-    if (!MARKETCHECK_API_KEY) {
-      throw new Error(
-        "MarketCheck API key is missing. Add it to the environment to enable VIN lookups."
-      );
-    }
-    const endpointBase = MARKETCHECK_API_BASE.replace(/\/$/, "");
-    const endpoint = `${endpointBase}/history/car/${encodeURIComponent(
-      normalizedVin
-    )}?api_key=${encodeURIComponent(MARKETCHECK_API_KEY)}`;
-    const response = await fetch(endpoint, {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) {
-      throw new Error(
-        `VIN history lookup failed (${response.status} ${response.statusText})`
-      );
-    }
-    let data;
     try {
-      data = await response.json();
+      const result = await mcHistory(normalizedVin);
+      const historyPayload =
+        result?.history !== undefined ? result.history : result ?? [];
+      const records = Array.isArray(historyPayload)
+        ? historyPayload
+        : Array.isArray(historyPayload?.history)
+        ? historyPayload.history
+        : Array.isArray(historyPayload?.records)
+        ? historyPayload.records
+        : Array.isArray(historyPayload?.data)
+        ? historyPayload.data
+        : Array.isArray(historyPayload?.results)
+        ? historyPayload.results
+        : [];
+      vinHistoryCache.set(normalizedVin, records);
+      return records;
     } catch (error) {
-      throw new Error("VIN history response was not valid JSON.");
+      vinHistoryCache.delete(normalizedVin);
+      throw error;
     }
-    const records = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.history)
-      ? data.history
-      : Array.isArray(data?.records)
-      ? data.records
-      : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.results)
-      ? data.results
-      : [];
-    vinHistoryCache.set(normalizedVin, records);
-    return records;
   }
 
   function applyVinPrefillToModal(prefill) {
@@ -8742,42 +8719,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (vinHistoryCache.has(normalizedVin)) {
       return vinHistoryCache.get(normalizedVin) ?? [];
     }
-    if (!MARKETCHECK_API_KEY) {
-      throw new Error(
-        "MarketCheck API key is missing. Add it to the environment to enable VIN lookups."
-      );
-    }
-    const endpointBase = MARKETCHECK_API_BASE.replace(/\/$/, "");
-    const endpoint = `${endpointBase}/history/car/${encodeURIComponent(
-      normalizedVin
-    )}?api_key=${encodeURIComponent(MARKETCHECK_API_KEY)}`;
-    const response = await fetch(endpoint, {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) {
-      throw new Error(
-        `VIN history lookup failed (${response.status} ${response.statusText})`
-      );
-    }
-    let data;
     try {
-      data = await response.json();
+      const result = await mcHistory(normalizedVin);
+      const historyPayload =
+        result?.history !== undefined ? result.history : result ?? [];
+      const records = Array.isArray(historyPayload)
+        ? historyPayload
+        : Array.isArray(historyPayload?.history)
+        ? historyPayload.history
+        : Array.isArray(historyPayload?.records)
+        ? historyPayload.records
+        : Array.isArray(historyPayload?.data)
+        ? historyPayload.data
+        : Array.isArray(historyPayload?.results)
+        ? historyPayload.results
+        : [];
+      vinHistoryCache.set(normalizedVin, records);
+      return records;
     } catch (error) {
-      throw new Error("VIN history response was not valid JSON.");
+      vinHistoryCache.delete(normalizedVin);
+      throw error;
     }
-    const records = Array.isArray(data)
-      ? data
-      : Array.isArray(data?.history)
-      ? data.history
-      : Array.isArray(data?.records)
-      ? data.records
-      : Array.isArray(data?.data)
-      ? data.data
-      : Array.isArray(data?.results)
-      ? data.results
-      : [];
-    vinHistoryCache.set(normalizedVin, records);
-    return records;
   }
 
   function applyVinPrefillToModal(prefill) {
