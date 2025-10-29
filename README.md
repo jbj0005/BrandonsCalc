@@ -79,8 +79,7 @@ Deploy them after populating `secure_settings`:
 ```bash
 # Set secrets once (service role key + optional overrides)
 supabase secrets set \
-  SUPABASE_URL="https://your-project.supabase.co" \
-  SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" \
+  SERVICE_ROLE_KEY="your-service-role-key" \
   --project-ref your-project-ref
 
 # (optional) override defaults

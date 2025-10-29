@@ -7,6 +7,7 @@ import {
   mcListing,
   mcHistory,
   setMarketcheckApiBase,
+  setMarketcheckAuthToken,
 } from "./mc-client.mjs";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
@@ -93,8 +94,13 @@ const SUPABASE_FUNCTIONS_BASE = SUPABASE_PROJECT_REF
   ? `https://${SUPABASE_PROJECT_REF}.functions.supabase.co`
   : "";
 
-async function requestRuntimeConfig(url) {
-  const response = await fetch(url, { headers: { Accept: "application/json" } });
+async function requestRuntimeConfig(url, { withAuth = false } = {}) {
+  const headers = new Headers({ Accept: "application/json" });
+  if (withAuth && SUPABASE_KEY) {
+    headers.set("Authorization", `Bearer ${SUPABASE_KEY}`);
+    headers.set("apikey", SUPABASE_KEY);
+  }
+  const response = await fetch(url, { headers });
   if (!response.ok) {
     throw new Error(`${url} responded with ${response.status}`);
   }
@@ -107,14 +113,17 @@ async function fetchRuntimeConfig() {
     return defaults;
   }
 
-  const sources = ["/api/config"];
+  const sources = [{ url: "/api/config", withAuth: false }];
   if (SUPABASE_FUNCTIONS_BASE) {
-    sources.push(`${SUPABASE_FUNCTIONS_BASE}/runtime-config`);
+    sources.push({
+      url: `${SUPABASE_FUNCTIONS_BASE}/runtime-config`,
+      withAuth: true,
+    });
   }
 
-  for (const source of sources) {
+  for (const { url, withAuth } of sources) {
     try {
-      const data = await requestRuntimeConfig(source);
+      const data = await requestRuntimeConfig(url, { withAuth });
       const marketcheckBase =
         typeof data?.marketcheck?.base === "string"
           ? data.marketcheck.base.trim()
@@ -136,7 +145,7 @@ async function fetchRuntimeConfig() {
           marketcheckBase || defaults.marketcheckApiBase,
         marketcheckProxyBase:
           marketcheckProxyBase ||
-          (source.startsWith("http")
+          (url.startsWith("http")
             ? `${SUPABASE_FUNCTIONS_BASE}/marketcheck`
             : defaults.marketcheckProxyBase),
         googleMapsApiKey,
@@ -145,7 +154,7 @@ async function fetchRuntimeConfig() {
     } catch (error) {
       console.warn(
         "[config] Failed to load from",
-        source,
+        url,
         error?.message || error
       );
     }
@@ -163,6 +172,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     window.__BRANDONSCALC_RUNTIME_CONFIG__ = runtimeConfig;
   }
   setMarketcheckApiBase(runtimeConfig.marketcheckProxyBase);
+  setMarketcheckAuthToken(SUPABASE_KEY);
   const GOOGLE_MAPS_API_KEY = runtimeConfig.googleMapsApiKey;
   const GOOGLE_MAPS_MAP_ID = runtimeConfig.googleMapsMapId;
   const USD_SELECTOR = ".usdFormat";

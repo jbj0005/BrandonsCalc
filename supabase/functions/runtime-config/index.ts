@@ -11,7 +11,9 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY =
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ??
+  Deno.env.get("SERVICE_ROLE_KEY") ??
+  "";
 
 const supabase =
   SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
@@ -39,11 +41,18 @@ async function fetchSecret(name: string): Promise<string> {
   return value;
 }
 
+const corsHeaders: HeadersInit = {
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "GET,OPTIONS",
+  "access-control-allow-headers": "authorization,apikey,content-type",
+  "cache-control": "no-store",
+};
+
 function jsonResponse(payload: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(payload), {
     ...init,
     headers: {
-      "cache-control": "no-store",
+      ...corsHeaders,
       "content-type": "application/json",
       ...(init?.headers ?? {}),
     },
@@ -51,8 +60,14 @@ function jsonResponse(payload: unknown, init?: ResponseInit): Response {
 }
 
 serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
   if (req.method !== "GET") {
-    return new Response("Method Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
   }
 
   const force =

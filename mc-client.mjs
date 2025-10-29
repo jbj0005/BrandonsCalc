@@ -1,4 +1,5 @@
 let mcApiBase = "/api/mc";
+let mcAuthToken = "";
 const DEFAULT_RADIUS = 100;
 
 function normalizeBase(base) {
@@ -13,6 +14,36 @@ export function setMarketcheckApiBase(base) {
   if (normalized) {
     mcApiBase = normalized;
   }
+}
+
+export function setMarketcheckAuthToken(token) {
+  mcAuthToken = typeof token === "string" ? token.trim() : "";
+}
+
+function isSupabaseFunctionUrl(url) {
+  return /^https?:\/\/.+\.functions\.supabase\.co/i.test(url);
+}
+
+function mergeHeaders(baseHeaders = {}) {
+  const headers = new Headers(baseHeaders);
+  if (mcAuthToken && headers.get("Authorization") == null) {
+    headers.set("Authorization", `Bearer ${mcAuthToken}`);
+  }
+  if (mcAuthToken && headers.get("apikey") == null) {
+    headers.set("apikey", mcAuthToken);
+  }
+  return headers;
+}
+
+async function fetchWithAuth(url, options = {}) {
+  const init = { ...options };
+  if (typeof init.headers === "undefined") {
+    init.headers = {};
+  }
+  if (isSupabaseFunctionUrl(url)) {
+    init.headers = mergeHeaders(init.headers);
+  }
+  return fetch(url, init);
 }
 
 function buildUrl(path, query = "") {
@@ -34,7 +65,7 @@ export async function mcByVin(
       : 0;
   if (normalizedRadius) qp.set("radius", String(normalizedRadius));
   if (pick) qp.set("pick", pick);
-  const r = await fetch(
+  const r = await fetchWithAuth(
     buildUrl(`/by-vin/${encodeURIComponent(vin)}`, qp.toString())
   );
   if (!r.ok) {
@@ -67,7 +98,7 @@ export async function mcByVin(
 }
 
 export async function mcListing(id) {
-  const r = await fetch(buildUrl(`/listing/${encodeURIComponent(id)}`));
+  const r = await fetchWithAuth(buildUrl(`/listing/${encodeURIComponent(id)}`));
   if (!r.ok) {
     const error = new Error(`listing failed (${r.status})`);
     error.status = r.status;
@@ -91,7 +122,9 @@ export async function mcListing(id) {
 
 export async function mcHistory(vin) {
   const cleanVin = String(vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
-  const r = await fetch(buildUrl(`/history/${encodeURIComponent(cleanVin)}`));
+  const r = await fetchWithAuth(
+    buildUrl(`/history/${encodeURIComponent(cleanVin)}`)
+  );
   if (!r.ok) {
     const message = `history failed (${r.status})`;
     let detail = message;
