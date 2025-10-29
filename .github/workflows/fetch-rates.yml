@@ -3,7 +3,7 @@ name: Fetch Lender Rates
 on:
   schedule:
     # Run every day at 6 AM UTC (1 AM EST / 2 AM EDT)
-    - cron: '0 6 * * *'
+    - cron: '0 6 * * 1-5'
 
   # Allow manual triggering from Actions tab
   workflow_dispatch:
