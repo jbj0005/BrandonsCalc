@@ -192,7 +192,10 @@ void resolveMarketcheckApiKey().catch(() => {
 });
 
 function mcUrl(path, params = {}, apiKey = MARKETCHECK_API_KEY) {
-  const u = new URL(`${BASE}${path}`);
+  const base = BASE.endsWith("/") ? BASE : `${BASE}/`;
+  const normalizedPath =
+    typeof path === "string" && path.startsWith("/") ? path.slice(1) : path;
+  const u = new URL(normalizedPath || "", base);
   if (apiKey) {
     u.searchParams.set("api_key", apiKey);
   }
