@@ -282,7 +282,7 @@
               <label
                 class="col1 labelWithTooltip"
                 for="taxableBase"
-                data-tooltip="(Sale Price - Trade Offer) + Dealer Fees"
+                data-tooltip="Trade Difference + Dealer Fees"
                 tabindex="0"
               >TAXABLE BASE</label>
               <output
@@ -1010,7 +1010,7 @@
 
                   <!-- Unpaid Balance of Cash Price -->
                   <div class="itemRow itemRowBold">
-                    <span class="itemLabel">UNPAID BALANCE OF CASH PRICE</span>
+                    <span class="itemLabel">UNPAID BALANCE OF SALE PRICE</span>
                     <span class="itemValue" id="contractUnpaidBalance">$45,000.00</span>
                   </div>
 
@@ -1055,6 +1055,12 @@
                     <span class="cashDueLabel">CASH DUE AT SIGNING</span>
                     <span class="cashDueValue" id="contractCashDue">$1,500.00</span>
                   </div>
+                </div>
+                <div class="contractNote contractNetNote" id="contractNetNote" style="display: none;">
+                  <strong id="contractNetLabel">NET AMOUNT:</strong>
+                  <span id="contractNetAmount"></span>
+                  <br>
+                  <span id="contractNetExplanation"></span>
                 </div>
               </section>
             </div>

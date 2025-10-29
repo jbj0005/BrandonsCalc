@@ -9705,6 +9705,45 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     setText("contractCashDue", formatCurrency(cashDue));
 
+    // Calculate and display net amount when both cash to buyer and cash due exist
+    const netNote = document.getElementById("contractNetNote");
+    const netAmountEl = document.getElementById("contractNetAmount");
+    const netExplanationEl = document.getElementById("contractNetExplanation");
+
+    if (cashToBuyer > 0 && cashDue > 0) {
+      const netAmount = cashToBuyer - cashDue;
+
+      if (netAmountEl) {
+        if (netAmount > 0) {
+          // Customer receives money
+          netAmountEl.textContent = formatCurrency(netAmount);
+          netAmountEl.style.color = "#28a745"; // Green
+          if (netExplanationEl) {
+            netExplanationEl.textContent = "You will receive this amount at signing after equity is applied to amounts due.";
+          }
+        } else if (netAmount < 0) {
+          // Customer pays money
+          netAmountEl.textContent = formatCurrency(Math.abs(netAmount));
+          netAmountEl.style.color = "#dc3545"; // Red
+          if (netExplanationEl) {
+            netExplanationEl.textContent = "You need to bring this amount at signing after equity is applied to amounts due.";
+          }
+        } else {
+          // Exactly nets out
+          netAmountEl.textContent = "$0.00";
+          netAmountEl.style.color = "#666";
+          if (netExplanationEl) {
+            netExplanationEl.textContent = "Equity exactly covers all amounts due at signing.";
+          }
+        }
+      }
+
+      if (netNote) netNote.style.display = "block";
+    } else {
+      // Hide net note if doesn't apply
+      if (netNote) netNote.style.display = "none";
+    }
+
     // Vehicle info (if available from selected vehicle)
     const selectedVehicle = vehiclesCache.find(
       (v) => v.id === currentVehicleId
