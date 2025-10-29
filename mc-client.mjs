@@ -2,6 +2,10 @@ let mcApiBase = "/api/mc";
 let mcAuthToken = "";
 const DEFAULT_RADIUS = 100;
 
+function isLikelyJwt(token) {
+  return typeof token === "string" && token.split(".").length === 3;
+}
+
 function normalizeBase(base) {
   if (!base || typeof base !== "string") return "/api/mc";
   const trimmed = base.trim();
@@ -26,10 +30,10 @@ function isSupabaseFunctionUrl(url) {
 
 function mergeHeaders(baseHeaders = {}) {
   const headers = new Headers(baseHeaders);
-  if (mcAuthToken && headers.get("Authorization") == null) {
+  if (mcAuthToken && isLikelyJwt(mcAuthToken) && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${mcAuthToken}`);
   }
-  if (mcAuthToken && headers.get("apikey") == null) {
+  if (mcAuthToken && !headers.has("apikey")) {
     headers.set("apikey", mcAuthToken);
   }
   return headers;

@@ -94,11 +94,17 @@ const SUPABASE_FUNCTIONS_BASE = SUPABASE_PROJECT_REF
   ? `https://${SUPABASE_PROJECT_REF}.functions.supabase.co`
   : "";
 
+function looksLikeJwt(token) {
+  return typeof token === "string" && token.split(".").length === 3;
+}
+
 async function requestRuntimeConfig(url, { withAuth = false } = {}) {
   const headers = new Headers({ Accept: "application/json" });
   if (withAuth && SUPABASE_KEY) {
-    headers.set("Authorization", `Bearer ${SUPABASE_KEY}`);
     headers.set("apikey", SUPABASE_KEY);
+    if (looksLikeJwt(SUPABASE_KEY)) {
+      headers.set("Authorization", `Bearer ${SUPABASE_KEY}`);
+    }
   }
   const response = await fetch(url, { headers });
   if (!response.ok) {
