@@ -2811,12 +2811,30 @@ document.addEventListener("DOMContentLoaded", async () => {
     let contentElement = null;
     if (typeof markerLib.PinElement === "function") {
       try {
-        const pin = new markerLib.PinElement({
-          glyph: glyph || undefined,
+        const pinBaseConfig = {
           background: "#0d3b66",
-          glyphColor: "#ffffff",
           borderColor: "#0d3b66",
-        });
+          glyphColor: "#ffffff",
+        };
+        let pin = null;
+        if (glyph) {
+          const modernConfig = {
+            ...pinBaseConfig,
+            glyphText: glyph,
+          };
+          try {
+            pin = new markerLib.PinElement(modernConfig);
+          } catch (innerError) {
+            // Fallback for older marker libraries that still expect `glyph`
+            const legacyConfig = {
+              ...pinBaseConfig,
+              glyph,
+            };
+            pin = new markerLib.PinElement(legacyConfig);
+          }
+        } else {
+          pin = new markerLib.PinElement(pinBaseConfig);
+        }
         contentElement = pin.element;
       } catch (error) {
         console.warn("[dealer-map] Unable to create PinElement", error);
