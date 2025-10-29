@@ -5297,6 +5297,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const rawVin = normalizeVin(modalFields.vin?.value ?? "");
     const vin = rawVin.length ? rawVin : null;
+    const conditionValue = modalFields.condition?.value?.trim() || "";
     const yearValue = parseInteger(modalFields.year?.value);
     const makeValue = modalFields.make?.value?.trim() || "";
     const modelValue = modalFields.model?.value?.trim() || "";
@@ -5319,6 +5320,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const payload = pickDefined({
       vehicle: vehicleName || null,
+      condition: conditionValue || null,
       year: yearValue ?? null,
       make: makeValue || null,
       model: modelValue || null,
@@ -5831,6 +5833,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       fetchedAt: 0,
     };
     if (modalFields.vehicle) modalFields.vehicle.value = v.vehicle ?? "";
+    if (modalFields.condition) modalFields.condition.value = v.condition ?? "";
     if (modalFields.year)
       modalFields.year.value = v.year != null ? String(v.year) : "";
     if (modalFields.make) modalFields.make.value = v.make ?? "";
@@ -8486,6 +8489,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       fetchedAt: 0,
     };
     if (modalFields.vehicle) modalFields.vehicle.value = v.vehicle ?? "";
+    if (modalFields.condition) modalFields.condition.value = v.condition ?? "";
     if (modalFields.year)
       modalFields.year.value = v.year != null ? String(v.year) : "";
     if (modalFields.make) modalFields.make.value = v.make ?? "";
