@@ -3,7 +3,11 @@ import creditTiers from "./config/credit-tiers.json";
 import lendersConfig from "./config/lenders.json";
 import { createRatesEngine } from "./rates/provider-engine.mjs";
 import savedVehicleLabelConfig from "./config/saved-vehicle-label.json";
-import { mcListing, mcHistory } from "./mc-client.mjs";
+import {
+  mcListing,
+  mcHistory,
+  setMarketcheckApiBase,
+} from "./mc-client.mjs";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
 const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
@@ -77,47 +81,78 @@ const AUTH_MODE_COPY = {
 };
 const DEFAULT_RUNTIME_CONFIG = {
   marketcheckApiBase: "https://api.marketcheck.com/v2",
+  marketcheckProxyBase: "/api/mc",
   googleMapsApiKey: "",
   googleMapsMapId: "DEMO_MAP_ID",
 };
+
+const SUPABASE_PROJECT_REF = SUPABASE_URL.replace(/^https?:\/\//, "")
+  .split(".")[0]
+  .trim();
+const SUPABASE_FUNCTIONS_BASE = SUPABASE_PROJECT_REF
+  ? `https://${SUPABASE_PROJECT_REF}.functions.supabase.co`
+  : "";
+
+async function requestRuntimeConfig(url) {
+  const response = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!response.ok) {
+    throw new Error(`${url} responded with ${response.status}`);
+  }
+  return response.json();
+}
 
 async function fetchRuntimeConfig() {
   const defaults = { ...DEFAULT_RUNTIME_CONFIG };
   if (typeof fetch === "undefined") {
     return defaults;
   }
-  try {
-    const response = await fetch("/api/config", {
-      headers: { Accept: "application/json" },
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const data = await response.json();
-    const marketcheckBase =
-      typeof data?.marketcheck?.base === "string"
-        ? data.marketcheck.base.trim()
-        : "";
-    const googleMapsApiKey =
-      typeof data?.googleMaps?.apiKey === "string"
-        ? data.googleMaps.apiKey.trim()
-        : "";
-    const googleMapsMapId =
-      typeof data?.googleMaps?.mapId === "string"
-        ? data.googleMaps.mapId.trim()
-        : "";
-    return {
-      marketcheckApiBase: marketcheckBase || defaults.marketcheckApiBase,
-      googleMapsApiKey,
-      googleMapsMapId: googleMapsMapId || defaults.googleMapsMapId,
-    };
-  } catch (error) {
-    console.warn(
-      "[config] Falling back to default runtime config",
-      error?.message || error
-    );
-    return defaults;
+
+  const sources = ["/api/config"];
+  if (SUPABASE_FUNCTIONS_BASE) {
+    sources.push(`${SUPABASE_FUNCTIONS_BASE}/runtime-config`);
   }
+
+  for (const source of sources) {
+    try {
+      const data = await requestRuntimeConfig(source);
+      const marketcheckBase =
+        typeof data?.marketcheck?.base === "string"
+          ? data.marketcheck.base.trim()
+          : "";
+      const marketcheckProxyBase =
+        typeof data?.marketcheck?.proxyBase === "string"
+          ? data.marketcheck.proxyBase.trim()
+          : "";
+      const googleMapsApiKey =
+        typeof data?.googleMaps?.apiKey === "string"
+          ? data.googleMaps.apiKey.trim()
+          : "";
+      const googleMapsMapId =
+        typeof data?.googleMaps?.mapId === "string"
+          ? data.googleMaps.mapId.trim()
+          : "";
+      return {
+        marketcheckApiBase:
+          marketcheckBase || defaults.marketcheckApiBase,
+        marketcheckProxyBase:
+          marketcheckProxyBase ||
+          (source.startsWith("http")
+            ? `${SUPABASE_FUNCTIONS_BASE}/marketcheck`
+            : defaults.marketcheckProxyBase),
+        googleMapsApiKey,
+        googleMapsMapId: googleMapsMapId || defaults.googleMapsMapId,
+      };
+    } catch (error) {
+      console.warn(
+        "[config] Failed to load from",
+        source,
+        error?.message || error
+      );
+    }
+  }
+
+  console.warn("[config] Falling back to default runtime config");
+  return defaults;
 }
 
 // Format inputs to accounting-style USD on Enter and on blur.
@@ -127,6 +162,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof window !== "undefined") {
     window.__BRANDONSCALC_RUNTIME_CONFIG__ = runtimeConfig;
   }
+  setMarketcheckApiBase(runtimeConfig.marketcheckProxyBase);
   const GOOGLE_MAPS_API_KEY = runtimeConfig.googleMapsApiKey;
   const GOOGLE_MAPS_MAP_ID = runtimeConfig.googleMapsMapId;
   const USD_SELECTOR = ".usdFormat";

@@ -587,6 +587,7 @@ app.get("/api/config", async (req, res) => {
   const payload = {
     marketcheck: {
       base: BASE,
+      proxyBase: "/api/mc",
     },
     googleMaps: {
       apiKey: GOOGLE_MAPS_API_KEY_FALLBACK,
@@ -616,6 +617,9 @@ app.get("/api/config", async (req, res) => {
       ]);
     if (marketcheckBase) {
       payload.marketcheck.base = marketcheckBase;
+    }
+    if (!payload.marketcheck.proxyBase) {
+      payload.marketcheck.proxyBase = "/api/mc";
     }
     if (googleMapsApiKey) {
       payload.googleMaps.apiKey = googleMapsApiKey;

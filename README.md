@@ -66,6 +66,34 @@ on conflict (name) do update set secret = excluded.secret;
 
 You can force the proxy to refresh cached values by calling `/api/config?force=1` while developing.
 
+### Supabase Edge Functions
+Static hosts (e.g., GitHub Pages) have no Node backend, so the repo ships Supabase Edge Functions that expose the same configuration and MarketCheck proxy used locally.
+
+```
+supabase/functions/runtime-config   # returns Google Maps + MarketCheck metadata
+supabase/functions/marketcheck      # mirrors /api/mc/* endpoints
+```
+
+Deploy them after populating `secure_settings`:
+
+```bash
+# Set secrets once (service role key + optional overrides)
+supabase secrets set \
+  SUPABASE_URL="https://your-project.supabase.co" \
+  SUPABASE_SERVICE_ROLE_KEY="your-service-role-key" \
+  --project-ref your-project-ref
+
+# (optional) override defaults
+# supabase secrets set MARKETCHECK_BASE="https://api.marketcheck.com/v2" --project-ref your-project-ref
+# supabase secrets set MARKETCHECK_PROXY_BASE="https://your-project-ref.functions.supabase.co/marketcheck" --project-ref your-project-ref
+
+# Deploy the functions
+supabase functions deploy runtime-config --project-ref your-project-ref
+supabase functions deploy marketcheck --project-ref your-project-ref
+```
+
+The client automatically falls back to the Edge Functions when the Express proxy is unavailable, so GitHub Pages and other static hosts will load Google Maps and MarketCheck data without bundling secrets into the build.
+
 ## Installation
 ```bash
 npm install

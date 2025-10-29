@@ -1,5 +1,25 @@
-const MC_API_BASE = "/api/mc";
+let mcApiBase = "/api/mc";
 const DEFAULT_RADIUS = 100;
+
+function normalizeBase(base) {
+  if (!base || typeof base !== "string") return "/api/mc";
+  const trimmed = base.trim();
+  if (!trimmed) return "/api/mc";
+  return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+export function setMarketcheckApiBase(base) {
+  const normalized = normalizeBase(base);
+  if (normalized) {
+    mcApiBase = normalized;
+  }
+}
+
+function buildUrl(path, query = "") {
+  const base = normalizeBase(mcApiBase);
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalizedPath}${query ? `?${query}` : ""}`;
+}
 
 export async function mcByVin(
   vin,
@@ -14,7 +34,9 @@ export async function mcByVin(
       : 0;
   if (normalizedRadius) qp.set("radius", String(normalizedRadius));
   if (pick) qp.set("pick", pick);
-  const r = await fetch(`${MC_API_BASE}/by-vin/${encodeURIComponent(vin)}?${qp.toString()}`);
+  const r = await fetch(
+    buildUrl(`/by-vin/${encodeURIComponent(vin)}`, qp.toString())
+  );
   if (!r.ok) {
     let message = `byVin failed (${r.status})`;
     let body = null;
@@ -45,7 +67,7 @@ export async function mcByVin(
 }
 
 export async function mcListing(id) {
-  const r = await fetch(`${MC_API_BASE}/listing/${encodeURIComponent(id)}`);
+  const r = await fetch(buildUrl(`/listing/${encodeURIComponent(id)}`));
   if (!r.ok) {
     const error = new Error(`listing failed (${r.status})`);
     error.status = r.status;
@@ -69,7 +91,7 @@ export async function mcListing(id) {
 
 export async function mcHistory(vin) {
   const cleanVin = String(vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
-  const r = await fetch(`${MC_API_BASE}/history/${encodeURIComponent(cleanVin)}`);
+  const r = await fetch(buildUrl(`/history/${encodeURIComponent(cleanVin)}`));
   if (!r.ok) {
     const message = `history failed (${r.status})`;
     let detail = message;
