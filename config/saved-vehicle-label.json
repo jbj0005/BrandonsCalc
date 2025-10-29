@@ -1,8 +1,20 @@
 {
   "segments": [
     {
-      "fields": ["vehicle"],
-      "join": " "
+      "fields": ["condition"],
+      "separator": " | "
+    },
+    {
+      "fields": ["year"],
+      "separator": " | "
+    },
+    {
+      "fields": ["make"],
+      "separator": " | "
+    },
+    {
+      "fields": ["model"],
+      "separator": " | "
     },
     {
       "fields": [
@@ -10,9 +22,8 @@
           "field": "asking_price",
           "format": "currency"
         }
-      ],
-      "prefix": "• "
+      ]
     }
   ],
-  "fallbackFields": ["vehicle", "vin"]
+  "fallbackFields": ["vehicle", "year", "make", "model", "vin"]
 }

@@ -21,6 +21,7 @@ const VEHICLE_SELECT_COLUMNS = `
   user_id,
   vehicle,
   heading,
+  condition,
   vin,
   year,
   make,
@@ -45,6 +46,7 @@ const VEHICLE_SELECT_COLUMNS = `
 const VEHICLE_FIELD_LABELS = {
   vin: "VIN",
   vehicle: "Vehicle Name",
+  condition: "Condition",
   year: "Year",
   make: "Make",
   model: "Model",
@@ -852,6 +854,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const modalFields = vehicleModalForm
     ? {
         vehicle: document.getElementById("modalVehicleName"),
+        condition: document.getElementById("modalCondition"),
         vin: document.getElementById("modalVin"),
         year: document.getElementById("modalYear"),
         make: document.getElementById("modalMake"),
