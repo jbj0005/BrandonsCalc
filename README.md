@@ -2,6 +2,14 @@
 
 ExcelCalc is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
 
+## v1.1.0 Highlights - Contract Summary & Enhanced UX
+- **Contract Summary Modal**: New professional contract summary view (RouteOne format) with Federal Truth-in-Lending disclosures, itemization of amount financed, payment schedule, and cash due at signing.
+- **Vehicle & Dealer Details**: Contract displays comprehensive vehicle information (condition, year, make, model, trim, mileage, VIN) and dealer information (name, address, phone).
+- **Cash to Buyer Display**: When customers cash out equity, the contract clearly shows "Cash to Buyer at Signing" in green, separate from cash due.
+- **Currency Formatting**: Fixed input formatting for sale price, trade offer, and trade payoff fields - values now properly format on blur/change events.
+- **Trade Calculations**: Trade Difference and Net Trade Difference now only display when there's an actual trade offer, improving clarity for cash deals.
+- **Print Support**: Contract summary includes print button with optimized print styles for physical documentation.
+
 ## v1.0.2 Highlights
 - Update Vehicle modal now auto-fills `modalDealerName` with the Google Places dealer selection, keeping dealer details in sync with the rest of the address fields.
 - Places autocomplete gracefully skips unsupported phone fields so address/city/state/zip population stays reliable without console noise.

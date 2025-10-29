@@ -414,7 +414,16 @@
                   class=" output bigOutput usdFormat"
                   type="text"
                   placeholder="$0.00">
-                </output>        
+                </output>
+            </div>
+            <!-- Contract Summary Button -->
+            <div class="flexEnd">
+              <button
+                id="viewContractButton"
+                type="button"
+                title="View contract summary in RouteOne format">
+                VIEW CONTRACT SUMMARY
+              </button>
             </div>
           </div>
           <!-- Financing Card -->
@@ -810,6 +819,263 @@
               </p>
               <p class="modalStatus" role="status" aria-live="polite"></p>
             </form>
+          </div>
+        </div>
+
+        <!-- Contract Summary Modal -->
+        <div
+          id="contractModal"
+          class="modalOverlay"
+          aria-hidden="true"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="contractModalTitle"
+        >
+          <div class="card contractModalCard">
+            <header class="modalHeader">
+              <h3 id="contractModalTitle">Sales Contract Summary</h3>
+              <button
+                type="button"
+                class="modalClose"
+                aria-label="Close contract summary"
+                data-contract-action="close"
+              >
+                ×
+              </button>
+            </header>
+
+            <div class="contractContent">
+              <!-- Contract Header -->
+              <div class="contractHeader">
+                <h4 class="contractTitle">RETAIL INSTALLMENT SALE CONTRACT</h4>
+                <p class="contractSubtitle">(SIMPLE FINANCE CHARGE)</p>
+              </div>
+
+              <!-- Vehicle Information -->
+              <section class="contractSection">
+                <h5 class="contractSectionTitle">VEHICLE INFORMATION</h5>
+                <div id="contractVehicleNote" class="contractNote" style="display: none;">
+                  Note: Vehicle details were not provided. This contract summary reflects loan calculations only.
+                </div>
+                <div class="contractGrid">
+                  <div class="contractRow">
+                    <span class="contractLabel">CONDITION</span>
+                    <span class="contractValue" id="contractCondition"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">YEAR</span>
+                    <span class="contractValue" id="contractYear"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">MAKE</span>
+                    <span class="contractValue" id="contractMake"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">MODEL</span>
+                    <span class="contractValue" id="contractModel"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">TRIM</span>
+                    <span class="contractValue" id="contractTrim"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">MILEAGE</span>
+                    <span class="contractValue" id="contractMileage"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">VIN</span>
+                    <span class="contractValue contractVin" id="contractVin"></span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Dealer Information -->
+              <section class="contractSection">
+                <h5 class="contractSectionTitle">DEALER INFORMATION</h5>
+                <div id="contractDealerNote" class="contractNote" style="display: none;">
+                  Note: Dealer details were not provided.
+                </div>
+                <div class="contractGrid" id="contractDealerGrid">
+                  <div class="contractRow">
+                    <span class="contractLabel">DEALER NAME</span>
+                    <span class="contractValue" id="contractDealerName"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">STREET</span>
+                    <span class="contractValue" id="contractDealerStreet"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">CITY</span>
+                    <span class="contractValue" id="contractDealerCity"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">STATE</span>
+                    <span class="contractValue" id="contractDealerState"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">ZIP</span>
+                    <span class="contractValue" id="contractDealerZip"></span>
+                  </div>
+                  <div class="contractRow">
+                    <span class="contractLabel">PHONE</span>
+                    <span class="contractValue" id="contractDealerPhone"></span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Federal Truth-in-Lending Disclosures -->
+              <section class="contractSection contractDisclosures">
+                <h5 class="contractSectionTitle">FEDERAL TRUTH-IN-LENDING DISCLOSURES</h5>
+                <div class="disclosuresGrid">
+                  <div class="disclosureItem">
+                    <div class="disclosureLabel">ANNUAL<br/>PERCENTAGE<br/>RATE</div>
+                    <div class="disclosureValue" id="contractAPR">5.99%</div>
+                    <div class="disclosureNote">The cost of your credit as a yearly rate</div>
+                  </div>
+                  <div class="disclosureItem">
+                    <div class="disclosureLabel">FINANCE<br/>CHARGE</div>
+                    <div class="disclosureValue" id="contractFinanceCharge">$8,500.00</div>
+                    <div class="disclosureNote">The dollar amount the credit will cost you</div>
+                  </div>
+                  <div class="disclosureItem">
+                    <div class="disclosureLabel">AMOUNT<br/>FINANCED</div>
+                    <div class="disclosureValue" id="contractAmountFinanced">$45,000.00</div>
+                    <div class="disclosureNote">The amount of credit provided to you</div>
+                  </div>
+                  <div class="disclosureItem">
+                    <div class="disclosureLabel">TOTAL OF<br/>PAYMENTS</div>
+                    <div class="disclosureValue" id="contractTotalPayments">$53,500.00</div>
+                    <div class="disclosureNote">The amount you will have paid after making all payments as scheduled</div>
+                  </div>
+                  <div class="disclosureItem">
+                    <div class="disclosureLabel">TOTAL<br/>SALE<br/>PRICE</div>
+                    <div class="disclosureValue" id="contractTotalSalePrice">$55,990.00</div>
+                    <div class="disclosureNote">The total cost of your purchase on credit</div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Payment Schedule -->
+              <section class="contractSection">
+                <h5 class="contractSectionTitle">YOUR PAYMENT SCHEDULE WILL BE:</h5>
+                <div class="paymentSchedule">
+                  <div class="paymentRow">
+                    <span class="paymentLabel">NUMBER OF PAYMENTS</span>
+                    <span class="paymentValue" id="contractNumPayments">72</span>
+                  </div>
+                  <div class="paymentRow">
+                    <span class="paymentLabel">AMOUNT OF PAYMENTS</span>
+                    <span class="paymentValue" id="contractPaymentAmount">$750.00</span>
+                  </div>
+                  <div class="paymentRow">
+                    <span class="paymentLabel">WHEN PAYMENTS ARE DUE</span>
+                    <span class="paymentValue" id="contractPaymentFreq">Monthly</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Itemization of Amount Financed -->
+              <section class="contractSection">
+                <h5 class="contractSectionTitle">ITEMIZATION OF AMOUNT FINANCED</h5>
+                <div class="itemizationTable">
+                  <!-- Cash Price -->
+                  <div class="itemRow itemRowBold">
+                    <span class="itemLabel">SALE PRICE</span>
+                    <span class="itemValue" id="contractCashPrice">$50,000.00</span>
+                  </div>
+
+                  <!-- Trade-in -->
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Trade-In Allowance</span>
+                    <span class="itemValue" id="contractTradeAllowance">$2,000.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Less Pay-Off Made By Seller</span>
+                    <span class="itemValue" id="contractTradePayoff">$0.00</span>
+                  </div>
+
+                  <!-- Total Downpayment -->
+                  <div class="itemRow itemRowHeader">
+                    <span class="itemLabel">TOTAL DOWN PAYMENT</span>
+                    <span class="itemValue" id="contractDownPayment">$5,000.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Equals Net Trade-In</span>
+                    <span class="itemValue" id="contractNetTrade">$2,000.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">+ Cash</span>
+                    <span class="itemValue" id="contractCashDown">$3,000.00</span>
+                  </div>
+
+                  <!-- Unpaid Balance of Cash Price -->
+                  <div class="itemRow itemRowBold">
+                    <span class="itemLabel">UNPAID BALANCE OF CASH PRICE</span>
+                    <span class="itemValue" id="contractUnpaidBalance">$45,000.00</span>
+                  </div>
+
+                  <!-- Other Charges -->
+                  <div class="itemRow itemRowHeader">
+                    <span class="itemLabel">OTHER CHARGES</span>
+                    <span class="itemValue"></span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Total Dealer Fees</span>
+                    <span class="itemValue" id="contractDealerFees">$799.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Total Gov't Fees</span>
+                    <span class="itemValue" id="contractGovtFees">$150.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">State Taxes</span>
+                    <span class="itemValue" id="contractStateTax">$2,500.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">County Taxes</span>
+                    <span class="itemValue" id="contractCountyTax">$50.00</span>
+                  </div>
+
+                  <!-- Amount Financed -->
+                  <div class="itemRow itemRowBold itemRowTotal">
+                    <span class="itemLabel">AMOUNT FINANCED</span>
+                    <span class="itemValue" id="contractAmountFinanced2">$48,499.00</span>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Cash Due at Signing -->
+              <section class="contractSection">
+                <div class="cashDueBox">
+                  <div class="cashDueRow" id="contractCashToBuyerRow" style="display: none;">
+                    <span class="cashDueLabel">CASH TO BUYER AT SIGNING</span>
+                    <span class="cashDueValue contractCashToBuyer" id="contractCashToBuyer">$0.00</span>
+                  </div>
+                  <div class="cashDueRow">
+                    <span class="cashDueLabel">CASH DUE AT SIGNING</span>
+                    <span class="cashDueValue" id="contractCashDue">$1,500.00</span>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <footer class="modalActions">
+              <button
+                type="button"
+                class="modalPrimary"
+                id="printContractButton"
+                title="Print contract summary"
+              >
+                Print
+              </button>
+              <button
+                type="button"
+                class="modalSecondary"
+                data-contract-action="close"
+              >
+                Close
+              </button>
+            </footer>
           </div>
         </div>
       </main>

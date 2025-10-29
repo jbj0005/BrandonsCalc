@@ -677,7 +677,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const tradeOfferInput = document.getElementById("tradeOffer");
   const tradePayoffInput = document.getElementById("tradePayoff");
   const equityOutput = document.getElementById("equity");
-  const cashDifferenceOutput = document.getElementById("cashDifference");
+  const tradeDifferenceOutput = document.getElementById("tradeDifference");
   const netTradeOutput = document.getElementById("netTrade");
   const savingsNote = document.getElementById("savingsNote");
   const totalFeesOutput = document.getElementById("totalTF");
@@ -1603,16 +1603,19 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const hasSalePrice = Number.isFinite(salePrice);
     const hasTradeOfferValue = Number.isFinite(tradeOffer);
-    if (!hasSalePrice && !hasTradeOfferValue) {
-      setCurrencyOutput(cashDifferenceOutput, null);
+
+    // Only show trade difference when there's a trade offer
+    if (!hasTradeOfferValue) {
+      setCurrencyOutput(tradeDifferenceOutput, null);
     } else {
       const normalizedSale = hasSalePrice ? salePrice ?? 0 : 0;
-      const normalizedTradeOffer = hasTradeOfferValue ? tradeOffer ?? 0 : 0;
-      const cashDifference = normalizedSale - normalizedTradeOffer;
-      setCurrencyOutput(cashDifferenceOutput, cashDifference);
+      const normalizedTradeOffer = tradeOffer ?? 0;
+      const tradeDifference = normalizedSale - normalizedTradeOffer;
+      setCurrencyOutput(tradeDifferenceOutput, tradeDifference);
     }
 
-    if (!hasSalePrice && !Number.isFinite(equityValue)) {
+    // Only show net trade when there's a trade offer
+    if (!hasTradeOfferValue) {
       setCurrencyOutput(netTradeOutput, null);
     } else {
       const normalizedSale = hasSalePrice ? salePrice ?? 0 : 0;
@@ -4960,6 +4963,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     };
 
+    attachFormattedField(salePriceInput, { onInput: recomputeDeal });
+    attachFormattedField(tradeOfferInput, { onInput: recomputeDeal });
+    attachFormattedField(tradePayoffInput, { onInput: recomputeDeal });
     attachFormattedField(cashDownInput, { onInput: recomputeDeal });
     attachFormattedField(affordabilityPaymentInput, { onInput: recomputeDeal });
     attachFormattedField(financeAprInput);
@@ -9598,6 +9604,210 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   vehicleModalForm?.addEventListener("submit", handleModalSubmit);
+
+  // Contract Summary Modal
+  const contractModal = document.getElementById("contractModal");
+  const viewContractButton = document.getElementById("viewContractButton");
+  const printContractButton = document.getElementById("printContractButton");
+
+  function openContractModal() {
+    if (!contractModal) return;
+    populateContractModal();
+    contractModal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeContractModal() {
+    if (!contractModal) return;
+    contractModal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function populateContractModal() {
+    // Helper to get numeric value from output element
+    const getOutputValue = (el) => {
+      if (!el) return 0;
+      return el.dataset?.value ? Number(el.dataset.value) : 0;
+    };
+
+    // Get current values
+    const salePrice = getInputCurrencyValue(salePriceInput) ?? 0;
+    const tradeOffer = getInputCurrencyValue(tradeOfferInput) ?? 0;
+    const tradePayoff = getInputCurrencyValue(tradePayoffInput) ?? 0;
+    const cashDown = getInputCurrencyValue(cashDownInput) ?? 0;
+    const amountFinanced = getOutputValue(amountFinancedOutput);
+    const monthlyPayment = getOutputValue(monthlyPaymentOutput);
+    const apr =
+      getPercentInputValue(financeAprInput, DEFAULT_APR) ?? DEFAULT_APR;
+    const term = parseInteger(financeTermInput?.value) ?? DEFAULT_TERM_MONTHS;
+
+    // Calculate values
+    const equity = tradeOffer - tradePayoff;
+    const netTrade = equity;
+    const totalDownPayment = netTrade + cashDown;
+    const totalFees = getOutputValue(totalFeesOutput);
+    const totalTaxes = getOutputValue(totalTaxesOutput);
+    const cashPrice = salePrice + totalFees + totalTaxes;
+    const unpaidBalance = cashPrice - totalDownPayment;
+
+    // Finance charge calculation
+    const monthlyRate = apr / 100 / 12;
+    const totalPayments = monthlyPayment * term;
+    const financeCharge = totalPayments - amountFinanced;
+    const totalSalePrice =
+      cashPrice + financeCharge - amountFinanced + unpaidBalance;
+    const cashDue = getOutputValue(cashDueOutput);
+
+    // Get dealer fees and taxes
+    const totalDealerFees = getOutputValue(totalDealerFeesOutput);
+    const totalGovtFees = getOutputValue(totalGovtFeesOutput);
+    const stateTaxTotal = getOutputValue(stateTaxTotalOutput);
+    const countyTaxTotal = getOutputValue(countyTaxTotalOutput);
+
+    // Populate Federal Truth-in-Lending Disclosures
+    setText("contractAPR", formatPercent(apr));
+    setText("contractFinanceCharge", formatCurrency(financeCharge));
+    setText("contractAmountFinanced", formatCurrency(amountFinanced));
+    setText("contractTotalPayments", formatCurrency(totalPayments));
+    setText("contractTotalSalePrice", formatCurrency(totalSalePrice));
+
+    // Payment Schedule
+    setText("contractNumPayments", term);
+    setText("contractPaymentAmount", formatCurrency(monthlyPayment));
+    setText("contractPaymentFreq", "Monthly");
+
+    // Itemization
+    setText("contractCashPrice", formatCurrency(cashPrice));
+    setText("contractDownPayment", formatCurrency(totalDownPayment));
+    setText("contractTradeAllowance", formatCurrency(tradeOffer));
+    setText("contractTradePayoff", formatCurrency(tradePayoff));
+    setText("contractNetTrade", formatCurrency(netTrade));
+    setText("contractCashDown", formatCurrency(cashDown));
+    setText("contractUnpaidBalance", formatCurrency(unpaidBalance));
+    setText("contractDealerFees", formatCurrency(totalDealerFees));
+    setText("contractGovtFees", formatCurrency(totalGovtFees));
+    setText("contractStateTax", formatCurrency(stateTaxTotal));
+    setText("contractCountyTax", formatCurrency(countyTaxTotal));
+    setText("contractAmountFinanced2", formatCurrency(amountFinanced));
+
+    // Handle Cash to Buyer and Cash Due at Signing
+    const cashToBuyer = getOutputValue(cashToBuyerOutput);
+    const cashToBuyerRow = document.getElementById("contractCashToBuyerRow");
+
+    if (cashToBuyer > 0) {
+      // Show cash to buyer if there is any
+      setText("contractCashToBuyer", formatCurrency(cashToBuyer));
+      if (cashToBuyerRow) cashToBuyerRow.style.display = "";
+    } else {
+      // Hide cash to buyer row if zero
+      if (cashToBuyerRow) cashToBuyerRow.style.display = "none";
+    }
+
+    setText("contractCashDue", formatCurrency(cashDue));
+
+    // Vehicle info (if available from selected vehicle)
+    const selectedVehicle = vehiclesCache.find(
+      (v) => v.id === currentVehicleId
+    );
+    if (selectedVehicle) {
+      setText("contractCondition", selectedVehicle.condition ?? "");
+      setText("contractYear", selectedVehicle.year ?? "");
+      setText("contractMake", selectedVehicle.make ?? "");
+      setText("contractModel", selectedVehicle.model ?? "");
+      setText("contractTrim", selectedVehicle.trim ?? "");
+
+      // Format mileage with comma separators
+      const mileage = selectedVehicle.mileage;
+      if (mileage != null && mileage !== "") {
+        setText("contractMileage", Number(mileage).toLocaleString('en-US') + " mi");
+      } else {
+        setText("contractMileage", "");
+      }
+
+      setText("contractVin", selectedVehicle.vin ?? "");
+      const vehicleNote = document.getElementById("contractVehicleNote");
+      if (vehicleNote) vehicleNote.style.display = "none";
+
+      // Dealer info
+      const dealerName = selectedVehicle.dealer_name ?? "";
+      const dealerStreet = selectedVehicle.dealer_street ?? "";
+      const dealerCity = selectedVehicle.dealer_city ?? "";
+      const dealerState = selectedVehicle.dealer_state ?? "";
+      const dealerZip = selectedVehicle.dealer_zip ?? "";
+      const dealerPhone = selectedVehicle.dealer_phone ?? "";
+
+      const hasDealerInfo = dealerName || dealerStreet || dealerCity || dealerState || dealerZip || dealerPhone;
+
+      setText("contractDealerName", dealerName);
+      setText("contractDealerStreet", dealerStreet);
+      setText("contractDealerCity", dealerCity);
+      setText("contractDealerState", dealerState);
+      setText("contractDealerZip", dealerZip);
+      setText("contractDealerPhone", dealerPhone);
+
+      const dealerNote = document.getElementById("contractDealerNote");
+      const dealerGrid = document.getElementById("contractDealerGrid");
+      if (hasDealerInfo) {
+        if (dealerNote) dealerNote.style.display = "none";
+        if (dealerGrid) dealerGrid.style.display = "";
+      } else {
+        if (dealerNote) dealerNote.style.display = "block";
+        if (dealerGrid) dealerGrid.style.display = "none";
+      }
+    } else {
+      setText("contractCondition", "");
+      setText("contractYear", "");
+      setText("contractMake", "");
+      setText("contractModel", "");
+      setText("contractTrim", "");
+      setText("contractMileage", "");
+      setText("contractVin", "");
+      const vehicleNote = document.getElementById("contractVehicleNote");
+      if (vehicleNote) vehicleNote.style.display = "block";
+
+      // Clear dealer info
+      setText("contractDealerName", "");
+      setText("contractDealerStreet", "");
+      setText("contractDealerCity", "");
+      setText("contractDealerState", "");
+      setText("contractDealerZip", "");
+      setText("contractDealerPhone", "");
+
+      const dealerNote = document.getElementById("contractDealerNote");
+      const dealerGrid = document.getElementById("contractDealerGrid");
+      if (dealerNote) dealerNote.style.display = "block";
+      if (dealerGrid) dealerGrid.style.display = "none";
+    }
+  }
+
+  function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+  }
+
+  viewContractButton?.addEventListener("click", openContractModal);
+  printContractButton?.addEventListener("click", () => window.print());
+
+  contractModal
+    ?.querySelectorAll("[data-contract-action='close']")
+    .forEach((btn) => {
+      btn.addEventListener("click", closeContractModal);
+    });
+
+  contractModal?.addEventListener("click", (event) => {
+    if (event.target === contractModal) {
+      closeContractModal();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (
+      contractModal?.getAttribute("aria-hidden") === "false" &&
+      event.key === "Escape"
+    ) {
+      closeContractModal();
+    }
+  });
 
   async function initializeApp() {
     attachCalculatorEventListeners();
