@@ -23,7 +23,8 @@ const CACHE_TTL_MS = 60_000;
 const corsHeaders: HeadersInit = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET,OPTIONS",
-  "access-control-allow-headers": "Content-Type,Authorization",
+  "access-control-allow-headers":
+    "Content-Type,Authorization,apikey,x-client-info",
   "cache-control": "no-store",
 };
 

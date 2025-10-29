@@ -11,7 +11,8 @@ import {
 } from "./mc-client.mjs";
 
 const SUPABASE_URL = "https://txndueuqljeujlccngbj.supabase.co";
-const SUPABASE_KEY = "sb_publishable_iq_fkrkjHODeoaBOa3vvEA_p9Y3Yz8X";
+const SUPABASE_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.ozHVMxQ0qL4mzZ2q2cRkYPduBk927_a7ffd3tOI6Pdc";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const ratesEngine = createRatesEngine({ supabase });
 const VEHICLES_TABLE = "vehicles";
@@ -158,8 +159,7 @@ async function fetchRuntimeConfig() {
           ? data.googleMaps.mapId.trim()
           : "";
       return {
-        marketcheckApiBase:
-          marketcheckBase || defaults.marketcheckApiBase,
+        marketcheckApiBase: marketcheckBase || defaults.marketcheckApiBase,
         marketcheckProxyBase:
           marketcheckProxyBase ||
           (url.startsWith("http")
@@ -180,6 +180,9 @@ async function fetchRuntimeConfig() {
   console.warn("[config] Falling back to default runtime config");
   return defaults;
 }
+
+setMarketcheckApiBase(DEFAULT_RUNTIME_CONFIG.marketcheckProxyBase);
+setMarketcheckAuthToken(SUPABASE_KEY);
 
 // Format inputs to accounting-style USD on Enter and on blur.
 // Works for any input with class="usdFormat".
@@ -2649,9 +2652,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   function loadGooglePlacesScript() {
     if (typeof document === "undefined") return;
     if (!GOOGLE_MAPS_API_KEY) {
-      console.warn(
-        "[maps] Google Maps API key missing; skipping script load."
-      );
+      console.warn("[maps] Google Maps API key missing; skipping script load.");
       return;
     }
     if (document.getElementById("google-maps-script")) {
@@ -6505,9 +6506,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       };
     }
     if (Array.isArray(segment)) {
-      const fields = segment
-        .map(normalizeVehicleLabelField)
-        .filter(Boolean);
+      const fields = segment.map(normalizeVehicleLabelField).filter(Boolean);
       if (!fields.length) return null;
       return {
         fields,
@@ -6527,16 +6526,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         .map(normalizeVehicleLabelField)
         .filter(Boolean);
       if (!fields.length) return null;
-      const fieldJoin =
-        typeof segment.join === "string" ? segment.join : " ";
-      const prefix =
-        typeof segment.prefix === "string" ? segment.prefix : "";
-      const suffix =
-        typeof segment.suffix === "string" ? segment.suffix : "";
+      const fieldJoin = typeof segment.join === "string" ? segment.join : " ";
+      const prefix = typeof segment.prefix === "string" ? segment.prefix : "";
+      const suffix = typeof segment.suffix === "string" ? segment.suffix : "";
       const separator =
-        typeof segment.separator === "string"
-          ? segment.separator
-          : " ";
+        typeof segment.separator === "string" ? segment.separator : " ";
       return { fields, fieldJoin, prefix, suffix, separator };
     }
     return null;
@@ -6577,13 +6571,9 @@ document.addEventListener("DOMContentLoaded", async () => {
       const trimmedField = fieldName.trim();
       if (!trimmedField) return null;
       const format =
-        typeof entry.format === "string"
-          ? entry.format.toLowerCase()
-          : null;
-      const prefix =
-        typeof entry.prefix === "string" ? entry.prefix : "";
-      const suffix =
-        typeof entry.suffix === "string" ? entry.suffix : "";
+        typeof entry.format === "string" ? entry.format.toLowerCase() : null;
+      const prefix = typeof entry.prefix === "string" ? entry.prefix : "";
+      const suffix = typeof entry.suffix === "string" ? entry.suffix : "";
       return {
         type: "field",
         field: trimmedField,
@@ -6619,13 +6609,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         typeof descriptor.prefix === "string" ? descriptor.prefix : "";
       const literalSuffix =
         typeof descriptor.suffix === "string" ? descriptor.suffix : "";
-      const literalValue = `${literalPrefix}${descriptor.value ?? ""}${literalSuffix}`;
+      const literalValue = `${literalPrefix}${
+        descriptor.value ?? ""
+      }${literalSuffix}`;
       return literalValue.trim() ? literalValue : "";
     }
     const rawValue = getVehicleFieldValue(vehicle, descriptor.field);
     if (rawValue == null) return "";
-    let value =
-      typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    let value = typeof rawValue === "string" ? rawValue.trim() : rawValue;
     if (value === "") return "";
 
     switch (descriptor.format) {
@@ -6667,10 +6658,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!parts.length) return "";
     const body = parts.join(joiner).trim();
     if (!body) return "";
-    const prefix =
-      typeof segment.prefix === "string" ? segment.prefix : "";
-    const suffix =
-      typeof segment.suffix === "string" ? segment.suffix : "";
+    const prefix = typeof segment.prefix === "string" ? segment.prefix : "";
+    const suffix = typeof segment.suffix === "string" ? segment.suffix : "";
     const assembled = `${prefix}${body}${suffix}`;
     return assembled.trim();
   }

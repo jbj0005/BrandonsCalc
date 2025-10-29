@@ -5,7 +5,6 @@ const DEFAULT_RADIUS = 100;
 function isLikelyJwt(token) {
   return typeof token === "string" && token.split(".").length === 3;
 }
-
 function normalizeBase(base) {
   if (!base || typeof base !== "string") return "/api/mc";
   const trimmed = base.trim();
