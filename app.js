@@ -119,12 +119,23 @@ async function fetchRuntimeConfig() {
     return defaults;
   }
 
-  const sources = [{ url: "/api/config", withAuth: false }];
+  const sources = [];
   if (SUPABASE_FUNCTIONS_BASE) {
     sources.push({
       url: `${SUPABASE_FUNCTIONS_BASE}/runtime-config`,
       withAuth: true,
     });
+  }
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    const isLocalHost =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.endsWith(".local") ||
+      host === "::1";
+    if (isLocalHost) {
+      sources.push({ url: "/api/config", withAuth: false });
+    }
   }
 
   for (const { url, withAuth } of sources) {
