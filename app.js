@@ -9647,15 +9647,21 @@ document.addEventListener("DOMContentLoaded", async () => {
     const totalDownPayment = netTrade + cashDown;
     const totalFees = getOutputValue(totalFeesOutput);
     const totalTaxes = getOutputValue(totalTaxesOutput);
-    const cashPrice = salePrice + totalFees + totalTaxes;
+
+    // In RouteOne format:
+    // CASH PRICE = sale price only (not including fees/taxes)
+    // UNPAID BALANCE = cash price - down payment
+    // Then fees/taxes added separately in "OTHER CHARGES"
+    const cashPrice = salePrice; // Just the sale price, fees/taxes added separately
     const unpaidBalance = cashPrice - totalDownPayment;
 
     // Finance charge calculation
     const monthlyRate = apr / 100 / 12;
     const totalPayments = monthlyPayment * term;
     const financeCharge = totalPayments - amountFinanced;
-    const totalSalePrice =
-      cashPrice + financeCharge - amountFinanced + unpaidBalance;
+
+    // TOTAL SALE PRICE = Total of Payments + Down Payment
+    const totalSalePrice = totalPayments + totalDownPayment;
     const cashDue = getOutputValue(cashDueOutput);
 
     // Get dealer fees and taxes
