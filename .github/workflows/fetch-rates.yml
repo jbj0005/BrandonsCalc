@@ -1,0 +1,54 @@
+name: Fetch Lender Rates
+
+on:
+  schedule:
+    # Run every Monday at 6 AM UTC (1 AM EST / 2 AM EDT)
+    - cron: '0 6 * * 1'
+
+  # Allow manual triggering from Actions tab
+  workflow_dispatch:
+
+jobs:
+  fetch-rates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch lender rates
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npm run fetch:rates
+
+      - name: Commit rate outputs (optional)
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add output/rates-*.json || true
+          git diff --staged --quiet || git commit -m "chore: update lender rates [automated]"
+          git push || true
+
+      - name: Notify on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Lender rate fetch failed',
+              body: `The scheduled rate fetch job failed on ${new Date().toISOString()}\n\nCheck the [workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) for details.`,
+              labels: ['automation', 'rates']
+            })
