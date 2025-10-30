@@ -29,7 +29,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: npm run fetch:rates
+        run: npm run fetch:rates -- --no-prompts
 
       - name: Commit rate outputs (optional)
         if: success()
