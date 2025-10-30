@@ -15,6 +15,18 @@
 
   <!-- Icons -->
   <link rel="icon" href="/icons/favicon.ico" sizes="any">
+
+  <!-- Supabase credentials (fill these values) -->
+  <meta name="supabase-url" content="">
+  <meta name="supabase-anon-key" content="">
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Google Maps API (loaded dynamically from meta tag or config) -->
+  <script>
+    // Will be loaded dynamically after getting API key from meta tags or Supabase
+  </script>
 </head>
 <body>
 
@@ -131,6 +143,28 @@
             <div id="saved-vehicles-dropdown" class="saved-vehicles-dropdown" style="display: none;"></div>
           </div>
           <span class="form-hint">Type to filter saved vehicles or paste a 17-character VIN</span>
+        </div>
+
+        <!-- User Location Input -->
+        <div class="form-group">
+          <label class="form-label" for="user-location">
+            Your Location
+            <span style="font-size: 0.75rem; font-weight: 400; color: #94a3b8; margin-left: 0.5rem;">For finding nearby vehicles</span>
+          </label>
+          <div class="input-with-icon">
+            <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            </svg>
+            <input
+              type="text"
+              id="user-location"
+              class="form-input"
+              placeholder="Enter your address or ZIP code..."
+              autocomplete="off"
+            >
+          </div>
+          <span class="form-hint">We'll search for vehicles within 100 miles of your location</span>
         </div>
 
         <!-- Similar Vehicles Results -->

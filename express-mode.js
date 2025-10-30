@@ -1,6 +1,6 @@
 /**
- * EXPRESS MODE WIZARD - ENHANCED WITH VIN LOOKUP & SAVED VEHICLES
- * Modern glassmorphic wizard for auto loan calculations
+ * EXPRESS MODE WIZARD - WITH SUPABASE & GOOGLE PLACES
+ * Integrated with real saved vehicles and location services
  */
 
 let currentStep = 1;
@@ -11,52 +11,204 @@ const wizardData = {
   vehicle: {},
   financing: {},
   tradein: {},
-  customer: {}
+  customer: {},
+  location: {}
 };
+
+// Supabase client
+let supabase = null;
+let currentUser = null;
 
 // Saved vehicles cache
 let savedVehicles = [];
 let selectedVehicle = null;
 let similarVehicles = [];
 
+// Google Places
+let placesAutocomplete = null;
+let googleMapsLoaded = false;
+
 // API Configuration
 const API_BASE = window.location.origin;
 
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  await initializeSupabase();
+  await loadGoogleMaps();
   populateYearDropdowns();
   setupVINInput();
+  setupLocationInput();
   setupFormValidation();
-  loadSavedVehicles();
+  await loadSavedVehicles();
 });
+
+/**
+ * Initialize Supabase client
+ */
+async function initializeSupabase() {
+  try {
+    // Get Supabase credentials from meta tags (like main calculator does)
+    const supabaseUrl = document.querySelector('meta[name="supabase-url"]')?.content ||
+                        'https://txndueuqljeujlccngbj.supabase.co'; // Fallback from main app
+    const supabaseKey = document.querySelector('meta[name="supabase-anon-key"]')?.content ||
+                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.ozHVMxQ0qL4mzZ2q2cRkYPduBk927_a7ffd3tOI6Pdc';
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.warn('Supabase credentials not found');
+      return;
+    }
+
+    const { createClient } = supabase;
+    supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Check if user is signed in
+    const { data: { user } } = await supabase.auth.getUser();
+    currentUser = user;
+
+    console.log('Supabase initialized. User:', currentUser ? currentUser.email : 'Anonymous');
+  } catch (error) {
+    console.error('Error initializing Supabase:', error);
+  }
+}
+
+/**
+ * Load Google Maps API with Places library
+ */
+async function loadGoogleMaps() {
+  try {
+    // Try to get API key from server endpoint (like main app does)
+    const response = await fetch(`${API_BASE}/api/config`);
+    if (!response.ok) throw new Error('Failed to get config');
+
+    const data = await response.json();
+    const apiKey = data.googleMaps?.apiKey;
+
+    if (!apiKey) {
+      console.warn('Google Maps API key not available');
+      return;
+    }
+
+    // Load Google Maps script
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGooglePlaces`;
+    script.async = true;
+    script.defer = true;
+    document.head.appendChild(script);
+
+    // Set global callback
+    window.initGooglePlaces = () => {
+      googleMapsLoaded = true;
+      setupPlacesAutocomplete();
+    };
+  } catch (error) {
+    console.error('Error loading Google Maps:', error);
+  }
+}
+
+/**
+ * Setup Google Places autocomplete on location input
+ */
+function setupPlacesAutocomplete() {
+  const locationInput = document.getElementById('user-location');
+  if (!locationInput || !google || !google.maps || !google.maps.places) return;
+
+  try {
+    placesAutocomplete = new google.maps.places.Autocomplete(locationInput, {
+      types: ['address'],
+      componentRestrictions: { country: 'us' }
+    });
+
+    placesAutocomplete.addListener('place_changed', () => {
+      const place = placesAutocomplete.getPlace();
+      if (!place.geometry) return;
+
+      // Extract location data
+      const location = {
+        address: place.formatted_address,
+        lat: place.geometry.location.lat(),
+        lng: place.geometry.location.lng(),
+        zip: extractZipFromPlace(place)
+      };
+
+      wizardData.location = location;
+      console.log('Location selected:', location);
+
+      // Update hint to show selected location
+      const hint = locationInput.nextElementSibling;
+      if (hint) {
+        hint.textContent = `✓ Using: ${location.zip || 'your location'}`;
+        hint.style.color = 'var(--success)';
+      }
+    });
+  } catch (error) {
+    console.error('Error setting up Places autocomplete:', error);
+  }
+}
+
+/**
+ * Extract ZIP code from Google Place result
+ */
+function extractZipFromPlace(place) {
+  if (!place.address_components) return null;
+
+  for (const component of place.address_components) {
+    if (component.types.includes('postal_code')) {
+      return component.long_name;
+    }
+  }
+  return null;
+}
+
+/**
+ * Setup location input (manual ZIP entry if Google Maps not available)
+ */
+function setupLocationInput() {
+  const locationInput = document.getElementById('user-location');
+
+  // Also allow manual ZIP entry
+  locationInput.addEventListener('input', (e) => {
+    const value = e.target.value.trim();
+
+    // If it looks like a ZIP code (5 digits)
+    if (/^\d{5}$/.test(value)) {
+      wizardData.location = {
+        zip: value,
+        address: value
+      };
+
+      const hint = locationInput.nextElementSibling;
+      if (hint) {
+        hint.textContent = `✓ Using ZIP: ${value}`;
+        hint.style.color = 'var(--success)';
+      }
+    }
+  });
+}
 
 /**
  * Load saved vehicles from Supabase
  */
 async function loadSavedVehicles() {
   try {
-    // TODO: Replace with actual Supabase call
-    // For now, using mock data
-    savedVehicles = [
-      {
-        id: 1,
-        vin: '1HGCM82633A123456',
-        year: 2023,
-        make: 'Honda',
-        model: 'Accord',
-        trim: 'EX-L',
-        mileage: 15000
-      },
-      {
-        id: 2,
-        vin: '5YJ3E1EA7KF234567',
-        year: 2022,
-        make: 'Tesla',
-        model: 'Model 3',
-        trim: 'Long Range',
-        mileage: 8000
-      }
-    ];
+    if (!supabase || !currentUser) {
+      console.log('No user signed in, skipping saved vehicles');
+      return;
+    }
+
+    // Query vehicles table (adjust table name and fields as needed)
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('*')
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error loading saved vehicles:', error);
+      return;
+    }
+
+    savedVehicles = data || [];
+    console.log(`Loaded ${savedVehicles.length} saved vehicles`);
   } catch (error) {
     console.error('Error loading saved vehicles:', error);
   }
@@ -69,25 +221,21 @@ function setupVINInput() {
   const vinInput = document.getElementById('vin-input');
   const dropdown = document.getElementById('saved-vehicles-dropdown');
 
-  // Show dropdown on focus
   vinInput.addEventListener('focus', () => {
     if (savedVehicles.length > 0) {
       showSavedVehiclesDropdown();
     }
   });
 
-  // Filter dropdown as user types
   vinInput.addEventListener('input', (e) => {
     const value = e.target.value.toUpperCase().trim();
 
-    // If looks like VIN (17 chars, valid format)
     if (/^[A-HJ-NPR-Z0-9]{17}$/.test(value)) {
       vinInput.style.borderColor = 'var(--success)';
     } else {
       vinInput.style.borderColor = '';
     }
 
-    // Filter saved vehicles
     if (value.length > 0) {
       filterSavedVehicles(value);
     } else {
@@ -95,7 +243,6 @@ function setupVINInput() {
     }
   });
 
-  // Search on Enter key
   vinInput.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -108,7 +255,6 @@ function setupVINInput() {
     }
   });
 
-  // Hide dropdown when clicking outside
   document.addEventListener('click', (e) => {
     if (!vinInput.contains(e.target) && !dropdown.contains(e.target)) {
       dropdown.style.display = 'none';
@@ -133,9 +279,9 @@ function showSavedVehiclesDropdown() {
     const item = document.createElement('div');
     item.className = 'saved-vehicle-item';
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year} ${vehicle.make} ${vehicle.model}</div>
+      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}</div>
       <div class="saved-vehicle-item__details">${vehicle.trim || ''} • ${vehicle.mileage?.toLocaleString() || 'N/A'} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin}</div>
+      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin || 'N/A'}</div>
     `;
     item.addEventListener('click', () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
@@ -150,10 +296,10 @@ function showSavedVehiclesDropdown() {
 function filterSavedVehicles(searchTerm) {
   const dropdown = document.getElementById('saved-vehicles-dropdown');
   const filtered = savedVehicles.filter(v =>
-    v.vin.includes(searchTerm) ||
-    v.make.toUpperCase().includes(searchTerm) ||
-    v.model.toUpperCase().includes(searchTerm) ||
-    String(v.year).includes(searchTerm)
+    (v.vin && v.vin.includes(searchTerm)) ||
+    (v.make && v.make.toUpperCase().includes(searchTerm)) ||
+    (v.model && v.model.toUpperCase().includes(searchTerm)) ||
+    (v.year && String(v.year).includes(searchTerm))
   );
 
   dropdown.innerHTML = '';
@@ -168,9 +314,9 @@ function filterSavedVehicles(searchTerm) {
     const item = document.createElement('div');
     item.className = 'saved-vehicle-item';
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year} ${vehicle.make} ${vehicle.model}</div>
+      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}</div>
       <div class="saved-vehicle-item__details">${vehicle.trim || ''} • ${vehicle.mileage?.toLocaleString() || 'N/A'} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin}</div>
+      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin || 'N/A'}</div>
     `;
     item.addEventListener('click', () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
@@ -183,9 +329,11 @@ function filterSavedVehicles(searchTerm) {
  * Select a saved vehicle
  */
 function selectSavedVehicle(vehicle) {
-  document.getElementById('vin-input').value = vehicle.vin;
+  document.getElementById('vin-input').value = vehicle.vin || '';
   document.getElementById('saved-vehicles-dropdown').style.display = 'none';
-  searchVehicleByVIN(vehicle.vin);
+  if (vehicle.vin) {
+    searchVehicleByVIN(vehicle.vin);
+  }
 }
 
 /**
@@ -197,20 +345,26 @@ async function searchVehicleByVIN(vin) {
   const similarSection = document.getElementById('similar-vehicles-section');
   const similarGrid = document.getElementById('similar-vehicles-grid');
 
-  // Validate VIN format
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
     alert('Please enter a valid 17-character VIN');
     return;
   }
 
-  // Show loading
+  // Check if user has entered location
+  const userZip = wizardData.location?.zip;
+  if (!userZip) {
+    alert('Please enter your location first to find nearby vehicles');
+    document.getElementById('user-location').focus();
+    return;
+  }
+
   loading.style.display = 'block';
   vinInput.disabled = true;
   similarSection.style.display = 'none';
 
   try {
     // 1. Get vehicle details by VIN
-    const vinResponse = await fetch(`${API_BASE}/api/mc/by-vin/${vin}?zip=32801&radius=100`);
+    const vinResponse = await fetch(`${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`);
 
     if (!vinResponse.ok) {
       throw new Error('VIN not found');
@@ -229,7 +383,7 @@ async function searchVehicleByVIN(vin) {
       year: vehicleDetails.year,
       make: vehicleDetails.make,
       model: vehicleDetails.model,
-      zip: '32801', // TODO: Use user's zip
+      zip: userZip,
       radius: 100,
       rows: 12
     });
@@ -244,7 +398,6 @@ async function searchVehicleByVIN(vin) {
       displaySimilarVehicles(similarVehicles, vehicleDetails);
       similarSection.style.display = 'block';
     } else {
-      // No similar vehicles, just select the VIN-looked-up vehicle
       selectVehicleFromVIN(vehicleDetails);
     }
 
@@ -302,15 +455,12 @@ function displaySimilarVehicles(vehicles, originalVehicle) {
 function selectVehicleCard(index) {
   const vehicle = similarVehicles[index];
 
-  // Remove previous selection
   document.querySelectorAll('.vehicle-card').forEach(card => {
     card.classList.remove('selected');
   });
 
-  // Mark as selected
   document.querySelector(`.vehicle-card[data-index="${index}"]`).classList.add('selected');
 
-  // Update selected vehicle
   selectVehicleFromSearch(vehicle);
 }
 
@@ -487,7 +637,6 @@ function validateStep(step) {
 
   switch (step) {
     case 1: // Vehicle
-      // Check if we have a selected vehicle OR manual entry
       if (!selectedVehicle) {
         const year = document.getElementById('year-input').value;
         const make = document.getElementById('make-input').value;
@@ -497,6 +646,12 @@ function validateStep(step) {
           isValid = false;
           errorMessage = 'Please select a vehicle or enter year, make, and model manually';
         }
+      }
+
+      // Check location
+      if (!wizardData.location?.zip) {
+        isValid = false;
+        errorMessage = 'Please enter your location';
       }
       break;
 
@@ -697,6 +852,7 @@ async function submitLead() {
 
   try {
     console.log('Submitting lead:', wizardData);
+    // TODO: Send to Supabase leads table
     await new Promise(resolve => setTimeout(resolve, 2000));
     showSuccessMessage();
   } catch (error) {
