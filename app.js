@@ -9307,6 +9307,28 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
   });
 
+  // Auto-populate amount when fee name is selected from suggestions
+  editFeeNameInput?.addEventListener("input", (event) => {
+    if (!editFeeAmountInput) return;
+
+    const feeName = event.target?.value?.trim();
+    if (!feeName) return;
+
+    const feeType = editFeeTypeSelect?.value === "gov"
+      ? "gov"
+      : editFeeTypeSelect?.value === "customer"
+      ? "customer"
+      : "dealer";
+
+    const store = getSuggestionStoreByType(feeType);
+    const storedAmount = store?.getAmount(feeName);
+
+    if (storedAmount != null && storedAmount !== 0) {
+      editFeeAmountInput.value = formatCurrency(storedAmount);
+      formatInputEl(editFeeAmountInput);
+    }
+  });
+
   editFeeModal?.addEventListener("click", (event) => {
     if (event.target === editFeeModal) {
       closeEditFeeModal();
