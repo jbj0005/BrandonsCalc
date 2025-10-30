@@ -59,6 +59,7 @@ const PROVIDERS = [
   "ccu_il",
   "ccu_online",
   "ccu_mi",
+  "launchcu",
 ];
 
 // Short/long display names for each provider (used for JSON headers/enrichment)
@@ -73,6 +74,7 @@ const PROVIDER_NAMES_STATIC = {
     long: "Consumers Credit Union (Online via Car Buying Service)",
   },
   ccu_mi: { short: "Consumers CU", long: "Consumers Credit Union (MI)" },
+  launchcu: { short: "LAUNCH", long: "Launch Credit Union" },
   tru: { short: "Tru", long: "Truist Bank" },
   boa: { short: "BoA", long: "Bank of America" },
 };
@@ -620,6 +622,94 @@ async function fetchCCU_MI() {
   };
 }
 
+// --- Launch Credit Union ---
+async function fetchLaunchCU() {
+  const url = "https://www.launchcu.com/rates/";
+  const { html } = await fetchPage(url, { selector: "table" });
+  const document = parseDocument(html);
+
+  // Find the auto loan rate table
+  const tables = Array.from(document.querySelectorAll("table"));
+  const autoTable = tables.find((table) => {
+    const headerText = normalizedText(table);
+    return /auto.*loan|vehicle.*loan/i.test(headerText);
+  });
+
+  if (!autoTable) throw new Error("Launch CU auto loan table not found");
+
+  const matrix = [];
+  const rows = Array.from(autoTable.querySelectorAll("tr"));
+
+  for (const row of rows) {
+    const cells = Array.from(row.querySelectorAll("td"));
+    if (cells.length < 3) continue;
+
+    const conditionText = normalizedText(cells[0]);
+    const termText = normalizedText(cells[1]);
+    const aprText = normalizedText(cells[2]);
+
+    // Skip header rows and empty rows
+    if (/condition/i.test(conditionText)) continue;
+    if (/available.*terms/i.test(termText)) continue;
+    if (/as low as/i.test(aprText)) continue;
+    if (!aprText || !conditionText) continue;
+
+    // APR must contain a % sign to be valid
+    if (!/%/.test(aprText)) continue;
+
+    // Extract APR from third column only - must have % sign
+    const apr = toPct(aprText);
+    if (apr == null || apr === 0) continue;
+    // Sanity check: auto loan APRs should be reasonable (1% to 20%)
+    if (apr < 0.01 || apr > 0.20) continue;
+
+    // Determine vehicle condition from first column
+    // Note: normalizedText may contain markdown ** markers
+    let vehicle_condition = "used";
+    const cleanCondition = conditionText.replace(/\*\*/g, "").trim();
+    if (/^new\s|^new$|new.*2024|new.*2025|2024[\s-]*present|2025[\s-]*present/i.test(cleanCondition)) {
+      vehicle_condition = "new";
+    }
+
+    // Extract term range from second column
+    let termMax = 84;
+    let termMin = 36;
+
+    const maxTermMatch = termText.match(/max\s+term\s+(\d+)\s*months/i);
+    if (maxTermMatch) {
+      termMax = Number(maxTermMatch[1]);
+    }
+
+    const minTermMatch = termText.match(/up\s+to\s+(\d+)\s*months/i);
+    if (minTermMatch) {
+      termMin = Number(minTermMatch[1]);
+    }
+
+    // Add entries for both purchase and refinance
+    for (const loan_type of ["purchase", "refinance"]) {
+      matrix.push({
+        termMin,
+        termMax,
+        apr,
+        vehicle_condition,
+        loan_type,
+      });
+    }
+  }
+
+  if (!matrix.length) throw new Error("Launch CU auto loan rates not parsed");
+
+  return {
+    provider: "launchcu",
+    shortName: PROVIDER_NAMES.launchcu.short,
+    longName: PROVIDER_NAMES.launchcu.long,
+    sourceUrl: url,
+    effectiveDate: todayISO(),
+    loanType: null,
+    matrix,
+  };
+}
+
 const PROVIDER_FETCHERS = {
   sccu: fetchSCCU,
   nfcu: fetchNFCU,
@@ -628,6 +718,7 @@ const PROVIDER_FETCHERS = {
   ccu_il: fetchCCU_IL,
   ccu_online: fetchCCU_Online,
   ccu_mi: fetchCCU_MI,
+  launchcu: fetchLaunchCU,
 };
 
 // ---------- cli flags ----------
