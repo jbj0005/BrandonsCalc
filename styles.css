@@ -1687,6 +1687,70 @@ main {
   animation: slideOutRight 0.3s ease-out forwards;
 }
 
+/* Offer Hero Section */
+.offerHeroSection {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border: 2px solid #dee2e6;
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+}
+
+.offerHero {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.offerLabel {
+  font-family: "Roboto", sans-serif;
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #6c757d;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+.offerPrice {
+  font-family: "Roboto", sans-serif;
+  font-size: 3.5rem;
+  font-weight: 700;
+  color: #2d5016;
+  line-height: 1.2;
+  margin-bottom: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.offerVehicleDetails {
+  font-family: "Roboto", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: #495057;
+  margin-bottom: 0.75rem;
+  line-height: 1.4;
+}
+
+.offerVehicleDetails span:not(:empty):not(:last-child)::after {
+  content: " | ";
+  color: #adb5bd;
+  margin: 0 0.25rem;
+}
+
+.offerVehicleMeta {
+  font-family: "Roboto", sans-serif;
+  font-size: 0.875rem;
+  color: #6c757d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.offerVin {
+  font-family: "Roboto Mono", monospace;
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+}
+
 /* Mobile responsive */
 @media (max-width: 600px) {
   .contractFormRow {
@@ -1703,5 +1767,17 @@ main {
   .toast {
     min-width: unset;
     max-width: unset;
+  }
+
+  .offerPrice {
+    font-size: 2.5rem;
+  }
+
+  .offerVehicleDetails {
+    font-size: 1rem;
+  }
+
+  .offerHero {
+    padding: 1.5rem 1rem;
   }
 }

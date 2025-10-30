@@ -9751,26 +9751,30 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (netNote) netNote.style.display = "none";
     }
 
+    // Populate hero offer price
+    setText("heroOfferPrice", formatCurrency(cashPrice));
+
     // Vehicle info (if available from selected vehicle)
     const selectedVehicle = vehiclesCache.find(
       (v) => v.id === currentVehicleId
     );
     if (selectedVehicle) {
-      setText("contractCondition", selectedVehicle.condition ?? "");
-      setText("contractYear", selectedVehicle.year ?? "");
-      setText("contractMake", selectedVehicle.make ?? "");
-      setText("contractModel", selectedVehicle.model ?? "");
-      setText("contractTrim", selectedVehicle.trim ?? "");
+      // Populate hero section
+      setText("heroCondition", selectedVehicle.condition ?? "");
+      setText("heroYear", selectedVehicle.year ?? "");
+      setText("heroMake", selectedVehicle.make ?? "");
+      setText("heroModel", selectedVehicle.model ?? "");
+      setText("heroTrim", selectedVehicle.trim ?? "");
 
-      // Format mileage with comma separators
+      // Format mileage for hero section
       const mileage = selectedVehicle.mileage;
       if (mileage != null && mileage !== "") {
-        setText("contractMileage", Number(mileage).toLocaleString('en-US') + " mi");
+        setText("heroMileage", Number(mileage).toLocaleString('en-US') + " mi");
       } else {
-        setText("contractMileage", "");
+        setText("heroMileage", "");
       }
 
-      setText("contractVin", selectedVehicle.vin ?? "");
+      setText("heroVin", selectedVehicle.vin ? `VIN: ${selectedVehicle.vin}` : "");
       const vehicleNote = document.getElementById("contractVehicleNote");
       if (vehicleNote) vehicleNote.style.display = "none";
 
@@ -9801,13 +9805,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (dealerGrid) dealerGrid.style.display = "none";
       }
     } else {
-      setText("contractCondition", "");
-      setText("contractYear", "");
-      setText("contractMake", "");
-      setText("contractModel", "");
-      setText("contractTrim", "");
-      setText("contractMileage", "");
-      setText("contractVin", "");
+      // Clear hero section
+      setText("heroCondition", "");
+      setText("heroYear", "");
+      setText("heroMake", "");
+      setText("heroModel", "");
+      setText("heroTrim", "");
+      setText("heroMileage", "");
+      setText("heroVin", "");
       const vehicleNote = document.getElementById("contractVehicleNote");
       if (vehicleNote) vehicleNote.style.display = "block";
 

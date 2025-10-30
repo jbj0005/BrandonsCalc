@@ -917,40 +917,24 @@
                 </div>
               </section>
 
-              <!-- Vehicle Information -->
-              <section class="contractSection">
-                <h5 class="contractSectionTitle">VEHICLE INFORMATION</h5>
+              <!-- Offer Hero Section -->
+              <section class="contractSection offerHeroSection">
                 <div id="contractVehicleNote" class="contractNote" style="display: none;">
                   Note: Vehicle details were not provided. This contract summary reflects loan calculations only.
                 </div>
-                <div class="contractGrid">
-                  <div class="contractRow">
-                    <span class="contractLabel">CONDITION</span>
-                    <span class="contractValue" id="contractCondition"></span>
+                <div class="offerHero">
+                  <div class="offerLabel">YOUR OFFER</div>
+                  <div class="offerPrice" id="heroOfferPrice">$50,000.00</div>
+                  <div class="offerVehicleDetails">
+                    <span id="heroCondition"></span>
+                    <span id="heroYear"></span>
+                    <span id="heroMake"></span>
+                    <span id="heroModel"></span>
+                    <span id="heroTrim"></span>
                   </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">YEAR</span>
-                    <span class="contractValue" id="contractYear"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">MAKE</span>
-                    <span class="contractValue" id="contractMake"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">MODEL</span>
-                    <span class="contractValue" id="contractModel"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">TRIM</span>
-                    <span class="contractValue" id="contractTrim"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">MILEAGE</span>
-                    <span class="contractValue" id="contractMileage"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">VIN</span>
-                    <span class="contractValue contractVin" id="contractVin"></span>
+                  <div class="offerVehicleMeta">
+                    <span id="heroMileage"></span>
+                    <span class="offerVin" id="heroVin"></span>
                   </div>
                 </div>
               </section>
@@ -1100,7 +1084,7 @@
                 id="submitOfferButton"
                 title="Submit offer to dealer"
               >
-                Submit Offer to Dealer
+                Submit
               </button>
               <button
                 type="button"
