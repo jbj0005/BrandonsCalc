@@ -195,7 +195,11 @@ async function main() {
     const dealerFees = await fetchFees("dealer_fee_items_v", "dealer", supabase);
     console.log(`  Found ${dealerFees.length} dealer fees`);
 
-    const combined = [...govFees, ...dealerFees];
+    console.log("Fetching customer add-on items...");
+    const customerAddons = await fetchFees("customer_addon_items_v", "customer", supabase);
+    console.log(`  Found ${customerAddons.length} customer add-ons`);
+
+    const combined = [...govFees, ...dealerFees, ...customerAddons];
     if (!combined.length) {
       console.log("No fees returned from Supabase.");
       return;

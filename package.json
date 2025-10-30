@@ -13,6 +13,8 @@
     "show:lenders": "node scripts/show-lenders.mjs",
     "show:fees": "node scripts/show-fees.mjs",
     "show:rates": "node scripts/show-rates.mjs",
+    "migrate:customer-addons": "node scripts/migrate-customer-addons.mjs",
+    "cleanup:dealer-fees": "node scripts/cleanup-dealer-fees.mjs",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [],

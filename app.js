@@ -520,16 +520,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   const dealerFeeSuggestionStore = createSuggestionStore(
     "dealerFeeSuggestions"
   );
+  const customerAddonSuggestionStore = createSuggestionStore(
+    "customerAddonSuggestions"
+  );
   const govFeeSuggestionStore = createSuggestionStore("govFeeSuggestions");
 
   if (typeof window !== "undefined") {
     window.supabase = supabase;
     window.feeSuggestionsDebug = {
       dealer: dealerFeeSuggestionStore,
+      customer: customerAddonSuggestionStore,
       gov: govFeeSuggestionStore,
       logCounts() {
         console.info("[fees] option counts", {
           dealer: dealerFeeSuggestionStore?.datalist?.children?.length ?? 0,
+          customer: customerAddonSuggestionStore?.datalist?.children?.length ?? 0,
           gov: govFeeSuggestionStore?.datalist?.children?.length ?? 0,
         });
       },
@@ -643,6 +648,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  async function loadCustomerAddonSuggestions() {
+    try {
+      let { setId, rawItems, normalizedItems} = await fetchFeeItemsFromSet(
+        "customer_addon_sets"
+      );
+      customerAddonSetState.id = setId;
+      customerAddonSetState.items = rawItems;
+      let items = normalizedItems;
+      let source = "customer_addon_sets";
+      if (!items.length) {
+        console.warn("[fees] customer addon sets empty, falling back to view");
+        const viewResult = await fetchFeeItemsFromView("customer_addon_items_v");
+        items = viewResult.normalizedItems;
+        customerAddonSetState.items = viewResult.rawItems;
+        source = "customer_addon_items_v";
+      }
+      console.info("[fees] Loaded customer addon suggestions", {
+        count: items.length,
+        source,
+      });
+      setSuggestionItems(customerAddonSuggestionStore, items, `${source} customer`);
+    } catch (error) {
+      console.error("Failed to load customer addon suggestions", error);
+      customerAddonSuggestionStore.setItems([]);
+    }
+  }
+
   async function loadGovFeeSuggestions() {
     try {
       let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet(
@@ -737,6 +769,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (dealerFeeDescInput instanceof HTMLInputElement) {
     const listId = dealerFeeSuggestionStore?.datalist?.id;
     if (listId) dealerFeeDescInput.setAttribute("list", listId);
+  }
+  if (customerAddonDescInput instanceof HTMLInputElement) {
+    const listId = customerAddonSuggestionStore?.datalist?.id;
+    if (listId) customerAddonDescInput.setAttribute("list", listId);
   }
   if (govFeeDescInput instanceof HTMLInputElement) {
     const listId = govFeeSuggestionStore?.datalist?.id;
@@ -905,6 +941,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let customerAddonGroup = null;
   let govFeeGroup = null;
   const dealerFeeSetState = { id: null, items: [] };
+  const customerAddonSetState = { id: null, items: [] };
   const govFeeSetState = { id: null, items: [] };
   let affordAprUserOverride = false;
   const nfcuRateState = {
@@ -1930,7 +1967,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       minusButton: customerAddonMinusBtn,
       plusButton: customerAddonPlusBtn,
       sectionEndNode: totalCustomerAddonsLabel ?? totalFeesLabel ?? totalFeesOutput,
-      suggestionStore: null,
+      suggestionStore: customerAddonSuggestionStore,
     });
 
     govFeeGroup = createFeeGroup({
@@ -5705,7 +5742,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   function updateEditFeeNameList(type) {
     if (!editFeeNameInput) return;
     const store =
-      type === "gov" ? govFeeSuggestionStore : dealerFeeSuggestionStore;
+      type === "gov"
+        ? govFeeSuggestionStore
+        : type === "customer"
+        ? customerAddonSuggestionStore
+        : dealerFeeSuggestionStore;
     const listId = store?.datalist?.id ?? "";
     if (listId) {
       editFeeNameInput.setAttribute("list", listId);
@@ -5738,18 +5779,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function getFeeStateByType(type) {
-    return type === "gov" ? govFeeSetState : dealerFeeSetState;
+    return type === "gov"
+      ? govFeeSetState
+      : type === "customer"
+      ? customerAddonSetState
+      : dealerFeeSetState;
   }
 
   function getSuggestionStoreByType(type) {
-    return type === "gov" ? govFeeSuggestionStore : dealerFeeSuggestionStore;
+    return type === "gov"
+      ? govFeeSuggestionStore
+      : type === "customer"
+      ? customerAddonSuggestionStore
+      : dealerFeeSuggestionStore;
   }
 
   async function handleEditFeeSubmit(event) {
     event.preventDefault();
     if (!editFeeForm || !editFeeNameInput || !editFeeAmountInput) return;
 
-    const typeValue = editFeeTypeSelect?.value === "gov" ? "gov" : "dealer";
+    const typeValue = editFeeTypeSelect?.value === "gov"
+      ? "gov"
+      : editFeeTypeSelect?.value === "customer"
+      ? "customer"
+      : "dealer";
     const rawName = editFeeNameInput.value ?? "";
     const trimmedName = rawName.trim();
     if (!trimmedName) {
@@ -5771,7 +5824,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const state = getFeeStateByType(typeValue);
       const tableName =
-        typeValue === "gov" ? "gov_fee_sets" : "dealer_fee_sets";
+        typeValue === "gov"
+          ? "gov_fee_sets"
+          : typeValue === "customer"
+          ? "customer_addon_sets"
+          : "dealer_fee_sets";
       if (!state.id) {
         setEditFeeStatus("Active fee set not available.", "error");
         return;
@@ -8376,7 +8433,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   function updateEditFeeNameList(type) {
     if (!editFeeNameInput) return;
     const store =
-      type === "gov" ? govFeeSuggestionStore : dealerFeeSuggestionStore;
+      type === "gov"
+        ? govFeeSuggestionStore
+        : type === "customer"
+        ? customerAddonSuggestionStore
+        : dealerFeeSuggestionStore;
     const listId = store?.datalist?.id ?? "";
     if (listId) {
       editFeeNameInput.setAttribute("list", listId);
@@ -8409,18 +8470,30 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   function getFeeStateByType(type) {
-    return type === "gov" ? govFeeSetState : dealerFeeSetState;
+    return type === "gov"
+      ? govFeeSetState
+      : type === "customer"
+      ? customerAddonSetState
+      : dealerFeeSetState;
   }
 
   function getSuggestionStoreByType(type) {
-    return type === "gov" ? govFeeSuggestionStore : dealerFeeSuggestionStore;
+    return type === "gov"
+      ? govFeeSuggestionStore
+      : type === "customer"
+      ? customerAddonSuggestionStore
+      : dealerFeeSuggestionStore;
   }
 
   async function handleEditFeeSubmit(event) {
     event.preventDefault();
     if (!editFeeForm || !editFeeNameInput || !editFeeAmountInput) return;
 
-    const typeValue = editFeeTypeSelect?.value === "gov" ? "gov" : "dealer";
+    const typeValue = editFeeTypeSelect?.value === "gov"
+      ? "gov"
+      : editFeeTypeSelect?.value === "customer"
+      ? "customer"
+      : "dealer";
     const rawName = editFeeNameInput.value ?? "";
     const trimmedName = rawName.trim();
     if (!trimmedName) {
@@ -8442,7 +8515,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     try {
       const state = getFeeStateByType(typeValue);
       const tableName =
-        typeValue === "gov" ? "gov_fee_sets" : "dealer_fee_sets";
+        typeValue === "gov"
+          ? "gov_fee_sets"
+          : typeValue === "customer"
+          ? "customer_addon_sets"
+          : "dealer_fee_sets";
       if (!state.id) {
         setEditFeeStatus("Active fee set not available.", "error");
         return;
@@ -9225,7 +9302,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   editFeeTypeSelect?.addEventListener("change", (event) => {
     const { value } = event.target ?? {};
-    updateEditFeeNameList(value === "gov" ? "gov" : "dealer");
+    updateEditFeeNameList(
+      value === "gov" ? "gov" : value === "customer" ? "customer" : "dealer"
+    );
   });
 
   editFeeModal?.addEventListener("click", (event) => {
@@ -9985,7 +10064,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     attachCalculatorEventListeners();
     await initAuthAndVehicles();
     await ensureVehiclesLoaded({ preserveSelection: true });
-    await Promise.all([loadDealerFeeSuggestions(), loadGovFeeSuggestions()]);
+    await Promise.all([loadDealerFeeSuggestions(), loadCustomerAddonSuggestions(), loadGovFeeSuggestions()]);
     updateEditFeeNameList(editFeeTypeSelect?.value ?? "dealer");
     if (stateTaxInput) {
       if (!stateTaxInput.value || !stateTaxInput.value.trim()) {
