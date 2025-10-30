@@ -98,58 +98,100 @@
       <!-- Step 1: Vehicle Information -->
       <div class="wizard-step active" data-step="1">
         <div class="step__header">
-          <h2 class="step__title">Tell us about your vehicle</h2>
+          <h2 class="step__title">Find your vehicle</h2>
           <p class="step__description">
-            Enter your VIN for instant details, or provide the information manually.
+            Paste a VIN, select a saved vehicle, or enter details manually.
           </p>
         </div>
 
+        <!-- VIN Input with Saved Vehicles -->
         <div class="form-group">
-          <label class="form-label" for="vin-input">Vehicle Identification Number (VIN)</label>
-          <div class="input-with-icon">
-            <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
-            <input
-              type="text"
-              id="vin-input"
-              class="form-input"
-              placeholder="1HGBH41JXMN109186"
-              maxlength="17"
-              pattern="[A-HJ-NPR-Z0-9]{17}"
-            >
+          <label class="form-label" for="vin-input">
+            VIN or Saved Vehicle
+            <span style="font-size: 0.75rem; font-weight: 400; color: #94a3b8; margin-left: 0.5rem;">Press Enter to search</span>
+          </label>
+          <div class="vin-autocomplete">
+            <div class="input-with-icon">
+              <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+              <input
+                type="text"
+                id="vin-input"
+                class="form-input"
+                placeholder="Paste VIN or select saved vehicle..."
+                autocomplete="off"
+              >
+              <div id="vin-loading" class="vin-loading" style="display: none;">
+                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="animation: spin 1s linear infinite;">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+              </div>
+            </div>
+            <div id="saved-vehicles-dropdown" class="saved-vehicles-dropdown" style="display: none;"></div>
           </div>
-          <span class="form-hint">17 characters • No I, O, or Q</span>
+          <span class="form-hint">Type to filter saved vehicles or paste a 17-character VIN</span>
         </div>
 
-        <div class="text-center mb-md" style="color: #94a3b8; font-weight: 600;">
-          — OR —
+        <!-- Similar Vehicles Results -->
+        <div id="similar-vehicles-section" class="similar-vehicles-section" style="display: none;">
+          <div class="similar-vehicles-header">
+            <h3 class="similar-vehicles-title">
+              <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              Similar Vehicles Nearby
+            </h3>
+            <p class="similar-vehicles-subtitle">Select one or continue with your original vehicle</p>
+          </div>
+          <div id="similar-vehicles-grid" class="similar-vehicles-grid"></div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="year-input">Year</label>
-          <select id="year-input" class="form-select">
-            <option value="">Select Year</option>
-          </select>
+        <!-- Selected Vehicle Display -->
+        <div id="selected-vehicle-display" class="selected-vehicle-display" style="display: none;">
+          <div class="selected-vehicle-card">
+            <div class="selected-vehicle-badge">Selected Vehicle</div>
+            <div id="selected-vehicle-content"></div>
+            <button type="button" class="btn-change-vehicle" onclick="clearSelectedVehicle()">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              Change Vehicle
+            </button>
+          </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="make-input">Make</label>
-          <input type="text" id="make-input" class="form-input" placeholder="e.g., Honda, Toyota, Ford">
+        <div class="text-center mb-md" style="color: #94a3b8; font-weight: 600; margin-top: var(--spacing-md);">
+          — OR ENTER MANUALLY —
         </div>
 
-        <div class="form-group">
-          <label class="form-label" for="model-input">Model</label>
-          <input type="text" id="model-input" class="form-input" placeholder="e.g., Civic, Camry, F-150">
-        </div>
+        <!-- Manual Entry (Hidden when vehicle selected) -->
+        <div id="manual-entry-fields">
+          <div class="form-group">
+            <label class="form-label" for="year-input">Year</label>
+            <select id="year-input" class="form-select">
+              <option value="">Select Year</option>
+            </select>
+          </div>
 
-        <div class="form-group">
-          <label class="form-label" for="mileage-input">Mileage</label>
-          <div class="input-with-icon">
-            <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-            </svg>
-            <input type="number" id="mileage-input" class="form-input" placeholder="35,000">
+          <div class="form-group">
+            <label class="form-label" for="make-input">Make</label>
+            <input type="text" id="make-input" class="form-input" placeholder="e.g., Honda, Toyota, Ford">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="model-input">Model</label>
+            <input type="text" id="model-input" class="form-input" placeholder="e.g., Civic, Camry, F-150">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="mileage-input">Mileage</label>
+            <div class="input-with-icon">
+              <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+              </svg>
+              <input type="number" id="mileage-input" class="form-input" placeholder="35,000">
+            </div>
           </div>
         </div>
 
