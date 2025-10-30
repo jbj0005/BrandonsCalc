@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import NodeCache from "node-cache";
 import { fetch } from "undici";
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import {
   MARKETCHECK_ENDPOINTS,
   VIN_ENRICHMENT_ENDPOINTS,
@@ -67,6 +69,11 @@ app.use(
     credentials: false,
   })
 );
+
+// Serve static files from parent directory (for Express Mode and other static assets)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+app.use(express.static(join(__dirname, '..')));
 
 async function fetchSupabaseSecretValue(
   name,
