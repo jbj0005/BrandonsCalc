@@ -1372,10 +1372,9 @@ main {
   letter-spacing: 0.05em;
   border-radius: var(--radius-sm);
   padding: 0.6rem 1.2rem;
-  border: 2px solid var(--black);
   width: auto;
   min-width: 200px;
-  background-color: rgb(239, 255, 239);
+  background-color: rgb(220, 245, 220);
   color: var(--black);
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1385,7 +1384,7 @@ main {
 #viewContractButton:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  background-color: rgb(220, 245, 220);
+  background-color: rgb(169, 239, 169);
   border-color: #2d5016;
 }
 
