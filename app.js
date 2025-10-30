@@ -9644,9 +9644,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Calculate values
     const equity = tradeOffer - tradePayoff;
     const netTrade = equity;
-    const totalDownPayment = netTrade + cashDown;
+    // Total down payment should only include positive contributions
+    // Negative equity is rolled into amount financed, not subtracted from down
+    const totalDownPayment = Math.max(0, netTrade) + cashDown;
     const totalFees = getOutputValue(totalFeesOutput);
     const totalTaxes = getOutputValue(totalTaxesOutput);
+    const sumOtherCharges = totalFees + totalTaxes;
 
     // In RouteOne format:
     // CASH PRICE = sale price only (not including fees/taxes)
@@ -9690,6 +9693,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setText("contractNetTrade", formatCurrency(netTrade));
     setText("contractCashDown", formatCurrency(cashDown));
     setText("contractUnpaidBalance", formatCurrency(unpaidBalance));
+    setText("sumOtherCharges", formatCurrency(sumOtherCharges));
     setText("contractDealerFees", formatCurrency(totalDealerFees));
     setText("contractGovtFees", formatCurrency(totalGovtFees));
     setText("contractStateTax", formatCurrency(stateTaxTotal));
@@ -9824,11 +9828,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (dealerGrid) dealerGrid.style.display = "none";
     }
 
-    // Populate customer home address from location search input
-    const locationSearchInput = document.getElementById("locationSearch");
+    // Populate customer home address from homeLocationState
     const customerAddressInput = document.getElementById("contractCustomerAddress");
-    if (locationSearchInput && customerAddressInput) {
-      customerAddressInput.value = locationSearchInput.value || "";
+    if (customerAddressInput) {
+      customerAddressInput.value = homeLocationState.address || "";
     }
   }
 
