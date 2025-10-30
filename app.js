@@ -9823,6 +9823,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (dealerNote) dealerNote.style.display = "block";
       if (dealerGrid) dealerGrid.style.display = "none";
     }
+
+    // Populate customer home address from location search input
+    const locationSearchInput = document.getElementById("locationSearch");
+    const customerAddressInput = document.getElementById("contractCustomerAddress");
+    if (locationSearchInput && customerAddressInput) {
+      customerAddressInput.value = locationSearchInput.value || "";
+    }
   }
 
   function setText(id, value) {
@@ -9832,6 +9839,63 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   viewContractButton?.addEventListener("click", openContractModal);
   printContractButton?.addEventListener("click", () => window.print());
+
+  // Toast notification functions
+  function showToast(message, type = "info") {
+    const container = document.getElementById("toastContainer");
+    if (!container) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast--${type}`;
+    toast.innerHTML = `
+      <div class="toastMessage">${message}</div>
+      <button class="toastClose" aria-label="Close">×</button>
+    `;
+
+    container.appendChild(toast);
+
+    const closeBtn = toast.querySelector(".toastClose");
+    closeBtn.addEventListener("click", () => removeToast(toast));
+
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => removeToast(toast), 5000);
+  }
+
+  function removeToast(toast) {
+    if (!toast || !toast.parentNode) return;
+    toast.style.animation = "slideOutRight 0.3s ease-in";
+    setTimeout(() => toast.remove(), 300);
+  }
+
+  // Submit Offer button handler
+  const submitOfferButton = document.getElementById("submitOfferButton");
+  submitOfferButton?.addEventListener("click", () => {
+    const firstName = document
+      .getElementById("contractCustomerFirstName")
+      ?.value.trim();
+    const lastName = document
+      .getElementById("contractCustomerLastName")
+      ?.value.trim();
+    const phone = document.getElementById("contractCustomerPhone")?.value.trim();
+    const email = document.getElementById("contractCustomerEmail")?.value.trim();
+    const address = document
+      .getElementById("contractCustomerAddress")
+      ?.value.trim();
+
+    // Validate all required fields
+    if (!firstName || !lastName || !phone || !email || !address) {
+      showToast(
+        "Please fill in all customer contact information before submitting.",
+        "error"
+      );
+      return;
+    }
+
+    // Get dealer name from contract modal
+    const dealerName =
+      document.getElementById("contractDealerName")?.textContent || "Dealer";
+    showToast(`Offer Submitted to ${dealerName}`, "success");
+  });
 
   contractModal
     ?.querySelectorAll("[data-contract-action='close']")
