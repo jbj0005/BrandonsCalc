@@ -881,6 +881,67 @@ app.get("/api/mc/history/:vin", async (req, res) => {
   }
 });
 
+// GET /api/mc/search?year=2023&make=Honda&model=Accord&...
+app.get("/api/mc/search", async (req, res) => {
+  try {
+    const apiKey = await ensureApiKey(res);
+    if (!apiKey) return;
+
+    // Extract search parameters
+    const year = req.query.year ? String(req.query.year).trim() : "";
+    const make = req.query.make ? String(req.query.make).trim() : "";
+    const model = req.query.model ? String(req.query.model).trim() : "";
+    const trim = req.query.trim ? String(req.query.trim).trim() : "";
+
+    // Location parameters
+    const rawZip = Array.isArray(req.query.zip) ? req.query.zip[0] : req.query.zip;
+    const zip = rawZip ? String(rawZip).replace(/\D/g, "").slice(0, 5) : "";
+    const rawRadius = Array.isArray(req.query.radius) ? req.query.radius[0] : req.query.radius;
+    const radiusNum = Number(rawRadius);
+    const radius = Number.isFinite(radiusNum) && radiusNum > 0
+      ? Math.min(radiusNum, MAX_RADIUS)
+      : 100;
+
+    // Pagination
+    const rows = Math.min(Number(req.query.rows) || 50, 100); // Max 100
+    const start = Number(req.query.start) || 0;
+
+    // Build query params
+    const params = { rows, start, api_key: apiKey };
+    if (year) params.year = year;
+    if (make) params.make = make;
+    if (model) params.model = model;
+    if (trim) params.trim = trim;
+    if (zip) params.zip = zip;
+    if (radius) params.radius = radius;
+
+    // Sort by distance if zip provided, else by price
+    params.sort_by = zip ? "dist" : "price";
+    params.sort_order = "asc";
+
+    const url = mcUrl("/search/car/active", params, ""); // API key already in params
+    console.log("[search] Querying:", { year, make, model, trim, zip, radius, rows });
+
+    const data = await getJson(url);
+    const listings = Array.isArray(data?.listings) ? data.listings : [];
+
+    return res.json({
+      ok: true,
+      count: listings.length,
+      total: data?.num_found || 0,
+      listings: listings.map(normalizeListing),
+      raw: data,
+    });
+  } catch (err) {
+    console.error("[/search] error:", err);
+    const status = err?.status || 500;
+    res.status(status).json({
+      error: "Vehicle search failed",
+      detail: err?.message || "Unknown error",
+    });
+  }
+});
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {

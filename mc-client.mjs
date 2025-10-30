@@ -148,3 +148,45 @@ export async function mcHistory(vin) {
   }
   return r.json();
 }
+
+export async function mcSearch({
+  year,
+  make,
+  model,
+  trim,
+  zip,
+  radius = 100,
+  rows = 50,
+  start = 0,
+} = {}) {
+  const qp = new URLSearchParams();
+  if (year) qp.set("year", String(year));
+  if (make) qp.set("make", String(make));
+  if (model) qp.set("model", String(model));
+  if (trim) qp.set("trim", String(trim));
+  if (zip) qp.set("zip", String(zip).replace(/\D/g, ""));
+  if (radius) qp.set("radius", String(radius));
+  if (rows) qp.set("rows", String(rows));
+  if (start) qp.set("start", String(start));
+
+  const r = await fetchWithAuth(buildUrl("/search", qp.toString()));
+  if (!r.ok) {
+    const message = `search failed (${r.status})`;
+    let detail = message;
+    try {
+      const body = await r.json();
+      if (body && typeof body === "object") {
+        detail =
+          (typeof body.detail === "string" && body.detail.trim()) ||
+          (typeof body.error === "string" && body.error.trim()) ||
+          message;
+      }
+    } catch {
+      /* ignore body parse errors */
+    }
+    const error = new Error(detail);
+    error.status = r.status;
+    throw error;
+  }
+  return r.json();
+}

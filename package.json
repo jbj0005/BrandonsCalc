@@ -16,6 +16,7 @@
     "migrate:customer-addons": "node scripts/migrate-customer-addons.mjs",
     "cleanup:dealer-fees": "node scripts/cleanup-dealer-fees.mjs",
     "insert:launch-rates": "node scripts/insert-launch-cu-rates.mjs",
+    "test:valuation": "node test-valuation.mjs",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [],
