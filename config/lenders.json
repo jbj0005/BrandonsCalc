@@ -134,5 +134,30 @@
       }
     ],
     "notes": "Auto-discovered on 2025-10-08 - Review and verify rates before enabling"
+  },
+  {
+    "id": "launchcu",
+    "source": "LAUNCH",
+    "longName": "Launch Credit Union",
+    "shortName": "LAUNCH",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.launchcu.com",
+    "sourceUrl": "https://www.launchcu.com/rates/",
+    "stubRates": [
+      {
+        "loanType": "new",
+        "termMin": 36,
+        "termMax": 84,
+        "baseApr": 5.25
+      },
+      {
+        "loanType": "used",
+        "termMin": 36,
+        "termMax": 84,
+        "baseApr": 5.50
+      }
+    ],
+    "notes": "Rates verified 2025-10-30. New: 5.25%, Used 2022-2023: 5.50%, Used 2019-2021: 6.25%, Used 2017-2018: 7.49%"
   }
 ]
