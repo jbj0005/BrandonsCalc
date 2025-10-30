@@ -833,7 +833,7 @@
         >
           <div class="card contractModalCard">
             <header class="modalHeader">
-              <h3 id="contractModalTitle">Sales Contract Summary</h3>
+              <h3 id="contractModalTitle">Sale & Finance Summary</h3>
               <button
                 type="button"
                 class="modalClose"
@@ -847,13 +847,12 @@
             <div class="contractContent">
               <!-- Contract Header -->
               <div class="contractHeader">
-                <h4 class="contractTitle">RETAIL INSTALLMENT SALE CONTRACT</h4>
-                <p class="contractSubtitle">(SIMPLE FINANCE CHARGE)</p>
+                <h4 class="contractTitle">RETAIL CUSTOMER OFFER</h4>
               </div>
 
               <!-- Customer Contact Information -->
               <section class="contractSection">
-                <h5 class="contractSectionTitle">CUSTOMER CONTACT INFORMATION</h5>
+                <h5 class="contractSectionTitle">CUSTOMER INFO</h5>
                 <div class="contractForm">
                   <div class="contractFormRow">
                     <div class="contractFormField">
@@ -1017,7 +1016,17 @@
                     <span class="itemValue" id="contractCashPrice">$50,000.00</span>
                   </div>
 
-                  <!-- Trade-in -->
+                  <!-- Cash Down -->
+                  <div class="itemRow itemRowHeader">
+                    <span class="itemLabel">LESS Cash Down</span>
+                    <span class="itemValue" id="contractCashDown">$3,000.00</span>
+                  </div>
+
+                  <!-- Net Trade-In -->
+                  <div class="itemRow itemRowHeader">
+                    <span class="itemLabel">LESS Net Trade-In</span>
+                    <span class="itemValue" id="contractNetTrade">$2,000.00</span>
+                  </div>
                   <div class="itemRow itemRowIndent">
                     <span class="itemLabel">Trade-In Allowance</span>
                     <span class="itemValue" id="contractTradeAllowance">$2,000.00</span>
@@ -1025,20 +1034,6 @@
                   <div class="itemRow itemRowIndent">
                     <span class="itemLabel">Less Pay-Off Made By Seller</span>
                     <span class="itemValue" id="contractTradePayoff">$0.00</span>
-                  </div>
-
-                  <!-- Total Downpayment -->
-                  <div class="itemRow itemRowHeader">
-                    <span class="itemLabel">TOTAL DOWN PAYMENT</span>
-                    <span class="itemValue" id="contractDownPayment">$5,000.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Equals Net Trade-In</span>
-                    <span class="itemValue" id="contractNetTrade">$2,000.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">+ Cash</span>
-                    <span class="itemValue" id="contractCashDown">$3,000.00</span>
                   </div>
 
                   <!-- Unpaid Balance of Cash Price -->
@@ -1049,8 +1044,8 @@
 
                   <!-- Other Charges -->
                   <div class="itemRow itemRowHeader">
-                    <span class="itemLabel">OTHER CHARGES</span>
-                    <span class="itemValue"></span>
+                    <span class="itemLabel">PLUS OTHER CHARGES</span>
+                    <span class="itemValue" id="sumOtherCharges"></span>
                   </div>
                   <div class="itemRow itemRowIndent">
                     <span class="itemLabel">Total Dealer Fees</span>

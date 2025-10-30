@@ -9644,27 +9644,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Calculate values
     const equity = tradeOffer - tradePayoff;
     const netTrade = equity;
-    // Total down payment should only include positive contributions
-    // Negative equity is rolled into amount financed, not subtracted from down
-    const totalDownPayment = Math.max(0, netTrade) + cashDown;
     const totalFees = getOutputValue(totalFeesOutput);
     const totalTaxes = getOutputValue(totalTaxesOutput);
     const sumOtherCharges = totalFees + totalTaxes;
 
     // In RouteOne format:
     // CASH PRICE = sale price only (not including fees/taxes)
-    // UNPAID BALANCE = cash price - down payment
+    // UNPAID BALANCE = sale price - cash down - net trade
     // Then fees/taxes added separately in "OTHER CHARGES"
-    const cashPrice = salePrice; // Just the sale price, fees/taxes added separately
-    const unpaidBalance = cashPrice - totalDownPayment;
+    // AMOUNT FINANCED = unpaid balance + other charges
+    const cashPrice = salePrice;
+    const unpaidBalance = cashPrice - cashDown - netTrade;
 
     // Finance charge calculation
     const monthlyRate = apr / 100 / 12;
     const totalPayments = monthlyPayment * term;
     const financeCharge = totalPayments - amountFinanced;
 
-    // TOTAL SALE PRICE = Total of Payments + Down Payment
-    const totalSalePrice = totalPayments + totalDownPayment;
+    // TOTAL SALE PRICE = Total of Payments + Cash Down + Net Trade
+    const totalSalePrice = totalPayments + cashDown + netTrade;
     const cashDue = getOutputValue(cashDueOutput);
 
     // Get dealer fees and taxes
@@ -9685,13 +9683,12 @@ document.addEventListener("DOMContentLoaded", async () => {
     setText("contractPaymentAmount", formatCurrency(monthlyPayment));
     setText("contractPaymentFreq", "Monthly");
 
-    // Itemization
+    // Itemization - follows structure: Sale Price - Cash Down - Net Trade = Unpaid Balance + Other Charges = Amount Financed
     setText("contractCashPrice", formatCurrency(cashPrice));
-    setText("contractDownPayment", formatCurrency(totalDownPayment));
+    setText("contractCashDown", formatCurrency(cashDown));
+    setText("contractNetTrade", formatCurrencyAccounting(netTrade)); // Use accounting format for negatives
     setText("contractTradeAllowance", formatCurrency(tradeOffer));
     setText("contractTradePayoff", formatCurrency(tradePayoff));
-    setText("contractNetTrade", formatCurrency(netTrade));
-    setText("contractCashDown", formatCurrency(cashDown));
     setText("contractUnpaidBalance", formatCurrency(unpaidBalance));
     setText("sumOtherCharges", formatCurrency(sumOtherCharges));
     setText("contractDealerFees", formatCurrency(totalDealerFees));
@@ -9838,6 +9835,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   function setText(id, value) {
     const el = document.getElementById(id);
     if (el) el.textContent = value;
+  }
+
+  // Format currency in accounting style: negative values shown as ($1,234.56)
+  function formatCurrencyAccounting(value) {
+    if (value < 0) {
+      return `(${formatCurrency(Math.abs(value))})`;
+    }
+    return formatCurrency(value);
   }
 
   viewContractButton?.addEventListener("click", openContractModal);
