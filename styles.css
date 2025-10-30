@@ -1705,12 +1705,13 @@ main {
 
 /* Offer Hero Section */
 .offerHeroSection {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  background: linear-gradient(135deg, #0575e6 0%, #00d4ff 50%, #7b2ff7 100%);
   border: none;
   border-radius: var(--radius-lg);
   margin-bottom: 1.5rem;
-  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3),
-    0 6px 20px rgba(118, 75, 162, 0.2);
+  box-shadow: 0 10px 40px rgba(5, 117, 230, 0.4),
+    0 6px 20px rgba(0, 212, 255, 0.3),
+    0 3px 10px rgba(123, 47, 247, 0.2);
 }
 
 .offerHero {
