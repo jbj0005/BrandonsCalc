@@ -682,6 +682,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const savingsNote = document.getElementById("savingsNote");
   const totalFeesOutput = document.getElementById("totalTF");
   const totalDealerFeesOutput = document.getElementById("totalDealerFees");
+  const totalCustomerAddonsOutput = document.getElementById("totalCustomerAddons");
   const totalGovtFeesOutput = document.getElementById("totalGovtFees");
   const calculatorForm = document.querySelector("#saleSummaryCard form.grid");
   const feesForm =
@@ -690,6 +691,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.querySelector("#feesCard form");
   const totalDealerFeesLabel =
     feesForm?.querySelector("label[for='totalDealerFees']") ?? null;
+  const totalCustomerAddonsLabel =
+    feesForm?.querySelector("label[for='totalCustomerAddons']") ?? null;
   const totalGovtFeesLabel =
     feesForm?.querySelector("label[for='totalGovtFees']") ?? null;
   const dealerFeesLabel =
@@ -703,6 +706,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   const dealerFeePlusBtn =
     dealerFeeMinusBtn?.nextElementSibling instanceof HTMLButtonElement
       ? dealerFeeMinusBtn.nextElementSibling
+      : null;
+  const customerAddonsLabel =
+    feesForm?.querySelector("label[for*='customerAddonDesc']") ?? null;
+  const customerAddonDescInput = document.getElementById("customerAddonDesc");
+  const customerAddonAmountInput = document.getElementById("customerAddonAmount");
+  const customerAddonMinusBtn =
+    customerAddonAmountInput?.nextElementSibling instanceof HTMLButtonElement
+      ? customerAddonAmountInput.nextElementSibling
+      : null;
+  const customerAddonPlusBtn =
+    customerAddonMinusBtn?.nextElementSibling instanceof HTMLButtonElement
+      ? customerAddonMinusBtn.nextElementSibling
       : null;
   const govFeesLabel =
     feesForm?.querySelector("label[for*='govtFeeDesc']") ?? null;
@@ -887,6 +902,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   let authModalPromise = null;
   let authMode = "signin";
   let dealerFeeGroup = null;
+  let customerAddonGroup = null;
   let govFeeGroup = null;
   const dealerFeeSetState = { id: null, items: [] };
   const govFeeSetState = { id: null, items: [] };
@@ -1635,12 +1651,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const feeTotals = recomputeFees() ?? {
       dealerFees: 0,
+      customerAddons: 0,
       govFees: 0,
       totalFees: 0,
     };
     const taxTotals = recomputeTaxes({
       salePrice: effectiveSalePrice ?? 0,
       dealerFees: feeTotals.dealerFees ?? 0,
+      customerAddons: feeTotals.customerAddons ?? 0,
       tradeOffer: tradeOffer ?? 0,
     });
     const financingSnapshot = recomputeFinancing({
@@ -1901,6 +1919,18 @@ document.addEventListener("DOMContentLoaded", async () => {
       plusButton: dealerFeePlusBtn,
       sectionEndNode: totalDealerFeesLabel ?? totalFeesLabel ?? totalFeesOutput,
       suggestionStore: dealerFeeSuggestionStore,
+    });
+
+    customerAddonGroup = createFeeGroup({
+      type: "customer",
+      form: feesForm,
+      primaryLabel: customerAddonsLabel,
+      primaryDescInput: customerAddonDescInput,
+      primaryAmountInput: customerAddonAmountInput,
+      minusButton: customerAddonMinusBtn,
+      plusButton: customerAddonPlusBtn,
+      sectionEndNode: totalCustomerAddonsLabel ?? totalFeesLabel ?? totalFeesOutput,
+      suggestionStore: null,
     });
 
     govFeeGroup = createFeeGroup({
@@ -4406,12 +4436,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       dealerFeeGroup?.getTotal() ??
       getCurrencyInputValue(dealerFeeAmountInput) ??
       0;
+    const customerAddonValue =
+      customerAddonGroup?.getTotal() ??
+      getCurrencyInputValue(customerAddonAmountInput) ??
+      0;
     const govValue =
       govFeeGroup?.getTotal() ?? getCurrencyInputValue(govFeeAmountInput) ?? 0;
-    const total = dealerValue + govValue;
+    const total = dealerValue + customerAddonValue + govValue;
 
     if (totalDealerFeesOutput) {
       setCurrencyOutput(totalDealerFeesOutput, dealerValue, {
+        forceZero: true,
+      });
+    }
+    if (totalCustomerAddonsOutput) {
+      setCurrencyOutput(totalCustomerAddonsOutput, customerAddonValue, {
         forceZero: true,
       });
     }
@@ -4419,10 +4458,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       setCurrencyOutput(totalGovtFeesOutput, govValue, { forceZero: true });
     }
     setCurrencyOutput(totalFeesOutput, total, { forceZero: true });
-    return { dealerFees: dealerValue, govFees: govValue, totalFees: total };
+    return {
+      dealerFees: dealerValue,
+      customerAddons: customerAddonValue,
+      govFees: govValue,
+      totalFees: total
+    };
   }
 
-  function recomputeTaxes({ salePrice, dealerFees, tradeOffer }) {
+  function recomputeTaxes({ salePrice, dealerFees, customerAddons, tradeOffer }) {
     const result = {
       taxableBase: 0,
       stateTaxAmount: 0,
@@ -4436,12 +4480,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const sale = Number.isFinite(salePrice) ? salePrice : 0;
     const dealer = Number.isFinite(dealerFees) ? dealerFees : 0;
+    const addons = Number.isFinite(customerAddons) ? customerAddons : 0;
     const tradeCredit = Number.isFinite(tradeOffer) ? tradeOffer : 0;
-    const taxableBase = Math.max(sale - tradeCredit, 0) + dealer;
+    const taxableBase = Math.max(sale - tradeCredit, 0) + dealer + addons;
     result.taxableBase = taxableBase;
 
     setCurrencyOutput(taxableBaseOutput, taxableBase, {
-      forceZero: sale !== 0 || dealer !== 0 || tradeCredit !== 0,
+      forceZero: sale !== 0 || dealer !== 0 || addons !== 0 || tradeCredit !== 0,
     });
 
     const stateRate = getPercentInputValue(stateTaxInput, 0.06);
@@ -7724,12 +7769,21 @@ document.addEventListener("DOMContentLoaded", async () => {
       dealerFeeGroup?.getTotal() ??
       getCurrencyInputValue(dealerFeeAmountInput) ??
       0;
+    const customerAddonValue =
+      customerAddonGroup?.getTotal() ??
+      getCurrencyInputValue(customerAddonAmountInput) ??
+      0;
     const govValue =
       govFeeGroup?.getTotal() ?? getCurrencyInputValue(govFeeAmountInput) ?? 0;
-    const total = dealerValue + govValue;
+    const total = dealerValue + customerAddonValue + govValue;
 
     if (totalDealerFeesOutput) {
       setCurrencyOutput(totalDealerFeesOutput, dealerValue, {
+        forceZero: true,
+      });
+    }
+    if (totalCustomerAddonsOutput) {
+      setCurrencyOutput(totalCustomerAddonsOutput, customerAddonValue, {
         forceZero: true,
       });
     }
@@ -7737,10 +7791,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       setCurrencyOutput(totalGovtFeesOutput, govValue, { forceZero: true });
     }
     setCurrencyOutput(totalFeesOutput, total, { forceZero: true });
-    return { dealerFees: dealerValue, govFees: govValue, totalFees: total };
+    return {
+      dealerFees: dealerValue,
+      customerAddons: customerAddonValue,
+      govFees: govValue,
+      totalFees: total
+    };
   }
 
-  function recomputeTaxes({ salePrice, dealerFees, tradeOffer }) {
+  function recomputeTaxes({ salePrice, dealerFees, customerAddons, tradeOffer }) {
     const result = {
       taxableBase: 0,
       stateTaxAmount: 0,
@@ -7754,12 +7813,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     const sale = Number.isFinite(salePrice) ? salePrice : 0;
     const dealer = Number.isFinite(dealerFees) ? dealerFees : 0;
+    const addons = Number.isFinite(customerAddons) ? customerAddons : 0;
     const tradeCredit = Number.isFinite(tradeOffer) ? tradeOffer : 0;
-    const taxableBase = Math.max(sale - tradeCredit, 0) + dealer;
+    const taxableBase = Math.max(sale - tradeCredit, 0) + dealer + addons;
     result.taxableBase = taxableBase;
 
     setCurrencyOutput(taxableBaseOutput, taxableBase, {
-      forceZero: sale !== 0 || dealer !== 0 || tradeCredit !== 0,
+      forceZero: sale !== 0 || dealer !== 0 || addons !== 0 || tradeCredit !== 0,
     });
 
     const stateRate = getPercentInputValue(stateTaxInput, 0.06);
@@ -9665,8 +9725,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const totalSalePrice = totalPayments + cashDown + netTrade;
     const cashDue = getOutputValue(cashDueOutput);
 
-    // Get dealer fees and taxes
+    // Get dealer fees, customer addons, and taxes
     const totalDealerFees = getOutputValue(totalDealerFeesOutput);
+    const totalCustomerAddons = getOutputValue(totalCustomerAddonsOutput);
     const totalGovtFees = getOutputValue(totalGovtFeesOutput);
     const stateTaxTotal = getOutputValue(stateTaxTotalOutput);
     const countyTaxTotal = getOutputValue(countyTaxTotalOutput);
@@ -9692,6 +9753,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     setText("contractUnpaidBalance", formatCurrency(unpaidBalance));
     setText("sumOtherCharges", formatCurrency(sumOtherCharges));
     setText("contractDealerFees", formatCurrency(totalDealerFees));
+    setText("contractCustomerAddons", formatCurrency(totalCustomerAddons));
     setText("contractGovtFees", formatCurrency(totalGovtFees));
     setText("contractStateTax", formatCurrency(stateTaxTotal));
     setText("contractCountyTax", formatCurrency(countyTaxTotal));

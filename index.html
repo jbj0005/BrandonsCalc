@@ -235,6 +235,32 @@
                     placeholder="$0.00">
                   </output>
 
+              <!-- Customer Add-ons -->
+              <label class="col1 feeLabels" for="customerAddonDesc">CUSTOMER</label>
+                <input
+                  id="customerAddonDesc"
+                  class="cellFeeDesc col2"
+                  type="text"
+                  placeholder="e.g. Extended Warranty">
+                </input>
+                <input
+                  id="customerAddonAmount"
+                  class="cellFeeAmount col3 usdFormat"
+                  type="text"
+                  placeholder="$0.00">
+                </input>
+                <button class="xButtons" type="button" aria-label="Add another customer add-on">-</button>
+                <button class="xButtons" type="button" aria-label="Add another customer add-on">+</button>
+
+                <!-- Customer Add-ons Total -->
+                <label class="col2 mutedFeeLabels" for="totalCustomerAddons">TOTAL CUSTOMER ADD-ONS</label>
+                  <output
+                    class="mutedFeeOutput col3"
+                    type="text"
+                    id="totalCustomerAddons"
+                    placeholder="$0.00">
+                  </output>
+
               <!-- Gov't Fees -->
               <label class="col1 feeLabels" for="govtFeeDesc">GOV'T</label>
                 <input
@@ -282,7 +308,7 @@
               <label
                 class="col1 labelWithTooltip"
                 for="taxableBase"
-                data-tooltip="Trade Difference + Dealer Fees"
+                data-tooltip="Trade Difference + Dealer Fees + Customer Add-ons"
                 tabindex="0"
               >TAXABLE BASE</label>
               <output
@@ -939,8 +965,10 @@
 
               <!-- Federal Truth-in-Lending Disclosures -->
               <section class="contractSection contractDisclosures">
-                <h5 id="TIL" class="contractSectionTitle">ESTIMATED FEDERAL TRUTH-IN-LENDING DISCLOSURES </h5>
-                <h5 id="TIL">*** YOUR ACTUAL AMOUNTS MAY VARY BASED ON YOUR APPROVED CREDIT & LENDER AGREEMENT ***</h5>
+                <div class="tilHeader">
+                  <h5>ESTIMATED FEDERAL TRUTH-IN-LENDING DISCLOSURES</h5>
+                  <p class="note">*** YOUR ACTUAL AMOUNTS MAY VARY BASED ON YOUR APPROVED CREDIT & LENDER AGREEMENT ***</p>
+                </div>
                 <div class="disclosuresGrid">
                   <div class="disclosureItem">
                     <div class="disclosureLabel">ANNUAL<br/>PERCENTAGE<br/>RATE</div>
@@ -1033,6 +1061,10 @@
                   <div class="itemRow itemRowIndent">
                     <span class="itemLabel">Total Dealer Fees</span>
                     <span class="itemValue" id="contractDealerFees">$799.00</span>
+                  </div>
+                  <div class="itemRow itemRowIndent">
+                    <span class="itemLabel">Total Customer Add-ons</span>
+                    <span class="itemValue" id="contractCustomerAddons">$0.00</span>
                   </div>
                   <div class="itemRow itemRowIndent">
                     <span class="itemLabel">Total Gov't Fees</span>
