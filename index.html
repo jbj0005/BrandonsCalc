@@ -74,7 +74,7 @@
                   </div>
                   <div class="authLinks">
                     <span class="authLinks__text">
-                      To view or save a vehicle, you'll need an account
+                      Need an account?
                       <a
                         type="button"
                         class="linkButton"
@@ -97,7 +97,7 @@
                 </input>
               </div>
               <div class="grid2" id="localeNote">
-                <p class="row2">Required to Compute Gov't Fees and Sales Tax</p>
+                <p id="reqAddressNote" class="row2" >Required to Compute Gov't Fees and Sales Tax</p>
               </div>
           <!-- Dealer Directions Card -->
           <div class="mapCanvas" id="dealerMapCard">
@@ -923,17 +923,15 @@
                   Note: Vehicle details were not provided. This contract summary reflects loan calculations only.
                 </div>
                 <div class="offerHero">
-                  <div class="offerLabel">YOUR OFFER</div>
+                  <div class="offerLabel">CUSTOMER OFFER</div>
                   <div class="offerPrice" id="heroOfferPrice">$50,000.00</div>
                   <div class="offerVehicleDetails">
-                    <span id="heroCondition"></span>
                     <span id="heroYear"></span>
                     <span id="heroMake"></span>
                     <span id="heroModel"></span>
                     <span id="heroTrim"></span>
                   </div>
                   <div class="offerVehicleMeta">
-                    <span id="heroMileage"></span>
                     <span class="offerVin" id="heroVin"></span>
                   </div>
                 </div>
@@ -941,7 +939,8 @@
 
               <!-- Federal Truth-in-Lending Disclosures -->
               <section class="contractSection contractDisclosures">
-                <h5 class="contractSectionTitle">FEDERAL TRUTH-IN-LENDING DISCLOSURES</h5>
+                <h5 id="TIL" class="contractSectionTitle">ESTIMATED FEDERAL TRUTH-IN-LENDING DISCLOSURES </h5>
+                <h5 id="TIL">*** YOUR ACTUAL AMOUNTS MAY VARY BASED ON YOUR APPROVED CREDIT & LENDER AGREEMENT ***</h5>
                 <div class="disclosuresGrid">
                   <div class="disclosureItem">
                     <div class="disclosureLabel">ANNUAL<br/>PERCENTAGE<br/>RATE</div>
@@ -973,7 +972,7 @@
 
               <!-- Payment Schedule -->
               <section class="contractSection">
-                <h5 class="contractSectionTitle">YOUR PAYMENT SCHEDULE WILL BE:</h5>
+                <h5 class="contractSectionTitle">PAYMENT SCHEDULE</h5>
                 <div class="paymentSchedule">
                   <div class="paymentRow">
                     <span class="paymentLabel">NUMBER OF PAYMENTS</span>
@@ -984,7 +983,7 @@
                     <span class="paymentValue" id="contractPaymentAmount">$750.00</span>
                   </div>
                   <div class="paymentRow">
-                    <span class="paymentLabel">WHEN PAYMENTS ARE DUE</span>
+                    <span class="paymentLabel">PAYMENT FREQUENCY</span>
                     <span class="paymentValue" id="contractPaymentFreq">Monthly</span>
                   </div>
                 </div>
@@ -1001,13 +1000,13 @@
                   </div>
 
                   <!-- Cash Down -->
-                  <div class="itemRow itemRowHeader">
+                  <div class="itemRow itemRowBold">
                     <span class="itemLabel">LESS Cash Down</span>
                     <span class="itemValue" id="contractCashDown">$3,000.00</span>
                   </div>
 
                   <!-- Net Trade-In -->
-                  <div class="itemRow itemRowHeader">
+                  <div class="itemRow itemRowBold">
                     <span class="itemLabel">LESS Net Trade-In</span>
                     <span class="itemValue" id="contractNetTrade">$2,000.00</span>
                   </div>
@@ -1027,7 +1026,7 @@
                   </div>
 
                   <!-- Other Charges -->
-                  <div class="itemRow itemRowHeader">
+                  <div class="itemRow itemRowBold">
                     <span class="itemLabel">PLUS OTHER CHARGES</span>
                     <span class="itemValue" id="sumOtherCharges"></span>
                   </div>

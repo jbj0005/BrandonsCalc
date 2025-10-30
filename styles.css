@@ -1161,6 +1161,18 @@ main {
   text-align: center;
 }
 
+#TIL {
+  font-size: 0.8rem;
+  display: flex;
+  justify-self: center;
+  color: black;
+}
+
+#reqAddressNote {
+  font-family: montserrat;
+  color: #666;
+}
+
 .disclosureItem {
   display: flex;
   flex-direction: column;
@@ -1187,7 +1199,7 @@ main {
 }
 
 .disclosureValue {
-  font-family: ibm plex mono;
+  font-family: IBM plex mono;
   font-size: 0.9rem;
   font-weight: 700;
   color: var(--black);
@@ -1689,56 +1701,58 @@ main {
 
 /* Offer Hero Section */
 .offerHeroSection {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  border: 2px solid #dee2e6;
-  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+  border: none;
+  border-radius: var(--radius-lg);
   margin-bottom: 1.5rem;
+  box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3), 0 6px 20px rgba(118, 75, 162, 0.2);
 }
 
 .offerHero {
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 2.5rem 1.5rem;
 }
 
 .offerLabel {
   font-family: "Roboto", sans-serif;
-  font-size: 0.875rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #6c757d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.9);
   text-transform: uppercase;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .offerPrice {
   font-family: "Roboto", sans-serif;
-  font-size: 3.5rem;
-  font-weight: 700;
-  color: #2d5016;
-  line-height: 1.2;
-  margin-bottom: 1rem;
-  letter-spacing: -0.02em;
+  font-size: 4rem;
+  font-weight: 900;
+  color: #ffffff;
+  line-height: 1;
+  margin-bottom: 1.25rem;
+  letter-spacing: -0.03em;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .offerVehicleDetails {
   font-family: "Roboto", sans-serif;
-  font-size: 1.125rem;
-  font-weight: 500;
-  color: #495057;
-  margin-bottom: 0.75rem;
-  line-height: 1.4;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  margin-bottom: 1rem;
+  line-height: 1.5;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
-.offerVehicleDetails span:not(:empty):not(:last-child)::after {
-  content: " | ";
-  color: #adb5bd;
-  margin: 0 0.25rem;
+.offerVehicleDetails span:not(:empty) {
+  margin-right: 0.35rem;
 }
 
 .offerVehicleMeta {
   font-family: "Roboto", sans-serif;
   font-size: 0.875rem;
-  color: #6c757d;
+  color: rgba(255, 255, 255, 0.85);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1746,9 +1760,14 @@ main {
 }
 
 .offerVin {
-  font-family: "Roboto Mono", monospace;
-  font-size: 0.8rem;
-  letter-spacing: 0.05em;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.15);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
 }
 
 /* Mobile responsive */
@@ -1770,14 +1789,14 @@ main {
   }
 
   .offerPrice {
-    font-size: 2.5rem;
+    font-size: 3rem;
   }
 
   .offerVehicleDetails {
-    font-size: 1rem;
+    font-size: 1.1rem;
   }
 
   .offerHero {
-    padding: 1.5rem 1rem;
+    padding: 2rem 1rem;
   }
 }

@@ -9760,20 +9760,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     );
     if (selectedVehicle) {
       // Populate hero section
-      setText("heroCondition", selectedVehicle.condition ?? "");
       setText("heroYear", selectedVehicle.year ?? "");
       setText("heroMake", selectedVehicle.make ?? "");
       setText("heroModel", selectedVehicle.model ?? "");
       setText("heroTrim", selectedVehicle.trim ?? "");
-
-      // Format mileage for hero section
-      const mileage = selectedVehicle.mileage;
-      if (mileage != null && mileage !== "") {
-        setText("heroMileage", Number(mileage).toLocaleString('en-US') + " mi");
-      } else {
-        setText("heroMileage", "");
-      }
-
       setText("heroVin", selectedVehicle.vin ? `VIN: ${selectedVehicle.vin}` : "");
       const vehicleNote = document.getElementById("contractVehicleNote");
       if (vehicleNote) vehicleNote.style.display = "none";
@@ -9806,12 +9796,10 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     } else {
       // Clear hero section
-      setText("heroCondition", "");
       setText("heroYear", "");
       setText("heroMake", "");
       setText("heroModel", "");
       setText("heroTrim", "");
-      setText("heroMileage", "");
       setText("heroVin", "");
       const vehicleNote = document.getElementById("contractVehicleNote");
       if (vehicleNote) vehicleNote.style.display = "block";
