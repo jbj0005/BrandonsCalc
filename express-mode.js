@@ -622,6 +622,9 @@ async function selectVehicleFromSearch(vehicle) {
 
     showSelectedVehicle();
     hideManualEntry();
+
+    // Calculate and display Smart Offer
+    await calculateSmartOffer(selectedVehicle);
   } catch (error) {
     console.error('[vehicle-select] Error selecting vehicle:', error);
     // Still show the vehicle even if save failed
@@ -657,10 +660,165 @@ function showSelectedVehicle() {
 function clearSelectedVehicle() {
   selectedVehicle = null;
   document.getElementById('selected-vehicle-display').style.display = 'none';
+  document.getElementById('smart-offer-display').style.display = 'none';
   document.getElementById('similar-vehicles-section').style.display = 'none';
   document.getElementById('manual-entry-fields').style.display = 'block';
   document.getElementById('vin-input').value = '';
   document.getElementById('vin-input').focus();
+}
+
+/**
+ * Calculate Smart Offer based on market data
+ */
+async function calculateSmartOffer(vehicle) {
+  try {
+    const userZip = wizardData.location?.zip;
+    if (!userZip) {
+      console.log('[smart-offer] No user location, skipping Smart Offer');
+      return;
+    }
+
+    console.log('[smart-offer] Calculating Smart Offer for:', vehicle);
+
+    // Query Marketcheck for similar vehicles
+    const searchParams = new URLSearchParams({
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      zip: userZip,
+      radius: 100,
+      rows: 50  // Get more results for better price analysis
+    });
+
+    const response = await fetch(`${API_BASE}/api/search?${searchParams}`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch similar vehicles');
+    }
+
+    const data = await response.json();
+    const vehicles = data.listings || [];
+
+    console.log('[smart-offer] Found', vehicles.length, 'similar vehicles');
+
+    // Filter out vehicles without asking prices
+    const vehiclesWithPrices = vehicles.filter(v => v.asking_price && v.asking_price > 0);
+
+    if (vehiclesWithPrices.length < 3) {
+      console.log('[smart-offer] Not enough price data available');
+      document.getElementById('smart-offer-display').style.display = 'none';
+      return;
+    }
+
+    // Extract and sort prices
+    const prices = vehiclesWithPrices.map(v => v.asking_price).sort((a, b) => a - b);
+
+    // Calculate statistics
+    const count = prices.length;
+    const average = prices.reduce((sum, price) => sum + price, 0) / count;
+    const median = prices[Math.floor(count / 2)];
+    const min = prices[0];
+    const max = prices[prices.length - 1];
+
+    // Calculate standard deviation
+    const variance = prices.reduce((sum, price) => sum + Math.pow(price - average, 2), 0) / count;
+    const stdDev = Math.sqrt(variance);
+
+    // Smart Offer Algorithm:
+    // - Start with average price
+    // - Subtract 5-8% to make it attractive but realistic
+    // - Ensure it's not below minimum (would be unrealistic)
+    // - Round to nearest $500 for psychological appeal
+    const discountPercent = 0.06; // 6% below average
+    const recommendedOffer = Math.round((average * (1 - discountPercent)) / 500) * 500;
+
+    // Ensure offer is reasonable (not below min)
+    const finalOffer = Math.max(recommendedOffer, min + 500);
+
+    // Calculate how good the deal is
+    const savingsFromAverage = average - finalOffer;
+    const savingsPercent = ((savingsFromAverage / average) * 100).toFixed(1);
+
+    console.log('[smart-offer] Price Analysis:', {
+      count,
+      average,
+      median,
+      min,
+      max,
+      stdDev,
+      recommendedOffer: finalOffer,
+      savings: savingsFromAverage
+    });
+
+    // Display the Smart Offer
+    displaySmartOffer({
+      offer: finalOffer,
+      count,
+      average,
+      median,
+      min,
+      max,
+      savings: savingsFromAverage,
+      savingsPercent,
+      vehicle
+    });
+
+  } catch (error) {
+    console.error('[smart-offer] Error calculating Smart Offer:', error);
+    document.getElementById('smart-offer-display').style.display = 'none';
+  }
+}
+
+/**
+ * Display Smart Offer recommendation
+ */
+function displaySmartOffer(data) {
+  const display = document.getElementById('smart-offer-display');
+  const content = document.getElementById('smart-offer-content');
+
+  content.innerHTML = `
+    <div class="smart-offer-recommendation">
+      <div class="smart-offer-label">Recommended Offer Price</div>
+      <div class="smart-offer-price">$${data.offer.toLocaleString()}</div>
+      <div class="smart-offer-description">
+        Based on ${data.count} similar ${data.vehicle.year} ${data.vehicle.make} ${data.vehicle.model} vehicles within 100 miles
+      </div>
+    </div>
+
+    <div class="smart-offer-stats">
+      <div class="smart-offer-stat">
+        <div class="smart-offer-stat-label">Average Price</div>
+        <div class="smart-offer-stat-value">$${Math.round(data.average).toLocaleString()}</div>
+      </div>
+      <div class="smart-offer-stat">
+        <div class="smart-offer-stat-label">Median Price</div>
+        <div class="smart-offer-stat-value">$${Math.round(data.median).toLocaleString()}</div>
+      </div>
+      <div class="smart-offer-stat">
+        <div class="smart-offer-stat-label">Price Range</div>
+        <div class="smart-offer-stat-value">$${Math.round(data.min).toLocaleString()} - $${Math.round(data.max).toLocaleString()}</div>
+      </div>
+      <div class="smart-offer-stat">
+        <div class="smart-offer-stat-label">Your Savings</div>
+        <div class="smart-offer-stat-value" style="color: var(--success);">$${Math.round(data.savings).toLocaleString()}</div>
+      </div>
+    </div>
+
+    <div class="smart-offer-confidence">
+      <strong>${data.savingsPercent}% below average market price.</strong>
+      This offer is competitive and realistic. Dealers are more likely to negotiate when your offer is backed by local market data.
+      You're positioned to get a great deal while remaining within reasonable market expectations.
+    </div>
+  `;
+
+  display.style.display = 'block';
+
+  // Also update the Sale Price field with the Smart Offer
+  const salePriceInput = document.getElementById('sale-price');
+  if (salePriceInput && data.offer) {
+    salePriceInput.value = data.offer;
+    wizardData.financing.salePrice = data.offer;
+    console.log('[smart-offer] Updated Sale Price to Smart Offer:', data.offer);
+  }
 }
 
 /**
