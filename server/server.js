@@ -949,6 +949,278 @@ app.get("/api/mc/search", async (req, res) => {
   }
 });
 
+// GET /api/mc/makes?year=2024&zip=32904
+// Get list of makes for a given year
+app.get("/api/mc/makes", async (req, res) => {
+  try {
+    const apiKey = await ensureApiKey(res);
+    if (!apiKey) return;
+
+    const year = req.query.year ? String(req.query.year).trim() : "";
+
+    if (!year) {
+      return res.status(400).json({ error: "Year parameter is required" });
+    }
+
+    // Get zip code if provided, or use a default US center
+    const rawZip = Array.isArray(req.query.zip) ? req.query.zip[0] : req.query.zip;
+    const zip = rawZip ? String(rawZip).replace(/\D/g, "").slice(0, 5) : "64101"; // Kansas City, MO (center of US)
+    const radius = 100; // API subscription limit
+
+    // Search for vehicles and extract unique makes
+    // Fetch multiple pages to get comprehensive list
+    const makesSet = new Set();
+    const rowsPerPage = 100;
+    const maxPages = 5; // Fetch up to 500 total vehicles
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = {
+        api_key: apiKey,
+        year,
+        zip,
+        radius,
+        rows: rowsPerPage,
+        start: page * rowsPerPage
+      };
+
+      const url = mcUrl("/search/car/active", params, "");
+
+      try {
+        const data = await getJson(url);
+        const listings = Array.isArray(data?.listings) ? data.listings : [];
+
+        if (listings.length === 0) {
+          break; // No more results
+        }
+
+        // Extract unique makes from this page
+        listings.forEach(listing => {
+          const make = listing?.make || listing?.build?.make;
+          if (make && typeof make === 'string' && make.trim()) {
+            makesSet.add(make.trim().toLowerCase());
+          }
+        });
+
+        console.log(`[makes] Page ${page + 1}: Found ${listings.length} vehicles, ${makesSet.size} unique makes so far`);
+
+        // If we got fewer results than requested, we've reached the end
+        if (listings.length < rowsPerPage) {
+          break;
+        }
+      } catch (error) {
+        console.error(`[makes] Error fetching page ${page + 1}:`, error.message);
+        break;
+      }
+    }
+
+    // Convert to array and capitalize properly
+    const makes = Array.from(makesSet)
+      .map(make => {
+        // Capitalize first letter of each word
+        return make.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      })
+      .sort();
+
+    return res.json({
+      ok: true,
+      year,
+      count: makes.length,
+      makes
+    });
+  } catch (err) {
+    console.error("[/makes] error:", err);
+    res.status(err?.status || 500).json({
+      error: "Failed to fetch makes",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
+// GET /api/mc/models?year=2024&make=Honda&zip=32904
+// Get list of models for a given year and make
+app.get("/api/mc/models", async (req, res) => {
+  try {
+    const apiKey = await ensureApiKey(res);
+    if (!apiKey) return;
+
+    const year = req.query.year ? String(req.query.year).trim() : "";
+    const make = req.query.make ? String(req.query.make).trim() : "";
+
+    if (!year || !make) {
+      return res.status(400).json({ error: "Year and make parameters are required" });
+    }
+
+    // Get zip code if provided, or use a default US center
+    const rawZip = Array.isArray(req.query.zip) ? req.query.zip[0] : req.query.zip;
+    const zip = rawZip ? String(rawZip).replace(/\D/g, "").slice(0, 5) : "64101"; // Kansas City, MO (center of US)
+    const radius = 100; // API subscription limit
+
+    // Search for vehicles and extract unique models
+    // Fetch multiple pages to get comprehensive list
+    const modelsSet = new Set();
+    const rowsPerPage = 100;
+    const maxPages = 3; // Fetch up to 300 vehicles
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = {
+        api_key: apiKey,
+        year,
+        make,
+        zip,
+        radius,
+        rows: rowsPerPage,
+        start: page * rowsPerPage
+      };
+
+      const url = mcUrl("/search/car/active", params, "");
+
+      try {
+        const data = await getJson(url);
+        const listings = Array.isArray(data?.listings) ? data.listings : [];
+
+        if (listings.length === 0) {
+          break;
+        }
+
+        // Extract unique models from this page
+        listings.forEach(listing => {
+          const model = listing?.model || listing?.build?.model;
+          if (model && typeof model === 'string' && model.trim()) {
+            modelsSet.add(model.trim().toLowerCase());
+          }
+        });
+
+        console.log(`[models] Page ${page + 1}: Found ${listings.length} vehicles, ${modelsSet.size} unique models for ${make}`);
+
+        if (listings.length < rowsPerPage) {
+          break;
+        }
+      } catch (error) {
+        console.error(`[models] Error fetching page ${page + 1}:`, error.message);
+        break;
+      }
+    }
+
+    // Convert to array and capitalize properly
+    const models = Array.from(modelsSet)
+      .map(model => {
+        return model.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      })
+      .sort();
+
+    return res.json({
+      ok: true,
+      year,
+      make,
+      count: models.length,
+      models
+    });
+  } catch (err) {
+    console.error("[/models] error:", err);
+    res.status(err?.status || 500).json({
+      error: "Failed to fetch models",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
+// GET /api/mc/trims?year=2024&make=Honda&model=Accord&zip=32904
+// Get list of trims for a given year, make, and model
+app.get("/api/mc/trims", async (req, res) => {
+  try {
+    const apiKey = await ensureApiKey(res);
+    if (!apiKey) return;
+
+    const year = req.query.year ? String(req.query.year).trim() : "";
+    const make = req.query.make ? String(req.query.make).trim() : "";
+    const model = req.query.model ? String(req.query.model).trim() : "";
+
+    if (!year || !make || !model) {
+      return res.status(400).json({ error: "Year, make, and model parameters are required" });
+    }
+
+    // Get zip code if provided, or use a default US center
+    const rawZip = Array.isArray(req.query.zip) ? req.query.zip[0] : req.query.zip;
+    const zip = rawZip ? String(rawZip).replace(/\D/g, "").slice(0, 5) : "64101"; // Kansas City, MO (center of US)
+    const radius = 100; // API subscription limit
+
+    // Search for vehicles and extract unique trims
+    // Fetch multiple pages to get comprehensive list
+    const trimsSet = new Set();
+    const rowsPerPage = 100;
+    const maxPages = 3; // Fetch up to 300 vehicles
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = {
+        api_key: apiKey,
+        year,
+        make,
+        model,
+        zip,
+        radius,
+        rows: rowsPerPage,
+        start: page * rowsPerPage
+      };
+
+      const url = mcUrl("/search/car/active", params, "");
+
+      try {
+        const data = await getJson(url);
+        const listings = Array.isArray(data?.listings) ? data.listings : [];
+
+        if (listings.length === 0) {
+          break;
+        }
+
+        // Extract unique trims from this page
+        listings.forEach(listing => {
+          const trim = listing?.trim || listing?.build?.trim;
+          if (trim && typeof trim === 'string' && trim.trim()) {
+            trimsSet.add(trim.trim().toLowerCase());
+          }
+        });
+
+        console.log(`[trims] Page ${page + 1}: Found ${listings.length} vehicles, ${trimsSet.size} unique trims for ${make} ${model}`);
+
+        if (listings.length < rowsPerPage) {
+          break;
+        }
+      } catch (error) {
+        console.error(`[trims] Error fetching page ${page + 1}:`, error.message);
+        break;
+      }
+    }
+
+    // Convert to array and capitalize properly
+    const trims = Array.from(trimsSet)
+      .map(trim => {
+        return trim.split(' ')
+          .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(' ');
+      })
+      .sort();
+
+    return res.json({
+      ok: true,
+      year,
+      make,
+      model,
+      count: trims.length,
+      trims
+    });
+  } catch (err) {
+    console.error("[/trims] error:", err);
+    res.status(err?.status || 500).json({
+      error: "Failed to fetch trims",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
