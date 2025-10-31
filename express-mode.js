@@ -58,7 +58,8 @@ async function initializeSupabase() {
       return;
     }
 
-    const { createClient } = supabase;
+    // Get createClient from the global Supabase library (loaded from CDN)
+    const { createClient } = window.supabase;
     supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get current session
