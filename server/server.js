@@ -949,6 +949,84 @@ app.get("/api/mc/search", async (req, res) => {
   }
 });
 
+// GET /api/mc/years?zip=32904
+// Get list of available years based on user's location
+app.get("/api/mc/years", async (req, res) => {
+  try {
+    const apiKey = await ensureApiKey(res);
+    if (!apiKey) return;
+
+    // Get zip code if provided, or use a default US center
+    const rawZip = Array.isArray(req.query.zip) ? req.query.zip[0] : req.query.zip;
+    const zip = rawZip ? String(rawZip).replace(/\D/g, "").slice(0, 5) : "64101"; // Kansas City, MO (center of US)
+    const radius = 100; // API subscription limit
+
+    // Search for vehicles and extract unique years
+    // Fetch multiple pages to get comprehensive list
+    const yearsSet = new Set();
+    const rowsPerPage = 100;
+    const maxPages = 5; // Fetch up to 500 total vehicles
+
+    for (let page = 0; page < maxPages; page++) {
+      const params = {
+        api_key: apiKey,
+        zip,
+        radius,
+        rows: rowsPerPage,
+        start: page * rowsPerPage
+      };
+
+      const url = mcUrl("/search/car/active", params, "");
+
+      try {
+        const data = await getJson(url);
+        const listings = Array.isArray(data?.listings) ? data.listings : [];
+
+        if (listings.length === 0) {
+          break; // No more results
+        }
+
+        // Extract unique years from this page
+        listings.forEach(listing => {
+          const year = listing?.year;
+          if (year && (typeof year === 'string' || typeof year === 'number')) {
+            const yearNum = parseInt(year);
+            if (yearNum >= 1990 && yearNum <= new Date().getFullYear() + 1) {
+              yearsSet.add(yearNum);
+            }
+          }
+        });
+
+        console.log(`[years] Page ${page + 1}: Found ${listings.length} vehicles, ${yearsSet.size} unique years so far`);
+
+        // If we got fewer results than requested, we've reached the end
+        if (listings.length < rowsPerPage) {
+          break;
+        }
+      } catch (error) {
+        console.error(`[years] Error fetching page ${page + 1}:`, error.message);
+        break;
+      }
+    }
+
+    // Convert to array and sort descending (newest first)
+    const years = Array.from(yearsSet).sort((a, b) => b - a);
+
+    return res.json({
+      ok: true,
+      zip,
+      count: years.length,
+      years
+    });
+  } catch (err) {
+    console.error("[/years] error:", err);
+    res.status(err?.status || 500).json({
+      error: "Failed to fetch years",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
 // GET /api/mc/makes?year=2024&zip=32904
 // Get list of makes for a given year
 app.get("/api/mc/makes", async (req, res) => {
