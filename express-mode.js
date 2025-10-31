@@ -165,6 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupInputFormatting();
   setupVehiclePriceFormulas();
   await loadSavedVehicles();
+  await loadLenders(); // Load lenders for rate comparison
 });
 
 /**
@@ -2781,7 +2782,7 @@ function setupVehiclePriceFormulas() {
     const percentMatch = value.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
     if (percentMatch && basePrice > 0) {
       const percent = parseFloat(percentMatch[1]);
-      calculatedPrice = basePrice * (1 - (percent / 100));
+      calculatedPrice = basePrice * (1 + (percent / 100));
       isFormula = true;
       console.log('[formula] Percentage discount:', percent + '%', '→', calculatedPrice);
     }
@@ -2908,6 +2909,19 @@ function updateWizardUI() {
 
   if (currentStep === 4) {
     populateReviewSummary();
+
+    // Open fees modal on first entry to step 4, or if fees haven't been customized
+    if (!wizardData.fees || !wizardData.fees.userCustomized) {
+      // Open modal and let user enter fees
+      openFeesModal();
+      // Mark that we should wait for user input
+      if (!wizardData.fees) {
+        wizardData.fees = { userCustomized: false };
+      }
+    }
+
+    // Always populate review (will use defaults if modal hasn't been saved yet)
+    populateReviewSection(); // Calculate and display TILA disclosure
   }
 
   document.querySelector('.wizard-card').scrollIntoView({
@@ -2998,25 +3012,34 @@ function saveStepData(step) {
       break;
 
     case 2: // Financing
+      // Parse currency values properly
+      const vehiclePriceRaw = document.getElementById('vehicle-price').value;
+      const downPaymentRaw = document.getElementById('down-payment').value;
+
       wizardData.financing = {
-        vehiclePrice: document.getElementById('vehicle-price').value,
-        downPayment: document.getElementById('down-payment').value,
+        salePrice: parseFloat(vehiclePriceRaw.replace(/[^0-9.-]/g, '')) || 0,
+        downPayment: parseFloat(downPaymentRaw.replace(/[^0-9.-]/g, '')) || 0,
         loanTerm: document.getElementById('loan-term').value,
         creditScore: document.getElementById('credit-score').value
       };
+
+      console.log('[saveStepData] Financing saved:', wizardData.financing);
       break;
 
     case 3: // Trade-in
       const hasTradeIn = document.querySelector('input[name="has-tradein"]:checked')?.value === 'yes';
       if (hasTradeIn) {
+        const tradeValueRaw = document.getElementById('tradein-value').value;
+        const tradePayoffRaw = document.getElementById('tradein-payoff').value;
+
         wizardData.tradein = {
           hasTradeIn: true,
           year: document.getElementById('tradein-year').value,
           make: document.getElementById('tradein-make').value,
           model: document.getElementById('tradein-model').value,
           mileage: document.getElementById('tradein-mileage').value,
-          value: document.getElementById('tradein-value').value,
-          payoff: document.getElementById('tradein-payoff').value
+          value: parseFloat(tradeValueRaw.replace(/[^0-9.-]/g, '')) || 0,
+          payoff: parseFloat(tradePayoffRaw.replace(/[^0-9.-]/g, '')) || 0
         };
       } else {
         wizardData.tradein = { hasTradeIn: false };
@@ -3117,6 +3140,519 @@ function populateReviewSummary() {
       </div>
     </div>
   `;
+}
+
+/* ==========================================================================
+   Lender & Rate Provider Logic
+   ========================================================================== */
+
+// Store lenders and rates
+let lendersConfig = [];
+let currentRates = new Map(); // Map<lenderId, {apr, note}>
+let selectedLenderId = 'lowest';
+
+/**
+ * Load lenders from config
+ */
+async function loadLenders() {
+  try {
+    const response = await fetch('/config/lenders.json');
+    const lenders = await response.json();
+    lendersConfig = lenders.filter(l => l.enabled !== false);
+
+    console.log('[lenders] Loaded', lendersConfig.length, 'lenders');
+    populateLenderDropdown();
+  } catch (error) {
+    console.error('[lenders] Error loading lenders:', error);
+    lendersConfig = [];
+  }
+}
+
+/**
+ * Populate lender dropdown
+ */
+function populateLenderDropdown() {
+  const select = document.getElementById('lender-select');
+  if (!select) return;
+
+  // Keep "Lowest APR" option
+  select.innerHTML = '<option value="lowest">Lowest APR (Recommended)</option>';
+
+  // Add enabled lenders
+  lendersConfig.forEach(lender => {
+    const option = document.createElement('option');
+    option.value = lender.id;
+    option.textContent = lender.longName || lender.shortName;
+    select.appendChild(option);
+  });
+
+  // Listen for changes
+  select.addEventListener('change', (e) => {
+    selectedLenderId = e.target.value;
+    populateReviewSection();
+  });
+}
+
+/**
+ * Fetch rates for a lender from Supabase
+ */
+async function fetchLenderRates(lenderId) {
+  try {
+    const response = await fetch(`${API_BASE}/api/rates?source=${lenderId.toUpperCase()}`);
+    if (!response.ok) {
+      console.log(`[rates] No rates from API for ${lenderId}, trying stub data`);
+      return null;
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : (data.rates || []);
+  } catch (error) {
+    console.error(`[rates] Error fetching rates for ${lenderId}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Get stub rates from lender config
+ */
+function getStubRates(lender) {
+  if (!lender.stubRates || !Array.isArray(lender.stubRates)) {
+    return [];
+  }
+
+  // Convert stub rates to full rate objects
+  return lender.stubRates.map((stubRate) => ({
+    source: lender.source,
+    vehicle_condition: stubRate.loanType,
+    term_min: stubRate.termMin,
+    term_max: stubRate.termMax,
+    base_apr: stubRate.baseApr,
+    credit_score_min: 300,
+    credit_score_max: 850,
+  }));
+}
+
+/**
+ * Match rate based on criteria
+ */
+function matchRate(rates, criteria) {
+  const { term, condition, creditScore } = criteria;
+
+  // Filter by condition and term range
+  let eligible = rates.filter(rate => {
+    const vehicleCondition = rate.vehicle_condition || rate.vehicleCondition;
+    const termMin = rate.term_min || rate.termMin;
+    const termMax = rate.term_max || rate.termMax;
+
+    if (condition && vehicleCondition !== condition) return false;
+    if (term < termMin || term > termMax) return false;
+
+    return true;
+  });
+
+  // Filter by credit score if banded
+  if (creditScore) {
+    const scoreBanded = eligible.filter(rate => {
+      const scoreMin = rate.credit_score_min || rate.creditScoreMin || 300;
+      const scoreMax = rate.credit_score_max || rate.creditScoreMax || 850;
+      return creditScore >= scoreMin && creditScore <= scoreMax;
+    });
+
+    if (scoreBanded.length > 0) {
+      eligible = scoreBanded;
+    }
+  }
+
+  // Select rate with lowest APR
+  if (eligible.length === 0) return null;
+
+  const best = eligible.reduce((best, rate) => {
+    const aprPercent = rate.base_apr || rate.baseApr || rate.apr_percent || rate.aprPercent;
+    const bestApr = best.base_apr || best.baseApr || best.apr_percent || best.aprPercent;
+    return aprPercent < bestApr ? rate : best;
+  });
+
+  return {
+    aprDecimal: (best.base_apr || best.baseApr || best.apr_percent || best.aprPercent) / 100,
+    aprPercent: best.base_apr || best.baseApr || best.apr_percent || best.aprPercent,
+    note: best.note || ''
+  };
+}
+
+/**
+ * Get APR for all lenders and find lowest
+ */
+async function calculateLowestApr() {
+  const term = parseInt(wizardData.financing.loanTerm) || 72;
+  const condition = wizardData.vehicle.condition === 'new' ? 'new' : 'used';
+  const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
+
+  const candidates = [];
+
+  // Try each lender
+  for (const lender of lendersConfig) {
+    try {
+      // Try to fetch rates from API
+      let rates = await fetchLenderRates(lender.id);
+
+      // Fall back to stub rates
+      if (!rates || rates.length === 0) {
+        rates = getStubRates(lender);
+      }
+
+      if (rates.length === 0) continue;
+
+      // Match rate for this lender
+      const match = matchRate(rates, { term, condition, creditScore });
+
+      if (match) {
+        candidates.push({
+          lenderId: lender.id,
+          lenderName: lender.longName || lender.shortName,
+          apr: match.aprDecimal,
+          note: match.note
+        });
+
+        // Store in rates map
+        currentRates.set(lender.id, match);
+      }
+    } catch (error) {
+      console.warn(`[rates] Error processing ${lender.id}:`, error);
+    }
+  }
+
+  // Find winner with lowest APR
+  if (candidates.length === 0) {
+    // Default fallback rate
+    return {
+      lenderId: 'default',
+      lenderName: 'Standard Rate',
+      apr: 0.0699, // 6.99%
+      note: 'Default rate - no lenders matched'
+    };
+  }
+
+  const winner = candidates.reduce((best, candidate) =>
+    candidate.apr < best.apr ? candidate : best
+  );
+
+  console.log('[rates] Found', candidates.length, 'candidates, winner:', winner.lenderName, '@', (winner.apr * 100).toFixed(2) + '%');
+
+  return winner;
+}
+
+/**
+ * Map credit score range to numeric value
+ */
+function mapCreditScoreRange(creditScoreRange) {
+  const map = {
+    'excellent': 780,
+    'good': 725,
+    'fair': 675,
+    'poor': 600
+  };
+  return map[creditScoreRange] || 700;
+}
+
+/**
+ * Calculate monthly payment using loan formula
+ */
+function calculateMonthlyPayment(principal, apr, term) {
+  if (apr === 0) return principal / term;
+
+  const monthlyRate = apr / 12;
+  const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, term)) /
+                  (Math.pow(1 + monthlyRate, term) - 1);
+
+  return Math.round(payment * 100) / 100;
+}
+
+/**
+ * Calculate taxes using app.js logic
+ */
+function recomputeTaxes({ salePrice, dealerFees, customerAddons, tradeOffer, stateTaxRate = 6.0, countyTaxRate = 1.0 }) {
+  const result = {
+    taxableBase: 0,
+    stateTaxAmount: 0,
+    countyTaxAmount: 0,
+    totalTaxes: 0
+  };
+
+  const sale = Number.isFinite(salePrice) ? salePrice : 0;
+  const dealer = Number.isFinite(dealerFees) ? dealerFees : 0;
+  const addons = Number.isFinite(customerAddons) ? customerAddons : 0;
+  const tradeCredit = Number.isFinite(tradeOffer) ? tradeOffer : 0;
+
+  // Taxable base = (sale - trade credit) + dealer fees + customer addons
+  const taxableBase = Math.max(sale - tradeCredit, 0) + dealer + addons;
+  result.taxableBase = taxableBase;
+
+  // Convert percentage rates to decimals (e.g., 6.0 -> 0.06)
+  const stateRate = stateTaxRate / 100;
+  const countyRate = countyTaxRate / 100;
+
+  // State tax = taxable base * state rate
+  const stateTaxAmount = taxableBase * stateRate;
+
+  // County tax = min(sale price, $5000) * county rate
+  const countyBaseSource = sale > 0 ? sale : taxableBase;
+  const countyTaxableBase = Math.min(Math.max(countyBaseSource, 0), 5000);
+  const countyTaxAmount = countyTaxableBase * countyRate;
+
+  result.stateTaxAmount = stateTaxAmount;
+  result.countyTaxAmount = countyTaxAmount;
+  result.totalTaxes = stateTaxAmount + countyTaxAmount;
+
+  return result;
+}
+
+/**
+ * Populate review section with all calculated values
+ * Math follows app.js contract modal exactly (lines 9787-9989)
+ */
+async function populateReviewSection() {
+  console.log('[review] Populating review section...');
+
+  // Get selected APR
+  let selectedApr;
+  if (selectedLenderId === 'lowest') {
+    selectedApr = await calculateLowestApr();
+  } else {
+    const rateInfo = currentRates.get(selectedLenderId);
+    if (rateInfo) {
+      const lender = lendersConfig.find(l => l.id === selectedLenderId);
+      selectedApr = {
+        lenderId: selectedLenderId,
+        lenderName: lender?.longName || lender?.shortName || selectedLenderId,
+        apr: rateInfo.aprDecimal,
+        note: rateInfo.note
+      };
+    } else {
+      // Fallback to calculating for this specific lender
+      selectedApr = await calculateLowestApr();
+    }
+  }
+
+  // Extract base values from wizardData (matching app.js naming)
+  const salePrice = parseFloat(wizardData.financing.salePrice) || 0;
+  const cashDown = parseFloat(wizardData.financing.downPayment) || 0;
+  const tradeOffer = wizardData.tradein.hasTradeIn ? (parseFloat(wizardData.tradein.value) || 0) : 0;
+  const tradePayoff = wizardData.tradein.hasTradeIn ? (parseFloat(wizardData.tradein.payoff) || 0) : 0;
+  const term = parseInt(wizardData.financing.loanTerm) || 72;
+  const apr = selectedApr.apr;
+
+  // Calculate equity and net trade (matching app.js)
+  const equity = tradeOffer - tradePayoff;
+  const netTrade = equity;
+
+  // Initialize fees in wizardData if not exists
+  if (!wizardData.fees) {
+    wizardData.fees = {
+      dealerFees: 799,
+      customerAddons: 0,
+      govtFees: 150,
+      stateTaxRate: 6.0,
+      countyTaxRate: 1.0
+    };
+  }
+
+  // Use fees from wizardData (set by user in fees modal)
+  const totalDealerFees = wizardData.fees.dealerFees;
+  const totalCustomerAddons = wizardData.fees.customerAddons;
+  const totalGovtFees = wizardData.fees.govtFees;
+
+  // Calculate taxes using app.js logic with user-entered rates
+  const taxTotals = recomputeTaxes({
+    salePrice: salePrice,
+    dealerFees: totalDealerFees,
+    customerAddons: totalCustomerAddons,
+    tradeOffer: tradeOffer,
+    stateTaxRate: wizardData.fees.stateTaxRate,
+    countyTaxRate: wizardData.fees.countyTaxRate
+  });
+
+  const stateTaxTotal = taxTotals.stateTaxAmount;
+  const countyTaxTotal = taxTotals.countyTaxAmount;
+  const totalTaxes = taxTotals.totalTaxes;
+  const totalFees = totalDealerFees + totalCustomerAddons + totalGovtFees;
+
+  // TILA Calculation (matching app.js lines 9817-9826)
+  // CASH PRICE = sale price only (not including fees/taxes)
+  const cashPrice = salePrice;
+
+  // UNPAID BALANCE = cash price - cash down - net trade
+  const unpaidBalance = cashPrice - cashDown - netTrade;
+
+  // OTHER CHARGES = total fees + total taxes
+  const sumOtherCharges = totalFees + totalTaxes;
+
+  // AMOUNT FINANCED = unpaid balance + other charges
+  const amountFinanced = unpaidBalance + sumOtherCharges;
+
+  // Monthly payment using loan amortization formula
+  const monthlyPayment = calculateMonthlyPayment(amountFinanced, apr, term);
+
+  // TOTAL OF PAYMENTS = monthly payment * term
+  const totalPayments = monthlyPayment * term;
+
+  // FINANCE CHARGE = total of payments - amount financed
+  const financeCharge = totalPayments - amountFinanced;
+
+  // TOTAL SALE PRICE = total of payments + cash down + net trade
+  const totalSalePrice = totalPayments + cashDown + netTrade;
+
+  // Cash due at signing logic
+  const cashDue = cashDown > 0 ? cashDown : 0;
+  const cashToBuyer = netTrade > 0 ? netTrade : 0;
+
+  // Populate vehicle hero
+  setText('reviewHeroYear', wizardData.vehicle.year);
+  setText('reviewHeroMake', wizardData.vehicle.make);
+  setText('reviewHeroModel', wizardData.vehicle.model);
+  setText('reviewHeroTrim', wizardData.vehicle.trim);
+  setText('reviewHeroVin', wizardData.vehicle.vin ? `VIN: ${wizardData.vehicle.vin}` : '');
+  setText('reviewHeroPrice', formatCurrency(cashPrice));
+
+  // Show lender info
+  const lenderName = document.getElementById('reviewLenderName');
+  if (lenderName) {
+    lenderName.textContent = selectedApr.lenderName;
+  }
+
+  // Populate TILA disclosures (Federal Truth-in-Lending)
+  setText('reviewAPR', formatPercent(apr));
+  setText('reviewFinanceCharge', formatCurrency(financeCharge));
+  setText('reviewAmountFinanced', formatCurrency(amountFinanced));
+  setText('reviewTotalPayments', formatCurrency(totalPayments));
+  setText('reviewTotalSalePrice', formatCurrency(totalSalePrice));
+
+  // Populate payment schedule
+  setText('reviewMonthlyPayment', formatCurrency(monthlyPayment));
+  setText('reviewNumPayments', term);
+
+  // Populate itemization (matching app.js structure exactly)
+  setText('reviewSalePrice', formatCurrency(cashPrice));
+  setText('reviewCashDown', formatCurrency(cashDown));
+  setText('reviewNetTrade', formatCurrencyAccounting(netTrade));
+  setText('reviewTradeAllowance', formatCurrency(tradeOffer));
+  setText('reviewTradePayoff', formatCurrency(tradePayoff));
+  setText('reviewUnpaidBalance', formatCurrency(unpaidBalance));
+  setText('reviewOtherCharges', formatCurrency(sumOtherCharges));
+  setText('reviewDealerFees', formatCurrency(totalDealerFees));
+  setText('reviewCustomerAddons', formatCurrency(totalCustomerAddons));
+  setText('reviewGovtFees', formatCurrency(totalGovtFees));
+  setText('reviewStateTax', formatCurrency(stateTaxTotal));
+  setText('reviewCountyTax', formatCurrency(countyTaxTotal));
+  setText('reviewAmountFinanced2', formatCurrency(amountFinanced));
+
+  // Populate cash due/cash to buyer
+  setText('reviewCashDue', formatCurrency(cashDue));
+  setText('reviewCashToBuyer', formatCurrency(cashToBuyer));
+
+  // Show/hide cash to buyer row
+  const cashToBuyerRow = document.getElementById('reviewCashToBuyerRow');
+  if (cashToBuyerRow) {
+    cashToBuyerRow.style.display = cashToBuyer > 0 ? 'flex' : 'none';
+  }
+
+  console.log('[review] Review populated - Amount Financed:', formatCurrency(amountFinanced), 'Monthly:', formatCurrency(monthlyPayment));
+}
+
+/**
+ * Format currency with accounting style (negative in parentheses)
+ */
+function formatCurrencyAccounting(value) {
+  const abs = Math.abs(value);
+  const formatted = formatCurrency(abs);
+  return value < 0 ? `(${formatted})` : formatted;
+}
+
+/**
+ * Format percentage
+ */
+function formatPercent(decimal) {
+  return (decimal * 100).toFixed(2) + '%';
+}
+
+/**
+ * Set text content helper
+ */
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+/**
+ * Open fees modal with default or saved values
+ */
+function openFeesModal() {
+  const modal = document.getElementById('fees-modal');
+  if (!modal) return;
+
+  // Initialize fees in wizardData if not exists
+  if (!wizardData.fees) {
+    wizardData.fees = {
+      dealerFees: 799,
+      customerAddons: 0,
+      govtFees: 150,
+      stateTaxRate: 6.0,
+      countyTaxRate: 1.0
+    };
+  }
+
+  // Populate inputs with current values
+  document.getElementById('modal-dealer-fees').value = formatCurrency(wizardData.fees.dealerFees);
+  document.getElementById('modal-customer-addons').value = formatCurrency(wizardData.fees.customerAddons);
+  document.getElementById('modal-govt-fees').value = formatCurrency(wizardData.fees.govtFees);
+  document.getElementById('modal-state-tax').value = wizardData.fees.stateTaxRate.toFixed(2);
+  document.getElementById('modal-county-tax').value = wizardData.fees.countyTaxRate.toFixed(2);
+
+  // Setup currency formatting for fee inputs
+  setupCurrencyInput('modal-dealer-fees');
+  setupCurrencyInput('modal-customer-addons');
+  setupCurrencyInput('modal-govt-fees');
+
+  // Show modal
+  modal.style.display = 'flex';
+}
+
+/**
+ * Close fees modal
+ */
+function closeFeesModal() {
+  const modal = document.getElementById('fees-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+/**
+ * Save fees and recalculate review
+ */
+function saveFeesAndCalculate() {
+  // Parse and save values to wizardData
+  const dealerFeesRaw = document.getElementById('modal-dealer-fees').value;
+  const customerAddonsRaw = document.getElementById('modal-customer-addons').value;
+  const govtFeesRaw = document.getElementById('modal-govt-fees').value;
+  const stateTaxRaw = document.getElementById('modal-state-tax').value;
+  const countyTaxRaw = document.getElementById('modal-county-tax').value;
+
+  wizardData.fees = {
+    dealerFees: parseFloat(dealerFeesRaw.replace(/[^0-9.-]/g, '')) || 0,
+    customerAddons: parseFloat(customerAddonsRaw.replace(/[^0-9.-]/g, '')) || 0,
+    govtFees: parseFloat(govtFeesRaw.replace(/[^0-9.-]/g, '')) || 0,
+    stateTaxRate: parseFloat(stateTaxRaw) || 0,
+    countyTaxRate: parseFloat(countyTaxRaw) || 0,
+    userCustomized: true // Mark that user has set their fees
+  };
+
+  console.log('[fees] Saved fees:', wizardData.fees);
+
+  // Close modal
+  closeFeesModal();
+
+  // Recalculate review section
+  populateReviewSection();
 }
 
 /**

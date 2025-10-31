@@ -2115,3 +2115,498 @@ body {
     font-size: 20px;
   }
 }
+
+/* ==========================================================================
+   Review & TILA Disclosure Section
+   ========================================================================== */
+
+/* Lender Badge */
+.review-lender-badge {
+  background: linear-gradient(135deg, var(--success) 0%, var(--success-dark, #059669) 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  text-align: center;
+  color: white;
+  margin-bottom: var(--spacing-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.review-lender-badge__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-bottom: var(--spacing-xs);
+}
+
+.review-lender-badge__name {
+  font-size: 20px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Vehicle Hero */
+.review-hero {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-2xl);
+  text-align: center;
+  color: white;
+  margin-bottom: var(--spacing-xl);
+  box-shadow: var(--shadow-lg);
+}
+
+.review-hero__label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  opacity: 0.9;
+  margin-bottom: var(--spacing-sm);
+}
+
+.review-hero__vehicle {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.3;
+}
+
+.review-hero__vin {
+  font-family: 'Courier New', monospace;
+  font-size: 14px;
+  opacity: 0.8;
+  margin-bottom: var(--spacing-md);
+}
+
+.review-hero__price {
+  font-size: 36px;
+  font-weight: 800;
+  margin-top: var(--spacing-md);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* TILA Disclosures */
+.review-disclosures {
+  background: var(--surface);
+  border: 2px solid var(--primary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.review-disclosures__header {
+  text-align: center;
+  margin-bottom: var(--spacing-lg);
+}
+
+.review-disclosures__header h5 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-sm) 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.review-disclosures__note {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin: 0;
+}
+
+.review-disclosures__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--spacing-md);
+}
+
+.disclosure-item {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.disclosure-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.disclosure-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
+  margin-bottom: var(--spacing-sm);
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.disclosure-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--primary);
+  margin: var(--spacing-sm) 0;
+}
+
+.disclosure-note {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+/* Review Sections */
+.review-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+}
+
+.review-section__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0 0 var(--spacing-lg) 0;
+  padding-bottom: var(--spacing-md);
+  border-bottom: 2px solid var(--border);
+}
+
+/* Review Grid (for payment schedule) */
+.review-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-md);
+  transition: background 0.2s ease;
+}
+
+.review-row:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.review-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.review-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* Review Itemization */
+.review-itemization {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.review-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border-light);
+  transition: background 0.2s ease;
+}
+
+.review-item:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.review-item:last-child {
+  border-bottom: none;
+}
+
+.review-item--bold {
+  font-weight: 600;
+}
+
+.review-item--bold .review-label {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.review-item--bold .review-value {
+  font-weight: 700;
+}
+
+.review-item--indent {
+  padding-left: var(--spacing-2xl);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.review-item--indent .review-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.review-item--indent .review-value {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.review-item--total {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  margin-top: var(--spacing-md);
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  border-bottom: none;
+}
+
+.review-item--total .review-label {
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.review-item--total .review-value {
+  color: white;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.review-item--total:hover {
+  background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+}
+
+/* Cash Due Box */
+.review-cash-due {
+  background: var(--surface);
+  border: 2px solid var(--success);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-xl);
+}
+
+.review-cash-due__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-md);
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-sm);
+}
+
+.review-cash-due__row:last-child {
+  margin-bottom: 0;
+}
+
+.review-cash-due__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.review-cash-due__value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--danger);
+}
+
+.review-cash-due__value--positive {
+  color: var(--success);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .review-hero {
+    padding: var(--spacing-xl);
+  }
+
+  .review-hero__vehicle {
+    font-size: 20px;
+  }
+
+  .review-hero__price {
+    font-size: 28px;
+  }
+
+  .review-disclosures__grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--spacing-sm);
+  }
+
+  .disclosure-item {
+    padding: var(--spacing-sm);
+  }
+
+  .disclosure-value {
+    font-size: 18px;
+  }
+
+  .review-section {
+    padding: var(--spacing-md);
+  }
+
+  .review-cash-due__value {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 640px) {
+  .review-disclosures__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .review-item--indent {
+    padding-left: var(--spacing-lg);
+  }
+
+  .review-label {
+    font-size: 13px;
+  }
+
+  .review-value {
+    font-size: 14px;
+  }
+}
+
+/* ===========================
+   FEES MODAL
+   =========================== */
+
+.btn-edit-fees {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-edit-fees:hover {
+  background: var(--gray-50);
+  border-color: var(--primary);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.btn-edit-fees svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fees-modal {
+  background: white;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-xl);
+  max-width: 600px;
+  width: 90%;
+  box-shadow: var(--shadow-xl);
+}
+
+.modal-title {
+  margin: 0 0 var(--spacing-sm) 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.modal-description {
+  margin: 0 0 var(--spacing-lg) 0;
+  font-size: 14px;
+  color: var(--text-light);
+  line-height: 1.5;
+}
+
+.fees-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+.fees-modal-grid .form-group {
+  margin: 0;
+}
+
+.button-group {
+  display: flex;
+  gap: var(--spacing-md);
+  justify-content: flex-end;
+}
+
+.button-group button {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.button-group button:first-child {
+  background: var(--gray-200);
+  color: var(--text);
+}
+
+.button-group button:first-child:hover {
+  background: var(--gray-300);
+}
+
+.button-group button:last-child {
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: white;
+  box-shadow: var(--shadow-md);
+}
+
+.button-group button:last-child:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+@media (max-width: 640px) {
+  .fees-modal {
+    padding: var(--spacing-lg);
+    width: 95%;
+  }
+
+  .fees-modal-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .button-group {
+    flex-direction: column-reverse;
+  }
+
+  .button-group button {
+    width: 100%;
+  }
+}
