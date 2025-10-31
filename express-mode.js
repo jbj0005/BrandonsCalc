@@ -229,7 +229,7 @@ async function loadSavedVehicles() {
 
     console.log('[vehicles] Loading saved vehicles for user:', currentUserId);
 
-    // Query vehicles table with specific columns
+    // Query vehicles table with specific columns (using inserted_at like main app)
     const { data, error } = await supabase
       .from('vehicles')
       .select(`
@@ -245,11 +245,10 @@ async function loadSavedVehicles() {
         heading,
         asking_price,
         photo_url,
-        created_at,
         inserted_at
       `)
       .eq('user_id', currentUserId)
-      .order('created_at', { ascending: false });
+      .order('inserted_at', { ascending: false });
 
     if (error) {
       console.error('[vehicles] Error loading saved vehicles:', error);
