@@ -2673,58 +2673,56 @@ function setupFormValidation() {
 }
 
 /**
- * Setup Enter key to move to next field
+ * Focus next field in tab order (from app.js)
+ */
+function focusNextField(current) {
+  if (!(current instanceof HTMLElement)) return;
+
+  const scope = current instanceof HTMLInputElement && current.form
+    ? current.form
+    : document;
+
+  const focusables = Array.from(
+    scope.querySelectorAll(
+      "input:not([type='hidden']):not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex='-1'])"
+    )
+  ).filter((el) => el.tabIndex >= 0);
+
+  const index = focusables.indexOf(current);
+  if (index === -1) return;
+
+  const next = focusables[index + 1];
+  if (!next) return;
+
+  next.focus();
+
+  // Select text in next input field
+  if (next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) {
+    next.select?.();
+  }
+
+  console.log('[enter-nav] Moved focus from', current.id || 'field', 'to', next.id || 'field');
+}
+
+/**
+ * Setup Enter key to move to next field (like app.js)
  */
 function setupEnterKeyNavigation() {
-  // Get all form inputs and selects in the wizard
-  const form = document.querySelector('.wizard-form');
-  if (!form) return;
+  // Get all form fields
+  const allFields = document.querySelectorAll('input, select, textarea');
 
-  form.addEventListener('keydown', (e) => {
-    // Only handle Enter key
-    if (e.key !== 'Enter') return;
+  allFields.forEach(field => {
+    field.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
 
-    const target = e.target;
+      // Don't handle Enter on buttons
+      if (field.tagName === 'BUTTON') return;
 
-    // Don't interfere with buttons or textareas
-    if (target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA') return;
+      e.preventDefault();
 
-    // Only handle inputs and selects
-    if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT') return;
-
-    e.preventDefault();
-
-    // Get all focusable elements in the current wizard step
-    const currentStep = document.querySelector('.wizard-step.active');
-    if (!currentStep) return;
-
-    const focusableElements = currentStep.querySelectorAll(
-      'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])'
-    );
-
-    const focusableArray = Array.from(focusableElements);
-    const currentIndex = focusableArray.indexOf(target);
-
-    // Move to next focusable element
-    if (currentIndex > -1 && currentIndex < focusableArray.length - 1) {
-      const nextElement = focusableArray[currentIndex + 1];
-      nextElement.focus();
-
-      // If it's a select, open it
-      if (nextElement.tagName === 'SELECT') {
-        // Trigger click to open dropdown (works in most browsers)
-        nextElement.click();
-      }
-
-      console.log('[enter-nav] Moved focus from', target.id, 'to', nextElement.id);
-    } else {
-      // Last field in current step - try to go to next step
-      const nextButton = currentStep.querySelector('button[onclick*="wizardNext"]');
-      if (nextButton) {
-        console.log('[enter-nav] Last field reached, triggering next step');
-        nextButton.click();
-      }
-    }
+      // Move to next field
+      focusNextField(field);
+    });
   });
 }
 
