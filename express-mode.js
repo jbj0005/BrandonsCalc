@@ -1304,10 +1304,10 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
       if (vehiclePriceInput) {
         const priceToUse = smartOfferData?.offer || vehicleDetails.asking_price;
         if (priceToUse) {
-          vehiclePriceInput.value = priceToUse;
+          vehiclePriceInput.value = formatCurrency(priceToUse);
           vehiclePriceInput.dataset.basePrice = priceToUse; // Store base price for formula calculations
           wizardData.financing.salePrice = priceToUse;
-          console.log('[vehicle-price] Auto-populated with:', priceToUse);
+          console.log('[vehicle-price] Auto-populated with:', formatCurrency(priceToUse));
         }
       }
     }
@@ -1845,10 +1845,10 @@ async function selectVehicleFromSearch(vehicle) {
     if (selectedVehicle.asking_price) {
       const vehiclePriceInput = document.getElementById('vehicle-price');
       if (vehiclePriceInput) {
-        vehiclePriceInput.value = selectedVehicle.asking_price;
+        vehiclePriceInput.value = formatCurrency(selectedVehicle.asking_price);
         vehiclePriceInput.dataset.basePrice = selectedVehicle.asking_price; // Store base price for formula calculations
         wizardData.financing.salePrice = selectedVehicle.asking_price;
-        console.log('[vehicle-select] Auto-populated Vehicle Price:', selectedVehicle.asking_price);
+        console.log('[vehicle-select] Auto-populated Vehicle Price:', formatCurrency(selectedVehicle.asking_price));
       }
     }
 
@@ -2732,9 +2732,8 @@ function setupEnterKeyNavigation() {
  * Setup input formatting for currency and mileage fields
  */
 function setupInputFormatting() {
-  // Currency fields
+  // Currency fields (vehicle-price handled separately for formula support)
   const currencyFields = [
-    'sale-price',
     'down-payment',
     'tradein-value',
     'tradein-payoff'
@@ -2774,59 +2773,84 @@ function setupVehiclePriceFormulas() {
 
     // Get base price (asking price stored when vehicle was selected)
     const basePrice = parseFloat(this.dataset.basePrice) || 0;
-    if (basePrice === 0) return;
 
     console.log('[formula] Processing:', value, 'Base price:', basePrice);
 
     let calculatedPrice = null;
+    let isFormula = false;
 
     // Handle percentage discount: -6% or 6%
     const percentMatch = value.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
-    if (percentMatch) {
+    if (percentMatch && basePrice > 0) {
       const percent = parseFloat(percentMatch[1]);
       calculatedPrice = basePrice * (1 - (percent / 100));
+      isFormula = true;
       console.log('[formula] Percentage discount:', percent + '%', '→', calculatedPrice);
     }
 
     // Handle dollar discount: -$500 or -500
     const dollarMatch = value.match(/^-\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
-    if (dollarMatch) {
+    if (dollarMatch && basePrice > 0) {
       const discount = parseFloat(dollarMatch[1].replace(/,/g, ''));
       calculatedPrice = basePrice - discount;
+      isFormula = true;
       console.log('[formula] Dollar discount:', discount, '→', calculatedPrice);
     }
 
     // Handle dollar addition: +$500 or +500
     const addMatch = value.match(/^\+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
-    if (addMatch) {
+    if (addMatch && basePrice > 0) {
       const addition = parseFloat(addMatch[1].replace(/,/g, ''));
       calculatedPrice = basePrice + addition;
+      isFormula = true;
       console.log('[formula] Dollar addition:', addition, '→', calculatedPrice);
     }
 
-    // Apply calculated price
+    // If formula was calculated, apply the result
     if (calculatedPrice !== null && calculatedPrice > 0) {
-      this.value = Math.round(calculatedPrice);
-      wizardData.financing.salePrice = Math.round(calculatedPrice);
-      console.log('[formula] Final price:', Math.round(calculatedPrice));
+      const finalPrice = Math.round(calculatedPrice);
+      this.value = formatCurrency(finalPrice);
+      wizardData.financing.salePrice = finalPrice;
+      console.log('[formula] Final price:', finalPrice);
 
       // Show a subtle hint about what was calculated
       const hint = this.nextElementSibling;
       if (hint && hint.classList.contains('form-hint')) {
-        hint.textContent = `Calculated from asking price: $${formatCurrency(basePrice)}`;
+        hint.textContent = `Calculated from asking price: ${formatCurrency(basePrice)}`;
         hint.style.color = 'var(--success)';
         setTimeout(() => {
-          hint.textContent = '';
+          hint.textContent = 'Enter price or formula: -6% for discount, +$500 for addition';
+          hint.style.color = '';
         }, 3000);
+      }
+    }
+    // Not a formula - format as currency
+    else if (!isFormula) {
+      const numValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
+      if (!isNaN(numValue) && numValue > 0) {
+        this.value = formatCurrency(numValue);
+        wizardData.financing.salePrice = numValue;
+        console.log('[vehicle-price] Formatted as currency:', numValue);
       }
     }
   });
 
-  // Also handle manual price entry (no formula)
+  // Handle input to strip non-numeric characters (except formula symbols)
   vehiclePriceInput.addEventListener('input', function() {
-    const value = parseFloat(this.value);
-    if (!isNaN(value) && value > 0) {
-      wizardData.financing.salePrice = value;
+    const value = this.value;
+
+    // Allow formulas (%, +, -, $) and numbers
+    const cleaned = value.replace(/[^0-9.%+\-$,]/g, '');
+    if (cleaned !== value) {
+      const cursorPos = this.selectionStart;
+      this.value = cleaned;
+      this.setSelectionRange(cursorPos, cursorPos);
+    }
+
+    // If it's a plain number, update wizardData
+    const numValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
+    if (!isNaN(numValue) && numValue > 0 && !/[%+\-]/.test(value)) {
+      wizardData.financing.salePrice = numValue;
     }
   });
 }
