@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupLocationInput();
   setupFormValidation();
   setupInputFormatting();
+  setupVehiclePriceFormulas();
   await loadSavedVehicles();
 });
 
@@ -1296,6 +1297,18 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
         condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'New' : 'Used')
       };
       hideManualEntry();
+
+      // Populate vehicle price field with asking price or Smart Offer
+      const vehiclePriceInput = document.getElementById('vehicle-price');
+      if (vehiclePriceInput) {
+        const priceToUse = smartOfferData?.offer || vehicleDetails.asking_price;
+        if (priceToUse) {
+          vehiclePriceInput.value = priceToUse;
+          vehiclePriceInput.dataset.basePrice = priceToUse; // Store base price for formula calculations
+          wizardData.financing.salePrice = priceToUse;
+          console.log('[vehicle-price] Auto-populated with:', priceToUse);
+        }
+      }
     }
 
   } catch (error) {
@@ -1827,13 +1840,14 @@ async function selectVehicleFromSearch(vehicle) {
       }
     }
 
-    // Auto-populate Sale Price field
+    // Auto-populate Vehicle Price field
     if (selectedVehicle.asking_price) {
-      const salePriceInput = document.getElementById('sale-price');
-      if (salePriceInput) {
-        salePriceInput.value = selectedVehicle.asking_price;
+      const vehiclePriceInput = document.getElementById('vehicle-price');
+      if (vehiclePriceInput) {
+        vehiclePriceInput.value = selectedVehicle.asking_price;
+        vehiclePriceInput.dataset.basePrice = selectedVehicle.asking_price; // Store base price for formula calculations
         wizardData.financing.salePrice = selectedVehicle.asking_price;
-        console.log('[vehicle-select] Auto-populated Sale Price:', selectedVehicle.asking_price);
+        console.log('[vehicle-select] Auto-populated Vehicle Price:', selectedVehicle.asking_price);
       }
     }
 
@@ -2685,6 +2699,77 @@ function setupInputFormatting() {
     const field = document.getElementById(fieldId);
     if (field) {
       setupMileageInput(field);
+    }
+  });
+}
+
+/**
+ * Setup formula calculation for vehicle price field
+ * Allows users to enter formulas like "-6%" or "-$500" to calculate discounts
+ */
+function setupVehiclePriceFormulas() {
+  const vehiclePriceInput = document.getElementById('vehicle-price');
+  if (!vehiclePriceInput) return;
+
+  vehiclePriceInput.addEventListener('blur', function() {
+    const value = this.value.trim();
+    if (!value) return;
+
+    // Get base price (asking price stored when vehicle was selected)
+    const basePrice = parseFloat(this.dataset.basePrice) || 0;
+    if (basePrice === 0) return;
+
+    console.log('[formula] Processing:', value, 'Base price:', basePrice);
+
+    let calculatedPrice = null;
+
+    // Handle percentage discount: -6% or 6%
+    const percentMatch = value.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
+    if (percentMatch) {
+      const percent = parseFloat(percentMatch[1]);
+      calculatedPrice = basePrice * (1 - (percent / 100));
+      console.log('[formula] Percentage discount:', percent + '%', '→', calculatedPrice);
+    }
+
+    // Handle dollar discount: -$500 or -500
+    const dollarMatch = value.match(/^-\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
+    if (dollarMatch) {
+      const discount = parseFloat(dollarMatch[1].replace(/,/g, ''));
+      calculatedPrice = basePrice - discount;
+      console.log('[formula] Dollar discount:', discount, '→', calculatedPrice);
+    }
+
+    // Handle dollar addition: +$500 or +500
+    const addMatch = value.match(/^\+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
+    if (addMatch) {
+      const addition = parseFloat(addMatch[1].replace(/,/g, ''));
+      calculatedPrice = basePrice + addition;
+      console.log('[formula] Dollar addition:', addition, '→', calculatedPrice);
+    }
+
+    // Apply calculated price
+    if (calculatedPrice !== null && calculatedPrice > 0) {
+      this.value = Math.round(calculatedPrice);
+      wizardData.financing.salePrice = Math.round(calculatedPrice);
+      console.log('[formula] Final price:', Math.round(calculatedPrice));
+
+      // Show a subtle hint about what was calculated
+      const hint = this.nextElementSibling;
+      if (hint && hint.classList.contains('form-hint')) {
+        hint.textContent = `Calculated from asking price: $${formatCurrency(basePrice)}`;
+        hint.style.color = 'var(--success)';
+        setTimeout(() => {
+          hint.textContent = '';
+        }, 3000);
+      }
+    }
+  });
+
+  // Also handle manual price entry (no formula)
+  vehiclePriceInput.addEventListener('input', function() {
+    const value = parseFloat(this.value);
+    if (!isNaN(value) && value > 0) {
+      wizardData.financing.salePrice = value;
     }
   });
 }
