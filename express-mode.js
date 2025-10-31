@@ -149,7 +149,14 @@ function formatVIN(vin) {
 document.addEventListener('DOMContentLoaded', async () => {
   await initializeSupabase();
   await loadGoogleMaps();
-  populateYearDropdowns();
+
+  // Initialize year dropdown as disabled until location is set
+  const yearSelect = document.getElementById('year-input');
+  if (yearSelect) {
+    yearSelect.innerHTML = '<option value="">Enter location first</option>';
+    yearSelect.disabled = true;
+  }
+
   setupVINInput();
   setupCascadingDropdowns();
   setupLocationInput();
@@ -260,7 +267,7 @@ function setupPlacesAutocomplete() {
       componentRestrictions: { country: 'us' }
     });
 
-    placesAutocomplete.addListener('place_changed', () => {
+    placesAutocomplete.addListener('place_changed', async () => {
       const place = placesAutocomplete.getPlace();
       if (!place.geometry) return;
 
@@ -280,6 +287,15 @@ function setupPlacesAutocomplete() {
       if (hint) {
         hint.textContent = `✓ Using: ${location.zip || 'your location'}`;
         hint.style.color = 'var(--success)';
+      }
+
+      // Populate year dropdown now that location is set
+      await populateYearDropdowns();
+
+      // Show vehicle selection section now that location is set
+      const vehicleSelectionSection = document.getElementById('vehicle-selection-section');
+      if (vehicleSelectionSection) {
+        vehicleSelectionSection.style.display = 'block';
       }
     });
   } catch (error) {
@@ -308,7 +324,7 @@ function setupLocationInput() {
   const locationInput = document.getElementById('user-location');
 
   // Also allow manual ZIP entry
-  locationInput.addEventListener('input', (e) => {
+  locationInput.addEventListener('input', async (e) => {
     const value = e.target.value.trim();
 
     // If it looks like a ZIP code (5 digits)
@@ -322,6 +338,15 @@ function setupLocationInput() {
       if (hint) {
         hint.textContent = `✓ Using ZIP: ${value}`;
         hint.style.color = 'var(--success)';
+      }
+
+      // Populate year dropdown now that location is set
+      await populateYearDropdowns();
+
+      // Show vehicle selection section now that location is set
+      const vehicleSelectionSection = document.getElementById('vehicle-selection-section');
+      if (vehicleSelectionSection) {
+        vehicleSelectionSection.style.display = 'block';
       }
     }
   });
@@ -442,38 +467,31 @@ function setupCascadingDropdowns() {
   const makeInput = document.getElementById('make-input');
   const modelInput = document.getElementById('model-input');
   const trimInput = document.getElementById('trim-input');
-  const conditionInput = document.getElementById('condition-input');
+
+  const makeGroup = document.getElementById('make-group');
+  const modelGroup = document.getElementById('model-group');
+  const trimGroup = document.getElementById('trim-group');
 
   // Populate makes when year is selected
   yearInput.addEventListener('change', async () => {
     const year = yearInput.value;
 
     if (!year) {
-      makeInput.innerHTML = '<option value="">Select Year First</option>';
-      makeInput.disabled = true;
-      modelInput.innerHTML = '<option value="">Select Make First</option>';
-      modelInput.disabled = true;
-      trimInput.innerHTML = '<option value="">Select Model First</option>';
-      trimInput.disabled = true;
+      // Hide all subsequent dropdowns
+      makeGroup.style.display = 'none';
+      modelGroup.style.display = 'none';
+      trimGroup.style.display = 'none';
       return;
     }
 
-    // Handle condition dropdown based on year
-    const currentYear = new Date().getFullYear();
-    if (parseInt(year) < currentYear) {
-      // Not current year - set to "Used" and disable
-      conditionInput.value = 'Used';
-      conditionInput.disabled = true;
-      conditionInput.style.opacity = '0.5';
-      conditionInput.style.cursor = 'not-allowed';
-    } else {
-      // Current year or future - enable selection
-      conditionInput.disabled = false;
-      conditionInput.style.opacity = '1';
-      conditionInput.style.cursor = 'pointer';
-    }
-
+    // Show make dropdown and populate it
+    makeGroup.style.display = 'block';
     await populateMakes(year);
+
+    // Hide subsequent dropdowns until make is selected
+    modelGroup.style.display = 'none';
+    trimGroup.style.display = 'none';
+
     checkAndShowPreview();
   });
 
@@ -483,14 +501,18 @@ function setupCascadingDropdowns() {
     const make = makeInput.value;
 
     if (!year || !make) {
-      modelInput.innerHTML = '<option value="">Select Make First</option>';
-      modelInput.disabled = true;
-      trimInput.innerHTML = '<option value="">Select Model First</option>';
-      trimInput.disabled = true;
+      modelGroup.style.display = 'none';
+      trimGroup.style.display = 'none';
       return;
     }
 
+    // Show model dropdown and populate it
+    modelGroup.style.display = 'block';
     await populateModels(year, make);
+
+    // Hide trim dropdown until model is selected
+    trimGroup.style.display = 'none';
+
     checkAndShowPreview();
   });
 
@@ -501,21 +523,19 @@ function setupCascadingDropdowns() {
     const model = modelInput.value;
 
     if (!year || !make || !model) {
-      trimInput.innerHTML = '<option value="">Select Model First</option>';
-      trimInput.disabled = true;
+      trimGroup.style.display = 'none';
       return;
     }
 
+    // Show trim dropdown and populate it
+    trimGroup.style.display = 'block';
     await populateTrims(year, make, model);
+
     checkAndShowPreview();
   });
 
-  // Check for preview when trim or condition changes
+  // Check for preview when trim changes
   trimInput.addEventListener('change', () => {
-    checkAndShowPreview();
-  });
-
-  conditionInput.addEventListener('change', () => {
     checkAndShowPreview();
   });
 }
@@ -528,13 +548,11 @@ async function checkAndShowPreview() {
   const makeInput = document.getElementById('make-input');
   const modelInput = document.getElementById('model-input');
   const trimInput = document.getElementById('trim-input');
-  const conditionInput = document.getElementById('condition-input');
 
   const year = yearInput.value;
   const make = makeInput.value;
   const model = modelInput.value;
   const trim = trimInput.value || '';
-  const condition = conditionInput.value || 'Used';
 
   // Hide preview if required fields aren't filled
   if (!year || !make || !model) {
@@ -542,12 +560,14 @@ async function checkAndShowPreview() {
     return;
   }
 
-  console.log('[manual-preview] Searching for vehicle:', { year, make, model, trim, condition });
+  console.log('[manual-preview] Searching for vehicle:', { year, make, model, trim });
 
   try {
-    // Search for matching vehicle
-    const zip = wizardData.location?.zip || userZip || '';
-    const response = await fetch(`${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${trim ? `&trim=${encodeURIComponent(trim)}` : ''}&zip=${zip}&radius=100&rows=1`);
+    // Search for matching vehicle with the user's exact selection
+    const zip = wizardData.location?.zip || '';
+    const trimParam = trim ? `&trim=${encodeURIComponent(trim)}` : '';
+
+    const response = await fetch(`${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${trimParam}&zip=${zip}&radius=100&rows=1`);
 
     if (!response.ok) {
       throw new Error('Failed to search for vehicle');
@@ -557,35 +577,59 @@ async function checkAndShowPreview() {
 
     if (data.listings && data.listings.length > 0) {
       const vehicle = data.listings[0];
-      vehicle.condition = condition; // Add the selected condition
+      // Auto-detect condition based on year
+      const currentYear = new Date().getFullYear();
+      vehicle.condition = parseInt(year) >= currentYear ? 'New' : 'Used';
       displayManualVehiclePreview(vehicle);
     } else {
-      // No exact match found - show a generic preview
-      displayManualVehiclePreview({
-        year,
-        make,
-        model,
-        trim,
-        condition,
-        vin: null,
-        photo_url: null,
-        asking_price: null
-      });
+      // No listings found - show informative message
+      console.log('[manual-preview] No active listings found for this vehicle');
+      displayNoListingsMessage(year, make, model, trim);
     }
   } catch (error) {
     console.error('[manual-preview] Error:', error);
-    // Show generic preview even on error
-    displayManualVehiclePreview({
-      year,
-      make,
-      model,
-      trim,
-      condition,
-      vin: null,
-      photo_url: null,
-      asking_price: null
-    });
+    displayNoListingsMessage(year, make, model, trim);
   }
+}
+
+/**
+ * Display message when no listings are found
+ */
+function displayNoListingsMessage(year, make, model, trim) {
+  const previewSection = document.getElementById('manual-vehicle-preview');
+  const previewCard = document.getElementById('manual-vehicle-preview-card');
+
+  const trimText = trim ? ` - ${capitalizeWords(trim)}` : '';
+  const vehicleText = `${year} ${capitalizeWords(make)} ${capitalizeWords(model)}${trimText}`;
+
+  previewCard.innerHTML = `
+    <div class="no-listings-message">
+      <div class="no-listings-message__icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+      <div class="no-listings-message__content">
+        <div class="no-listings-message__title">No Active Listings Found</div>
+        <div class="no-listings-message__text">
+          We couldn't find any active listings for <strong>${vehicleText}</strong> in your area.
+          <br><br>
+          This might mean:
+          <ul>
+            <li>This specific trim/configuration is rare in your local market</li>
+            <li>Try selecting a different trim or broadening your search</li>
+            <li>Or proceed anyway to get financing estimates based on your manual entry</li>
+          </ul>
+        </div>
+        <button onclick="document.getElementById('manual-vehicle-preview').style.display='none'; document.getElementById('trim-input').value=''; document.getElementById('trim-input').focus();" class="no-listings-message__button">
+          Try Different Trim
+        </button>
+      </div>
+    </div>
+  `;
+
+  previewSection.style.display = 'block';
+  console.log('[manual-preview] Displayed no listings message');
 }
 
 /**
@@ -642,25 +686,32 @@ function displayManualVehiclePreview(vehicle) {
             <span class="value">${vehicle.condition}</span>
           </div>
         ` : ''}
+        ${vehicle.mileage ? `
+          <div class="manual-preview__info">
+            <span class="label">Mileage:</span>
+            <span class="value">${formatMileage(vehicle.mileage)} mi</span>
+          </div>
+        ` : ''}
         ${vehicle.asking_price ? `
           <div class="manual-preview__info">
-            <span class="label">Est. Price:</span>
+            <span class="label">Asking Price:</span>
             <span class="value">${formatCurrency(vehicle.asking_price)}</span>
           </div>
         ` : ''}
+        ${vehicle.vin ? `
+          <div class="manual-preview__info">
+            <span class="label">VIN:</span>
+            <span class="value vin-value">${formatVIN(vehicle.vin)}</span>
+          </div>
+        ` : ''}
         ${vehicle.listing_url ? `
-          <div class="manual-preview__action">
+          <a href="${vehicle.listing_url}" target="_blank" class="manual-preview__link-button">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
             </svg>
-            Click to view listing and research further
-          </div>
-        ` : `
-          <div class="manual-preview__note">
-            No active listings found. Proceed to get financing estimates.
-          </div>
-        `}
-      </div>
+            View Full Listing & Photos on Dealer Website
+          </a>
+        ` : ''}
     </div>
   `;
 
@@ -679,8 +730,6 @@ function displayManualVehiclePreview(vehicle) {
  */
 async function populateMakes(year) {
   const makeSelect = document.getElementById('make-input');
-  const modelSelect = document.getElementById('model-input');
-  const trimSelect = document.getElementById('trim-input');
 
   try {
     makeSelect.innerHTML = '<option value="">Loading...</option>';
@@ -714,12 +763,6 @@ async function populateMakes(year) {
 
     makeSelect.disabled = false;
 
-    // Reset downstream dropdowns
-    modelSelect.innerHTML = '<option value="">Select Make First</option>';
-    modelSelect.disabled = true;
-    trimSelect.innerHTML = '<option value="">Select Model First</option>';
-    trimSelect.disabled = true;
-
     console.log('[cascading-dropdowns] Populated', makes.length, 'makes for year', year);
   } catch (error) {
     console.error('[cascading-dropdowns] Error fetching makes:', error);
@@ -733,7 +776,6 @@ async function populateMakes(year) {
  */
 async function populateModels(year, make) {
   const modelSelect = document.getElementById('model-input');
-  const trimSelect = document.getElementById('trim-input');
 
   try {
     modelSelect.innerHTML = '<option value="">Loading...</option>';
@@ -767,10 +809,6 @@ async function populateModels(year, make) {
 
     modelSelect.disabled = false;
 
-    // Reset trim dropdown
-    trimSelect.innerHTML = '<option value="">Select Model First</option>';
-    trimSelect.disabled = true;
-
     console.log('[cascading-dropdowns] Populated', models.length, 'models for', year, make);
   } catch (error) {
     console.error('[cascading-dropdowns] Error fetching models:', error);
@@ -803,25 +841,67 @@ async function populateTrims(year, make, model) {
     const data = await response.json();
     const trims = data.trims || [];
 
+    if (trims.length === 0) {
+      trimSelect.innerHTML = '<option value="">No trims available</option>';
+      trimSelect.disabled = false;
+      console.log('[cascading-dropdowns] No trims found for', year, make, model);
+      return;
+    }
+
     // Sort trims alphabetically
     trims.sort((a, b) => a.localeCompare(b));
 
-    // Populate dropdown
+    // Validate each trim by checking if it actually has listings
+    console.log('[cascading-dropdowns] Validating', trims.length, 'trims for availability...');
+    const validTrims = [];
+
+    // We'll validate trims in batches for better performance
+    for (const trim of trims) {
+      try {
+        const searchResponse = await fetch(
+          `${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&trim=${encodeURIComponent(trim)}&zip=${zip}&radius=100&rows=1`
+        );
+
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.listings && searchData.listings.length > 0) {
+            // Verify the trim actually matches (case-insensitive)
+            const listing = searchData.listings[0];
+            const listingTrim = listing.trim || listing.build?.trim || '';
+            if (listingTrim.toLowerCase() === trim.toLowerCase()) {
+              validTrims.push(trim);
+              console.log(`[cascading-dropdowns] ✓ Trim "${trim}" has listings`);
+            } else {
+              console.log(`[cascading-dropdowns] ✗ Trim "${trim}" - no exact match (found "${listingTrim}")`);
+            }
+          } else {
+            console.log(`[cascading-dropdowns] ✗ Trim "${trim}" - no listings found`);
+          }
+        }
+      } catch (err) {
+        console.warn(`[cascading-dropdowns] Error validating trim "${trim}":`, err.message);
+      }
+    }
+
+    // Populate dropdown with only validated trims
     trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
-    trims.forEach(trim => {
-      const option = document.createElement('option');
-      option.value = trim;
-      option.textContent = capitalizeWords(trim);
-      trimSelect.appendChild(option);
-    });
+
+    if (validTrims.length > 0) {
+      validTrims.forEach(trim => {
+        const option = document.createElement('option');
+        option.value = trim;
+        option.textContent = capitalizeWords(trim);
+        trimSelect.appendChild(option);
+      });
+      console.log(`[cascading-dropdowns] Populated ${validTrims.length} validated trims (out of ${trims.length} total)`);
+    } else {
+      // No valid trims, but don't disable - user can still search without trim
+      console.log('[cascading-dropdowns] No valid trims with listings - trim selection optional');
+    }
 
     trimSelect.disabled = false;
-
-    console.log('[cascading-dropdowns] Populated', trims.length, 'trims for', year, make, model);
   } catch (error) {
     console.error('[cascading-dropdowns] Error fetching trims:', error);
-    trimSelect.innerHTML = '<option value="">Error loading trims</option>';
-    // Don't alert for trims since they're optional
     trimSelect.innerHTML = '<option value="">No trims available</option>';
   }
 }
@@ -1005,13 +1085,15 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     return;
   }
 
-  // Check if user has entered location
+  // Check if user has entered location (required for distance calculations and Smart Offer)
   const userZip = wizardData.location?.zip;
   if (!userZip) {
-    alert('Please enter your location first to find nearby vehicles');
+    alert('Please enter your location first.\n\nYour location is needed to:\n• Calculate distance from dealer\n• Find similar vehicles nearby\n• Generate Smart Offer pricing');
     document.getElementById('user-location').focus();
     return;
   }
+
+  console.log('[search-vehicle] Searching for VIN:', vin, 'from zip:', userZip);
 
   loading.style.display = 'block';
   vinInput.disabled = true;
@@ -1040,7 +1122,7 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
       model: vehicleDetails.model,
       zip: userZip,
       radius: 100,
-      rows: 50  // Get more results to enable trim prioritization
+      rows: 50
     });
 
     const searchResponse = await fetch(`${API_BASE}/api/mc/search?${searchParams}`);
@@ -1051,7 +1133,7 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     // 3. Calculate Smart Offer for display in "Your Vehicle" card
     const smartOfferData = calculateQuickSmartOffer(allSimilarVehicles, vehicleDetails);
 
-    // 4. Display the user's vehicle prominently with Smart Offer
+    // 4. Display the user's vehicle with Smart Offer
     displayYourVehicle(vehicleDetails, smartOfferData);
 
     // 5. Prioritize vehicles by trim match quality
@@ -1063,7 +1145,11 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
       similarSection.style.display = 'block';
     } else {
       // No similar vehicles found - auto-select this vehicle
-      selectVehicleFromVIN(vehicleDetails);
+      selectedVehicle = {
+        ...vehicleDetails,
+        condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'New' : 'Used')
+      };
+      hideManualEntry();
     }
 
   } catch (error) {
@@ -1086,7 +1172,11 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
 
 /**
  * Calculate a quick Smart Offer from similar vehicles data
- * CRITICAL: Smart Offer must ALWAYS be lower than the asking price
+ * CRITICAL: Smart Offer logic based on market position:
+ * - If vehicle is already cheapest or near-cheapest: minimal discount ($500)
+ * - If vehicle is below average: small discount (3-5%)
+ * - If vehicle is above average: reasonable discount (8-12%)
+ * - INCLUDES saved vehicles from database in comparison
  */
 function calculateQuickSmartOffer(similarVehicles, vehicle) {
   // Must have an asking price on the user's vehicle
@@ -1094,8 +1184,21 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
     return null;
   }
 
-  // Filter vehicles with prices
-  const vehiclesWithPrices = similarVehicles.filter(v => v.asking_price && v.asking_price > 0);
+  // IMPORTANT: Include saved vehicles in the comparison
+  // Filter saved vehicles that match year/make/model
+  const matchingSavedVehicles = savedVehicles.filter(sv =>
+    sv.year === vehicle.year &&
+    sv.make?.toLowerCase() === vehicle.make?.toLowerCase() &&
+    sv.model?.toLowerCase() === vehicle.model?.toLowerCase() &&
+    sv.asking_price && sv.asking_price > 0 &&
+    sv.vin !== vehicle.vin // Don't compare vehicle to itself
+  );
+
+  console.log('[smart-offer] Found', matchingSavedVehicles.length, 'matching saved vehicles');
+
+  // Combine MarketCheck results with saved vehicles
+  const allVehicles = [...similarVehicles, ...matchingSavedVehicles];
+  const vehiclesWithPrices = allVehicles.filter(v => v.asking_price && v.asking_price > 0);
 
   if (vehiclesWithPrices.length < 3) {
     return null; // Not enough data
@@ -1115,35 +1218,125 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
     filteredVehicles = vehiclesWithPrices;
   }
 
+  // Check for significantly cheaper saved vehicles (same trim, $5k+ cheaper)
+  let cheaperSavedVehicle = null;
+  if (vehicle.trim) {
+    const sameTrimSaved = matchingSavedVehicles.filter(sv =>
+      sv.trim?.toLowerCase() === vehicle.trim.toLowerCase() &&
+      sv.asking_price < vehicle.asking_price - 5000 // At least $5k cheaper
+    );
+
+    if (sameTrimSaved.length > 0) {
+      // Find the cheapest one
+      cheaperSavedVehicle = sameTrimSaved.reduce((cheapest, current) =>
+        current.asking_price < cheapest.asking_price ? current : cheapest
+      );
+      console.log('[smart-offer] WARNING: Found cheaper saved vehicle:', {
+        vin: cheaperSavedVehicle.vin,
+        price: cheaperSavedVehicle.asking_price,
+        difference: vehicle.asking_price - cheaperSavedVehicle.asking_price
+      });
+    }
+  }
+
   // Calculate market statistics
   const prices = filteredVehicles.map(v => v.asking_price).sort((a, b) => a - b);
   const average = prices.reduce((sum, p) => sum + p, 0) / prices.length;
+  const lowestPrice = prices[0];
+  const highestPrice = prices[prices.length - 1];
+  const priceRange = highestPrice - lowestPrice;
 
-  // Smart Offer logic: 10-15% below the LOWER of (user's price OR market average)
-  const basePrice = Math.min(vehicle.asking_price, average);
-  const discountPercent = 0.125; // 12.5% discount
-  let smartOffer = Math.round((basePrice * (1 - discountPercent)) / 500) * 500;
+  // Determine vehicle's market position
+  const percentileInMarket = priceRange > 0 ? (vehicle.asking_price - lowestPrice) / priceRange : 0.5;
+  const vsAverage = vehicle.asking_price / average;
 
-  // CRITICAL: Smart Offer must NEVER exceed the user's asking price
-  const maxOffer = vehicle.asking_price - 500; // At least $500 below asking
-  smartOffer = Math.min(smartOffer, maxOffer);
+  let smartOffer;
+  let message = '';
+  let pricePosition = '';
 
-  // Ensure it's reasonable (at least 5% below asking price)
-  const minDiscount = vehicle.asking_price * 0.95;
-  smartOffer = Math.min(smartOffer, minDiscount);
+  // CASE 1: Vehicle is already the cheapest or within 5% of lowest price
+  if (vehicle.asking_price <= lowestPrice * 1.05) {
+    smartOffer = vehicle.asking_price - 500; // Only $500 discount
+    message = 'Already at a great price!';
+    pricePosition = 'lowest';
+    console.log('[smart-offer] Vehicle is at/near lowest price - minimal discount');
+  }
+  // CASE 2: Vehicle is below market average (good deal already)
+  else if (vsAverage < 0.95) {
+    // 3-5% discount for below-average prices
+    const discountPercent = 0.04;
+    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = 'Priced below market average';
+    pricePosition = 'below-average';
+    console.log('[smart-offer] Vehicle below average - small discount:', discountPercent * 100 + '%');
+  }
+  // CASE 3: Vehicle is near market average (±5%)
+  else if (vsAverage >= 0.95 && vsAverage <= 1.05) {
+    // 8% discount for average-priced vehicles
+    const discountPercent = 0.08;
+    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = 'Priced at market average';
+    pricePosition = 'average';
+    console.log('[smart-offer] Vehicle at average - moderate discount:', discountPercent * 100 + '%');
+  }
+  // CASE 4: Vehicle is above market average (room for negotiation)
+  else {
+    // 10-12% discount for above-average prices
+    const discountPercent = vsAverage > 1.15 ? 0.12 : 0.10;
+    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = 'Priced above market average';
+    pricePosition = 'above-average';
+    console.log('[smart-offer] Vehicle above average - larger discount:', discountPercent * 100 + '%');
+  }
+
+  // CRITICAL: Override market position if cheaper saved vehicle exists
+  let priceDiff = 0;
+  if (cheaperSavedVehicle) {
+    priceDiff = vehicle.asking_price - cheaperSavedVehicle.asking_price;
+    message = `Appears ${formatCurrency(priceDiff)} higher than similar vehicle`;
+    pricePosition = 'overpriced-vs-saved';
+  }
+
+  // Safety check: Smart Offer must be at least $500 below asking
+  const minimumOffer = vehicle.asking_price - 500;
+  smartOffer = Math.min(smartOffer, minimumOffer);
 
   console.log('[smart-offer] Calculation:', {
     userAskingPrice: vehicle.asking_price,
     marketAverage: Math.round(average),
-    basePrice,
+    lowestPrice,
+    highestPrice,
+    vsAverage: (vsAverage * 100).toFixed(1) + '%',
+    pricePosition,
     calculatedOffer: smartOffer,
-    discount: vehicle.asking_price - smartOffer
+    discount: vehicle.asking_price - smartOffer,
+    discountPercent: ((vehicle.asking_price - smartOffer) / vehicle.asking_price * 100).toFixed(1) + '%',
+    cheaperSavedVehicle: cheaperSavedVehicle ? {
+      vin: cheaperSavedVehicle.vin,
+      price: cheaperSavedVehicle.asking_price,
+      difference: priceDiff
+    } : null
   });
 
   return {
     offer: smartOffer,
     average: Math.round(average),
-    count: filteredVehicles.length
+    count: filteredVehicles.length,
+    message,
+    pricePosition,
+    lowestPrice,
+    highestPrice,
+    cheaperSavedVehicle: cheaperSavedVehicle ? {
+      vin: cheaperSavedVehicle.vin,
+      year: cheaperSavedVehicle.year,
+      make: cheaperSavedVehicle.make,
+      model: cheaperSavedVehicle.model,
+      trim: cheaperSavedVehicle.trim,
+      asking_price: cheaperSavedVehicle.asking_price,
+      mileage: cheaperSavedVehicle.mileage,
+      photo_url: cheaperSavedVehicle.photo_url,
+      priceDifference: priceDiff
+    } : null
   };
 }
 
@@ -1195,6 +1388,27 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
   // Build compact vehicle details line: "Year Make Model - Trim"
   const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
 
+  // Warning about cheaper saved vehicle
+  const cheaperVehicleWarning = smartOfferData?.cheaperSavedVehicle ? `
+    <div class="cheaper-vehicle-warning">
+      <div class="cheaper-vehicle-warning__icon">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+        </svg>
+      </div>
+      <div class="cheaper-vehicle-warning__content">
+        <div class="cheaper-vehicle-warning__title">Similar Vehicle Found for Less</div>
+        <div class="cheaper-vehicle-warning__details">
+          You previously viewed a ${smartOfferData.cheaperSavedVehicle.year} ${capitalizeWords(smartOfferData.cheaperSavedVehicle.make)} ${capitalizeWords(smartOfferData.cheaperSavedVehicle.model)} ${smartOfferData.cheaperSavedVehicle.trim ? '- ' + capitalizeWords(smartOfferData.cheaperSavedVehicle.trim) : ''} for <strong>${formatCurrency(smartOfferData.cheaperSavedVehicle.asking_price)}</strong>
+          (${formatCurrency(smartOfferData.cheaperSavedVehicle.priceDifference)} less).
+          <a href="#" class="cheaper-vehicle-link" onclick="event.preventDefault(); document.getElementById('vin-input').value='${smartOfferData.cheaperSavedVehicle.vin}'; searchVehicleByVIN('${smartOfferData.cheaperSavedVehicle.vin}');">
+            View that vehicle
+          </a>
+        </div>
+      </div>
+    </div>
+  ` : '';
+
   const smartOfferHtml = smartOfferData ? `
     <div class="your-vehicle-card__smart-offer">
       <div class="your-vehicle-card__smart-offer-badge">
@@ -1205,7 +1419,8 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
         <span>Smart Offer</span>
       </div>
       <div class="your-vehicle-card__smart-offer-value">${formatCurrency(smartOfferData.offer)}</div>
-      <div class="your-vehicle-card__smart-offer-text">Based on ${smartOfferData.count} similar vehicles</div>
+      <div class="your-vehicle-card__smart-offer-text">${smartOfferData.message || 'Based on ' + smartOfferData.count + ' similar vehicles'}</div>
+      ${cheaperVehicleWarning}
     </div>
   ` : '';
 
@@ -1491,8 +1706,14 @@ async function selectVehicleFromSearch(vehicle) {
 
 /**
  * Show selected vehicle display
+ * DEPRECATED: This function is no longer used. displayYourVehicle() handles all vehicle display.
  */
 function showSelectedVehicle() {
+  // This function has been disabled - displayYourVehicle() is now used for all vehicle display
+  console.log('[showSelectedVehicle] Function deprecated - use displayYourVehicle() instead');
+  return;
+
+  /* COMMENTED OUT - REDUNDANT CODE
   const display = document.getElementById('selected-vehicle-display');
   const content = document.getElementById('selected-vehicle-content');
 
@@ -1552,6 +1773,7 @@ function showSelectedVehicle() {
   display.style.display = 'block';
   document.getElementById('similar-vehicles-section').style.display = 'none';
   document.getElementById('vin-input').value = '';
+  */
 }
 
 /**
@@ -1559,7 +1781,8 @@ function showSelectedVehicle() {
  */
 function clearSelectedVehicle() {
   selectedVehicle = null;
-  document.getElementById('selected-vehicle-display').style.display = 'none';
+  // Hide your-vehicle-section instead of deprecated selected-vehicle-display
+  document.getElementById('your-vehicle-section').style.display = 'none';
   document.getElementById('smart-offer-display').style.display = 'none';
   document.getElementById('similar-vehicles-section').style.display = 'none';
   document.getElementById('manual-entry-fields').style.display = 'block';
@@ -2178,23 +2401,66 @@ function hideManualEntry() {
 }
 
 /**
- * Populate year dropdowns
+ * Populate year dropdowns based on user's location
  */
-function populateYearDropdowns() {
-  const currentYear = new Date().getFullYear();
-  const yearSelects = ['year-input', 'tradein-year'];
+async function populateYearDropdowns() {
+  const yearSelect = document.getElementById('year-input');
+  if (!yearSelect) return;
 
-  yearSelects.forEach(selectId => {
-    const select = document.getElementById(selectId);
-    if (!select) return;
+  try {
+    // Get user's zip code
+    const zip = wizardData.location?.zip || '';
 
-    for (let year = currentYear + 1; year >= 1990; year--) {
+    if (!zip) {
+      console.log('[year-dropdown] No location set, cannot populate years');
+      yearSelect.innerHTML = '<option value="">Enter location first</option>';
+      yearSelect.disabled = true;
+      return;
+    }
+
+    yearSelect.innerHTML = '<option value="">Loading years...</option>';
+    yearSelect.disabled = true;
+
+    // Fetch available years from API
+    const response = await fetch(`${API_BASE}/api/mc/years?zip=${zip}`);
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch years');
+    }
+
+    const data = await response.json();
+    const years = data.years || [];
+
+    // Populate dropdown with available years
+    yearSelect.innerHTML = '<option value="">Select Year</option>';
+    years.forEach(year => {
       const option = document.createElement('option');
       option.value = year;
       option.textContent = year;
-      select.appendChild(option);
+      yearSelect.appendChild(option);
+    });
+
+    yearSelect.disabled = false;
+
+    console.log('[year-dropdown] Populated', years.length, 'available years for zip', zip);
+  } catch (error) {
+    console.error('[year-dropdown] Error fetching years:', error);
+    yearSelect.innerHTML = '<option value="">Error loading years</option>';
+    alert('Failed to load available years. Please check your location and try again.');
+  }
+
+  // Also populate trade-in year dropdown (no location filter needed for trade-ins)
+  const tradeinYearSelect = document.getElementById('tradein-year');
+  if (tradeinYearSelect) {
+    const currentYear = new Date().getFullYear();
+    tradeinYearSelect.innerHTML = '<option value="">Select Year</option>';
+    for (let year = currentYear; year >= 1990; year--) {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      tradeinYearSelect.appendChild(option);
     }
-  });
+  }
 }
 
 /**
@@ -2319,10 +2585,10 @@ function validateStep(step) {
         }
       }
 
-      // Check location
+      // Check location (required for distance calculations and Smart Offer)
       if (!wizardData.location?.zip) {
         isValid = false;
-        errorMessage = 'Please enter your location';
+        errorMessage = 'Please enter your location to calculate distance from dealer';
       }
       break;
 
