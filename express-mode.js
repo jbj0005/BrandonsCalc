@@ -17,7 +17,7 @@ const wizardData = {
 
 // Supabase client
 let supabase = null;
-let currentUser = null;
+let currentUserId = null;
 
 // Saved vehicles cache
 let savedVehicles = [];
@@ -61,11 +61,21 @@ async function initializeSupabase() {
     const { createClient } = supabase;
     supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if user is signed in
-    const { data: { user } } = await supabase.auth.getUser();
-    currentUser = user;
+    // Get current session
+    const { data: { session } } = await supabase.auth.getSession();
+    currentUserId = session?.user?.id ?? null;
 
-    console.log('Supabase initialized. User:', currentUser ? currentUser.email : 'Anonymous');
+    // Listen for auth state changes
+    supabase.auth.onAuthStateChange((_event, session) => {
+      const newUserId = session?.user?.id ?? null;
+      if (newUserId !== currentUserId) {
+        currentUserId = newUserId;
+        console.log('[auth] User changed:', currentUserId ? 'signed in' : 'signed out');
+        loadSavedVehicles();
+      }
+    });
+
+    console.log('[express-mode] Supabase initialized. User ID:', currentUserId || 'Anonymous');
   } catch (error) {
     console.error('Error initializing Supabase:', error);
   }
@@ -190,27 +200,58 @@ function setupLocationInput() {
  */
 async function loadSavedVehicles() {
   try {
-    if (!supabase || !currentUser) {
-      console.log('No user signed in, skipping saved vehicles');
+    if (!supabase) {
+      console.log('[vehicles] Supabase not initialized');
       return;
     }
 
-    // Query vehicles table (adjust table name and fields as needed)
+    if (!currentUserId) {
+      console.log('[vehicles] No user signed in, skipping saved vehicles');
+      savedVehicles = [];
+      return;
+    }
+
+    console.log('[vehicles] Loading saved vehicles for user:', currentUserId);
+
+    // Query vehicles table with specific columns
     const { data, error } = await supabase
       .from('vehicles')
-      .select('*')
-      .eq('user_id', currentUser.id)
+      .select(`
+        id,
+        user_id,
+        vin,
+        year,
+        make,
+        model,
+        trim,
+        mileage,
+        condition,
+        heading,
+        asking_price,
+        photo_url,
+        created_at,
+        inserted_at
+      `)
+      .eq('user_id', currentUserId)
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error loading saved vehicles:', error);
+      console.error('[vehicles] Error loading saved vehicles:', error);
+      savedVehicles = [];
       return;
     }
 
     savedVehicles = data || [];
-    console.log(`Loaded ${savedVehicles.length} saved vehicles`);
+    console.log(`[vehicles] Loaded ${savedVehicles.length} saved vehicles`);
+    console.log('[vehicles] First 3 vehicles:', savedVehicles.slice(0, 3).map(v => ({
+      vin: v.vin,
+      year: v.year,
+      make: v.make,
+      model: v.model
+    })));
   } catch (error) {
-    console.error('Error loading saved vehicles:', error);
+    console.error('[vehicles] Error loading saved vehicles:', error);
+    savedVehicles = [];
   }
 }
 
@@ -269,13 +310,16 @@ function showSavedVehiclesDropdown() {
   const dropdown = document.getElementById('saved-vehicles-dropdown');
   dropdown.innerHTML = '';
 
+  console.log('[dropdown] Showing saved vehicles dropdown, count:', savedVehicles.length);
+
   if (savedVehicles.length === 0) {
     dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
     dropdown.style.display = 'block';
     return;
   }
 
-  savedVehicles.forEach(vehicle => {
+  savedVehicles.forEach((vehicle, index) => {
+    console.log(`[dropdown] Adding vehicle ${index + 1}:`, vehicle.vin, vehicle.year, vehicle.make, vehicle.model);
     const item = document.createElement('div');
     item.className = 'saved-vehicle-item';
     item.innerHTML = `
@@ -288,6 +332,7 @@ function showSavedVehiclesDropdown() {
   });
 
   dropdown.style.display = 'block';
+  console.log('[dropdown] Dropdown displayed with', dropdown.children.length, 'items');
 }
 
 /**
