@@ -1225,51 +1225,72 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
   similarSection.style.display = 'none';
 
   try {
-    // 1. Get vehicle details by VIN
-    const vinResponse = await fetch(`${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`);
+    let vehicleDetails = null;
+    let allSimilarVehicles = [];
 
-    if (!vinResponse.ok) {
+    // 1. Try to get vehicle details by VIN from MarketCheck
+    try {
+      const vinResponse = await fetch(`${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`);
+
+      if (vinResponse.ok) {
+        const vinData = await vinResponse.json();
+        if (vinData.ok && vinData.payload) {
+          vehicleDetails = vinData.payload;
+        }
+      }
+    } catch (mcError) {
+      console.log('[search-vehicle] MarketCheck VIN lookup failed:', mcError.message);
+    }
+
+    // 2. If MarketCheck failed and we have saved vehicle data, use it
+    if (!vehicleDetails && savedVehicle) {
+      console.log('[search-vehicle] Using saved vehicle data (MarketCheck unavailable)');
+      vehicleDetails = savedVehicle;
+    }
+
+    // If we still don't have vehicle details, throw error
+    if (!vehicleDetails) {
       throw new Error('VIN not found');
     }
 
-    const vinData = await vinResponse.json();
+    // 3. Try to search for similar vehicles from MarketCheck
+    try {
+      const searchParams = new URLSearchParams({
+        year: vehicleDetails.year,
+        make: vehicleDetails.make,
+        model: vehicleDetails.model,
+        zip: userZip,
+        radius: 100,
+        rows: 50
+      });
 
-    if (!vinData.ok || !vinData.payload) {
-      throw new Error('Vehicle not found');
+      const searchResponse = await fetch(`${API_BASE}/api/mc/search?${searchParams}`);
+      if (searchResponse.ok) {
+        const searchData = await searchResponse.json();
+        allSimilarVehicles = searchData.listings || [];
+      }
+    } catch (mcError) {
+      console.log('[search-vehicle] MarketCheck search failed:', mcError.message);
+      // Continue with empty similar vehicles array
     }
 
-    const vehicleDetails = vinData.payload;
-
-    // 2. Search for similar vehicles
-    const searchParams = new URLSearchParams({
-      year: vehicleDetails.year,
-      make: vehicleDetails.make,
-      model: vehicleDetails.model,
-      zip: userZip,
-      radius: 100,
-      rows: 50
-    });
-
-    const searchResponse = await fetch(`${API_BASE}/api/mc/search?${searchParams}`);
-    const searchData = await searchResponse.json();
-
-    const allSimilarVehicles = searchData.listings || [];
-
-    // 3. Calculate Smart Offer for display in "Your Vehicle" card
+    // 4. Calculate Smart Offer for display in "Your Vehicle" card
+    // This will use saved vehicles even if MarketCheck is unavailable
     const smartOfferData = calculateQuickSmartOffer(allSimilarVehicles, vehicleDetails);
 
-    // 4. Display the user's vehicle with Smart Offer
+    // 5. Display the user's vehicle with Smart Offer
     displayYourVehicle(vehicleDetails, smartOfferData);
 
-    // 5. Prioritize vehicles by trim match quality
+    // 6. Prioritize vehicles by trim match quality
     similarVehicles = prioritizeVehiclesByTrim(allSimilarVehicles, vehicleDetails);
 
-    // 6. Display similar vehicles
+    // 7. Display similar vehicles (or auto-select if none found)
     if (similarVehicles.length > 0) {
       displaySimilarVehicles(similarVehicles, vehicleDetails);
       similarSection.style.display = 'block';
     } else {
-      // No similar vehicles found - auto-select this vehicle
+      // No similar vehicles from MarketCheck - auto-select this vehicle
+      console.log('[search-vehicle] No similar vehicles found, auto-selecting');
       selectedVehicle = {
         ...vehicleDetails,
         condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'New' : 'Used')
@@ -1280,8 +1301,8 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
   } catch (error) {
     console.error('[search-vehicle] Error:', error);
 
-    // If this was a saved vehicle that's no longer available, show the modal
-    if (savedVehicle) {
+    // If this was a saved vehicle that's no longer available and we couldn't use saved data
+    if (savedVehicle && !error.message.includes('quota')) {
       console.log('[search-vehicle] Saved vehicle not found in MarketCheck:', savedVehicle.vin);
       showUnavailableVehicleModal(savedVehicle);
     } else {
