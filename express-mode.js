@@ -512,7 +512,7 @@ function displaySimilarVehicles(vehicles, originalVehicle) {
 /**
  * Select a vehicle from the similar vehicles grid
  */
-function selectVehicleCard(index) {
+async function selectVehicleCard(index) {
   const vehicle = similarVehicles[index];
 
   document.querySelectorAll('.vehicle-card').forEach(card => {
@@ -521,7 +521,7 @@ function selectVehicleCard(index) {
 
   document.querySelector(`.vehicle-card[data-index="${index}"]`).classList.add('selected');
 
-  selectVehicleFromSearch(vehicle);
+  await selectVehicleFromSearch(vehicle);
 }
 
 /**
@@ -544,18 +544,90 @@ function selectVehicleFromVIN(vehicleDetails) {
 /**
  * Select vehicle from search results
  */
-function selectVehicleFromSearch(vehicle) {
-  selectedVehicle = {
-    vin: vehicle.vin,
-    year: vehicle.year,
-    make: vehicle.make,
-    model: vehicle.model,
-    trim: vehicle.trim,
-    mileage: vehicle.mileage
-  };
+/**
+ * Select vehicle from search and save to Supabase
+ */
+async function selectVehicleFromSearch(vehicle) {
+  try {
+    console.log('[vehicle-select] Selected vehicle:', vehicle);
 
-  showSelectedVehicle();
-  hideManualEntry();
+    // Store full vehicle data
+    selectedVehicle = {
+      vin: vehicle.vin,
+      year: vehicle.year,
+      make: vehicle.make,
+      model: vehicle.model,
+      trim: vehicle.trim || '',
+      mileage: vehicle.mileage || 0,
+      condition: vehicle.condition || 'Used',
+      heading: vehicle.heading || `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+      asking_price: vehicle.asking_price || null,
+      dealer_name: vehicle.dealer_name || null,
+      dealer_street: vehicle.dealer_street || null,
+      dealer_city: vehicle.dealer_city || null,
+      dealer_state: vehicle.dealer_state || null,
+      dealer_zip: vehicle.dealer_zip || null,
+      dealer_phone: vehicle.dealer_phone || null,
+      dealer_lat: vehicle.dealer_lat || null,
+      dealer_lng: vehicle.dealer_lng || null,
+      listing_id: vehicle.listing_id || null,
+      listing_source: 'marketcheck',
+      listing_url: vehicle.listing_url || null,
+      photo_url: vehicle.photo_url || null
+    };
+
+    // Save to Supabase if user is signed in
+    if (supabase && currentUserId) {
+      console.log('[vehicle-select] Saving to Supabase...');
+
+      // Check if vehicle already exists
+      const { data: existingVehicles } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('user_id', currentUserId)
+        .eq('vin', selectedVehicle.vin)
+        .limit(1);
+
+      if (!existingVehicles || existingVehicles.length === 0) {
+        // Insert new vehicle
+        const { data, error } = await supabase
+          .from('vehicles')
+          .insert([{
+            user_id: currentUserId,
+            ...selectedVehicle
+          }])
+          .select();
+
+        if (error) {
+          console.error('[vehicle-select] Error saving vehicle:', error);
+        } else {
+          console.log('[vehicle-select] Vehicle saved successfully:', data);
+          // Reload saved vehicles to update the dropdown
+          await loadSavedVehicles();
+        }
+      } else {
+        console.log('[vehicle-select] Vehicle already exists in database');
+      }
+    }
+
+    // Auto-populate Sale Price field
+    if (selectedVehicle.asking_price) {
+      const salePriceInput = document.getElementById('sale-price');
+      if (salePriceInput) {
+        salePriceInput.value = selectedVehicle.asking_price;
+        wizardData.financing.salePrice = selectedVehicle.asking_price;
+        console.log('[vehicle-select] Auto-populated Sale Price:', selectedVehicle.asking_price);
+      }
+    }
+
+    showSelectedVehicle();
+    hideManualEntry();
+  } catch (error) {
+    console.error('[vehicle-select] Error selecting vehicle:', error);
+    // Still show the vehicle even if save failed
+    showSelectedVehicle();
+    hideManualEntry();
+  }
 }
 
 /**

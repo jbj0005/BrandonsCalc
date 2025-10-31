@@ -698,8 +698,8 @@ body {
 
 .vehicle-card__image {
   width: 100%;
-  height: 150px;
-  object-fit: cover;
+  height: 220px;
+  object-fit: contain;
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-sm);
   background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
