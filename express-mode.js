@@ -161,6 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupCascadingDropdowns();
   setupLocationInput();
   setupFormValidation();
+  setupEnterKeyNavigation();
   setupInputFormatting();
   setupVehiclePriceFormulas();
   await loadSavedVehicles();
@@ -2669,6 +2670,62 @@ async function populateYearDropdowns() {
  */
 function setupFormValidation() {
   // Add real-time validation as needed
+}
+
+/**
+ * Setup Enter key to move to next field
+ */
+function setupEnterKeyNavigation() {
+  // Get all form inputs and selects in the wizard
+  const form = document.querySelector('.wizard-form');
+  if (!form) return;
+
+  form.addEventListener('keydown', (e) => {
+    // Only handle Enter key
+    if (e.key !== 'Enter') return;
+
+    const target = e.target;
+
+    // Don't interfere with buttons or textareas
+    if (target.tagName === 'BUTTON' || target.tagName === 'TEXTAREA') return;
+
+    // Only handle inputs and selects
+    if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT') return;
+
+    e.preventDefault();
+
+    // Get all focusable elements in the current wizard step
+    const currentStep = document.querySelector('.wizard-step.active');
+    if (!currentStep) return;
+
+    const focusableElements = currentStep.querySelectorAll(
+      'input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])'
+    );
+
+    const focusableArray = Array.from(focusableElements);
+    const currentIndex = focusableArray.indexOf(target);
+
+    // Move to next focusable element
+    if (currentIndex > -1 && currentIndex < focusableArray.length - 1) {
+      const nextElement = focusableArray[currentIndex + 1];
+      nextElement.focus();
+
+      // If it's a select, open it
+      if (nextElement.tagName === 'SELECT') {
+        // Trigger click to open dropdown (works in most browsers)
+        nextElement.click();
+      }
+
+      console.log('[enter-nav] Moved focus from', target.id, 'to', nextElement.id);
+    } else {
+      // Last field in current step - try to go to next step
+      const nextButton = currentStep.querySelector('button[onclick*="wizardNext"]');
+      if (nextButton) {
+        console.log('[enter-nav] Last field reached, triggering next step');
+        nextButton.click();
+      }
+    }
+  });
 }
 
 /**
