@@ -739,7 +739,7 @@ async function populateMakes(year) {
     const zip = wizardData.location?.zip || '';
     const zipParam = zip ? `&zip=${zip}` : '';
 
-    // Query MarketCheck for makes by year
+    // Try to query MarketCheck for makes by year
     const response = await fetch(`${API_BASE}/api/mc/makes?year=${year}${zipParam}`);
 
     if (!response.ok) {
@@ -747,7 +747,23 @@ async function populateMakes(year) {
     }
 
     const data = await response.json();
-    const makes = data.makes || [];
+    let makes = data.makes || [];
+
+    // If MarketCheck returns no makes, fall back to Supabase saved vehicles
+    if (makes.length === 0) {
+      console.log('[cascading-dropdowns] No makes from MarketCheck, falling back to Supabase vehicles');
+      const makesSet = new Set();
+      savedVehicles
+        .filter(v => parseInt(v.year) === parseInt(year))
+        .forEach(v => {
+          if (v.make) makesSet.add(v.make);
+        });
+      makes = Array.from(makesSet);
+
+      if (makes.length > 0) {
+        console.log(`[cascading-dropdowns] Using ${makes.length} makes from Supabase saved vehicles`);
+      }
+    }
 
     // Sort makes alphabetically
     makes.sort((a, b) => a.localeCompare(b));
@@ -765,9 +781,34 @@ async function populateMakes(year) {
 
     console.log('[cascading-dropdowns] Populated', makes.length, 'makes for year', year);
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching makes:', error);
-    makeSelect.innerHTML = '<option value="">Error loading makes</option>';
-    alert('Failed to load vehicle makes. Please try again.');
+    console.error('[cascading-dropdowns] Error fetching makes from MarketCheck:', error);
+
+    // Fall back to Supabase saved vehicles
+    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
+    const makesSet = new Set();
+    savedVehicles
+      .filter(v => parseInt(v.year) === parseInt(year))
+      .forEach(v => {
+        if (v.make) makesSet.add(v.make);
+      });
+    const makes = Array.from(makesSet).sort((a, b) => a.localeCompare(b));
+
+    makeSelect.innerHTML = '<option value="">Select Make</option>';
+    makes.forEach(make => {
+      const option = document.createElement('option');
+      option.value = make;
+      option.textContent = capitalizeWords(make);
+      makeSelect.appendChild(option);
+    });
+
+    makeSelect.disabled = false;
+
+    if (makes.length > 0) {
+      console.log(`[cascading-dropdowns] Using ${makes.length} makes from Supabase (MarketCheck unavailable)`);
+    } else {
+      makeSelect.innerHTML = '<option value="">No makes available</option>';
+      console.log('[cascading-dropdowns] No makes available for year', year);
+    }
   }
 }
 
@@ -785,7 +826,7 @@ async function populateModels(year, make) {
     const zip = wizardData.location?.zip || '';
     const zipParam = zip ? `&zip=${zip}` : '';
 
-    // Query MarketCheck for models
+    // Try to query MarketCheck for models
     const response = await fetch(`${API_BASE}/api/mc/models?year=${year}&make=${encodeURIComponent(make)}${zipParam}`);
 
     if (!response.ok) {
@@ -793,7 +834,23 @@ async function populateModels(year, make) {
     }
 
     const data = await response.json();
-    const models = data.models || [];
+    let models = data.models || [];
+
+    // If MarketCheck returns no models, fall back to Supabase saved vehicles
+    if (models.length === 0) {
+      console.log('[cascading-dropdowns] No models from MarketCheck, falling back to Supabase vehicles');
+      const modelsSet = new Set();
+      savedVehicles
+        .filter(v => parseInt(v.year) === parseInt(year) && v.make === make)
+        .forEach(v => {
+          if (v.model) modelsSet.add(v.model);
+        });
+      models = Array.from(modelsSet);
+
+      if (models.length > 0) {
+        console.log(`[cascading-dropdowns] Using ${models.length} models from Supabase saved vehicles`);
+      }
+    }
 
     // Sort models alphabetically
     models.sort((a, b) => a.localeCompare(b));
@@ -811,9 +868,34 @@ async function populateModels(year, make) {
 
     console.log('[cascading-dropdowns] Populated', models.length, 'models for', year, make);
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching models:', error);
-    modelSelect.innerHTML = '<option value="">Error loading models</option>';
-    alert('Failed to load vehicle models. Please try again.');
+    console.error('[cascading-dropdowns] Error fetching models from MarketCheck:', error);
+
+    // Fall back to Supabase saved vehicles
+    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
+    const modelsSet = new Set();
+    savedVehicles
+      .filter(v => parseInt(v.year) === parseInt(year) && v.make === make)
+      .forEach(v => {
+        if (v.model) modelsSet.add(v.model);
+      });
+    const models = Array.from(modelsSet).sort((a, b) => a.localeCompare(b));
+
+    modelSelect.innerHTML = '<option value="">Select Model</option>';
+    models.forEach(model => {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = capitalizeWords(model);
+      modelSelect.appendChild(option);
+    });
+
+    modelSelect.disabled = false;
+
+    if (models.length > 0) {
+      console.log(`[cascading-dropdowns] Using ${models.length} models from Supabase (MarketCheck unavailable)`);
+    } else {
+      modelSelect.innerHTML = '<option value="">No models available</option>';
+      console.log('[cascading-dropdowns] No models available for', year, make);
+    }
   }
 }
 
@@ -831,7 +913,7 @@ async function populateTrims(year, make, model) {
     const zip = wizardData.location?.zip || '';
     const zipParam = zip ? `&zip=${zip}` : '';
 
-    // Query MarketCheck for trims
+    // Try to query MarketCheck for trims
     const response = await fetch(`${API_BASE}/api/mc/trims?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${zipParam}`);
 
     if (!response.ok) {
@@ -839,19 +921,36 @@ async function populateTrims(year, make, model) {
     }
 
     const data = await response.json();
-    const trims = data.trims || [];
+    let trims = data.trims || [];
 
     if (trims.length === 0) {
-      trimSelect.innerHTML = '<option value="">No trims available</option>';
+      // Fall back to Supabase saved vehicles
+      console.log('[cascading-dropdowns] No trims from MarketCheck, falling back to Supabase vehicles');
+      const trimsSet = new Set();
+      savedVehicles
+        .filter(v => parseInt(v.year) === parseInt(year) && v.make === make && v.model === model)
+        .forEach(v => {
+          if (v.trim) trimsSet.add(v.trim);
+        });
+      trims = Array.from(trimsSet).sort((a, b) => a.localeCompare(b));
+
+      trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+      trims.forEach(trim => {
+        const option = document.createElement('option');
+        option.value = trim;
+        option.textContent = capitalizeWords(trim);
+        trimSelect.appendChild(option);
+      });
       trimSelect.disabled = false;
-      console.log('[cascading-dropdowns] No trims found for', year, make, model);
+
+      console.log(`[cascading-dropdowns] Using ${trims.length} trims from Supabase (MarketCheck unavailable)`);
       return;
     }
 
     // Sort trims alphabetically
     trims.sort((a, b) => a.localeCompare(b));
 
-    // Validate each trim by checking if it actually has listings
+    // Validate each trim by checking if it actually has listings (only if MarketCheck is working)
     console.log('[cascading-dropdowns] Validating', trims.length, 'trims for availability...');
     const validTrims = [];
 
@@ -880,6 +979,12 @@ async function populateTrims(year, make, model) {
         }
       } catch (err) {
         console.warn(`[cascading-dropdowns] Error validating trim "${trim}":`, err.message);
+        // If validation fails due to API quota, skip validation and use all trims
+        if (err.message.includes('429')) {
+          console.log('[cascading-dropdowns] API quota exhausted, skipping trim validation');
+          validTrims.push(...trims.filter(t => !validTrims.includes(t)));
+          break;
+        }
       }
     }
 
@@ -901,8 +1006,28 @@ async function populateTrims(year, make, model) {
 
     trimSelect.disabled = false;
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching trims:', error);
-    trimSelect.innerHTML = '<option value="">No trims available</option>';
+    console.error('[cascading-dropdowns] Error fetching trims from MarketCheck:', error);
+
+    // Fall back to Supabase saved vehicles
+    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
+    const trimsSet = new Set();
+    savedVehicles
+      .filter(v => parseInt(v.year) === parseInt(year) && v.make === make && v.model === model)
+      .forEach(v => {
+        if (v.trim) trimsSet.add(v.trim);
+      });
+    const trims = Array.from(trimsSet).sort((a, b) => a.localeCompare(b));
+
+    trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
+    trims.forEach(trim => {
+      const option = document.createElement('option');
+      option.value = trim;
+      option.textContent = capitalizeWords(trim);
+      trimSelect.appendChild(option);
+    });
+    trimSelect.disabled = false;
+
+    console.log(`[cascading-dropdowns] Using ${trims.length} trims from Supabase (MarketCheck unavailable)`);
   }
 }
 
@@ -2421,7 +2546,7 @@ async function populateYearDropdowns() {
     yearSelect.innerHTML = '<option value="">Loading years...</option>';
     yearSelect.disabled = true;
 
-    // Fetch available years from API
+    // Try to fetch available years from MarketCheck API
     const response = await fetch(`${API_BASE}/api/mc/years?zip=${zip}`);
 
     if (!response.ok) {
@@ -2429,7 +2554,23 @@ async function populateYearDropdowns() {
     }
 
     const data = await response.json();
-    const years = data.years || [];
+    let years = data.years || [];
+
+    // If MarketCheck returns no years or failed, fall back to Supabase saved vehicles
+    if (years.length === 0) {
+      console.log('[year-dropdown] No years from MarketCheck, falling back to Supabase vehicles');
+      const yearsSet = new Set();
+      savedVehicles.forEach(vehicle => {
+        if (vehicle.year) {
+          yearsSet.add(parseInt(vehicle.year));
+        }
+      });
+      years = Array.from(yearsSet).sort((a, b) => b - a);
+
+      if (years.length > 0) {
+        console.log(`[year-dropdown] Using ${years.length} years from Supabase saved vehicles`);
+      }
+    }
 
     // Populate dropdown with available years
     yearSelect.innerHTML = '<option value="">Select Year</option>';
@@ -2442,11 +2583,36 @@ async function populateYearDropdowns() {
 
     yearSelect.disabled = false;
 
-    console.log('[year-dropdown] Populated', years.length, 'available years for zip', zip);
+    console.log('[year-dropdown] Populated', years.length, 'available years');
   } catch (error) {
-    console.error('[year-dropdown] Error fetching years:', error);
-    yearSelect.innerHTML = '<option value="">Error loading years</option>';
-    alert('Failed to load available years. Please check your location and try again.');
+    console.error('[year-dropdown] Error fetching years from MarketCheck:', error);
+
+    // Fall back to Supabase saved vehicles
+    console.log('[year-dropdown] Falling back to Supabase saved vehicles');
+    const yearsSet = new Set();
+    savedVehicles.forEach(vehicle => {
+      if (vehicle.year) {
+        yearsSet.add(parseInt(vehicle.year));
+      }
+    });
+    const years = Array.from(yearsSet).sort((a, b) => b - a);
+
+    yearSelect.innerHTML = '<option value="">Select Year</option>';
+    years.forEach(year => {
+      const option = document.createElement('option');
+      option.value = year;
+      option.textContent = year;
+      yearSelect.appendChild(option);
+    });
+
+    yearSelect.disabled = false;
+
+    if (years.length > 0) {
+      console.log(`[year-dropdown] Using ${years.length} years from Supabase (MarketCheck unavailable)`);
+    } else {
+      yearSelect.innerHTML = '<option value="">No vehicles available</option>';
+      console.log('[year-dropdown] No vehicles available from either MarketCheck or Supabase');
+    }
   }
 
   // Also populate trade-in year dropdown (no location filter needed for trade-ins)
