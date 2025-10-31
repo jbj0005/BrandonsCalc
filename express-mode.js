@@ -63,12 +63,21 @@ async function initializeSupabase() {
     supabase = createClient(supabaseUrl, supabaseKey);
 
     // Get current session
-    const { data: { session } } = await supabase.auth.getSession();
-    currentUserId = session?.user?.id ?? null;
+    const { data, error } = await supabase.auth.getSession();
+
+    console.log('[express-mode] getSession result:', {
+      hasSession: !!data?.session,
+      hasUser: !!data?.session?.user,
+      userId: data?.session?.user?.id,
+      error
+    });
+
+    currentUserId = data?.session?.user?.id ?? null;
 
     // Listen for auth state changes
     supabase.auth.onAuthStateChange((_event, session) => {
       const newUserId = session?.user?.id ?? null;
+      console.log('[auth] Auth state changed:', _event, 'User ID:', newUserId);
       if (newUserId !== currentUserId) {
         currentUserId = newUserId;
         console.log('[auth] User changed:', currentUserId ? 'signed in' : 'signed out');
@@ -77,6 +86,12 @@ async function initializeSupabase() {
     });
 
     console.log('[express-mode] Supabase initialized. User ID:', currentUserId || 'Anonymous');
+
+    // If no session, check if user needs to sign in
+    if (!currentUserId) {
+      console.warn('[express-mode] No active session. User needs to sign in on the main app first.');
+      console.warn('[express-mode] Visit http://localhost:5174 and sign in, then return here.');
+    }
   } catch (error) {
     console.error('Error initializing Supabase:', error);
   }
