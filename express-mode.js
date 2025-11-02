@@ -668,6 +668,9 @@ function applyLocaleToFees({ stateCode, countyName }) {
   } else {
     updateTaxInputs();
   }
+
+  // Update tax labels in quick entry itemization
+  updateTaxLabels();
 }
 
 /**
@@ -5051,6 +5054,9 @@ function initializeQuickEntry() {
   // Setup sliders
   setupQuickSliders();
 
+  // Update tax labels to show state/county info or defaults
+  updateTaxLabels();
+
   // Initial calculation if we have basic data
   autoCalculateQuick();
 }
@@ -5533,6 +5539,9 @@ async function autoCalculateQuick() {
     setText('quickCountyTax', formatCurrency(reviewData.countyTaxTotal));
     setText('quickAmountFinancedTotal', formatCurrency(reviewData.amountFinanced));
 
+    // Update tax labels with state/county info
+    updateTaxLabels();
+
     // Display cash due
     setText('quickCashDueHighlight', formatCurrency(reviewData.cashDue));
 
@@ -5542,6 +5551,37 @@ async function autoCalculateQuick() {
     console.log('[quick-entry] Auto-calculation complete - Monthly Payment:', formatCurrency(reviewData.monthlyPayment));
   } catch (error) {
     console.error('[quick-entry] Calculation error:', error);
+  }
+}
+
+/**
+ * Update tax labels to show state/county names and rates
+ */
+function updateTaxLabels() {
+  ensureWizardFeeDefaults();
+
+  const stateCode = wizardData.location?.stateCode || '';
+  const countyName = wizardData.location?.countyName || '';
+  const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
+  const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
+
+  const stateTaxLabel = document.getElementById('quickStateTaxLabel');
+  const countyTaxLabel = document.getElementById('quickCountyTaxLabel');
+
+  if (stateTaxLabel) {
+    if (stateCode) {
+      stateTaxLabel.textContent = `${stateCode} State Tax (${stateTaxRate.toFixed(2)}%)`;
+    } else {
+      stateTaxLabel.innerHTML = `State Tax (${stateTaxRate.toFixed(2)}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+    }
+  }
+
+  if (countyTaxLabel) {
+    if (countyName) {
+      countyTaxLabel.textContent = `${countyName} County Tax (${countyTaxRate.toFixed(2)}%)`;
+    } else {
+      countyTaxLabel.innerHTML = `County Tax (${countyTaxRate.toFixed(2)}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+    }
   }
 }
 

@@ -55,63 +55,99 @@
               d="M13 10V3L4 14h7v7l9-11h-7z"
             ></path>
           </svg>
-          <span>Express Mode</span>
+          <span>Brandon's Calculator</span>
         </div>
 
-        <h1 class="hero__title">
-          Find > Budget > Submit Offer<br />
-          All in just a few minutes!
-        </h1>
-
-        <p class="hero__subtitle">
-          Informed financing - Auto rates are pulled daily from our Lending
-          network. We'll submit your offer and financing details...You'll get a
-          reply in moments!
-        </p>
+        <h1 class="hero__title">Find > Budget > Submit<br /></h1>
       </div>
     </section>
 
     <!-- Wizard Container -->
     <div class="wizard-container">
-
       <!-- Quick Entry Mode (Single Page) -->
       <div class="quick-entry-mode" id="quick-entry-mode">
-
         <!-- Main Container -->
         <div class="quick-entry-grid">
-
           <!-- Center Column: Inputs -->
           <div class="quick-entry-inputs">
-
             <!-- Section: Location & Vehicle -->
             <div class="quick-section">
               <h3 class="quick-section__title">Location & Vehicle</h3>
 
               <div class="form-group">
-                <label class="form-label" for="quick-location">Your Location</label>
+                <label class="form-label" for="quick-location"
+                  >Your Location</label
+                >
                 <div class="input-with-icon">
-                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  <svg
+                    class="input-with-icon__icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                    ></path>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                    ></path>
                   </svg>
-                  <input type="text" id="quick-location" class="form-input" placeholder="Enter your address or ZIP code..." autocomplete="off" />
+                  <input
+                    type="text"
+                    id="quick-location"
+                    class="form-input"
+                    placeholder="Enter your address or ZIP code..."
+                    autocomplete="off"
+                  />
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="quick-vin">VIN or Search Saved Vehicles</label>
+                <label class="form-label" for="quick-vin"
+                  >VIN or Search Saved Vehicles</label
+                >
                 <div class="vin-autocomplete">
                   <div class="input-with-icon">
-                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    <svg
+                      class="input-with-icon__icon"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      ></path>
                     </svg>
-                    <input type="text" id="quick-vin" class="form-input" placeholder="Paste VIN or select saved vehicle..." autocomplete="off" />
+                    <input
+                      type="text"
+                      id="quick-vin"
+                      class="form-input"
+                      placeholder="Paste VIN or select saved vehicle..."
+                      autocomplete="off"
+                    />
                   </div>
-                  <div id="quick-saved-vehicles-dropdown" class="saved-vehicles-dropdown" style="display: none"></div>
+                  <div
+                    id="quick-saved-vehicles-dropdown"
+                    class="saved-vehicles-dropdown"
+                    style="display: none"
+                  ></div>
                 </div>
               </div>
 
-              <div id="quick-vehicle-display" class="your-vehicle-section" style="display: none">
+              <div
+                id="quick-vehicle-display"
+                class="your-vehicle-section"
+                style="display: none"
+              >
                 <div id="quick-vehicle-card" class="your-vehicle-card"></div>
               </div>
             </div>
@@ -121,27 +157,63 @@
               <h3 class="quick-section__title">Financing Details</h3>
 
               <div class="form-group">
-                <label class="form-label" for="quick-vehicle-price">Vehicle Price</label>
+                <label class="form-label" for="quick-vehicle-price"
+                  >Vehicle Price</label
+                >
                 <div class="input-with-icon">
-                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  <svg
+                    class="input-with-icon__icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
                   </svg>
-                  <input type="text" id="quick-vehicle-price" class="form-input" placeholder="25,000" />
+                  <input
+                    type="text"
+                    id="quick-vehicle-price"
+                    class="form-input"
+                    placeholder="25,000"
+                  />
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="quick-down-payment">Down Payment</label>
+                <label class="form-label" for="quick-down-payment"
+                  >Down Payment</label
+                >
                 <div class="input-with-icon">
-                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  <svg
+                    class="input-with-icon__icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    ></path>
                   </svg>
-                  <input type="text" id="quick-down-payment" class="form-input" placeholder="5,000" />
+                  <input
+                    type="text"
+                    id="quick-down-payment"
+                    class="form-input"
+                    placeholder="5,000"
+                  />
                 </div>
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="quick-loan-term">Loan Term</label>
+                <label class="form-label" for="quick-loan-term"
+                  >Loan Term</label
+                >
                 <select id="quick-loan-term" class="form-select">
                   <option value="">Select Term</option>
                   <option value="36">36 months (3 years)</option>
@@ -153,7 +225,9 @@
               </div>
 
               <div class="form-group">
-                <label class="form-label" for="quick-credit-score">Credit Score Range</label>
+                <label class="form-label" for="quick-credit-score"
+                  >Credit Score Range</label
+                >
                 <select id="quick-credit-score" class="form-select">
                   <option value="">Select Range</option>
                   <option value="excellent">Excellent (750+)</option>
@@ -169,30 +243,76 @@
               <h3 class="quick-section__title">Trade-In (Optional)</h3>
 
               <div class="form-group">
-                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                  <input type="checkbox" id="quick-has-tradein" onchange="toggleQuickTradeIn(this.checked)" style="width: auto;" />
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    type="checkbox"
+                    id="quick-has-tradein"
+                    onchange="toggleQuickTradeIn(this.checked)"
+                    style="width: auto"
+                  />
                   <span>I have a trade-in vehicle</span>
                 </label>
               </div>
 
-              <div id="quick-tradein-fields" style="display: none;">
+              <div id="quick-tradein-fields" style="display: none">
                 <div class="form-group">
-                  <label class="form-label" for="quick-tradein-value">Estimated Trade-In Value</label>
+                  <label class="form-label" for="quick-tradein-value"
+                    >Estimated Trade-In Value</label
+                  >
                   <div class="input-with-icon">
-                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <svg
+                      class="input-with-icon__icon"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      ></path>
                     </svg>
-                    <input type="text" id="quick-tradein-value" class="form-input" placeholder="8,000" />
+                    <input
+                      type="text"
+                      id="quick-tradein-value"
+                      class="form-input"
+                      placeholder="8,000"
+                    />
                   </div>
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label" for="quick-tradein-payoff">Outstanding Loan Balance</label>
+                  <label class="form-label" for="quick-tradein-payoff"
+                    >Outstanding Loan Balance</label
+                  >
                   <div class="input-with-icon">
-                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    <svg
+                      class="input-with-icon__icon"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                      ></path>
                     </svg>
-                    <input type="text" id="quick-tradein-payoff" class="form-input" placeholder="0" />
+                    <input
+                      type="text"
+                      id="quick-tradein-payoff"
+                      class="form-input"
+                      placeholder="0"
+                    />
                   </div>
                 </div>
               </div>
@@ -204,8 +324,12 @@
             <div class="quick-summary-sticky">
               <!-- Monthly Payment Hero -->
               <div class="quick-summary-hero">
-                <div class="quick-summary-hero__label">Estimated Monthly Payment</div>
-                <div class="quick-summary-hero__value" id="quickMonthlyPayment">$0.00</div>
+                <div class="quick-summary-hero__label">
+                  Estimated Monthly Payment
+                </div>
+                <div class="quick-summary-hero__value" id="quickMonthlyPayment">
+                  $0.00
+                </div>
                 <div class="quick-summary-hero__meta">
                   <span id="quickTerm">0 months</span>
                   <span>•</span>
@@ -220,21 +344,29 @@
                   <div class="quick-til-card">
                     <div class="quick-til-label">Annual Percentage Rate</div>
                     <div class="quick-til-value" id="quickTilAPR">--%</div>
-                    <div class="quick-til-note">Cost of credit as yearly rate</div>
+                    <div class="quick-til-note">
+                      Cost of credit as yearly rate
+                    </div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Finance Charge</div>
-                    <div class="quick-til-value" id="quickTilFinanceCharge">$0.00</div>
+                    <div class="quick-til-value" id="quickTilFinanceCharge">
+                      $0.00
+                    </div>
                     <div class="quick-til-note">Dollar cost of credit</div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Amount Financed</div>
-                    <div class="quick-til-value" id="quickTilAmountFinanced">$0.00</div>
+                    <div class="quick-til-value" id="quickTilAmountFinanced">
+                      $0.00
+                    </div>
                     <div class="quick-til-note">Credit provided to you</div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Total of Payments</div>
-                    <div class="quick-til-value" id="quickTilTotalPayments">$0.00</div>
+                    <div class="quick-til-value" id="quickTilTotalPayments">
+                      $0.00
+                    </div>
                     <div class="quick-til-note">Total after all payments</div>
                   </div>
                 </div>
@@ -244,10 +376,25 @@
               <div class="quick-itemization">
                 <div class="quick-itemization-header">
                   <h4>Itemization of Amount Financed</h4>
-                  <button type="button" onclick="openFeesModal()" class="btn-edit-fees">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  <button
+                    type="button"
+                    onclick="openFeesModal()"
+                    class="btn-edit-fees"
+                  >
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                      ></path>
+                      <path
+                        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                      ></path>
                     </svg>
                     Edit Fees & Taxes
                   </button>
@@ -258,24 +405,72 @@
                   <div class="quick-item quick-item--with-slider">
                     <div class="quick-item-label">Sale Price</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderSalePrice" min="0" max="150000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderSalePrice"
+                        min="0"
+                        max="150000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputSalePrice" />
-                        <div class="quick-diff-indicator" id="quickDiffSalePrice" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetSalePrice" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputSalePrice"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffSalePrice"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetSalePrice"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
 
                   <!-- Cash Down with Slider -->
-                  <div class="quick-item quick-item--with-slider quick-item--less">
+                  <div
+                    class="quick-item quick-item--with-slider quick-item--less"
+                  >
                     <div class="quick-item-label">LESS Cash Down</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderCashDown" min="0" max="50000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderCashDown"
+                        min="0"
+                        max="50000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputCashDown" />
-                        <div class="quick-diff-indicator" id="quickDiffCashDown" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetCashDown" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputCashDown"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffCashDown"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetCashDown"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -287,27 +482,77 @@
                   </div>
 
                   <!-- Trade Allowance with Slider -->
-                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                  <div
+                    class="quick-item quick-item--with-slider quick-item--indent"
+                  >
                     <div class="quick-item-label">Trade-In Allowance</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderTradeAllowance" min="0" max="75000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderTradeAllowance"
+                        min="0"
+                        max="75000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputTradeAllowance" />
-                        <div class="quick-diff-indicator" id="quickDiffTradeAllowance" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetTradeAllowance" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputTradeAllowance"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffTradeAllowance"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetTradeAllowance"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
 
                   <!-- Trade Payoff with Slider -->
-                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                  <div
+                    class="quick-item quick-item--with-slider quick-item--indent"
+                  >
                     <div class="quick-item-label">Trade-In Payoff</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderTradePayoff" min="0" max="75000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderTradePayoff"
+                        min="0"
+                        max="75000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputTradePayoff" />
-                        <div class="quick-diff-indicator" id="quickDiffTradePayoff" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetTradePayoff" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputTradePayoff"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffTradePayoff"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetTradePayoff"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -315,37 +560,91 @@
                   <!-- Unpaid Balance -->
                   <div class="quick-item">
                     <div class="quick-item-label">Unpaid Balance</div>
-                    <div class="quick-item-value" id="quickUnpaidBalance">$0.00</div>
+                    <div class="quick-item-value" id="quickUnpaidBalance">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- Other Charges -->
                   <div class="quick-item quick-item--plus">
                     <div class="quick-item-label">PLUS Other Charges</div>
-                    <div class="quick-item-value" id="quickOtherCharges">$0.00</div>
+                    <div class="quick-item-value" id="quickOtherCharges">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- Dealer Fees with Slider -->
-                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                  <div
+                    class="quick-item quick-item--with-slider quick-item--indent"
+                  >
                     <div class="quick-item-label">Total Dealer Fees</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderDealerFees" min="0" max="10000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderDealerFees"
+                        min="0"
+                        max="10000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputDealerFees" />
-                        <div class="quick-diff-indicator" id="quickDiffDealerFees" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetDealerFees" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputDealerFees"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffDealerFees"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetDealerFees"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
 
                   <!-- Customer Addons with Slider -->
-                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                  <div
+                    class="quick-item quick-item--with-slider quick-item--indent"
+                  >
                     <div class="quick-item-label">Total Customer Add-ons</div>
                     <div class="quick-slider-control">
-                      <input type="range" class="quick-slider" id="quickSliderCustomerAddons" min="0" max="10000" step="100" />
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderCustomerAddons"
+                        min="0"
+                        max="10000"
+                        step="100"
+                      />
                       <div class="quick-value-wrapper">
-                        <input type="text" class="quick-value-input" id="quickInputCustomerAddons" />
-                        <div class="quick-diff-indicator" id="quickDiffCustomerAddons" style="display: none;"></div>
-                        <button type="button" class="quick-reset-btn" id="quickResetCustomerAddons" style="display: none;" title="Reset to original">↺</button>
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputCustomerAddons"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffCustomerAddons"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetCustomerAddons"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -358,18 +657,22 @@
 
                   <!-- Taxes -->
                   <div class="quick-item quick-item--indent">
-                    <div class="quick-item-label">State Taxes</div>
+                    <div class="quick-item-label" id="quickStateTaxLabel">State Taxes</div>
                     <div class="quick-item-value" id="quickStateTax">$0.00</div>
                   </div>
                   <div class="quick-item quick-item--indent">
-                    <div class="quick-item-label">County Taxes</div>
-                    <div class="quick-item-value" id="quickCountyTax">$0.00</div>
+                    <div class="quick-item-label" id="quickCountyTaxLabel">County Taxes</div>
+                    <div class="quick-item-value" id="quickCountyTax">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- Amount Financed Total -->
                   <div class="quick-item quick-item--total">
                     <div class="quick-item-label">AMOUNT FINANCED</div>
-                    <div class="quick-item-value" id="quickAmountFinancedTotal">$0.00</div>
+                    <div class="quick-item-value" id="quickAmountFinancedTotal">
+                      $0.00
+                    </div>
                   </div>
                 </div>
               </div>
@@ -377,11 +680,12 @@
               <!-- Cash Due at Signing -->
               <div class="quick-cash-due">
                 <div class="quick-cash-due__label">CASH DUE AT SIGNING</div>
-                <div class="quick-cash-due__value" id="quickCashDueHighlight">$0.00</div>
+                <div class="quick-cash-due__value" id="quickCashDueHighlight">
+                  $0.00
+                </div>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
@@ -734,7 +1038,11 @@
     </div>
 
     <!-- Floating Payment Tooltip -->
-    <div id="slider-payment-tooltip" class="slider-payment-tooltip" style="display: none;">
+    <div
+      id="slider-payment-tooltip"
+      class="slider-payment-tooltip"
+      style="display: none"
+    >
       <div class="tooltip-payment">$0/mo</div>
       <div class="tooltip-change">--</div>
     </div>
