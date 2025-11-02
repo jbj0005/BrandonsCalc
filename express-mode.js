@@ -5571,6 +5571,11 @@ function setupQuickSliders() {
     // Store original value when first loaded
     originalValues[config.sliderId] = parseFloat(slider.value) || 0;
 
+    // Move reset button inside diff indicator
+    if (resetBtn && diffIndicator) {
+      diffIndicator.appendChild(resetBtn);
+    }
+
     // Update diff indicator
     const updateDiff = (currentValue) => {
       const original = originalValues[config.sliderId];
@@ -5578,14 +5583,20 @@ function setupQuickSliders() {
 
       if (diff === 0) {
         diffIndicator.style.display = 'none';
-        resetBtn.style.display = 'none';
       } else {
-        diffIndicator.style.display = 'block';
-        resetBtn.style.display = 'flex';
+        diffIndicator.style.display = 'flex';
 
         const diffClass = diff > 0 ? 'positive' : 'negative';
         diffIndicator.className = `quick-diff-indicator ${diffClass}`;
-        diffIndicator.textContent = `${diff > 0 ? '+' : ''}${formatCurrency(diff)} from original`;
+
+        // Create diff text span if it doesn't exist
+        let diffText = diffIndicator.querySelector('.diff-text');
+        if (!diffText) {
+          diffText = document.createElement('span');
+          diffText.className = 'diff-text';
+          diffIndicator.insertBefore(diffText, resetBtn);
+        }
+        diffText.textContent = `${diff > 0 ? '+' : ''}${formatCurrency(diff)} from original`;
       }
     };
 
