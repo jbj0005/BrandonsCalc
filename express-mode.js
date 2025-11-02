@@ -5458,8 +5458,8 @@ async function autoCalculateQuick() {
     // Display cash due
     setText('quickCashDueHighlight', formatCurrency(reviewData.cashDue));
 
-    // Update sliders to match current values
-    updateQuickSliderValues();
+    // NOTE: Don't call updateQuickSliderValues() here - sliders are the source of truth
+    // and calling it resets the original values causing diff indicators to disappear
 
     console.log('[quick-entry] Auto-calculation complete - Monthly Payment:', formatCurrency(reviewData.monthlyPayment));
   } catch (error) {
@@ -5479,7 +5479,7 @@ function setupQuickSliders() {
       resetId: 'quickResetSalePrice',
       sourceId: 'quick-vehicle-price',
       max: 150000,
-      step: 500,
+      step: 100,
       updateWizardData: (val) => {
         wizardData.financing.salePrice = val;
         document.getElementById('quick-vehicle-price').value = formatCurrency(val);
@@ -5641,25 +5641,68 @@ function setupQuickSliders() {
       });
     }
 
-    // Show tooltip on slider mouseenter/mousemove
-    slider.addEventListener('mouseenter', () => {
-      const value = parseFloat(slider.value);
-      showSliderTooltip(slider, value);
-    });
+    // Get the parent slider section for persistent hover
+    const sliderSection = slider.closest('.quick-item--with-slider');
 
-    slider.addEventListener('mousemove', () => {
-      const value = parseFloat(slider.value);
-      showSliderTooltip(slider, value);
-    });
+    if (sliderSection) {
+      // Track if mouse is over this section
+      let isHovering = false;
 
-    slider.addEventListener('mouseleave', () => {
-      hideSliderTooltip();
-    });
+      // Show tooltip when hovering over entire slider section
+      sliderSection.addEventListener('mouseenter', () => {
+        isHovering = true;
+        const value = parseFloat(slider.value);
+        showSliderTooltip(slider, value);
+      });
 
-    // Hide tooltip when slider interaction ends
-    slider.addEventListener('change', () => {
-      hideSliderTooltip();
-    });
+      sliderSection.addEventListener('mousemove', () => {
+        const value = parseFloat(slider.value);
+        showSliderTooltip(slider, value);
+      });
+
+      sliderSection.addEventListener('mouseleave', () => {
+        isHovering = false;
+        hideSliderTooltip();
+      });
+
+      // Handle arrow keys when hovering over section
+      const handleArrowKey = async (e) => {
+        if (!isHovering) return;
+
+        // Check for arrow keys
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+          e.preventDefault();
+          // Decrease value
+          let currentValue = parseFloat(slider.value);
+          currentValue = Math.max(parseFloat(slider.min), currentValue - config.step);
+          slider.value = currentValue;
+          input.value = formatCurrency(currentValue);
+          updateSliderProgress(slider);
+          updateDiff(currentValue);
+          config.updateWizardData(currentValue);
+          showSliderTooltip(slider, currentValue);
+          await autoCalculateQuick();
+        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          // Increase value
+          let currentValue = parseFloat(slider.value);
+          currentValue = Math.min(parseFloat(slider.max), currentValue + config.step);
+          slider.value = currentValue;
+          input.value = formatCurrency(currentValue);
+          updateSliderProgress(slider);
+          updateDiff(currentValue);
+          config.updateWizardData(currentValue);
+          showSliderTooltip(slider, currentValue);
+          await autoCalculateQuick();
+        }
+      };
+
+      // Add keyboard listener to document (so it works regardless of focus)
+      document.addEventListener('keydown', handleArrowKey);
+
+      // Store cleanup function for later if needed
+      sliderSection._arrowKeyHandler = handleArrowKey;
+    }
   });
 
   // Store configs for later use

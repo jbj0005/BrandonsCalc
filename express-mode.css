@@ -3523,6 +3523,20 @@ body {
   background: rgba(255, 255, 255, 0.1);
 }
 
+/* Hover state for slider sections (indicates keyboard control is active) */
+.quick-item--with-slider:hover {
+  background: rgba(59, 130, 246, 0.03);
+  border-radius: var(--radius-sm);
+  transition: background 0.2s ease;
+}
+
+.quick-item--with-slider:hover .quick-item-label::after {
+  content: ' ⌨️';
+  font-size: 12px;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
 /* Quick Entry Cash Due */
 .quick-cash-due {
   margin-top: var(--spacing-md);
