@@ -5144,7 +5144,7 @@ function filterQuickSavedVehicles(searchTerm) {
 /**
  * Select saved vehicle in Quick Entry mode
  */
-function selectQuickSavedVehicle(vehicle) {
+async function selectQuickSavedVehicle(vehicle) {
   const quickVin = document.getElementById('quick-vin');
   const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
 
@@ -5161,7 +5161,22 @@ function selectQuickSavedVehicle(vehicle) {
   if (vehicle.asking_price) {
     const quickVehiclePrice = document.getElementById('quick-vehicle-price');
     quickVehiclePrice.value = formatCurrency(vehicle.asking_price);
+
+    // Update wizard data
+    wizardData.financing = wizardData.financing || {};
+    wizardData.financing.salePrice = vehicle.asking_price;
   }
+
+  // Update sliders to match the new vehicle price
+  updateQuickSliderValues();
+
+  // Reset original values for diff indicators (new baseline)
+  resetOriginalMonthlyPayment();
+
+  // Trigger calculation to update monthly payment
+  await autoCalculateQuick();
+
+  console.log('[quick-saved-vehicle] Vehicle selected and calculations updated:', vehicle.year, vehicle.make, vehicle.model);
 }
 
 /**
