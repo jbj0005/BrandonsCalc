@@ -3415,11 +3415,13 @@ body {
   flex: 1;
 }
 
+/* Buyer-positive: Green = good for buyer */
 .quick-diff-indicator.positive {
   color: #059669;
   background: rgba(5, 150, 105, 0.1);
 }
 
+/* Buyer-negative: Red = bad for buyer */
 .quick-diff-indicator.negative {
   color: #dc2626;
   background: rgba(220, 38, 38, 0.1);
@@ -3515,14 +3517,16 @@ body {
   display: inline-block;
 }
 
+/* Tooltip: Buyer-positive = green (good for buyer, payment decreased) */
 .tooltip-change.positive {
-  color: #fef3c7;
-  background: rgba(239, 68, 68, 0.3);
-}
-
-.tooltip-change.negative {
   color: #d1fae5;
   background: rgba(16, 185, 129, 0.3);
+}
+
+/* Tooltip: Buyer-negative = red (bad for buyer, payment increased) */
+.tooltip-change.negative {
+  color: #fef3c7;
+  background: rgba(239, 68, 68, 0.3);
 }
 
 .tooltip-change.neutral {

@@ -5495,6 +5495,7 @@ function setupQuickSliders() {
       sourceId: 'quick-vehicle-price',
       max: 150000,
       step: 100,
+      buyerPositiveOnDecrease: true, // Lower price is better for buyer
       updateWizardData: (val) => {
         wizardData.financing.salePrice = val;
         document.getElementById('quick-vehicle-price').value = formatCurrency(val);
@@ -5508,6 +5509,7 @@ function setupQuickSliders() {
       sourceId: 'quick-down-payment',
       max: 50000,
       step: 100,
+      buyerPositiveOnDecrease: true, // Less cash down is better for buyer
       updateWizardData: (val) => {
         wizardData.financing.cashDown = val;
         document.getElementById('quick-down-payment').value = formatCurrency(val);
@@ -5521,6 +5523,7 @@ function setupQuickSliders() {
       sourceId: 'quick-tradein-value',
       max: 75000,
       step: 100,
+      buyerPositiveOnDecrease: false, // Higher trade value is better for buyer
       updateWizardData: (val) => {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.tradeValue = val;
@@ -5535,6 +5538,7 @@ function setupQuickSliders() {
       sourceId: 'quick-tradein-payoff',
       max: 75000,
       step: 100,
+      buyerPositiveOnDecrease: true, // Less payoff is better for buyer
       updateWizardData: (val) => {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.tradePayoff = val;
@@ -5548,6 +5552,7 @@ function setupQuickSliders() {
       resetId: 'quickResetDealerFees',
       max: 10000,
       step: 100,
+      buyerPositiveOnDecrease: true, // Lower fees are better for buyer
       updateWizardData: (val) => {
         ensureWizardFeeDefaults();
         wizardData.fees.dealerFees = val;
@@ -5561,6 +5566,7 @@ function setupQuickSliders() {
       resetId: 'quickResetCustomerAddons',
       max: 10000,
       step: 100,
+      buyerPositiveOnDecrease: true, // Fewer add-ons are better for buyer
       updateWizardData: (val) => {
         ensureWizardFeeDefaults();
         wizardData.fees.customerAddons = val;
@@ -5591,7 +5597,7 @@ function setupQuickSliders() {
       diffIndicator.appendChild(resetBtn);
     }
 
-    // Update diff indicator
+    // Update diff indicator (buyer-centric: green = good for buyer, red = bad for buyer)
     const updateDiff = (currentValue) => {
       const original = originalValues[config.sliderId];
       const diff = currentValue - original;
@@ -5601,7 +5607,17 @@ function setupQuickSliders() {
       } else {
         diffIndicator.style.display = 'flex';
 
-        const diffClass = diff > 0 ? 'positive' : 'negative';
+        // Determine if change is positive or negative for buyer
+        let isBuyerPositive;
+        if (config.buyerPositiveOnDecrease) {
+          // For fields where decrease is good (sale price, cash down, fees, etc.)
+          isBuyerPositive = diff < 0;
+        } else {
+          // For fields where increase is good (trade allowance)
+          isBuyerPositive = diff > 0;
+        }
+
+        const diffClass = isBuyerPositive ? 'positive' : 'negative';
         diffIndicator.className = `quick-diff-indicator ${diffClass}`;
 
         // Create diff text span if it doesn't exist
@@ -5761,15 +5777,15 @@ function showSliderTooltip(sliderElement, currentValue) {
 
   paymentEl.textContent = `${formatCurrency(monthlyPayment)}/mo`;
 
-  // Update change indicator
+  // Update change indicator (buyer-centric: lower payment = positive/green, higher payment = negative/red)
   if (Math.abs(paymentDiff) < 1) {
     changeEl.textContent = 'No change';
     changeEl.className = 'tooltip-change neutral';
   } else {
     const sign = paymentDiff > 0 ? '+' : '';
     changeEl.textContent = `${sign}${formatCurrency(paymentDiff)}/mo`;
-    // Note: positive payment change is bad (red), negative is good (green)
-    changeEl.className = paymentDiff > 0 ? 'tooltip-change positive' : 'tooltip-change negative';
+    // Payment increase is bad for buyer (negative), payment decrease is good (positive)
+    changeEl.className = paymentDiff > 0 ? 'tooltip-change negative' : 'tooltip-change positive';
   }
 
   // Position tooltip above the slider thumb
