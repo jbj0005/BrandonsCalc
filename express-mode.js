@@ -4609,6 +4609,33 @@ function applyFeeModalChanges() {
   const payload = collectFeeModalData();
   persistFeeModalState(payload);
   updateFeeSummary(payload.totals);
+
+  // Update quick entry sliders to reflect fee changes
+  const dealerFeesSlider = document.getElementById('quickSliderDealerFees');
+  const dealerFeesInput = document.getElementById('quickInputDealerFees');
+  const customerAddonsSlider = document.getElementById('quickSliderCustomerAddons');
+  const customerAddonsInput = document.getElementById('quickInputCustomerAddons');
+
+  if (dealerFeesSlider && dealerFeesInput) {
+    dealerFeesSlider.value = payload.totals.dealerFees || 0;
+    dealerFeesInput.value = formatCurrency(payload.totals.dealerFees || 0);
+    updateSliderProgress(dealerFeesSlider);
+  }
+
+  if (customerAddonsSlider && customerAddonsInput) {
+    customerAddonsSlider.value = payload.totals.customerAddons || 0;
+    customerAddonsInput.value = formatCurrency(payload.totals.customerAddons || 0);
+    updateSliderProgress(customerAddonsSlider);
+  }
+
+  // Update original values so diff indicators reset to new baseline
+  if (window.sliderOriginalValues) {
+    window.sliderOriginalValues['quickSliderDealerFees'] = payload.totals.dealerFees || 0;
+    window.sliderOriginalValues['quickSliderCustomerAddons'] = payload.totals.customerAddons || 0;
+  }
+
+  // Trigger recalculation
+  autoCalculateQuick();
 }
 
 function persistFeeModalState({ items, totals }) {
@@ -5017,11 +5044,47 @@ function initializeQuickEntry() {
   // Setup auto-calculation on input changes
   setupQuickAutoCalculation();
 
+  // Sync slider values from wizardData BEFORE setting up sliders
+  // This ensures fees from the modal are reflected in the sliders
+  syncSlidersFromWizardData();
+
   // Setup sliders
   setupQuickSliders();
 
   // Initial calculation if we have basic data
   autoCalculateQuick();
+}
+
+/**
+ * Sync slider values from wizardData (called before setupQuickSliders)
+ * This ensures sliders show correct values including fees from modal
+ */
+function syncSlidersFromWizardData() {
+  ensureWizardFeeDefaults();
+
+  const syncMap = [
+    { sliderId: 'quickSliderSalePrice', inputId: 'quickInputSalePrice', value: wizardData.financing?.salePrice || 0 },
+    { sliderId: 'quickSliderCashDown', inputId: 'quickInputCashDown', value: wizardData.financing?.cashDown || 0 },
+    { sliderId: 'quickSliderTradeAllowance', inputId: 'quickInputTradeAllowance', value: wizardData.tradein?.tradeValue || 0 },
+    { sliderId: 'quickSliderTradePayoff', inputId: 'quickInputTradePayoff', value: wizardData.tradein?.tradePayoff || 0 },
+    { sliderId: 'quickSliderDealerFees', inputId: 'quickInputDealerFees', value: wizardData.fees?.dealerFees || 0 },
+    { sliderId: 'quickSliderCustomerAddons', inputId: 'quickInputCustomerAddons', value: wizardData.fees?.customerAddons || 0 }
+  ];
+
+  syncMap.forEach(({ sliderId, inputId, value }) => {
+    const slider = document.getElementById(sliderId);
+    const input = document.getElementById(inputId);
+    if (slider && input) {
+      slider.value = value;
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+    }
+  });
+
+  console.log('[sync-sliders] Synced sliders from wizardData:', {
+    dealerFees: wizardData.fees?.dealerFees || 0,
+    customerAddons: wizardData.fees?.customerAddons || 0
+  });
 }
 
 /**
