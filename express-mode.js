@@ -15,6 +15,54 @@ const wizardData = {
   location: {}
 };
 
+let latestReviewData = null;
+
+const TAX_RATE_CONFIG = {
+  FL: {
+    stateRate: 0.06,
+    counties: {
+      HAMILTON: 0.02,
+      BREVARD: 0.01
+    }
+  }
+};
+
+const FEE_CATEGORY_CONFIG = {
+  dealer: {
+    containerId: 'dealer-fee-rows',
+    totalId: 'dealer-fee-total',
+    datalistId: 'dealer-fee-suggestions',
+    label: 'Dealer Fees'
+  },
+  customer: {
+    containerId: 'customer-fee-rows',
+    totalId: 'customer-fee-total',
+    datalistId: 'customer-fee-suggestions',
+    label: 'Customer Add-ons'
+  },
+  gov: {
+    containerId: 'gov-fee-rows',
+    totalId: 'gov-fee-total',
+    datalistId: 'gov-fee-suggestions',
+    label: "Gov't Fees"
+  }
+};
+
+const feeSetState = {
+  dealer: { id: null, items: [] },
+  customer: { id: null, items: [] },
+  gov: { id: null, items: [] }
+};
+
+const feeModalState = {
+  categories: {},
+  initialized: false
+};
+
+const editFeeModalState = {
+  activeCategory: 'dealer'
+};
+
 // Supabase client
 let supabase = null;
 let currentUserId = null;
@@ -26,7 +74,9 @@ let similarVehicles = [];
 
 // Google Places
 let placesAutocomplete = null;
+let quickLocationAutocomplete = null;
 let googleMapsLoaded = false;
+let quickLocationManualHandlerAttached = false;
 
 // API Configuration
 const API_BASE = window.location.origin;
@@ -55,6 +105,247 @@ function formatCurrency(value, showNegative = true) {
     return `($${formatted})`; // Accounting style for negative
   }
   return `$${formatted}`;
+}
+
+/**
+ * Safely parse currency-like input into a number
+ * @param {number|string|null|undefined} value
+ * @returns {number}
+ */
+function parseCurrencyToNumber(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[^0-9.-]/g, '');
+    if (!cleaned) return 0;
+    const parsed = parseFloat(cleaned);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : 0;
+}
+
+function normalizeCurrencyNumber(value) {
+  if (!Number.isFinite(value)) return null;
+  return Math.round(value * 100) / 100;
+}
+
+function toTitleCase(str) {
+  return String(str)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
+    .join(' ')
+    .trim();
+}
+
+function safeParseJSON(raw) {
+  if (typeof raw !== 'string') return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.warn('[fees] Failed to parse JSON', { error, raw });
+    return [];
+  }
+}
+
+function normalizeFeeItems(records) {
+  const items = Array.isArray(records) ? records : [];
+  const dedup = new Map();
+  for (const item of items) {
+    const name =
+      typeof item?.name === 'string' ? item.name.trim() : '';
+    if (!name) continue;
+    const key = name.toLowerCase();
+    let amount = null;
+    if (typeof item?.amount === 'number' && Number.isFinite(item.amount)) {
+      amount = item.amount;
+    } else if (typeof item?.amount === 'string') {
+      const parsed = Number(item.amount);
+      if (Number.isFinite(parsed)) {
+        amount = parsed;
+      }
+    }
+    if (!dedup.has(key) || amount != null) {
+      dedup.set(key, { name: toTitleCase(name), amount });
+    }
+  }
+  return Array.from(dedup.values());
+}
+
+function createSuggestionStore(datalistId) {
+  const datalist = document.getElementById(datalistId);
+  const store = {
+    datalist,
+    items: [],
+    setItems(items) {
+      this.items = Array.isArray(items) ? items : [];
+      if (!this.datalist) return;
+      this.datalist.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      this.items.forEach((item) => {
+        if (!item?.name) return;
+        const option = document.createElement('option');
+        option.value = item.name;
+        fragment.appendChild(option);
+      });
+      this.datalist.appendChild(fragment);
+    },
+    getAmount(name) {
+      if (!name) return null;
+      const normalized = String(name).trim().toLowerCase();
+      const found = this.items.find(
+        (item) => item?.name?.toLowerCase?.() === normalized
+      );
+      return Number.isFinite(found?.amount) ? found.amount : null;
+    }
+  };
+  return store;
+}
+
+function getFeeSuggestionStore(type) {
+  const category = type === 'gov' ? 'gov' : type === 'customer' ? 'customer' : 'dealer';
+  return feeModalState.categories?.[category]?.suggestionStore ?? null;
+}
+
+function getFeeSetState(type) {
+  return type === 'gov'
+    ? feeSetState.gov
+    : type === 'customer'
+    ? feeSetState.customer
+    : feeSetState.dealer;
+}
+
+async function fetchFeeItemsFromSet(tableName) {
+  if (!supabase) return { setId: null, rawItems: [], normalizedItems: [] };
+  const { data, error } = await supabase
+    .from(tableName)
+    .select('id, label, items')
+    .eq('active', true);
+  if (error) throw error;
+  const records = Array.isArray(data) ? data : [];
+  const primary = records[0] ?? null;
+  const setId = primary?.id ?? null;
+  const rawItems = records.flatMap((record) => {
+    if (Array.isArray(record?.items)) return record.items;
+    if (typeof record?.items === 'string') return safeParseJSON(record.items);
+    return [];
+  });
+  return {
+    setId,
+    rawItems,
+    normalizedItems: normalizeFeeItems(rawItems)
+  };
+}
+
+async function fetchFeeItemsFromView(viewName) {
+  if (!supabase) return { rawItems: [], normalizedItems: [] };
+  const { data, error } = await supabase
+    .from(viewName)
+    .select('name, amount, sort_order')
+    .order('sort_order', { ascending: true });
+  if (error) throw error;
+  const records = Array.isArray(data) ? data : [];
+  const normalizedItems = normalizeFeeItems(records);
+  const rawItems = records.map((item) => ({
+    name: typeof item?.name === 'string' ? item.name : '',
+    amount:
+      typeof item?.amount === 'number'
+        ? item.amount
+        : Number(item?.amount) || 0
+  }));
+  return { rawItems, normalizedItems };
+}
+
+function setSuggestionItems(store, items, context) {
+  if (!store) return;
+  if (!Array.isArray(items) || items.length === 0) {
+    console.warn(`[fees] No items available for ${context}`);
+    store.setItems([]);
+    return;
+  }
+  store.setItems(items);
+}
+
+async function loadDealerFeeSuggestions() {
+  try {
+    const store = getFeeSuggestionStore('dealer');
+    if (!store) return;
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('dealer_fee_sets');
+    feeSetState.dealer.id = setId;
+    feeSetState.dealer.items = rawItems;
+    let items = normalizedItems;
+    let source = 'dealer_fee_sets';
+    if (!items.length) {
+      const fallback = await fetchFeeItemsFromView('dealer_fee_items_v');
+      items = fallback.normalizedItems;
+      feeSetState.dealer.items = fallback.rawItems;
+      source = 'dealer_fee_items_v';
+    }
+    setSuggestionItems(store, items, source);
+  } catch (error) {
+    console.error('[fees] Failed to load dealer fee suggestions', error);
+    const store = getFeeSuggestionStore('dealer');
+    store?.setItems([]);
+  }
+}
+
+async function loadCustomerAddonSuggestions() {
+  try {
+    const store = getFeeSuggestionStore('customer');
+    if (!store) return;
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('customer_addon_sets');
+    feeSetState.customer.id = setId;
+    feeSetState.customer.items = rawItems;
+    let items = normalizedItems;
+    let source = 'customer_addon_sets';
+    if (!items.length) {
+      const fallback = await fetchFeeItemsFromView('customer_addon_items_v');
+      items = fallback.normalizedItems;
+      feeSetState.customer.items = fallback.rawItems;
+      source = 'customer_addon_items_v';
+    }
+    setSuggestionItems(store, items, source);
+  } catch (error) {
+    console.error('[fees] Failed to load customer addon suggestions', error);
+    const store = getFeeSuggestionStore('customer');
+    store?.setItems([]);
+  }
+}
+
+async function loadGovFeeSuggestions() {
+  try {
+    const store = getFeeSuggestionStore('gov');
+    if (!store) return;
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('gov_fee_sets');
+    feeSetState.gov.id = setId;
+    feeSetState.gov.items = rawItems;
+    let items = normalizedItems;
+    let source = 'gov_fee_sets';
+    if (!items.length) {
+      const fallback = await fetchFeeItemsFromView('gov_fee_items_v');
+      items = fallback.normalizedItems;
+      feeSetState.gov.items = fallback.rawItems;
+      source = 'gov_fee_items_v';
+    }
+    setSuggestionItems(store, items, source);
+  } catch (error) {
+    console.error('[fees] Failed to load gov fee suggestions', error);
+    const store = getFeeSuggestionStore('gov');
+    store?.setItems([]);
+  }
+}
+
+async function loadFeeSuggestionData() {
+  await Promise.all([
+    loadDealerFeeSuggestions(),
+    loadCustomerAddonSuggestions(),
+    loadGovFeeSuggestions()
+  ]);
 }
 
 /**
@@ -164,8 +455,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupEnterKeyNavigation();
   setupInputFormatting();
   setupVehiclePriceFormulas();
+  ensureWizardFeeDefaults();
+  initializeFeeModal();
+  await loadFeeSuggestionData();
+  updateTaxInputs();
   await loadSavedVehicles();
   await loadLenders(); // Load lenders for rate comparison
+
+  // Initialize Quick Entry mode (now the default and only mode)
+  initializeQuickEntry();
 });
 
 /**
@@ -251,6 +549,7 @@ async function loadGoogleMaps() {
     window.initGooglePlaces = () => {
       googleMapsLoaded = true;
       setupPlacesAutocomplete();
+      setupQuickLocationAutocomplete();
     };
   } catch (error) {
     console.error('Error loading Google Maps:', error);
@@ -282,8 +581,14 @@ function setupPlacesAutocomplete() {
         zip: extractZipFromPlace(place)
       };
 
+      const locale = extractLocaleFromComponents(place.address_components ?? []);
+      location.stateCode = locale.stateCode;
+      location.countyName = locale.countyName;
+
       wizardData.location = location;
       console.log('Location selected:', location);
+
+      applyLocaleToFees(locale);
 
       // Update hint to show selected location
       const hint = locationInput.nextElementSibling;
@@ -320,11 +625,62 @@ function extractZipFromPlace(place) {
   return null;
 }
 
+function extractLocaleFromComponents(components = []) {
+  let stateCode = '';
+  let countyName = '';
+  components.forEach((component) => {
+    const types = component?.types ?? [];
+    if (types.includes('administrative_area_level_1')) {
+      stateCode =
+        component.short_name ?? component.long_name ?? stateCode ?? '';
+    }
+    if (types.includes('administrative_area_level_2')) {
+      countyName = (component.long_name ?? component.short_name ?? '')
+        .replace(/ County$/i, '')
+        .trim();
+    }
+  });
+  return { stateCode, countyName };
+}
+
+function applyLocaleToFees({ stateCode, countyName }) {
+  ensureWizardFeeDefaults();
+  const upperState = stateCode ? stateCode.toUpperCase() : '';
+  const upperCounty = countyName ? countyName.toUpperCase() : '';
+  wizardData.location = {
+    ...wizardData.location,
+    stateCode: upperState,
+    countyName: countyName ?? ''
+  };
+
+  const config = TAX_RATE_CONFIG[upperState] ?? null;
+  if (config) {
+    const statePercent = Math.round((config.stateRate ?? 0) * 10000) / 100;
+    const countyPercent = Math.round(((config.counties?.[upperCounty] ?? 0) * 10000)) / 100;
+    wizardData.fees.stateTaxRate = statePercent;
+    wizardData.fees.countyTaxRate = countyPercent;
+    updateTaxInputs();
+    if (currentStep === 4) {
+      refreshReview().catch((error) => {
+        console.error('[fees] Unable to refresh review after applying locale', error);
+      });
+    }
+  } else {
+    updateTaxInputs();
+  }
+}
+
 /**
  * Setup location input (manual ZIP entry if Google Maps not available)
  */
 function setupLocationInput() {
   const locationInput = document.getElementById('user-location');
+
+  // Skip if element doesn't exist (e.g., in express mode without wizard)
+  if (!locationInput) {
+    console.log('[location-input] Wizard location input not found; skipping setup');
+    return;
+  }
 
   // Also allow manual ZIP entry
   locationInput.addEventListener('input', async (e) => {
@@ -341,6 +697,17 @@ function setupLocationInput() {
       if (hint) {
         hint.textContent = `✓ Using ZIP: ${value}`;
         hint.style.color = 'var(--success)';
+      }
+
+      if (google?.maps?.Geocoder) {
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: value }, (results, status) => {
+          if (status === 'OK' && results?.length) {
+            const components = results[0].address_components ?? [];
+            const { stateCode, countyName } = extractLocaleFromComponents(components);
+            applyLocaleToFees({ stateCode, countyName });
+          }
+        });
       }
 
       // Populate year dropdown now that location is set
@@ -421,6 +788,11 @@ function setupVINInput() {
   const vinInput = document.getElementById('vin-input');
   const dropdown = document.getElementById('saved-vehicles-dropdown');
 
+  if (!vinInput || !dropdown) {
+    console.warn('[vin-input] VIN input elements not found; skipping main wizard VIN setup');
+    return;
+  }
+
   vinInput.addEventListener('focus', () => {
     if (savedVehicles.length > 0) {
       showSavedVehiclesDropdown();
@@ -474,6 +846,12 @@ function setupCascadingDropdowns() {
   const makeGroup = document.getElementById('make-group');
   const modelGroup = document.getElementById('model-group');
   const trimGroup = document.getElementById('trim-group');
+
+  // Skip if elements don't exist (e.g., in express mode without wizard)
+  if (!yearInput || !makeInput || !modelInput || !trimInput) {
+    console.log('[cascading-dropdowns] Wizard elements not found; skipping cascading dropdowns setup');
+    return;
+  }
 
   // Populate makes when year is selected
   yearInput.addEventListener('change', async () => {
@@ -1287,30 +1665,30 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     // 6. Prioritize vehicles by trim match quality
     similarVehicles = prioritizeVehiclesByTrim(allSimilarVehicles, vehicleDetails);
 
-    // 7. Display similar vehicles (or auto-select if none found)
+    // 7. Auto-select the vehicle (whether or not similar vehicles are found)
+    console.log('[search-vehicle] Auto-selecting vehicle');
+    selectedVehicle = {
+      ...vehicleDetails,
+      condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'New' : 'Used')
+    };
+    hideManualEntry();
+
+    // Populate vehicle price field with asking price or Smart Offer
+    const vehiclePriceInput = document.getElementById('vehicle-price');
+    if (vehiclePriceInput) {
+      const priceToUse = smartOfferData?.offer || vehicleDetails.asking_price;
+      if (priceToUse) {
+        vehiclePriceInput.value = formatCurrency(priceToUse);
+        vehiclePriceInput.dataset.basePrice = priceToUse; // Store base price for formula calculations
+        wizardData.financing.salePrice = priceToUse;
+        console.log('[vehicle-price] Auto-populated with:', formatCurrency(priceToUse));
+      }
+    }
+
+    // 8. Display similar vehicles if found (as alternatives)
     if (similarVehicles.length > 0) {
       displaySimilarVehicles(similarVehicles, vehicleDetails);
       similarSection.style.display = 'block';
-    } else {
-      // No similar vehicles from MarketCheck - auto-select this vehicle
-      console.log('[search-vehicle] No similar vehicles found, auto-selecting');
-      selectedVehicle = {
-        ...vehicleDetails,
-        condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'New' : 'Used')
-      };
-      hideManualEntry();
-
-      // Populate vehicle price field with asking price or Smart Offer
-      const vehiclePriceInput = document.getElementById('vehicle-price');
-      if (vehiclePriceInput) {
-        const priceToUse = smartOfferData?.offer || vehicleDetails.asking_price;
-        if (priceToUse) {
-          vehiclePriceInput.value = formatCurrency(priceToUse);
-          vehiclePriceInput.dataset.basePrice = priceToUse; // Store base price for formula calculations
-          wizardData.financing.salePrice = priceToUse;
-          console.log('[vehicle-price] Auto-populated with:', formatCurrency(priceToUse));
-        }
-      }
     }
 
   } catch (error) {
@@ -2908,20 +3286,17 @@ function updateWizardUI() {
   }
 
   if (currentStep === 4) {
-    populateReviewSummary();
-
     // Open fees modal on first entry to step 4, or if fees haven't been customized
     if (!wizardData.fees || !wizardData.fees.userCustomized) {
-      // Open modal and let user enter fees
       openFeesModal();
-      // Mark that we should wait for user input
       if (!wizardData.fees) {
         wizardData.fees = { userCustomized: false };
       }
     }
 
-    // Always populate review (will use defaults if modal hasn't been saved yet)
-    populateReviewSection(); // Calculate and display TILA disclosure
+    refreshReview().catch((error) => {
+      console.error('[review] Unable to populate review section:', error);
+    });
   }
 
   document.querySelector('.wizard-card').scrollIntoView({
@@ -3068,78 +3443,137 @@ function toggleTradeIn(show) {
 }
 
 /**
- * Populate review summary
+ * Compute review data shared between summary and detail views
  */
-function populateReviewSummary() {
-  const summaryContainer = document.getElementById('review-summary');
-  if (!summaryContainer) return;
+async function computeReviewData() {
+  const financing = wizardData.financing || {};
+  const tradein = wizardData.tradein || {};
 
-  const price = parseFloat(wizardData.financing.vehiclePrice) || 0;
-  const downPayment = parseFloat(wizardData.financing.downPayment) || 0;
-  const term = parseInt(wizardData.financing.loanTerm) || 60;
-  const tradeInValue = wizardData.tradein.hasTradeIn
-    ? (parseFloat(wizardData.tradein.value) || 0) - (parseFloat(wizardData.tradein.payoff) || 0)
-    : 0;
+  const salePrice = parseCurrencyToNumber(financing.salePrice);
+  const cashDown = Math.max(parseCurrencyToNumber(financing.cashDown || financing.downPayment), 0);
+  const term = parseInt(financing.term || financing.loanTerm, 10) || 72;
 
-  const loanAmount = price - downPayment - tradeInValue;
+  const hasTrade = !!tradein.hasTradeIn;
+  const tradeOffer = hasTrade ? parseCurrencyToNumber(tradein.tradeValue || tradein.value) : 0;
+  const tradePayoff = hasTrade ? parseCurrencyToNumber(tradein.tradePayoff || tradein.payoff) : 0;
+  const netTrade = tradeOffer - tradePayoff;
+  const positiveEquity = Math.max(netTrade, 0);
+  const negativeEquity = Math.max(tradePayoff - tradeOffer, 0);
 
-  let estimatedAPR = 6.5;
-  switch (wizardData.financing.creditScore) {
-    case 'excellent': estimatedAPR = 4.5; break;
-    case 'good': estimatedAPR = 6.5; break;
-    case 'fair': estimatedAPR = 9.5; break;
-    case 'poor': estimatedAPR = 14.5; break;
+  if (!wizardData.fees) {
+    wizardData.fees = {
+      dealerFees: 799,
+      customerAddons: 0,
+      govtFees: 150,
+      stateTaxRate: 6.0,
+      countyTaxRate: 1.0
+    };
   }
 
-  const monthlyRate = estimatedAPR / 100 / 12;
-  const monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, term)) / (Math.pow(1 + monthlyRate, term) - 1);
+  const fees = wizardData.fees;
+  const totalDealerFees = parseCurrencyToNumber(fees.dealerFees);
+  const totalCustomerAddons = parseCurrencyToNumber(fees.customerAddons);
+  const totalGovtFees = parseCurrencyToNumber(fees.govtFees);
+  const stateTaxRate = Number.isFinite(fees.stateTaxRate)
+    ? fees.stateTaxRate
+    : parseFloat(fees.stateTaxRate) || 0;
+  const countyTaxRate = Number.isFinite(fees.countyTaxRate)
+    ? fees.countyTaxRate
+    : parseFloat(fees.countyTaxRate) || 0;
 
-  const vehicleInfo = wizardData.vehicle.vin
-    ? `VIN: ${wizardData.vehicle.vin}`
-    : `${wizardData.vehicle.year} ${wizardData.vehicle.make} ${wizardData.vehicle.model}`;
+  const totalFees = totalDealerFees + totalCustomerAddons + totalGovtFees;
 
-  summaryContainer.innerHTML = `
-    <div style="background: rgba(255, 255, 255, 0.6); border-radius: var(--radius-md); padding: var(--spacing-md); margin-bottom: var(--spacing-md);">
-      <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: var(--spacing-sm); color: #1e293b;">
-        Your Estimated Payment
-      </h3>
-      <div style="font-size: 2.5rem; font-weight: 700; color: var(--primary-start); margin-bottom: var(--spacing-xs);">
-        $${monthlyPayment.toFixed(2)}<span style="font-size: 1rem; color: #64748b;">/mo</span>
-      </div>
-      <div style="font-size: 0.875rem; color: #64748b;">
-        ${term} months at ${estimatedAPR.toFixed(2)}% APR
-      </div>
-    </div>
+  const taxTotals = recomputeTaxes({
+    salePrice,
+    dealerFees: totalDealerFees,
+    customerAddons: totalCustomerAddons,
+    tradeOffer,
+    stateTaxRate,
+    countyTaxRate
+  });
 
-    <div style="background: rgba(255, 255, 255, 0.4); border-radius: var(--radius-md); padding: var(--spacing-md);">
-      <div style="display: grid; gap: var(--spacing-sm); font-size: 0.875rem;">
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #64748b;">Vehicle:</span>
-          <span style="font-weight: 600; color: #1e293b;">${vehicleInfo}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #64748b;">Purchase Price:</span>
-          <span style="font-weight: 600; color: #1e293b;">$${price.toLocaleString()}</span>
-        </div>
-        <div style="display: flex; justify-content: space-between;">
-          <span style="color: #64748b;">Down Payment:</span>
-          <span style="font-weight: 600; color: #1e293b;">$${downPayment.toLocaleString()}</span>
-        </div>
-        ${wizardData.tradein.hasTradeIn ? `
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: #64748b;">Trade-In Equity:</span>
-            <span style="font-weight: 600; color: ${tradeInValue >= 0 ? '#10b981' : '#ef4444'};">
-              ${tradeInValue >= 0 ? '+' : ''}$${tradeInValue.toLocaleString()}
-            </span>
-          </div>
-        ` : ''}
-        <div style="border-top: 1px solid rgba(203, 213, 225, 0.5); padding-top: var(--spacing-sm); margin-top: var(--spacing-sm); display: flex; justify-content: space-between;">
-          <span style="color: #1e293b; font-weight: 600;">Amount to Finance:</span>
-          <span style="font-weight: 700; color: var(--primary-start);">$${loanAmount.toLocaleString()}</span>
-        </div>
-      </div>
-    </div>
-  `;
+  const stateTaxTotal = taxTotals.stateTaxAmount;
+  const countyTaxTotal = taxTotals.countyTaxAmount;
+  const totalTaxes = taxTotals.totalTaxes;
+  const sumOtherCharges = totalFees + totalTaxes;
+
+  const cashPrice = salePrice;
+  const unpaidBalance = cashPrice - cashDown - netTrade;
+  const amountFinanced = Math.max(unpaidBalance + sumOtherCharges, 0);
+
+  let selectedApr;
+  try {
+    if (selectedLenderId === 'lowest') {
+      selectedApr = await calculateLowestApr();
+    } else {
+      let rateInfo = currentRates.get(selectedLenderId);
+      if (!rateInfo) {
+        await calculateLowestApr();
+        rateInfo = currentRates.get(selectedLenderId);
+      }
+
+      if (rateInfo) {
+        const lender = lendersConfig.find((l) => l.id === selectedLenderId);
+        selectedApr = {
+          lenderId: selectedLenderId,
+          lenderName: lender?.longName || lender?.shortName || selectedLenderId,
+          apr: rateInfo.aprDecimal,
+          note: rateInfo.note
+        };
+      } else {
+        selectedApr = await calculateLowestApr();
+      }
+    }
+  } catch (error) {
+    console.warn('[review] Falling back to default APR:', error);
+  }
+
+  if (!selectedApr || !Number.isFinite(selectedApr.apr)) {
+    selectedApr = {
+      lenderId: 'default',
+      lenderName: 'Standard Rate',
+      apr: 0.0699,
+      note: 'Default rate - no lenders matched'
+    };
+  }
+
+  const apr = Number.isFinite(selectedApr.apr) ? selectedApr.apr : 0.0699;
+  const monthlyPayment = calculateMonthlyPayment(amountFinanced, apr, term);
+  const totalPayments = monthlyPayment * term;
+  const financeCharge = totalPayments - amountFinanced;
+  const totalSalePrice = totalPayments + cashDown + netTrade;
+  const cashDue = Math.max(cashDown, 0);
+  const cashToBuyer = 0;
+
+  return {
+    salePrice,
+    cashPrice,
+    cashDown,
+    tradeOffer,
+    tradePayoff,
+    netTrade,
+    positiveEquity,
+    negativeEquity,
+    unpaidBalance,
+    sumOtherCharges,
+    totalDealerFees,
+    totalCustomerAddons,
+    totalGovtFees,
+    stateTaxTotal,
+    countyTaxTotal,
+    totalTaxes,
+    amountFinanced,
+    monthlyPayment,
+    term,
+    apr,
+    financeCharge,
+    totalPayments,
+    totalSalePrice,
+    cashDue,
+    cashToBuyer,
+    lenderName: selectedApr.lenderName || 'Standard Rate',
+    lenderNote: selectedApr.note || ''
+  };
 }
 
 /* ==========================================================================
@@ -3158,7 +3592,7 @@ async function loadLenders() {
   try {
     const response = await fetch('/config/lenders.json');
     const lenders = await response.json();
-    lendersConfig = lenders.filter(l => l.enabled !== false);
+    lendersConfig = lenders.filter((l) => l.enabled !== false);
 
     console.log('[lenders] Loaded', lendersConfig.length, 'lenders');
     populateLenderDropdown();
@@ -3176,10 +3610,10 @@ function populateLenderDropdown() {
   if (!select) return;
 
   // Keep "Lowest APR" option
-  select.innerHTML = '<option value="lowest">Lowest APR (Recommended)</option>';
+  select.innerHTML = '<option value=\"lowest\">Lowest APR (Recommended)</option>';
 
   // Add enabled lenders
-  lendersConfig.forEach(lender => {
+  lendersConfig.forEach((lender) => {
     const option = document.createElement('option');
     option.value = lender.id;
     option.textContent = lender.longName || lender.shortName;
@@ -3189,7 +3623,9 @@ function populateLenderDropdown() {
   // Listen for changes
   select.addEventListener('change', (e) => {
     selectedLenderId = e.target.value;
-    populateReviewSection();
+    refreshReview().catch((error) => {
+      console.error('[rates] Unable to refresh review after lender change:', error);
+    });
   });
 }
 
@@ -3205,7 +3641,7 @@ async function fetchLenderRates(lenderId) {
     }
 
     const data = await response.json();
-    return Array.isArray(data) ? data : (data.rates || []);
+    return Array.isArray(data) ? data : data.rates || [];
   } catch (error) {
     console.error(`[rates] Error fetching rates for ${lenderId}:`, error);
     return null;
@@ -3228,7 +3664,7 @@ function getStubRates(lender) {
     term_max: stubRate.termMax,
     base_apr: stubRate.baseApr,
     credit_score_min: 300,
-    credit_score_max: 850,
+    credit_score_max: 850
   }));
 }
 
@@ -3239,7 +3675,7 @@ function matchRate(rates, criteria) {
   const { term, condition, creditScore } = criteria;
 
   // Filter by condition and term range
-  let eligible = rates.filter(rate => {
+  let eligible = rates.filter((rate) => {
     const vehicleCondition = rate.vehicle_condition || rate.vehicleCondition;
     const termMin = rate.term_min || rate.termMin;
     const termMax = rate.term_max || rate.termMax;
@@ -3252,7 +3688,7 @@ function matchRate(rates, criteria) {
 
   // Filter by credit score if banded
   if (creditScore) {
-    const scoreBanded = eligible.filter(rate => {
+    const scoreBanded = eligible.filter((rate) => {
       const scoreMin = rate.credit_score_min || rate.creditScoreMin || 300;
       const scoreMax = rate.credit_score_max || rate.creditScoreMax || 850;
       return creditScore >= scoreMin && creditScore <= scoreMax;
@@ -3266,10 +3702,10 @@ function matchRate(rates, criteria) {
   // Select rate with lowest APR
   if (eligible.length === 0) return null;
 
-  const best = eligible.reduce((best, rate) => {
+  const best = eligible.reduce((bestRate, rate) => {
     const aprPercent = rate.base_apr || rate.baseApr || rate.apr_percent || rate.aprPercent;
-    const bestApr = best.base_apr || best.baseApr || best.apr_percent || best.aprPercent;
-    return aprPercent < bestApr ? rate : best;
+    const bestApr = bestRate.base_apr || bestRate.baseApr || bestRate.apr_percent || bestRate.aprPercent;
+    return aprPercent < bestApr ? rate : bestRate;
   });
 
   return {
@@ -3283,7 +3719,7 @@ function matchRate(rates, criteria) {
  * Get APR for all lenders and find lowest
  */
 async function calculateLowestApr() {
-  const term = parseInt(wizardData.financing.loanTerm) || 72;
+  const term = parseInt(wizardData.financing.loanTerm, 10) || 72;
   const condition = wizardData.vehicle.condition === 'new' ? 'new' : 'used';
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
 
@@ -3346,10 +3782,10 @@ async function calculateLowestApr() {
  */
 function mapCreditScoreRange(creditScoreRange) {
   const map = {
-    'excellent': 780,
-    'good': 725,
-    'fair': 675,
-    'poor': 600
+    excellent: 780,
+    good: 725,
+    fair: 675,
+    poor: 600
   };
   return map[creditScoreRange] || 700;
 }
@@ -3358,11 +3794,18 @@ function mapCreditScoreRange(creditScoreRange) {
  * Calculate monthly payment using loan formula
  */
 function calculateMonthlyPayment(principal, apr, term) {
-  if (apr === 0) return principal / term;
+  if (!Number.isFinite(principal) || principal <= 0) return 0;
+  if (!Number.isFinite(term) || term <= 0) return 0;
 
   const monthlyRate = apr / 12;
-  const payment = principal * (monthlyRate * Math.pow(1 + monthlyRate, term)) /
-                  (Math.pow(1 + monthlyRate, term) - 1);
+  if (!Number.isFinite(monthlyRate) || Math.abs(monthlyRate) < 1e-9) {
+    return Math.round((principal / term) * 100) / 100;
+  }
+
+  const payment =
+    principal *
+    ((monthlyRate * Math.pow(1 + monthlyRate, term)) /
+      (Math.pow(1 + monthlyRate, term) - 1));
 
   return Math.round(payment * 100) / 100;
 }
@@ -3407,105 +3850,77 @@ function recomputeTaxes({ salePrice, dealerFees, customerAddons, tradeOffer, sta
 }
 
 /**
+ * Populate review summary
+ */
+function populateReviewSummary(reviewData) {
+  const data = reviewData || latestReviewData;
+  if (!data) return;
+
+  setText('summaryMonthlyPayment', formatCurrency(data.monthlyPayment));
+  setText('summaryTerm', `${data.term} months`);
+  setText('summaryAPR', formatPercent(data.apr));
+  setText('summaryAmountFinanced', formatCurrency(data.amountFinanced));
+  setText('summaryTotalPayments', formatCurrency(data.totalPayments));
+  setText('summaryFinanceCharge', formatCurrency(data.financeCharge));
+  setText('summaryTotalSalePrice', formatCurrency(data.totalSalePrice));
+  setText('summaryOtherCharges', formatCurrency(data.sumOtherCharges));
+  setText('summaryCashDue', formatCurrency(data.cashDue));
+
+  const summaryCashToBuyer = document.getElementById('summaryCashToBuyer');
+  if (summaryCashToBuyer) {
+    if (data.cashToBuyer > 0) {
+      summaryCashToBuyer.textContent = `Cash to buyer: ${formatCurrency(data.cashToBuyer)}`;
+      summaryCashToBuyer.style.display = '';
+    } else {
+      summaryCashToBuyer.textContent = '';
+      summaryCashToBuyer.style.display = 'none';
+    }
+  }
+}
+
+/**
+ * Refresh both summary and detailed review views
+ */
+async function refreshReview() {
+  const reviewData = await computeReviewData();
+  latestReviewData = reviewData;
+  populateReviewSummary(reviewData);
+  populateReviewSection(reviewData);
+}
+
+/**
  * Populate review section with all calculated values
  * Math follows app.js contract modal exactly (lines 9787-9989)
  */
-async function populateReviewSection() {
-  console.log('[review] Populating review section...');
+function populateReviewSection(reviewData) {
+  const data = reviewData || latestReviewData;
+  if (!data) return;
 
-  // Get selected APR
-  let selectedApr;
-  if (selectedLenderId === 'lowest') {
-    selectedApr = await calculateLowestApr();
-  } else {
-    const rateInfo = currentRates.get(selectedLenderId);
-    if (rateInfo) {
-      const lender = lendersConfig.find(l => l.id === selectedLenderId);
-      selectedApr = {
-        lenderId: selectedLenderId,
-        lenderName: lender?.longName || lender?.shortName || selectedLenderId,
-        apr: rateInfo.aprDecimal,
-        note: rateInfo.note
-      };
-    } else {
-      // Fallback to calculating for this specific lender
-      selectedApr = await calculateLowestApr();
-    }
-  }
+  const {
+    cashPrice,
+    cashDown,
+    tradeOffer,
+    tradePayoff,
+    netTrade,
+    unpaidBalance,
+    sumOtherCharges,
+    totalDealerFees,
+    totalCustomerAddons,
+    totalGovtFees,
+    stateTaxTotal,
+    countyTaxTotal,
+    amountFinanced,
+    monthlyPayment,
+    term,
+    apr,
+    financeCharge,
+    totalPayments,
+    totalSalePrice,
+    cashDue,
+    cashToBuyer,
+    lenderName
+  } = data;
 
-  // Extract base values from wizardData (matching app.js naming)
-  const salePrice = parseFloat(wizardData.financing.salePrice) || 0;
-  const cashDown = parseFloat(wizardData.financing.downPayment) || 0;
-  const tradeOffer = wizardData.tradein.hasTradeIn ? (parseFloat(wizardData.tradein.value) || 0) : 0;
-  const tradePayoff = wizardData.tradein.hasTradeIn ? (parseFloat(wizardData.tradein.payoff) || 0) : 0;
-  const term = parseInt(wizardData.financing.loanTerm) || 72;
-  const apr = selectedApr.apr;
-
-  // Calculate equity and net trade (matching app.js)
-  const equity = tradeOffer - tradePayoff;
-  const netTrade = equity;
-
-  // Initialize fees in wizardData if not exists
-  if (!wizardData.fees) {
-    wizardData.fees = {
-      dealerFees: 799,
-      customerAddons: 0,
-      govtFees: 150,
-      stateTaxRate: 6.0,
-      countyTaxRate: 1.0
-    };
-  }
-
-  // Use fees from wizardData (set by user in fees modal)
-  const totalDealerFees = wizardData.fees.dealerFees;
-  const totalCustomerAddons = wizardData.fees.customerAddons;
-  const totalGovtFees = wizardData.fees.govtFees;
-
-  // Calculate taxes using app.js logic with user-entered rates
-  const taxTotals = recomputeTaxes({
-    salePrice: salePrice,
-    dealerFees: totalDealerFees,
-    customerAddons: totalCustomerAddons,
-    tradeOffer: tradeOffer,
-    stateTaxRate: wizardData.fees.stateTaxRate,
-    countyTaxRate: wizardData.fees.countyTaxRate
-  });
-
-  const stateTaxTotal = taxTotals.stateTaxAmount;
-  const countyTaxTotal = taxTotals.countyTaxAmount;
-  const totalTaxes = taxTotals.totalTaxes;
-  const totalFees = totalDealerFees + totalCustomerAddons + totalGovtFees;
-
-  // TILA Calculation (matching app.js lines 9817-9826)
-  // CASH PRICE = sale price only (not including fees/taxes)
-  const cashPrice = salePrice;
-
-  // UNPAID BALANCE = cash price - cash down - net trade
-  const unpaidBalance = cashPrice - cashDown - netTrade;
-
-  // OTHER CHARGES = total fees + total taxes
-  const sumOtherCharges = totalFees + totalTaxes;
-
-  // AMOUNT FINANCED = unpaid balance + other charges
-  const amountFinanced = unpaidBalance + sumOtherCharges;
-
-  // Monthly payment using loan amortization formula
-  const monthlyPayment = calculateMonthlyPayment(amountFinanced, apr, term);
-
-  // TOTAL OF PAYMENTS = monthly payment * term
-  const totalPayments = monthlyPayment * term;
-
-  // FINANCE CHARGE = total of payments - amount financed
-  const financeCharge = totalPayments - amountFinanced;
-
-  // TOTAL SALE PRICE = total of payments + cash down + net trade
-  const totalSalePrice = totalPayments + cashDown + netTrade;
-
-  // Cash due at signing logic
-  const cashDue = cashDown > 0 ? cashDown : 0;
-  const cashToBuyer = netTrade > 0 ? netTrade : 0;
-
-  // Populate vehicle hero
   setText('reviewHeroYear', wizardData.vehicle.year);
   setText('reviewHeroMake', wizardData.vehicle.make);
   setText('reviewHeroModel', wizardData.vehicle.model);
@@ -3513,24 +3928,21 @@ async function populateReviewSection() {
   setText('reviewHeroVin', wizardData.vehicle.vin ? `VIN: ${wizardData.vehicle.vin}` : '');
   setText('reviewHeroPrice', formatCurrency(cashPrice));
 
-  // Show lender info
-  const lenderName = document.getElementById('reviewLenderName');
-  if (lenderName) {
-    lenderName.textContent = selectedApr.lenderName;
+  const lenderNameEl = document.getElementById('reviewLenderName');
+  if (lenderNameEl) {
+    lenderNameEl.textContent = lenderName;
+    lenderNameEl.title = data.lenderNote || '';
   }
 
-  // Populate TILA disclosures (Federal Truth-in-Lending)
   setText('reviewAPR', formatPercent(apr));
   setText('reviewFinanceCharge', formatCurrency(financeCharge));
   setText('reviewAmountFinanced', formatCurrency(amountFinanced));
   setText('reviewTotalPayments', formatCurrency(totalPayments));
   setText('reviewTotalSalePrice', formatCurrency(totalSalePrice));
 
-  // Populate payment schedule
   setText('reviewMonthlyPayment', formatCurrency(monthlyPayment));
   setText('reviewNumPayments', term);
 
-  // Populate itemization (matching app.js structure exactly)
   setText('reviewSalePrice', formatCurrency(cashPrice));
   setText('reviewCashDown', formatCurrency(cashDown));
   setText('reviewNetTrade', formatCurrencyAccounting(netTrade));
@@ -3545,17 +3957,292 @@ async function populateReviewSection() {
   setText('reviewCountyTax', formatCurrency(countyTaxTotal));
   setText('reviewAmountFinanced2', formatCurrency(amountFinanced));
 
-  // Populate cash due/cash to buyer
   setText('reviewCashDue', formatCurrency(cashDue));
   setText('reviewCashToBuyer', formatCurrency(cashToBuyer));
 
-  // Show/hide cash to buyer row
   const cashToBuyerRow = document.getElementById('reviewCashToBuyerRow');
   if (cashToBuyerRow) {
     cashToBuyerRow.style.display = cashToBuyer > 0 ? 'flex' : 'none';
   }
 
+  const netNote = document.getElementById('reviewNetNote');
+  const netAmountEl = document.getElementById('reviewNetAmount');
+  const netExplanationEl = document.getElementById('reviewNetExplanation');
+  if (netNote && netAmountEl && netExplanationEl) {
+    if (cashToBuyer > 0 && cashDue > 0) {
+      const netAmount = cashToBuyer - cashDue;
+      netNote.style.display = 'block';
+
+      if (netAmount > 0) {
+        netAmountEl.textContent = formatCurrency(netAmount);
+        netAmountEl.style.color = 'var(--success, #22c55e)';
+        netExplanationEl.textContent = 'You will receive this amount at signing after equity is applied to amounts due.';
+      } else if (netAmount < 0) {
+        netAmountEl.textContent = formatCurrency(Math.abs(netAmount));
+        netAmountEl.style.color = 'var(--danger, #ef4444)';
+        netExplanationEl.textContent = 'You need to bring this amount at signing after equity is applied to amounts due.';
+      } else {
+        netAmountEl.textContent = formatCurrency(0);
+        netAmountEl.style.color = 'var(--text-secondary, #64748b)';
+        netExplanationEl.textContent = 'Equity exactly covers all amounts due at signing.';
+      }
+    } else {
+      netNote.style.display = 'none';
+      netAmountEl.textContent = '';
+      netExplanationEl.textContent = '';
+    }
+  }
+
+  // Populate collapsible header values
+  setText('collapsibleMonthlyPayment', formatCurrency(monthlyPayment));
+  setText('collapsibleLenderName', lenderName);
+  setText('collapsibleCashDue', formatCurrency(cashDue));
+
+  // Populate review vehicle card (Step 1 style)
+  populateReviewVehicleCard(data);
+
   console.log('[review] Review populated - Amount Financed:', formatCurrency(amountFinanced), 'Monthly:', formatCurrency(monthlyPayment));
+}
+
+/**
+ * Toggle collapsible review section
+ */
+function toggleReviewSection(sectionId) {
+  const content = document.getElementById(`${sectionId}-content`);
+  const header = content?.previousElementSibling;
+
+  if (!content || !header) return;
+
+  const isActive = content.classList.contains('active');
+
+  if (isActive) {
+    content.classList.remove('active');
+    header.classList.remove('active');
+    content.style.display = 'none';
+  } else {
+    content.classList.add('active');
+    header.classList.add('active');
+    content.style.display = 'block';
+  }
+}
+
+/**
+ * Populate review vehicle card with Step 1 styling
+ */
+function populateReviewVehicleCard(reviewData) {
+  const card = document.getElementById('review-vehicle-card');
+  if (!card) return;
+
+  const vehicle = wizardData.vehicle;
+  const { monthlyPayment, term, apr } = reviewData;
+
+  // Clean model name
+  const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
+
+  // Build vehicle details text
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+
+  // Image HTML
+  const imageHtml = vehicle.photo_url
+    ? `<img src="${vehicle.photo_url}" alt="${vehicleDetailsText}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+       <div class="your-vehicle-card__image-placeholder" style="display: none;">
+         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+         </svg>
+       </div>`
+    : `<div class="your-vehicle-card__image-placeholder">
+         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+         </svg>
+       </div>`;
+
+  card.innerHTML = `
+    ${imageHtml}
+    <div class="your-vehicle-card__content">
+      <div class="your-vehicle-card__badge">YOUR VEHICLE</div>
+      <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
+      ${vehicle.vin ? `<div class="your-vehicle-card__meta">VIN: ${formatVIN(vehicle.vin)}</div>` : ''}
+      ${vehicle.mileage ? `<div class="your-vehicle-card__meta">${formatMileage(vehicle.mileage)} miles</div>` : ''}
+      <div class="your-vehicle-card__price">
+        <div class="your-vehicle-card__price-label">Est. Monthly Payment</div>
+        <div class="your-vehicle-card__price-value">${formatCurrency(monthlyPayment)}</div>
+        <div class="your-vehicle-card__price-meta">${term} months • ${formatPercent(apr)} APR</div>
+      </div>
+    </div>
+  `;
+
+  // Initialize sliders after populating the card
+  initializeReviewSliders(reviewData);
+}
+
+/**
+ * Initialize and sync review sliders with their inputs
+ */
+function initializeReviewSliders(reviewData) {
+  const sliderConfigs = [
+    {
+      sliderId: 'reviewSalePriceSlider',
+      inputId: 'reviewSalePriceInput',
+      getValue: () => wizardData.financing.salePrice || 0,
+      setValue: (val) => {
+        wizardData.financing.salePrice = val;
+        // Update vehicle price in step 2
+        const vehiclePriceInput = document.getElementById('vehicle-price');
+        if (vehiclePriceInput) {
+          vehiclePriceInput.value = formatCurrency(val);
+          vehiclePriceInput.dataset.basePrice = val;
+        }
+      },
+      max: 150000,
+      step: 500
+    },
+    {
+      sliderId: 'reviewCashDownSlider',
+      inputId: 'reviewCashDownInput',
+      getValue: () => wizardData.financing.cashDown || 0,
+      setValue: (val) => {
+        wizardData.financing.cashDown = val;
+        // Update down payment in step 2
+        const downPaymentInput = document.getElementById('down-payment');
+        if (downPaymentInput) {
+          downPaymentInput.value = formatCurrency(val);
+        }
+      },
+      max: 50000,
+      step: 100
+    },
+    {
+      sliderId: 'reviewTradeAllowanceSlider',
+      inputId: 'reviewTradeAllowanceInput',
+      getValue: () => wizardData.tradein?.tradeValue || 0,
+      setValue: (val) => {
+        if (!wizardData.tradein) wizardData.tradein = {};
+        wizardData.tradein.tradeValue = val;
+        // Update trade-in value in step 3
+        const tradeValueInput = document.getElementById('tradein-value');
+        if (tradeValueInput) {
+          tradeValueInput.value = formatCurrency(val);
+        }
+      },
+      max: 75000,
+      step: 100
+    },
+    {
+      sliderId: 'reviewDealerFeesSlider',
+      inputId: 'reviewDealerFeesInput',
+      getValue: () => {
+        ensureWizardFeeDefaults();
+        const fees = wizardData.fees.dealerFees || [];
+        return fees.reduce((sum, fee) => sum + (parseFloat(fee.amount) || 0), 0);
+      },
+      setValue: (val) => {
+        ensureWizardFeeDefaults();
+        // Distribute the value proportionally across existing dealer fees
+        const fees = wizardData.fees.dealerFees || [];
+        if (fees.length === 0) {
+          // Create a default dealer fee if none exist
+          fees.push({ name: 'Dealer Fee', amount: val });
+          wizardData.fees.dealerFees = fees;
+        } else {
+          const currentTotal = fees.reduce((sum, fee) => sum + (parseFloat(fee.amount) || 0), 0);
+          if (currentTotal > 0) {
+            // Proportional distribution
+            fees.forEach(fee => {
+              const proportion = (parseFloat(fee.amount) || 0) / currentTotal;
+              fee.amount = val * proportion;
+            });
+          } else {
+            // Equal distribution
+            const perFee = val / fees.length;
+            fees.forEach(fee => fee.amount = perFee);
+          }
+        }
+        wizardData.fees.userCustomized = true;
+      },
+      max: 10000,
+      step: 100
+    }
+  ];
+
+  sliderConfigs.forEach(config => {
+    const slider = document.getElementById(config.sliderId);
+    const input = document.getElementById(config.inputId);
+
+    if (!slider || !input) return;
+
+    // Set initial values
+    const currentValue = config.getValue();
+    slider.value = currentValue;
+    slider.max = config.max;
+    slider.step = config.step;
+    input.value = formatCurrency(currentValue);
+
+    // Update slider progress bar
+    updateSliderProgress(slider);
+
+    // Slider to input sync
+    slider.addEventListener('input', async (e) => {
+      const value = parseFloat(e.target.value);
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+      config.setValue(value);
+
+      // Debounced refresh
+      await refreshReviewDebounced();
+    });
+
+    // Input to slider sync
+    input.addEventListener('blur', async (e) => {
+      const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+      let value = parseFloat(rawValue);
+
+      if (isNaN(value) || value < 0) {
+        value = 0;
+      } else if (value > config.max) {
+        value = config.max;
+      }
+
+      // Round to step
+      value = Math.round(value / config.step) * config.step;
+
+      slider.value = value;
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+      config.setValue(value);
+
+      await refreshReview();
+    });
+
+    // Enter key support
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+  });
+}
+
+/**
+ * Update slider visual progress
+ */
+function updateSliderProgress(slider) {
+  const min = parseFloat(slider.min) || 0;
+  const max = parseFloat(slider.max) || 100;
+  const value = parseFloat(slider.value) || 0;
+  const progress = ((value - min) / (max - min)) * 100;
+  slider.style.setProperty('--slider-progress', `${progress}%`);
+}
+
+/**
+ * Debounced refresh to avoid too many calculations during slider drag
+ */
+let refreshTimeout;
+async function refreshReviewDebounced() {
+  clearTimeout(refreshTimeout);
+  refreshTimeout = setTimeout(async () => {
+    await refreshReview();
+  }, 150); // 150ms debounce
 }
 
 /**
@@ -3585,40 +4272,96 @@ function setText(id, text) {
 /**
  * Open fees modal with default or saved values
  */
+function ensureWizardFeeDefaults() {
+  if (!wizardData.fees) {
+    wizardData.fees = {
+      dealerFees: 0,
+      customerAddons: 0,
+      govtFees: 0,
+      stateTaxRate: 6.0,
+      countyTaxRate: 1.0,
+      items: {
+        dealer: [],
+        customer: [],
+        gov: []
+      }
+    };
+  } else if (!wizardData.fees.items) {
+    wizardData.fees.items = {
+      dealer: [],
+      customer: [],
+      gov: []
+    };
+  }
+}
+
+function initializeFeeModal() {
+  if (feeModalState.initialized) return;
+  feeModalState.initialized = true;
+  ensureWizardFeeDefaults();
+
+  Object.entries(FEE_CATEGORY_CONFIG).forEach(([key, config]) => {
+    const container = document.getElementById(config.containerId);
+    const totalEl = document.getElementById(config.totalId);
+    const suggestionStore = createSuggestionStore(config.datalistId);
+    feeModalState.categories[key] = {
+      key,
+      container,
+      totalEl,
+      suggestionStore,
+      rows: []
+    };
+  });
+
+  const editFeeForm = document.getElementById('edit-fee-form');
+  if (editFeeForm) {
+    editFeeForm.addEventListener('submit', handleEditFeeSubmit);
+  }
+
+  const typeSelect = document.getElementById('edit-fee-type');
+  if (typeSelect) {
+    typeSelect.addEventListener('change', (event) => {
+      const value = event.target.value;
+      updateEditFeeNameList(value);
+      editFeeModalState.activeCategory = value;
+    });
+  }
+
+  const nameInput = document.getElementById('edit-fee-name');
+  const amountInput = document.getElementById('edit-fee-amount');
+  if (nameInput && amountInput) {
+    nameInput.addEventListener('input', () => {
+      const currentType =
+        typeSelect?.value === 'gov'
+          ? 'gov'
+          : typeSelect?.value === 'customer'
+          ? 'customer'
+          : 'dealer';
+      const store = getFeeSuggestionStore(currentType);
+      const amount = store?.getAmount(nameInput.value) ?? null;
+      if (amount != null) {
+        amountInput.value = formatCurrency(amount);
+      }
+    });
+  }
+
+  const manageBtn = document.getElementById('modal-edit-fee-button');
+  manageBtn?.addEventListener('click', () => {
+    openEditFeeModal(editFeeModalState.activeCategory || 'dealer');
+  });
+}
+
 function openFeesModal() {
+  initializeFeeModal();
   const modal = document.getElementById('fees-modal');
   if (!modal) return;
 
-  // Initialize fees in wizardData if not exists
-  if (!wizardData.fees) {
-    wizardData.fees = {
-      dealerFees: 799,
-      customerAddons: 0,
-      govtFees: 150,
-      stateTaxRate: 6.0,
-      countyTaxRate: 1.0
-    };
-  }
+  ensureWizardFeeDefaults();
 
-  // Populate inputs with current values
-  document.getElementById('modal-dealer-fees').value = formatCurrency(wizardData.fees.dealerFees);
-  document.getElementById('modal-customer-addons').value = formatCurrency(wizardData.fees.customerAddons);
-  document.getElementById('modal-govt-fees').value = formatCurrency(wizardData.fees.govtFees);
-  document.getElementById('modal-state-tax').value = wizardData.fees.stateTaxRate.toFixed(2);
-  document.getElementById('modal-county-tax').value = wizardData.fees.countyTaxRate.toFixed(2);
-
-  // Setup currency formatting for fee inputs
-  setupCurrencyInput('modal-dealer-fees');
-  setupCurrencyInput('modal-customer-addons');
-  setupCurrencyInput('modal-govt-fees');
-
-  // Show modal
+  renderFeeModalFromWizardData();
   modal.style.display = 'flex';
 }
 
-/**
- * Close fees modal
- */
 function closeFeesModal() {
   const modal = document.getElementById('fees-modal');
   if (modal) {
@@ -3626,33 +4369,496 @@ function closeFeesModal() {
   }
 }
 
-/**
- * Save fees and recalculate review
- */
-function saveFeesAndCalculate() {
-  // Parse and save values to wizardData
-  const dealerFeesRaw = document.getElementById('modal-dealer-fees').value;
-  const customerAddonsRaw = document.getElementById('modal-customer-addons').value;
-  const govtFeesRaw = document.getElementById('modal-govt-fees').value;
-  const stateTaxRaw = document.getElementById('modal-state-tax').value;
-  const countyTaxRaw = document.getElementById('modal-county-tax').value;
+function getFeeCategoryState(categoryKey) {
+  return feeModalState.categories?.[categoryKey] ?? null;
+}
 
-  wizardData.fees = {
-    dealerFees: parseFloat(dealerFeesRaw.replace(/[^0-9.-]/g, '')) || 0,
-    customerAddons: parseFloat(customerAddonsRaw.replace(/[^0-9.-]/g, '')) || 0,
-    govtFees: parseFloat(govtFeesRaw.replace(/[^0-9.-]/g, '')) || 0,
-    stateTaxRate: parseFloat(stateTaxRaw) || 0,
-    countyTaxRate: parseFloat(countyTaxRaw) || 0,
-    userCustomized: true // Mark that user has set their fees
+function clearFeeCategoryRows(categoryKey) {
+  const category = getFeeCategoryState(categoryKey);
+  if (!category) return;
+  category.rows.forEach((row) => row.element.remove());
+  category.rows = [];
+}
+
+function renderFeeModalFromWizardData() {
+  ensureWizardFeeDefaults();
+  Object.keys(FEE_CATEGORY_CONFIG).forEach((key) => clearFeeCategoryRows(key));
+
+  const storedItems = wizardData.fees?.items ?? {};
+  Object.entries(feeModalState.categories).forEach(([key, category]) => {
+    if (!category.container) return;
+    const rows = Array.isArray(storedItems[key]) && storedItems[key].length
+      ? storedItems[key]
+      : [{}];
+
+    rows.forEach((item) => {
+      addFeeRow(key, {
+        description: item.description ?? '',
+        amount: Number.isFinite(item.amount) ? item.amount : null
+      });
+    });
+    ensureTrailingEmptyRow(key);
+    updateCategoryTotal(key);
+  });
+
+  updateTaxInputs();
+  applyFeeModalChanges();
+}
+
+function updateTaxInputs() {
+  ensureWizardFeeDefaults();
+  const stateTaxInput = document.getElementById('modal-state-tax');
+  const countyTaxInput = document.getElementById('modal-county-tax');
+  if (stateTaxInput) {
+    stateTaxInput.value = (wizardData.fees?.stateTaxRate ?? 0).toFixed(2);
+  }
+  if (countyTaxInput) {
+    countyTaxInput.value = (wizardData.fees?.countyTaxRate ?? 0).toFixed(2);
+  }
+  updateFeeSummary();
+}
+
+function addFeeRow(categoryKey, initialData = {}) {
+  const category = getFeeCategoryState(categoryKey);
+  if (!category || !category.container) return null;
+
+  const rowEl = document.createElement('div');
+  rowEl.className = 'fee-row';
+
+  const descWrap = document.createElement('div');
+  descWrap.className = 'fee-row__desc';
+  const descInput = document.createElement('input');
+  descInput.type = 'text';
+  descInput.className = 'form-input';
+  descInput.placeholder = 'Description';
+  const suggestionStore = category.suggestionStore;
+  if (suggestionStore?.datalist) {
+    descInput.setAttribute('list', suggestionStore.datalist.id);
+  }
+  if (initialData.description) {
+    descInput.value = initialData.description;
+  }
+  descWrap.appendChild(descInput);
+
+  const amountWrap = document.createElement('div');
+  amountWrap.className = 'fee-row__amount';
+  const amountInput = document.createElement('input');
+  amountInput.type = 'text';
+  amountInput.className = 'form-input';
+  amountInput.placeholder = '$0.00';
+  amountWrap.appendChild(amountInput);
+
+  const actionsWrap = document.createElement('div');
+  actionsWrap.className = 'fee-row__actions';
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'fee-row__btn';
+  removeBtn.textContent = '−';
+  removeBtn.setAttribute('aria-label', 'Remove fee');
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'fee-row__btn';
+  addBtn.textContent = '+';
+  addBtn.setAttribute('aria-label', 'Add fee');
+  actionsWrap.appendChild(removeBtn);
+  actionsWrap.appendChild(addBtn);
+
+  rowEl.appendChild(descWrap);
+  rowEl.appendChild(amountWrap);
+  rowEl.appendChild(actionsWrap);
+
+  category.container.appendChild(rowEl);
+
+  setupCurrencyInput(amountInput);
+  if (initialData.amount != null) {
+    amountInput.value = formatCurrency(initialData.amount);
+  }
+
+  const rowState = {
+    categoryKey,
+    element: rowEl,
+    descInput,
+    amountInput,
+    removeBtn,
+    addBtn
   };
 
-  console.log('[fees] Saved fees:', wizardData.fees);
+  category.rows.push(rowState);
 
-  // Close modal
+  const maybeApplySuggestion = () => {
+    const store = category.suggestionStore;
+    if (!store) return;
+    const amount = store.getAmount(descInput.value);
+    if (amount == null) return;
+    amountInput.value = formatCurrency(amount);
+    ensureTrailingEmptyRow(categoryKey);
+    updateCategoryTotal(categoryKey);
+  };
+
+  descInput.addEventListener('change', () => {
+    descInput.value = toTitleCase(descInput.value);
+    maybeApplySuggestion();
+  });
+  descInput.addEventListener('blur', () => {
+    descInput.value = toTitleCase(descInput.value);
+    maybeApplySuggestion();
+  });
+  descInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      maybeApplySuggestion();
+      const newRow = addFeeRow(categoryKey);
+      newRow?.descInput.focus();
+    }
+  });
+
+  amountInput.addEventListener('input', () => updateCategoryTotal(categoryKey));
+  amountInput.addEventListener('blur', () => {
+    updateCategoryTotal(categoryKey);
+    ensureTrailingEmptyRow(categoryKey);
+  });
+
+  removeBtn.addEventListener('click', () => removeFeeRow(categoryKey, rowState));
+  addBtn.addEventListener('click', () => {
+    const newRow = addFeeRow(categoryKey);
+    newRow?.descInput.focus();
+  });
+
+  return rowState;
+}
+
+function removeFeeRow(categoryKey, row) {
+  const category = getFeeCategoryState(categoryKey);
+  if (!category) return;
+  if (category.rows.length <= 1) {
+    row.descInput.value = '';
+    row.amountInput.value = '';
+    updateCategoryTotal(categoryKey);
+    return;
+  }
+  const index = category.rows.indexOf(row);
+  if (index >= 0) {
+    category.rows.splice(index, 1);
+  }
+  row.element.remove();
+  updateCategoryTotal(categoryKey);
+}
+
+function ensureTrailingEmptyRow(categoryKey) {
+  const category = getFeeCategoryState(categoryKey);
+  if (!category || !category.rows.length) return;
+  const lastRow = category.rows[category.rows.length - 1];
+  const hasContent =
+    lastRow.descInput.value.trim() !== '' ||
+    parseCurrencyToNumber(lastRow.amountInput.value) > 0;
+  if (hasContent) {
+    addFeeRow(categoryKey);
+  }
+}
+
+function updateCategoryTotal(categoryKey) {
+  const category = getFeeCategoryState(categoryKey);
+  if (!category) return;
+  let total = 0;
+  category.rows.forEach((row) => {
+    const numeric = parseCurrencyToNumber(row.amountInput.value);
+    if (Number.isFinite(numeric)) {
+      total += numeric;
+    }
+  });
+  if (category.totalEl) {
+    category.totalEl.textContent = formatCurrency(total);
+  }
+  applyFeeModalChanges();
+  return total;
+}
+
+function collectFeeModalData() {
+  const items = {};
+  const totals = {
+    dealerFees: 0,
+    customerAddons: 0,
+    govtFees: 0
+  };
+
+  Object.entries(feeModalState.categories).forEach(([key, category]) => {
+    const categoryItems = category.rows
+      .map((row) => {
+        const description = row.descInput.value.trim();
+        const amount = parseCurrencyToNumber(row.amountInput.value);
+        if (!description && !(Number.isFinite(amount) && amount !== 0)) {
+          return null;
+        }
+        return {
+          description: toTitleCase(description),
+          amount: normalizeCurrencyNumber(amount) ?? 0
+        };
+      })
+      .filter(Boolean);
+    items[key] = categoryItems;
+    const sum = categoryItems.reduce((acc, item) => acc + (item.amount ?? 0), 0);
+    if (key === 'dealer') totals.dealerFees = sum;
+    if (key === 'customer') totals.customerAddons = sum;
+    if (key === 'gov') totals.govtFees = sum;
+  });
+
+  return { items, totals };
+}
+
+function applyFeeModalChanges() {
+  const payload = collectFeeModalData();
+  persistFeeModalState(payload);
+  updateFeeSummary(payload.totals);
+}
+
+function persistFeeModalState({ items, totals }) {
+  ensureWizardFeeDefaults();
+  const stateTaxRate = wizardData.fees?.stateTaxRate ?? 0;
+  const countyTaxRate = wizardData.fees?.countyTaxRate ?? 0;
+
+  wizardData.fees = {
+    dealerFees: normalizeCurrencyNumber(totals.dealerFees) ?? 0,
+    customerAddons: normalizeCurrencyNumber(totals.customerAddons) ?? 0,
+    govtFees: normalizeCurrencyNumber(totals.govtFees) ?? 0,
+    stateTaxRate,
+    countyTaxRate,
+    items,
+    userCustomized: true
+  };
+
+  if (currentStep === 4) {
+    refreshReview().catch((error) => {
+      console.error('[fees] Unable to refresh review after change:', error);
+    });
+  }
+}
+
+function updateFeeSummary(totalsOverride) {
+  ensureWizardFeeDefaults();
+  const totals = totalsOverride ?? collectFeeModalData().totals;
+
+  const dealerFees = totals.dealerFees ?? 0;
+  const customerAddons = totals.customerAddons ?? 0;
+  const govtFees = totals.govtFees ?? 0;
+  const totalFees = dealerFees + customerAddons + govtFees;
+
+  const salePrice = parseCurrencyToNumber(wizardData.financing?.salePrice);
+  const tradeOffer = wizardData.tradein?.hasTradeIn
+    ? parseCurrencyToNumber(wizardData.tradein.value)
+    : 0;
+
+  const taxTotals = recomputeTaxes({
+    salePrice,
+    dealerFees,
+    customerAddons,
+    tradeOffer,
+    stateTaxRate: wizardData.fees.stateTaxRate ?? 0,
+    countyTaxRate: wizardData.fees.countyTaxRate ?? 0
+  });
+
+  const totalTaxes = taxTotals.totalTaxes ?? 0;
+  const otherCharges = totalFees + totalTaxes;
+
+  setText('modal-fees-total', formatCurrency(totalFees));
+  setText('modal-tax-total', formatCurrency(totalTaxes));
+  setText('modal-other-charges', formatCurrency(otherCharges));
+}
+
+function goToLocationStep() {
   closeFeesModal();
+  currentStep = 1;
+  updateWizardUI();
+}
 
-  // Recalculate review section
-  populateReviewSection();
+function setEditFeeStatus(message = '', tone = 'info') {
+  const statusEl = document.getElementById('edit-fee-status');
+  if (!statusEl) return;
+  statusEl.textContent = message ?? '';
+  if (!message || tone === 'info') {
+    statusEl.removeAttribute('data-tone');
+  } else {
+    statusEl.dataset.tone = tone;
+  }
+}
+
+function setEditFeeFormDisabled(disabled) {
+  const form = document.getElementById('edit-fee-form');
+  if (!form) return;
+  Array.from(form.elements).forEach((el) => {
+    if (
+      el instanceof HTMLInputElement ||
+      el instanceof HTMLSelectElement ||
+      el instanceof HTMLButtonElement
+    ) {
+      el.disabled = Boolean(disabled);
+    }
+  });
+}
+
+function updateEditFeeNameList(type) {
+  const input = document.getElementById('edit-fee-name');
+  if (!input) return;
+  const store = getFeeSuggestionStore(type);
+  if (store?.datalist?.id) {
+    input.setAttribute('list', store.datalist.id);
+  } else {
+    input.removeAttribute('list');
+  }
+}
+
+function openEditFeeModal(categoryKey = 'dealer') {
+  const modal = document.getElementById('edit-fee-modal');
+  const form = document.getElementById('edit-fee-form');
+  const typeSelect = document.getElementById('edit-fee-type');
+  const amountInput = document.getElementById('edit-fee-amount');
+  const nameInput = document.getElementById('edit-fee-name');
+  if (!modal || !form || !typeSelect || !amountInput || !nameInput) return;
+
+  const normalizedCategory =
+    categoryKey === 'gov'
+      ? 'gov'
+      : categoryKey === 'customer'
+      ? 'customer'
+      : 'dealer';
+
+  editFeeModalState.activeCategory = normalizedCategory;
+  typeSelect.value = normalizedCategory;
+
+  form.reset();
+  setEditFeeStatus('');
+  updateEditFeeNameList(normalizedCategory);
+  formatCurrencyInput(amountInput);
+
+  modal.style.display = 'flex';
+  requestAnimationFrame(() => {
+    nameInput.focus();
+    nameInput.select?.();
+  });
+}
+
+function closeEditFeeModal() {
+  const modal = document.getElementById('edit-fee-modal');
+  const form = document.getElementById('edit-fee-form');
+  const amountInput = document.getElementById('edit-fee-amount');
+  if (!modal) return;
+  modal.style.display = 'none';
+  form?.reset();
+  setEditFeeStatus('');
+  if (amountInput) {
+    formatCurrencyInput(amountInput);
+  }
+}
+
+function formatCurrencyInput(input) {
+  if (!input) return;
+  const numeric = parseCurrencyToNumber(input.value);
+  if (Number.isFinite(numeric) && numeric !== 0) {
+    input.value = formatCurrency(numeric);
+  } else {
+    input.value = '';
+  }
+}
+
+async function handleEditFeeSubmit(event) {
+  event.preventDefault();
+  const form = document.getElementById('edit-fee-form');
+  const typeSelect = document.getElementById('edit-fee-type');
+  const nameInput = document.getElementById('edit-fee-name');
+  const amountInput = document.getElementById('edit-fee-amount');
+  if (!form || !typeSelect || !nameInput || !amountInput) return;
+
+  const typeValue =
+    typeSelect.value === 'gov'
+      ? 'gov'
+      : typeSelect.value === 'customer'
+      ? 'customer'
+      : 'dealer';
+
+  const rawName = nameInput.value.trim();
+  if (!rawName) {
+    setEditFeeStatus('Description is required.', 'error');
+    nameInput.focus();
+    return;
+  }
+
+  const amountValue = parseCurrencyToNumber(amountInput.value);
+  if (!Number.isFinite(amountValue)) {
+    setEditFeeStatus('Enter a valid amount.', 'error');
+    amountInput.focus();
+    return;
+  }
+
+  const normalizedName = toTitleCase(rawName);
+  const normalizedAmount = normalizeCurrencyNumber(amountValue) ?? 0;
+
+  const state = getFeeSetState(typeValue);
+  if (!state.id) {
+    setEditFeeStatus('No active fee set available. Please configure sets in Supabase.', 'error');
+    return;
+  }
+
+  setEditFeeFormDisabled(true);
+  setEditFeeStatus('Saving...');
+
+  try {
+    const tableName =
+      typeValue === 'gov'
+        ? 'gov_fee_sets'
+        : typeValue === 'customer'
+        ? 'customer_addon_sets'
+        : 'dealer_fee_sets';
+
+    const items = Array.isArray(state.items)
+      ? state.items.map((item) => ({ ...item }))
+      : [];
+
+    let found = false;
+    for (let i = 0; i < items.length; i += 1) {
+      const item = items[i] ?? {};
+      const existing = typeof item?.name === 'string' ? item.name.trim().toLowerCase() : '';
+      if (existing && existing === normalizedName.toLowerCase()) {
+        items[i] = { ...item, name: normalizedName, amount: normalizedAmount };
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      items.push({ name: normalizedName, amount: normalizedAmount });
+    }
+
+    const { data: updatedRows, error } = await supabase
+      .from(tableName)
+      .update({ items })
+      .eq('id', state.id)
+      .select('id, items');
+
+    if (error) throw error;
+
+    const returnedItems =
+      Array.isArray(updatedRows) && updatedRows[0]?.items
+        ? updatedRows[0].items
+        : items;
+
+    state.items = Array.isArray(returnedItems) ? returnedItems : items;
+    const normalizedItems = normalizeFeeItems(state.items);
+    const store = getFeeSuggestionStore(typeValue);
+    store?.setItems(normalizedItems);
+
+    setEditFeeStatus('Fee saved.', 'success');
+    await (typeValue === 'gov'
+      ? loadGovFeeSuggestions()
+      : typeValue === 'customer'
+      ? loadCustomerAddonSuggestions()
+      : loadDealerFeeSuggestions());
+
+    closeEditFeeModal();
+  } catch (error) {
+    console.error('Failed to save fee', error);
+    const message = error?.message ?? 'Unable to save fee right now. Please try again.';
+    setEditFeeStatus(message, 'error');
+  } finally {
+    setEditFeeFormDisabled(false);
+  }
 }
 
 /**
@@ -3716,4 +4922,877 @@ function showSuccessMessage() {
       </div>
     </div>
   `;
+}
+
+// ===================================
+// QUICK ENTRY MODE
+// ===================================
+
+/**
+ * Switch between Wizard and Quick Entry modes
+ */
+function switchMode(mode) {
+  const wizardMode = document.querySelector('.wizard-card');
+  const wizardProgress = document.getElementById('wizard-progress');
+  const quickMode = document.getElementById('quick-entry-mode');
+  const wizardBtn = document.querySelector('.mode-toggle__btn[data-mode="wizard"]');
+  const quickBtn = document.querySelector('.mode-toggle__btn[data-mode="quick"]');
+
+  if (mode === 'wizard') {
+    wizardMode.style.display = 'block';
+    wizardProgress.style.display = 'block';
+    quickMode.style.display = 'none';
+    wizardBtn.classList.add('active');
+    quickBtn.classList.remove('active');
+  } else {
+    wizardMode.style.display = 'none';
+    wizardProgress.style.display = 'none';
+    quickMode.style.display = 'block';
+    wizardBtn.classList.remove('active');
+    quickBtn.classList.add('active');
+
+    // Initialize Quick Entry mode with current wizard data
+    initializeQuickEntry();
+  }
+}
+
+/**
+ * Initialize Quick Entry mode with current wizard data
+ */
+function initializeQuickEntry() {
+  // Populate location
+  const quickLocation = document.getElementById('quick-location');
+  if (wizardData.location?.formatted_address) {
+    quickLocation.value = wizardData.location.formatted_address;
+  }
+
+  // Populate VIN if selected vehicle exists
+  const quickVin = document.getElementById('quick-vin');
+  if (selectedVehicle?.vin) {
+    quickVin.value = selectedVehicle.vin;
+    displayQuickVehicleCard(selectedVehicle);
+  }
+
+  // Populate financing details with defaults
+  const quickVehiclePrice = document.getElementById('quick-vehicle-price');
+  const quickDownPayment = document.getElementById('quick-down-payment');
+  const quickLoanTerm = document.getElementById('quick-loan-term');
+  const quickCreditScore = document.getElementById('quick-credit-score');
+
+  if (wizardData.financing?.salePrice) {
+    quickVehiclePrice.value = formatCurrency(wizardData.financing.salePrice);
+  }
+  if (wizardData.financing?.cashDown) {
+    quickDownPayment.value = formatCurrency(wizardData.financing.cashDown);
+  }
+
+  // Set defaults: 72 months, excellent credit (750+)
+  quickLoanTerm.value = wizardData.financing?.term || '72';
+  quickCreditScore.value = wizardData.financing?.creditScoreRange || 'excellent';
+
+  // Populate trade-in if exists
+  if (wizardData.tradein?.hasTradeIn) {
+    const quickHasTradeIn = document.getElementById('quick-has-tradein');
+    const quickTradeValue = document.getElementById('quick-tradein-value');
+    const quickTradePayoff = document.getElementById('quick-tradein-payoff');
+
+    quickHasTradeIn.checked = true;
+    toggleQuickTradeIn(true);
+
+    if (wizardData.tradein.tradeValue) {
+      quickTradeValue.value = formatCurrency(wizardData.tradein.tradeValue);
+    }
+    if (wizardData.tradein.tradePayoff) {
+      quickTradePayoff.value = formatCurrency(wizardData.tradein.tradePayoff);
+    }
+  }
+
+  // Setup saved vehicles dropdown for Quick mode
+  setupQuickSavedVehicles();
+
+  // Setup location autocomplete for Quick mode
+  setupQuickLocationAutocomplete();
+  setupQuickLocationManualFallback();
+
+  // Setup auto-calculation on input changes
+  setupQuickAutoCalculation();
+
+  // Setup sliders
+  setupQuickSliders();
+
+  // Initial calculation if we have basic data
+  autoCalculateQuick();
+}
+
+/**
+ * Setup saved vehicles dropdown for Quick Entry mode
+ */
+function setupQuickSavedVehicles() {
+  const quickVin = document.getElementById('quick-vin');
+  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+
+  // Remove any existing listeners by cloning (prevents duplicates)
+  if (quickVin._savedVehiclesSetup) {
+    console.log('[quick-saved-vehicles] Already setup, skipping duplicate setup');
+    return;
+  }
+  quickVin._savedVehiclesSetup = true;
+
+  console.log('[quick-saved-vehicles] Setting up dropdown, saved vehicles count:', savedVehicles.length);
+
+  const showDropdown = () => {
+    console.log('[quick-saved-vehicles] Show dropdown triggered, count:', savedVehicles.length);
+    if (savedVehicles.length > 0) {
+      displayQuickSavedVehicles();
+    } else {
+      console.log('[quick-saved-vehicles] No saved vehicles to display');
+      // Show "no saved vehicles" message
+      dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+      dropdown.style.display = 'block';
+    }
+  };
+
+  quickVin.addEventListener('focus', showDropdown);
+  quickVin.addEventListener('click', showDropdown);
+
+  quickVin.addEventListener('input', (e) => {
+    const value = e.target.value.toUpperCase().trim();
+    if (value.length > 0) {
+      filterQuickSavedVehicles(value);
+    } else {
+      displayQuickSavedVehicles();
+    }
+  });
+
+  // Click outside to close dropdown (with slight delay to avoid race condition)
+  document.addEventListener('click', (e) => {
+    // Use setTimeout to ensure this runs after any click handlers on the input
+    setTimeout(() => {
+      if (!quickVin.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    }, 0);
+  });
+}
+
+/**
+ * Display saved vehicles in Quick Entry dropdown
+ */
+function displayQuickSavedVehicles() {
+  console.log('[quick-saved-vehicles] displayQuickSavedVehicles called, count:', savedVehicles.length);
+  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+  dropdown.innerHTML = '';
+
+  if (savedVehicles.length === 0) {
+    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+    dropdown.style.display = 'block';
+    console.log('[quick-saved-vehicles] Showing "no saved vehicles" message');
+    return;
+  }
+
+  savedVehicles.forEach(vehicle => {
+    const item = document.createElement('div');
+    item.className = 'saved-vehicle-item';
+    item.innerHTML = `
+      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
+      <div class="saved-vehicle-item__details">${capitalizeWords(vehicle.trim || '')} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+    `;
+    item.addEventListener('click', () => selectQuickSavedVehicle(vehicle));
+    dropdown.appendChild(item);
+  });
+
+  dropdown.style.display = 'block';
+  console.log('[quick-saved-vehicles] Dropdown displayed with', savedVehicles.length, 'vehicles');
+}
+
+/**
+ * Filter saved vehicles in Quick Entry mode
+ */
+function filterQuickSavedVehicles(searchTerm) {
+  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+  const filtered = savedVehicles.filter(v =>
+    (v.vin && v.vin.includes(searchTerm)) ||
+    (v.make && v.make.toUpperCase().includes(searchTerm)) ||
+    (v.model && v.model.toUpperCase().includes(searchTerm)) ||
+    (v.year && String(v.year).includes(searchTerm))
+  );
+
+  dropdown.innerHTML = '';
+
+  if (filtered.length === 0) {
+    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No matches found</div>';
+    dropdown.style.display = 'block';
+    return;
+  }
+
+  filtered.forEach(vehicle => {
+    const item = document.createElement('div');
+    item.className = 'saved-vehicle-item';
+    item.innerHTML = `
+      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
+      <div class="saved-vehicle-item__details">${capitalizeWords(vehicle.trim || '')} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+    `;
+    item.addEventListener('click', () => selectQuickSavedVehicle(vehicle));
+    dropdown.appendChild(item);
+  });
+
+  dropdown.style.display = 'block';
+}
+
+/**
+ * Select saved vehicle in Quick Entry mode
+ */
+function selectQuickSavedVehicle(vehicle) {
+  const quickVin = document.getElementById('quick-vin');
+  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+
+  quickVin.value = vehicle.vin || '';
+  dropdown.style.display = 'none';
+
+  // Update selected vehicle globally
+  selectedVehicle = vehicle;
+
+  // Update vehicle card display
+  displayQuickVehicleCard(vehicle);
+
+  // Auto-populate vehicle price if available
+  if (vehicle.asking_price) {
+    const quickVehiclePrice = document.getElementById('quick-vehicle-price');
+    quickVehiclePrice.value = formatCurrency(vehicle.asking_price);
+  }
+}
+
+/**
+ * Display vehicle card in Quick Entry mode
+ */
+function displayQuickVehicleCard(vehicle) {
+  const display = document.getElementById('quick-vehicle-display');
+  const card = document.getElementById('quick-vehicle-card');
+
+  const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+
+  const imageHtml = vehicle.photo_url
+    ? `<img src="${vehicle.photo_url}" alt="${vehicleDetailsText}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+       <div class="your-vehicle-card__image-placeholder" style="display: none;">
+         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+         </svg>
+       </div>`
+    : `<div class="your-vehicle-card__image-placeholder">
+         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+         </svg>
+       </div>`;
+
+  card.innerHTML = `
+    ${imageHtml}
+    <div class="your-vehicle-card__content">
+      <div class="your-vehicle-card__badge">SELECTED VEHICLE</div>
+      <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
+      ${vehicle.vin ? `<div class="your-vehicle-card__meta">VIN: ${formatVIN(vehicle.vin)}</div>` : ''}
+      ${vehicle.mileage ? `<div class="your-vehicle-card__meta">${formatMileage(vehicle.mileage)} miles</div>` : ''}
+      ${vehicle.asking_price ? `<div class="your-vehicle-card__price-value">${formatCurrency(vehicle.asking_price)}</div>` : ''}
+    </div>
+  `;
+
+  display.style.display = 'block';
+}
+
+/**
+ * Setup location autocomplete for Quick Entry mode
+ */
+function setupQuickLocationAutocomplete() {
+  const quickLocation = document.getElementById('quick-location');
+  if (!quickLocation) {
+    return false;
+  }
+
+  if (!googleMapsLoaded || !window.google?.maps?.places) {
+    console.log('[quick-entry] Google Maps not available, using manual input');
+    return false;
+  }
+
+  if (quickLocationAutocomplete) {
+    google.maps.event.clearInstanceListeners(quickLocationAutocomplete);
+  }
+
+  quickLocationAutocomplete = new google.maps.places.Autocomplete(quickLocation, {
+    types: ['geocode'],
+    componentRestrictions: { country: 'us' }
+  });
+
+  quickLocationAutocomplete.addListener('place_changed', async () => {
+    const place = quickLocationAutocomplete?.getPlace();
+    if (!place?.geometry) return;
+
+    const zip = extractZipFromPlace(place) || '';
+    const locale = extractLocaleFromComponents(place.address_components ?? []);
+
+    const lat = typeof place.geometry.location?.lat === 'function'
+      ? place.geometry.location.lat()
+      : place.geometry.location?.lat ?? null;
+    const lng = typeof place.geometry.location?.lng === 'function'
+      ? place.geometry.location.lng()
+      : place.geometry.location?.lng ?? null;
+
+    wizardData.location = {
+      ...wizardData.location,
+      formatted_address: place.formatted_address ?? zip ?? '',
+      address: place.formatted_address ?? zip ?? '',
+      zip,
+      lat,
+      lng,
+      stateCode: locale.stateCode,
+      countyName: locale.countyName
+    };
+
+    quickLocation.value = place.formatted_address ?? zip ?? '';
+
+    const wizardLocationInput = document.getElementById('user-location');
+    if (wizardLocationInput) {
+      wizardLocationInput.value = place.formatted_address ?? zip ?? '';
+      const hint = wizardLocationInput.nextElementSibling;
+      if (hint) {
+        hint.textContent = `✓ Using: ${zip || 'your location'}`;
+        hint.style.color = 'var(--success)';
+      }
+    }
+
+    applyLocaleToFees(locale);
+
+    try {
+      await populateYearDropdowns();
+    } catch (error) {
+      console.error('[quick-entry] Unable to refresh year dropdowns after location selection', error);
+    }
+
+    autoCalculateQuick().catch((error) => {
+      console.error('[quick-entry] Unable to recalculate after quick location change', error);
+    });
+  });
+
+  return true;
+}
+
+function setupQuickLocationManualFallback() {
+  if (quickLocationManualHandlerAttached) return;
+  const quickLocation = document.getElementById('quick-location');
+  if (!quickLocation) return;
+
+  quickLocationManualHandlerAttached = true;
+  quickLocation.addEventListener('input', async (event) => {
+    const value = event.target.value.trim();
+    if (!/^\d{5}$/.test(value)) return;
+
+    wizardData.location = {
+      ...wizardData.location,
+      zip: value,
+      formatted_address: value,
+      address: value
+    };
+
+    const wizardLocationInput = document.getElementById('user-location');
+    if (wizardLocationInput) {
+      wizardLocationInput.value = value;
+      const hint = wizardLocationInput.nextElementSibling;
+      if (hint) {
+        hint.textContent = `✓ Using ZIP: ${value}`;
+        hint.style.color = 'var(--success)';
+      }
+    }
+
+    if (google?.maps?.Geocoder) {
+      const geocoder = new google.maps.Geocoder();
+      geocoder.geocode({ address: value }, (results, status) => {
+        if (status === 'OK' && results?.length) {
+          const components = results[0].address_components ?? [];
+          const locale = extractLocaleFromComponents(components);
+          wizardData.location = {
+            ...wizardData.location,
+            stateCode: locale.stateCode,
+            countyName: locale.countyName
+          };
+          applyLocaleToFees(locale);
+        }
+      });
+    }
+
+    try {
+      await populateYearDropdowns();
+    } catch (error) {
+      console.error('[quick-entry] Unable to refresh year dropdowns after manual ZIP entry', error);
+    }
+
+    autoCalculateQuick().catch((error) => {
+      console.error('[quick-entry] Unable to recalculate after manual quick ZIP entry', error);
+    });
+  });
+}
+
+/**
+ * Toggle trade-in fields in Quick Entry mode
+ */
+function toggleQuickTradeIn(hasTradeIn) {
+  const fields = document.getElementById('quick-tradein-fields');
+  fields.style.display = hasTradeIn ? 'block' : 'none';
+}
+
+/**
+ * Setup auto-calculation for Quick Entry mode
+ */
+function setupQuickAutoCalculation() {
+  // Currency formatting inputs
+  const currencyInputs = [
+    'quick-vehicle-price',
+    'quick-down-payment',
+    'quick-tradein-value',
+    'quick-tradein-payoff'
+  ];
+
+  currencyInputs.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      // Format on blur
+      element.addEventListener('blur', (e) => {
+        const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+        const numValue = parseFloat(rawValue);
+        if (!isNaN(numValue) && numValue > 0) {
+          e.target.value = formatCurrency(numValue);
+        } else if (numValue === 0) {
+          e.target.value = formatCurrency(0);
+        }
+        autoCalculateQuick();
+      });
+
+      // Auto-calculate on change
+      element.addEventListener('change', () => autoCalculateQuick());
+    }
+  });
+
+  // Non-currency inputs (dropdowns)
+  const selectInputs = ['quick-loan-term', 'quick-credit-score'];
+  selectInputs.forEach(id => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.addEventListener('change', () => autoCalculateQuick());
+    }
+  });
+
+  // Trade-in checkbox
+  const tradeCheckbox = document.getElementById('quick-has-tradein');
+  if (tradeCheckbox) {
+    tradeCheckbox.addEventListener('change', () => autoCalculateQuick());
+  }
+}
+
+/**
+ * Auto-calculate and update Quick Entry display
+ */
+async function autoCalculateQuick() {
+  // Gather all inputs
+  const quickVehiclePrice = parseCurrency(document.getElementById('quick-vehicle-price')?.value);
+  const quickDownPayment = parseCurrency(document.getElementById('quick-down-payment')?.value);
+  const quickLoanTerm = parseInt(document.getElementById('quick-loan-term')?.value);
+  const quickCreditScore = document.getElementById('quick-credit-score')?.value;
+  const quickHasTradeIn = document.getElementById('quick-has-tradein')?.checked;
+
+  // Only calculate if we have the minimum required inputs
+  if (!quickVehiclePrice || quickVehiclePrice <= 0 || !quickLoanTerm || !quickCreditScore) {
+    return; // Silently return, don't show alerts
+  }
+
+  // Update wizard data
+  wizardData.financing = {
+    salePrice: quickVehiclePrice,
+    cashDown: quickDownPayment || 0,
+    term: quickLoanTerm,
+    creditScoreRange: quickCreditScore
+  };
+
+  // Update trade-in data
+  if (quickHasTradeIn) {
+    const quickTradeValue = parseCurrency(document.getElementById('quick-tradein-value')?.value);
+    const quickTradePayoff = parseCurrency(document.getElementById('quick-tradein-payoff')?.value);
+
+    wizardData.tradein = {
+      hasTradeIn: true,
+      tradeValue: quickTradeValue || 0,
+      tradePayoff: quickTradePayoff || 0
+    };
+  } else {
+    wizardData.tradein = {
+      hasTradeIn: false,
+      tradeValue: 0,
+      tradePayoff: 0
+    };
+  }
+
+  try {
+    // Calculate results
+    const reviewData = await computeReviewData();
+
+    // Display main results
+    setText('quickMonthlyPayment', formatCurrency(reviewData.monthlyPayment));
+    setText('quickTerm', `${reviewData.term} months`);
+    setText('quickAPR', formatPercent(reviewData.apr));
+
+    // Display TIL cards
+    setText('quickTilAPR', formatPercent(reviewData.apr));
+    setText('quickTilFinanceCharge', formatCurrency(reviewData.financeCharge));
+    setText('quickTilAmountFinanced', formatCurrency(reviewData.amountFinanced));
+    setText('quickTilTotalPayments', formatCurrency(reviewData.totalPayments));
+
+    // Display itemization values (read-only)
+    setText('quickNetTrade', formatCurrencyAccounting(reviewData.netTrade));
+    setText('quickUnpaidBalance', formatCurrency(reviewData.unpaidBalance));
+    setText('quickOtherCharges', formatCurrency(reviewData.sumOtherCharges));
+    setText('quickCustomerAddons', formatCurrency(reviewData.totalCustomerAddons));
+    setText('quickGovtFees', formatCurrency(reviewData.totalGovtFees));
+    setText('quickStateTax', formatCurrency(reviewData.stateTaxTotal));
+    setText('quickCountyTax', formatCurrency(reviewData.countyTaxTotal));
+    setText('quickAmountFinancedTotal', formatCurrency(reviewData.amountFinanced));
+
+    // Display cash due
+    setText('quickCashDueHighlight', formatCurrency(reviewData.cashDue));
+
+    // Update sliders to match current values
+    updateQuickSliderValues();
+
+    console.log('[quick-entry] Auto-calculation complete - Monthly Payment:', formatCurrency(reviewData.monthlyPayment));
+  } catch (error) {
+    console.error('[quick-entry] Calculation error:', error);
+  }
+}
+
+/**
+ * Setup sliders for Quick Entry itemization
+ */
+function setupQuickSliders() {
+  const sliderConfigs = [
+    {
+      sliderId: 'quickSliderSalePrice',
+      inputId: 'quickInputSalePrice',
+      diffId: 'quickDiffSalePrice',
+      resetId: 'quickResetSalePrice',
+      sourceId: 'quick-vehicle-price',
+      max: 150000,
+      step: 500,
+      updateWizardData: (val) => {
+        wizardData.financing.salePrice = val;
+        document.getElementById('quick-vehicle-price').value = formatCurrency(val);
+      }
+    },
+    {
+      sliderId: 'quickSliderCashDown',
+      inputId: 'quickInputCashDown',
+      diffId: 'quickDiffCashDown',
+      resetId: 'quickResetCashDown',
+      sourceId: 'quick-down-payment',
+      max: 50000,
+      step: 100,
+      updateWizardData: (val) => {
+        wizardData.financing.cashDown = val;
+        document.getElementById('quick-down-payment').value = formatCurrency(val);
+      }
+    },
+    {
+      sliderId: 'quickSliderTradeAllowance',
+      inputId: 'quickInputTradeAllowance',
+      diffId: 'quickDiffTradeAllowance',
+      resetId: 'quickResetTradeAllowance',
+      sourceId: 'quick-tradein-value',
+      max: 75000,
+      step: 100,
+      updateWizardData: (val) => {
+        if (!wizardData.tradein) wizardData.tradein = {};
+        wizardData.tradein.tradeValue = val;
+        document.getElementById('quick-tradein-value').value = formatCurrency(val);
+      }
+    },
+    {
+      sliderId: 'quickSliderTradePayoff',
+      inputId: 'quickInputTradePayoff',
+      diffId: 'quickDiffTradePayoff',
+      resetId: 'quickResetTradePayoff',
+      sourceId: 'quick-tradein-payoff',
+      max: 75000,
+      step: 100,
+      updateWizardData: (val) => {
+        if (!wizardData.tradein) wizardData.tradein = {};
+        wizardData.tradein.tradePayoff = val;
+        document.getElementById('quick-tradein-payoff').value = formatCurrency(val);
+      }
+    },
+    {
+      sliderId: 'quickSliderDealerFees',
+      inputId: 'quickInputDealerFees',
+      diffId: 'quickDiffDealerFees',
+      resetId: 'quickResetDealerFees',
+      max: 10000,
+      step: 100,
+      updateWizardData: (val) => {
+        ensureWizardFeeDefaults();
+        wizardData.fees.dealerFees = val;
+        wizardData.fees.userCustomized = true;
+      }
+    },
+    {
+      sliderId: 'quickSliderCustomerAddons',
+      inputId: 'quickInputCustomerAddons',
+      diffId: 'quickDiffCustomerAddons',
+      resetId: 'quickResetCustomerAddons',
+      max: 10000,
+      step: 100,
+      updateWizardData: (val) => {
+        ensureWizardFeeDefaults();
+        wizardData.fees.customerAddons = val;
+        wizardData.fees.userCustomized = true;
+      }
+    }
+  ];
+
+  // Track original values
+  const originalValues = {};
+
+  sliderConfigs.forEach(config => {
+    const slider = document.getElementById(config.sliderId);
+    const input = document.getElementById(config.inputId);
+    const diffIndicator = document.getElementById(config.diffId);
+    const resetBtn = document.getElementById(config.resetId);
+
+    if (!slider || !input) return;
+
+    slider.max = config.max;
+    slider.step = config.step;
+
+    // Store original value when first loaded
+    originalValues[config.sliderId] = parseFloat(slider.value) || 0;
+
+    // Update diff indicator
+    const updateDiff = (currentValue) => {
+      const original = originalValues[config.sliderId];
+      const diff = currentValue - original;
+
+      if (diff === 0) {
+        diffIndicator.style.display = 'none';
+        resetBtn.style.display = 'none';
+      } else {
+        diffIndicator.style.display = 'block';
+        resetBtn.style.display = 'flex';
+
+        const diffClass = diff > 0 ? 'positive' : 'negative';
+        diffIndicator.className = `quick-diff-indicator ${diffClass}`;
+        diffIndicator.textContent = `${diff > 0 ? '+' : ''}${formatCurrency(diff)} from original`;
+      }
+    };
+
+    // Slider to input sync
+    slider.addEventListener('input', async (e) => {
+      const value = parseFloat(e.target.value);
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+      updateDiff(value);
+      config.updateWizardData(value);
+
+      // Show tooltip
+      showSliderTooltip(slider, value);
+
+      await autoCalculateQuick();
+    });
+
+    // Input to slider sync
+    input.addEventListener('blur', async (e) => {
+      const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+      let value = parseFloat(rawValue);
+
+      if (isNaN(value) || value < 0) value = 0;
+      else if (value > config.max) value = config.max;
+
+      value = Math.round(value / config.step) * config.step;
+
+      slider.value = value;
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+      updateDiff(value);
+      config.updateWizardData(value);
+      await autoCalculateQuick();
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        input.blur();
+      }
+    });
+
+    // Reset button click
+    if (resetBtn) {
+      resetBtn.addEventListener('click', async () => {
+        const original = originalValues[config.sliderId];
+        slider.value = original;
+        input.value = formatCurrency(original);
+        updateSliderProgress(slider);
+        updateDiff(original);
+        config.updateWizardData(original);
+        await autoCalculateQuick();
+      });
+    }
+
+    // Show tooltip on slider mouseenter/mousemove
+    slider.addEventListener('mouseenter', () => {
+      const value = parseFloat(slider.value);
+      showSliderTooltip(slider, value);
+    });
+
+    slider.addEventListener('mousemove', () => {
+      const value = parseFloat(slider.value);
+      showSliderTooltip(slider, value);
+    });
+
+    slider.addEventListener('mouseleave', () => {
+      hideSliderTooltip();
+    });
+
+    // Hide tooltip when slider interaction ends
+    slider.addEventListener('change', () => {
+      hideSliderTooltip();
+    });
+  });
+
+  // Store configs for later use
+  window.sliderOriginalValues = originalValues;
+}
+
+/**
+ * Show slider payment tooltip
+ */
+let originalMonthlyPayment = null; // Track original payment for comparison
+
+function showSliderTooltip(sliderElement, currentValue) {
+  const tooltip = document.getElementById('slider-payment-tooltip');
+  if (!tooltip) return;
+
+  // Calculate current monthly payment
+  const monthlyPayment = calculateCurrentMonthlyPayment();
+
+  // Store original payment on first interaction if not set
+  if (originalMonthlyPayment === null) {
+    originalMonthlyPayment = monthlyPayment;
+  }
+
+  // Calculate change from original
+  const paymentDiff = monthlyPayment - originalMonthlyPayment;
+
+  // Update tooltip content
+  const paymentEl = tooltip.querySelector('.tooltip-payment');
+  const changeEl = tooltip.querySelector('.tooltip-change');
+
+  paymentEl.textContent = `${formatCurrency(monthlyPayment)}/mo`;
+
+  // Update change indicator
+  if (Math.abs(paymentDiff) < 1) {
+    changeEl.textContent = 'No change';
+    changeEl.className = 'tooltip-change neutral';
+  } else {
+    const sign = paymentDiff > 0 ? '+' : '';
+    changeEl.textContent = `${sign}${formatCurrency(paymentDiff)}/mo`;
+    // Note: positive payment change is bad (red), negative is good (green)
+    changeEl.className = paymentDiff > 0 ? 'tooltip-change positive' : 'tooltip-change negative';
+  }
+
+  // Position tooltip above the slider thumb
+  const rect = sliderElement.getBoundingClientRect();
+  const sliderValue = parseFloat(sliderElement.value);
+  const sliderMin = parseFloat(sliderElement.min);
+  const sliderMax = parseFloat(sliderElement.max);
+
+  // Calculate thumb position percentage
+  const percentage = (sliderValue - sliderMin) / (sliderMax - sliderMin);
+  const thumbPosition = rect.left + (rect.width * percentage);
+
+  tooltip.style.left = `${thumbPosition}px`;
+  tooltip.style.top = `${rect.top}px`;
+  tooltip.style.display = 'block';
+}
+
+/**
+ * Hide slider payment tooltip
+ */
+function hideSliderTooltip() {
+  const tooltip = document.getElementById('slider-payment-tooltip');
+  if (tooltip) {
+    tooltip.style.display = 'none';
+  }
+}
+
+/**
+ * Calculate current monthly payment (helper for tooltip)
+ */
+function calculateCurrentMonthlyPayment() {
+  // Get current calculation result from the page
+  const monthlyPaymentEl = document.getElementById('quickMonthlyPayment');
+  if (monthlyPaymentEl) {
+    const text = monthlyPaymentEl.textContent;
+    const value = parseCurrency(text);
+    return value;
+  }
+  return 0;
+}
+
+/**
+ * Reset original monthly payment (call when vehicle or major values change)
+ */
+function resetOriginalMonthlyPayment() {
+  originalMonthlyPayment = null;
+}
+
+/**
+ * Update Quick Entry slider values from wizard data
+ */
+function updateQuickSliderValues() {
+  const updates = [
+    { sliderId: 'quickSliderSalePrice', inputId: 'quickInputSalePrice', diffId: 'quickDiffSalePrice', resetId: 'quickResetSalePrice', value: wizardData.financing?.salePrice || 0 },
+    { sliderId: 'quickSliderCashDown', inputId: 'quickInputCashDown', diffId: 'quickDiffCashDown', resetId: 'quickResetCashDown', value: wizardData.financing?.cashDown || 0 },
+    { sliderId: 'quickSliderTradeAllowance', inputId: 'quickInputTradeAllowance', diffId: 'quickDiffTradeAllowance', resetId: 'quickResetTradeAllowance', value: wizardData.tradein?.tradeValue || 0 },
+    { sliderId: 'quickSliderTradePayoff', inputId: 'quickInputTradePayoff', diffId: 'quickDiffTradePayoff', resetId: 'quickResetTradePayoff', value: wizardData.tradein?.tradePayoff || 0 },
+    { sliderId: 'quickSliderDealerFees', inputId: 'quickInputDealerFees', diffId: 'quickDiffDealerFees', resetId: 'quickResetDealerFees', value: wizardData.fees?.dealerFees || 0 },
+    { sliderId: 'quickSliderCustomerAddons', inputId: 'quickInputCustomerAddons', diffId: 'quickDiffCustomerAddons', resetId: 'quickResetCustomerAddons', value: wizardData.fees?.customerAddons || 0 }
+  ];
+
+  updates.forEach(({ sliderId, inputId, diffId, resetId, value }) => {
+    const slider = document.getElementById(sliderId);
+    const input = document.getElementById(inputId);
+    const diffIndicator = document.getElementById(diffId);
+    const resetBtn = document.getElementById(resetId);
+
+    if (slider && input) {
+      slider.value = value;
+      input.value = formatCurrency(value);
+      updateSliderProgress(slider);
+
+      // Reset original value to current value
+      if (window.sliderOriginalValues) {
+        window.sliderOriginalValues[sliderId] = value;
+      }
+
+      // Hide diff indicator and reset button since we're at the new "original" value
+      if (diffIndicator) diffIndicator.style.display = 'none';
+      if (resetBtn) resetBtn.style.display = 'none';
+    }
+  });
+
+  // Reset original monthly payment for tooltip
+  resetOriginalMonthlyPayment();
+}
+
+/**
+ * Parse currency string to number
+ */
+function parseCurrency(str) {
+  if (!str) return 0;
+  const cleaned = str.replace(/[^0-9.-]/g, '');
+  return parseFloat(cleaned) || 0;
 }

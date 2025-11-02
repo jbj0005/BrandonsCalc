@@ -73,1036 +73,315 @@
 
     <!-- Wizard Container -->
     <div class="wizard-container">
-      <!-- Progress Bar -->
-      <div class="progress-bar">
-        <div class="progress-bar__steps">
-          <div class="progress-bar__line">
-            <div class="progress-bar__line-fill" style="width: 0%"></div>
-          </div>
 
-          <div class="progress-step active" data-step="1">
-            <div class="progress-step__circle">
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                ></path>
-              </svg>
-            </div>
-            <span class="progress-step__label">Vehicle</span>
-          </div>
+      <!-- Quick Entry Mode (Single Page) -->
+      <div class="quick-entry-mode" id="quick-entry-mode">
 
-          <div class="progress-step" data-step="2">
-            <div class="progress-step__circle">
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-              </svg>
-            </div>
-            <span class="progress-step__label">Financing</span>
-          </div>
+        <!-- Main Container -->
+        <div class="quick-entry-grid">
 
-          <div class="progress-step" data-step="3">
-            <div class="progress-step__circle">
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                ></path>
-              </svg>
-            </div>
-            <span class="progress-step__label">Trade-In</span>
-          </div>
+          <!-- Center Column: Inputs -->
+          <div class="quick-entry-inputs">
 
-          <div class="progress-step" data-step="4">
-            <div class="progress-step__circle">
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                ></path>
-              </svg>
-            </div>
-            <span class="progress-step__label">Review</span>
-          </div>
-        </div>
-      </div>
+            <!-- Section: Location & Vehicle -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Location & Vehicle</h3>
 
-      <!-- Wizard Card -->
-      <div class="wizard-card">
-        <!-- Step 1: Vehicle Information -->
-        <div class="wizard-step active" data-step="1">
-          <div class="step__header">
-            <h2 class="step__title">Let's Get Started!</h2>
-          </div>
-
-          <!-- VIN Input with Saved Vehicles -->
-          <!-- User Location Input - MOST IMPORTANT -->
-          <div class="form-group">
-            <label class="form-label" for="user-location">
-              Your Location
-              <span
-                style="
-                  font-size: 0.75rem;
-                  font-weight: 400;
-                  color: #94a3b8;
-                  margin-left: 0.5rem;
-                "
-                >Required for Smart Offer & nearby vehicles</span
-              >
-            </label>
-            <div class="input-with-icon">
-              <svg
-                class="input-with-icon__icon"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                ></path>
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                ></path>
-              </svg>
-              <input
-                type="text"
-                id="user-location"
-                class="form-input"
-                placeholder="Enter your address or ZIP code..."
-                autocomplete="off"
-              />
-            </div>
-            <span class="form-hint"
-              >We'll search for vehicles within 100 miles and calculate Smart
-              Offer pricing</span
-            >
-          </div>
-
-          <!-- Vehicle Selection Section (hidden until location entered) -->
-          <div id="vehicle-selection-section" style="display: none;">
-          <div class="form-group">
-            <label class="form-label" for="vin-input">
-              VIN or Saved Vehicle
-              <span
-                style="
-                  font-size: 0.75rem;
-                  font-weight: 400;
-                  color: #94a3b8;
-                  margin-left: 0.5rem;
-                "
-                >Press Enter to search</span
-              >
-            </label>
-            <div class="vin-autocomplete">
-              <div class="input-with-icon">
-                <svg
-                  class="input-with-icon__icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  ></path>
-                </svg>
-                <input
-                  type="text"
-                  id="vin-input"
-                  class="form-input"
-                  placeholder="Paste VIN or select saved vehicle..."
-                  autocomplete="off"
-                />
-                <div id="vin-loading" class="vin-loading" style="display: none">
-                  <svg
-                    width="20"
-                    height="20"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    style="animation: spin 1s linear infinite"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    ></path>
+              <div class="form-group">
+                <label class="form-label" for="quick-location">Your Location</label>
+                <div class="input-with-icon">
+                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                   </svg>
+                  <input type="text" id="quick-location" class="form-input" placeholder="Enter your address or ZIP code..." autocomplete="off" />
                 </div>
               </div>
-              <div
-                id="saved-vehicles-dropdown"
-                class="saved-vehicles-dropdown"
-                style="display: none"
-              ></div>
-            </div>
-            <span class="form-hint"
-              >Type to filter saved vehicles or paste a 17-character VIN</span
-            >
-          </div>
 
-          <!-- Your Vehicle Card -->
-          <div
-            id="your-vehicle-section"
-            class="your-vehicle-section"
-            style="display: none"
-          >
-            <div id="your-vehicle-card" class="your-vehicle-card"></div>
-          </div>
-
-          <!-- Similar Vehicles Results -->
-          <div
-            id="similar-vehicles-section"
-            class="similar-vehicles-section"
-            style="display: none"
-          >
-            <div class="similar-vehicles-header">
-              <h3 class="similar-vehicles-title">
-                <svg
-                  width="20"
-                  height="20"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-                Similar Vehicles Nearby
-              </h3>
-              <p class="similar-vehicles-subtitle">
-                Select one or continue with your original vehicle
-              </p>
-            </div>
-            <div id="similar-vehicles-grid" class="similar-vehicles-grid"></div>
-          </div>
-
-          <!-- Selected Vehicle Display - REMOVED: Redundant with your-vehicle-section -->
-          <!-- <div
-            id="selected-vehicle-display"
-            class="selected-vehicle-display"
-            style="display: none"
-          >
-            <div class="selected-vehicle-card">
-              <div class="selected-vehicle-badge">Selected Vehicle</div>
-              <div id="selected-vehicle-content"></div>
-              <button
-                type="button"
-                class="btn-change-vehicle"
-                onclick="clearSelectedVehicle()"
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                  ></path>
-                </svg>
-                Change Vehicle
-              </button>
-            </div>
-          </div> -->
-
-          <!-- Smart Offer Display -->
-          <div
-            id="smart-offer-display"
-            class="smart-offer-display"
-            style="display: none"
-          >
-            <div class="smart-offer-card">
-              <div class="smart-offer-badge">
-                <svg
-                  width="20"
-                  height="20"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                  ></path>
-                </svg>
-                Smart Offer
+              <div class="form-group">
+                <label class="form-label" for="quick-vin">VIN or Search Saved Vehicles</label>
+                <div class="vin-autocomplete">
+                  <div class="input-with-icon">
+                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <input type="text" id="quick-vin" class="form-input" placeholder="Paste VIN or select saved vehicle..." autocomplete="off" />
+                  </div>
+                  <div id="quick-saved-vehicles-dropdown" class="saved-vehicles-dropdown" style="display: none"></div>
+                </div>
               </div>
-              <div id="smart-offer-content"></div>
-            </div>
-          </div>
 
-          <div
-            class="text-center mb-md"
-            style="
-              color: #94a3b8;
-              font-weight: 600;
-              margin-top: var(--spacing-md);
-            "
-          >
-            — OR ENTER MANUALLY —
-          </div>
-
-          <!-- Manual Entry (Hidden when vehicle selected) -->
-          <div id="manual-entry-fields">
-            <div id="year-group" class="form-group">
-              <label class="form-label" for="year-input">Year</label>
-              <select id="year-input" class="form-select">
-                <option value="">Select Year</option>
-              </select>
-            </div>
-
-            <div id="make-group" class="form-group" style="display: none;">
-              <label class="form-label" for="make-input">Make</label>
-              <select id="make-input" class="form-select">
-                <option value="">Select Make</option>
-              </select>
-            </div>
-
-            <div id="model-group" class="form-group" style="display: none;">
-              <label class="form-label" for="model-input">Model</label>
-              <select id="model-input" class="form-select">
-                <option value="">Select Model</option>
-              </select>
-            </div>
-
-            <div id="trim-group" class="form-group" style="display: none;">
-              <label class="form-label" for="trim-input">Trim (Optional)</label>
-              <select id="trim-input" class="form-select">
-                <option value="">Select Trim (Optional)</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Manual Vehicle Preview -->
-          <div id="manual-vehicle-preview" class="manual-vehicle-preview" style="display: none;">
-            <div id="manual-vehicle-preview-card" class="manual-preview-card"></div>
-          </div>
-          </div><!-- End vehicle-selection-section -->
-
-          <div class="button-group">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="window.location.href='index.html'"
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                ></path>
-              </svg>
-              Back to Full Calculator
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="wizardNext()"
-            >
-              Next Step
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                ></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 2: Financing Details -->
-        <div class="wizard-step" data-step="2">
-          <div class="step__header">
-            <h2 class="step__title">Financing details</h2>
-            <p class="step__description">
-              Tell us about your desired loan terms and down payment.
-            </p>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="vehicle-price">Vehicle Price</label>
-            <div class="input-with-icon">
-              <svg
-                class="input-with-icon__icon"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-              </svg>
-              <input
-                type="text"
-                id="vehicle-price"
-                class="form-input"
-                placeholder="25,000 or -6% or -$500"
-              />
-            </div>
-            <span class="form-hint">Enter price or formula: -6% for discount, +$500 for addition</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="down-payment">Down Payment</label>
-            <div class="input-with-icon">
-              <svg
-                class="input-with-icon__icon"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                ></path>
-              </svg>
-              <input
-                type="text"
-                id="down-payment"
-                class="form-input"
-                placeholder="5,000"
-              />
-            </div>
-            <span class="form-hint">We recommend at least 10% down</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="loan-term">Loan Term</label>
-            <select id="loan-term" class="form-select">
-              <option value="">Select Term</option>
-              <option value="36">36 months (3 years)</option>
-              <option value="48">48 months (4 years)</option>
-              <option value="60">60 months (5 years)</option>
-              <option value="72">72 months (6 years)</option>
-              <option value="84">84 months (7 years)</option>
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="credit-score"
-              >Credit Score Range</label
-            >
-            <select id="credit-score" class="form-select">
-              <option value="">Select Range</option>
-              <option value="excellent">Excellent (750+)</option>
-              <option value="good">Good (700-749)</option>
-              <option value="fair">Fair (650-699)</option>
-              <option value="poor">Building Credit (< 650)</option>
-            </select>
-          </div>
-
-          <div class="button-group">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="wizardPrev()"
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                ></path>
-              </svg>
-              Previous
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="wizardNext()"
-            >
-              Next Step
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                ></path>
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Step 3: Trade-In (Optional) -->
-        <div class="wizard-step" data-step="3">
-          <div class="step__header">
-            <h2 class="step__title">Trade-in vehicle</h2>
-            <p class="step__description">
-              Do you have a vehicle to trade in? This is optional.
-            </p>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Do you have a trade-in?</label>
-            <div style="display: flex; gap: 1rem">
-              <label
-                style="
-                  display: flex;
-                  align-items: center;
-                  gap: 0.5rem;
-                  cursor: pointer;
-                "
-              >
-                <input
-                  type="radio"
-                  name="has-tradein"
-                  value="yes"
-                  onchange="toggleTradeIn(true)"
-                />
-                <span>Yes</span>
-              </label>
-              <label
-                style="
-                  display: flex;
-                  align-items: center;
-                  gap: 0.5rem;
-                  cursor: pointer;
-                "
-              >
-                <input
-                  type="radio"
-                  name="has-tradein"
-                  value="no"
-                  checked
-                  onchange="toggleTradeIn(false)"
-                />
-                <span>No</span>
-              </label>
-            </div>
-          </div>
-
-          <div id="tradein-fields" style="display: none">
-            <div class="form-group">
-              <label class="form-label" for="tradein-year">Trade-In Year</label>
-              <select id="tradein-year" class="form-select">
-                <option value="">Select Year</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="tradein-make">Trade-In Make</label>
-              <input
-                type="text"
-                id="tradein-make"
-                class="form-input"
-                placeholder="e.g., Honda"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="tradein-model"
-                >Trade-In Model</label
-              >
-              <input
-                type="text"
-                id="tradein-model"
-                class="form-input"
-                placeholder="e.g., Accord"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="tradein-mileage"
-                >Trade-In Mileage</label
-              >
-              <input
-                type="text"
-                id="tradein-mileage"
-                class="form-input"
-                placeholder="75,000"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="tradein-value"
-                >Estimated Trade-In Value</label
-              >
-              <div class="input-with-icon">
-                <svg
-                  class="input-with-icon__icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-                <input
-                  type="text"
-                  id="tradein-value"
-                  class="form-input"
-                  placeholder="8,000"
-                />
+              <div id="quick-vehicle-display" class="your-vehicle-section" style="display: none">
+                <div id="quick-vehicle-card" class="your-vehicle-card"></div>
               </div>
-              <span class="form-hint"
-                >Don't know? We'll help you estimate it</span
-              >
             </div>
 
-            <div class="form-group">
-              <label class="form-label" for="tradein-payoff"
-                >Outstanding Loan Balance</label
-              >
-              <div class="input-with-icon">
-                <svg
-                  class="input-with-icon__icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-                <input
-                  type="text"
-                  id="tradein-payoff"
-                  class="form-input"
-                  placeholder="0"
-                />
+            <!-- Section: Financing -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Financing Details</h3>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-vehicle-price">Vehicle Price</label>
+                <div class="input-with-icon">
+                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <input type="text" id="quick-vehicle-price" class="form-input" placeholder="25,000" />
+                </div>
               </div>
-              <span class="form-hint"
-                >Leave as 0 if the vehicle is paid off</span
-              >
+
+              <div class="form-group">
+                <label class="form-label" for="quick-down-payment">Down Payment</label>
+                <div class="input-with-icon">
+                  <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <input type="text" id="quick-down-payment" class="form-input" placeholder="5,000" />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-loan-term">Loan Term</label>
+                <select id="quick-loan-term" class="form-select">
+                  <option value="">Select Term</option>
+                  <option value="36">36 months (3 years)</option>
+                  <option value="48">48 months (4 years)</option>
+                  <option value="60">60 months (5 years)</option>
+                  <option value="72">72 months (6 years)</option>
+                  <option value="84">84 months (7 years)</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-credit-score">Credit Score Range</label>
+                <select id="quick-credit-score" class="form-select">
+                  <option value="">Select Range</option>
+                  <option value="excellent">Excellent (750+)</option>
+                  <option value="good">Good (700-749)</option>
+                  <option value="fair">Fair (650-699)</option>
+                  <option value="poor">Building Credit (< 650)</option>
+                </select>
+              </div>
             </div>
-          </div>
 
-          <div class="button-group">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="wizardPrev()"
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                ></path>
-              </svg>
-              Previous
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="wizardNext()"
-            >
-              Next Step
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M14 5l7 7m0 0l-7 7m7-7H3"
-                ></path>
-              </svg>
-            </button>
-          </div>
-        </div>
+            <!-- Section: Trade-In (Optional) -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Trade-In (Optional)</h3>
 
-        <!-- Step 4: Review & Submit -->
-        <div class="wizard-step" data-step="4">
-          <div class="step__header">
-            <h2 class="step__title">Review & Get Your Best Rate</h2>
-            <p class="step__description">
-              We're working for you to find the lowest APR from our network of lenders.
-            </p>
-          </div>
-
-          <!-- Lender Selection -->
-          <div class="form-group">
-            <label class="form-label" for="lender-select">
-              Select Lender
-              <span class="form-hint" style="margin-left: 0.5rem;">(We recommend: Lowest APR)</span>
-            </label>
-            <select id="lender-select" class="form-select">
-              <option value="lowest">Lowest APR (Recommended)</option>
-              <!-- Lenders populated by JS -->
-            </select>
-          </div>
-
-          <!-- Winning Lender Display -->
-          <div class="review-lender-badge">
-            <div class="review-lender-badge__label">Your Best Rate From:</div>
-            <div class="review-lender-badge__name" id="reviewLenderName">--</div>
-          </div>
-
-          <!-- Vehicle Hero Section -->
-          <div class="review-hero">
-            <div class="review-hero__label">YOUR VEHICLE</div>
-            <div class="review-hero__vehicle">
-              <span id="reviewHeroYear"></span>
-              <span id="reviewHeroMake"></span>
-              <span id="reviewHeroModel"></span>
-              <span id="reviewHeroTrim"></span>
-            </div>
-            <div class="review-hero__vin" id="reviewHeroVin"></div>
-            <div class="review-hero__price" id="reviewHeroPrice">$0.00</div>
-          </div>
-
-          <!-- Federal TILA Disclosures -->
-          <div class="review-disclosures">
-            <div class="review-disclosures__header">
-              <h5>Federal Truth-in-Lending Disclosures</h5>
-              <p class="review-disclosures__note">Your actual amounts may vary based on approved credit & lender agreement</p>
-            </div>
-            <div class="review-disclosures__grid">
-              <div class="disclosure-item">
-                <div class="disclosure-label">Annual<br/>Percentage<br/>Rate</div>
-                <div class="disclosure-value" id="reviewAPR">--%</div>
-                <div class="disclosure-note">Cost of credit as yearly rate</div>
+              <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                  <input type="checkbox" id="quick-has-tradein" onchange="toggleQuickTradeIn(this.checked)" style="width: auto;" />
+                  <span>I have a trade-in vehicle</span>
+                </label>
               </div>
-              <div class="disclosure-item">
-                <div class="disclosure-label">Finance<br/>Charge</div>
-                <div class="disclosure-value" id="reviewFinanceCharge">$0.00</div>
-                <div class="disclosure-note">Dollar cost of credit</div>
-              </div>
-              <div class="disclosure-item">
-                <div class="disclosure-label">Amount<br/>Financed</div>
-                <div class="disclosure-value" id="reviewAmountFinanced">$0.00</div>
-                <div class="disclosure-note">Credit provided to you</div>
-              </div>
-              <div class="disclosure-item">
-                <div class="disclosure-label">Total of<br/>Payments</div>
-                <div class="disclosure-value" id="reviewTotalPayments">$0.00</div>
-                <div class="disclosure-note">Total after all payments</div>
-              </div>
-              <div class="disclosure-item">
-                <div class="disclosure-label">Total<br/>Sale<br/>Price</div>
-                <div class="disclosure-value" id="reviewTotalSalePrice">$0.00</div>
-                <div class="disclosure-note">Total cost on credit</div>
+
+              <div id="quick-tradein-fields" style="display: none;">
+                <div class="form-group">
+                  <label class="form-label" for="quick-tradein-value">Estimated Trade-In Value</label>
+                  <div class="input-with-icon">
+                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <input type="text" id="quick-tradein-value" class="form-input" placeholder="8,000" />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label" for="quick-tradein-payoff">Outstanding Loan Balance</label>
+                  <div class="input-with-icon">
+                    <svg class="input-with-icon__icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <input type="text" id="quick-tradein-payoff" class="form-input" placeholder="0" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- Payment Schedule -->
-          <div class="review-section">
-            <h5 class="review-section__title">Payment Schedule</h5>
-            <div class="review-grid">
-              <div class="review-row">
-                <span class="review-label">Monthly Payment</span>
-                <span class="review-value" id="reviewMonthlyPayment">$0.00</span>
+          <!-- Right Column: Live Summary with Sliders -->
+          <div class="quick-entry-summary">
+            <div class="quick-summary-sticky">
+              <!-- Monthly Payment Hero -->
+              <div class="quick-summary-hero">
+                <div class="quick-summary-hero__label">Estimated Monthly Payment</div>
+                <div class="quick-summary-hero__value" id="quickMonthlyPayment">$0.00</div>
+                <div class="quick-summary-hero__meta">
+                  <span id="quickTerm">0 months</span>
+                  <span>•</span>
+                  <span id="quickAPR">--%</span>
+                </div>
               </div>
-              <div class="review-row">
-                <span class="review-label">Number of Payments</span>
-                <span class="review-value" id="reviewNumPayments">0</span>
+
+              <!-- TIL Disclosures -->
+              <div class="quick-til-disclosures">
+                <h4 class="quick-til-title">Truth-in-Lending Disclosures</h4>
+                <div class="quick-til-grid">
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Annual Percentage Rate</div>
+                    <div class="quick-til-value" id="quickTilAPR">--%</div>
+                    <div class="quick-til-note">Cost of credit as yearly rate</div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Finance Charge</div>
+                    <div class="quick-til-value" id="quickTilFinanceCharge">$0.00</div>
+                    <div class="quick-til-note">Dollar cost of credit</div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Amount Financed</div>
+                    <div class="quick-til-value" id="quickTilAmountFinanced">$0.00</div>
+                    <div class="quick-til-note">Credit provided to you</div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Total of Payments</div>
+                    <div class="quick-til-value" id="quickTilTotalPayments">$0.00</div>
+                    <div class="quick-til-note">Total after all payments</div>
+                  </div>
+                </div>
               </div>
-              <div class="review-row">
-                <span class="review-label">Payment Frequency</span>
-                <span class="review-value">Monthly</span>
+
+              <!-- Itemization with Sliders -->
+              <div class="quick-itemization">
+                <div class="quick-itemization-header">
+                  <h4>Itemization of Amount Financed</h4>
+                  <button type="button" onclick="openFeesModal()" class="btn-edit-fees">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                    </svg>
+                    Edit Fees & Taxes
+                  </button>
+                </div>
+
+                <div class="quick-itemization-list">
+                  <!-- Sale Price with Slider -->
+                  <div class="quick-item quick-item--with-slider">
+                    <div class="quick-item-label">Sale Price</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderSalePrice" min="0" max="150000" step="500" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputSalePrice" />
+                        <div class="quick-diff-indicator" id="quickDiffSalePrice" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetSalePrice" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Cash Down with Slider -->
+                  <div class="quick-item quick-item--with-slider quick-item--less">
+                    <div class="quick-item-label">LESS Cash Down</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderCashDown" min="0" max="50000" step="100" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputCashDown" />
+                        <div class="quick-diff-indicator" id="quickDiffCashDown" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetCashDown" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Net Trade-In -->
+                  <div class="quick-item quick-item--less">
+                    <div class="quick-item-label">LESS Net Trade-In</div>
+                    <div class="quick-item-value" id="quickNetTrade">$0.00</div>
+                  </div>
+
+                  <!-- Trade Allowance with Slider -->
+                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                    <div class="quick-item-label">Trade-In Allowance</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderTradeAllowance" min="0" max="75000" step="100" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputTradeAllowance" />
+                        <div class="quick-diff-indicator" id="quickDiffTradeAllowance" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetTradeAllowance" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Trade Payoff with Slider -->
+                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                    <div class="quick-item-label">Trade-In Payoff</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderTradePayoff" min="0" max="75000" step="100" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputTradePayoff" />
+                        <div class="quick-diff-indicator" id="quickDiffTradePayoff" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetTradePayoff" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Unpaid Balance -->
+                  <div class="quick-item">
+                    <div class="quick-item-label">Unpaid Balance</div>
+                    <div class="quick-item-value" id="quickUnpaidBalance">$0.00</div>
+                  </div>
+
+                  <!-- Other Charges -->
+                  <div class="quick-item quick-item--plus">
+                    <div class="quick-item-label">PLUS Other Charges</div>
+                    <div class="quick-item-value" id="quickOtherCharges">$0.00</div>
+                  </div>
+
+                  <!-- Dealer Fees with Slider -->
+                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                    <div class="quick-item-label">Total Dealer Fees</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderDealerFees" min="0" max="10000" step="100" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputDealerFees" />
+                        <div class="quick-diff-indicator" id="quickDiffDealerFees" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetDealerFees" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Customer Addons with Slider -->
+                  <div class="quick-item quick-item--with-slider quick-item--indent">
+                    <div class="quick-item-label">Total Customer Add-ons</div>
+                    <div class="quick-slider-control">
+                      <input type="range" class="quick-slider" id="quickSliderCustomerAddons" min="0" max="10000" step="100" />
+                      <div class="quick-value-wrapper">
+                        <input type="text" class="quick-value-input" id="quickInputCustomerAddons" />
+                        <div class="quick-diff-indicator" id="quickDiffCustomerAddons" style="display: none;"></div>
+                        <button type="button" class="quick-reset-btn" id="quickResetCustomerAddons" style="display: none;" title="Reset to original">↺</button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Govt Fees -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Total Gov't Fees</div>
+                    <div class="quick-item-value" id="quickGovtFees">$0.00</div>
+                  </div>
+
+                  <!-- Taxes -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">State Taxes</div>
+                    <div class="quick-item-value" id="quickStateTax">$0.00</div>
+                  </div>
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">County Taxes</div>
+                    <div class="quick-item-value" id="quickCountyTax">$0.00</div>
+                  </div>
+
+                  <!-- Amount Financed Total -->
+                  <div class="quick-item quick-item--total">
+                    <div class="quick-item-label">AMOUNT FINANCED</div>
+                    <div class="quick-item-value" id="quickAmountFinancedTotal">$0.00</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Cash Due at Signing -->
+              <div class="quick-cash-due">
+                <div class="quick-cash-due__label">CASH DUE AT SIGNING</div>
+                <div class="quick-cash-due__value" id="quickCashDueHighlight">$0.00</div>
               </div>
             </div>
           </div>
 
-          <!-- Itemization -->
-          <div class="review-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--spacing-md);">
-              <h5 class="review-section__title" style="margin: 0;">Itemization of Amount Financed</h5>
-              <button type="button" onclick="openFeesModal()" class="btn-edit-fees">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                </svg>
-                Edit Fees & Taxes
-              </button>
-            </div>
-            <div class="review-itemization">
-              <div class="review-item review-item--bold">
-                <span class="review-label">Sale Price</span>
-                <span class="review-value" id="reviewSalePrice">$0.00</span>
-              </div>
-              <div class="review-item review-item--bold">
-                <span class="review-label">LESS Cash Down</span>
-                <span class="review-value" id="reviewCashDown">$0.00</span>
-              </div>
-              <div class="review-item review-item--bold">
-                <span class="review-label">LESS Net Trade-In</span>
-                <span class="review-value" id="reviewNetTrade">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">Trade-In Allowance</span>
-                <span class="review-value" id="reviewTradeAllowance">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">Trade-In Payoff</span>
-                <span class="review-value" id="reviewTradePayoff">$0.00</span>
-              </div>
-              <div class="review-item review-item--bold">
-                <span class="review-label">Unpaid Balance</span>
-                <span class="review-value" id="reviewUnpaidBalance">$0.00</span>
-              </div>
-              <div class="review-item review-item--bold">
-                <span class="review-label">PLUS Other Charges</span>
-                <span class="review-value" id="reviewOtherCharges">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">Total Dealer Fees</span>
-                <span class="review-value" id="reviewDealerFees">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">Total Customer Add-ons</span>
-                <span class="review-value" id="reviewCustomerAddons">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">Total Gov't Fees</span>
-                <span class="review-value" id="reviewGovtFees">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">State Taxes</span>
-                <span class="review-value" id="reviewStateTax">$0.00</span>
-              </div>
-              <div class="review-item review-item--indent">
-                <span class="review-label">County Taxes</span>
-                <span class="review-value" id="reviewCountyTax">$0.00</span>
-              </div>
-              <div class="review-item review-item--total">
-                <span class="review-label">AMOUNT FINANCED</span>
-                <span class="review-value" id="reviewAmountFinanced2">$0.00</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Cash Due -->
-          <div class="review-cash-due">
-            <div class="review-cash-due__row" id="reviewCashToBuyerRow" style="display: none;">
-              <span class="review-cash-due__label">CASH TO BUYER AT SIGNING</span>
-              <span class="review-cash-due__value review-cash-due__value--positive" id="reviewCashToBuyer">$0.00</span>
-            </div>
-            <div class="review-cash-due__row">
-              <span class="review-cash-due__label">CASH DUE AT SIGNING</span>
-              <span class="review-cash-due__value" id="reviewCashDue">$0.00</span>
-            </div>
-          </div>
-
-          <!-- Customer Information -->
-          <div class="review-section">
-            <h5 class="review-section__title">Your Contact Information</h5>
-
-            <div class="form-group">
-              <label class="form-label" for="customer-name">Full Name</label>
-              <input
-                type="text"
-                id="customer-name"
-                class="form-input"
-                placeholder="John Smith"
-              />
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="customer-email">Email Address</label>
-              <div class="input-with-icon">
-                <svg
-                  class="input-with-icon__icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                  ></path>
-                </svg>
-                <input
-                  type="email"
-                  id="customer-email"
-                  class="form-input"
-                  placeholder="john@example.com"
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="customer-phone">Phone Number</label>
-              <div class="input-with-icon">
-                <svg
-                  class="input-with-icon__icon"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-                  ></path>
-                </svg>
-                <input
-                  type="tel"
-                  id="customer-phone"
-                  class="form-input"
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="customer-zip">ZIP Code</label>
-              <input
-                type="text"
-                id="customer-zip"
-                class="form-input"
-                placeholder="32801"
-                maxlength="5"
-              />
-            </div>
-          </div>
-
-          <div class="button-group">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="wizardPrev()"
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                ></path>
-              </svg>
-              Previous
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="submitLead()"
-            >
-              <svg
-                width="20"
-                height="20"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                ></path>
-              </svg>
-              Submit & Get My Rates
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -1133,65 +412,142 @@
         </button>
 
         <h3 class="modal-title">Enter Fees & Taxes</h3>
-        <p class="modal-description">
-          Please enter the fees and tax rates specific to your situation. These will be used to calculate the final amount financed.
-        </p>
+        <div class="modal-toolbar">
+          <p class="modal-description">
+            Tune the fees that roll into your amount financed. We’ll auto-save
+            as you go.
+          </p>
+          <button
+            type="button"
+            class="modal-toolbar__action"
+            id="modal-edit-fee-button"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path
+                d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+              />
+              <path
+                d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+              />
+            </svg>
+            Edit Fee Templates
+          </button>
+        </div>
 
-        <div class="fees-modal-grid">
-          <div class="form-group">
-            <label class="form-label" for="modal-dealer-fees">Dealer Fees</label>
-            <input
-              type="text"
-              id="modal-dealer-fees"
-              class="form-input"
-              placeholder="799"
-            />
-            <span class="form-hint">Doc fee, dealer prep, etc.</span>
+        <div class="fees-modal-sections">
+          <section class="fee-category" data-fee-category="dealer">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Dealer Fees</h4>
+                <p class="fee-category__hint">
+                  Doc fee, dealer prep, PDI, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="dealer-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Dealer Fees</span>
+              <span class="fee-category__total" id="dealer-fee-total"
+                >$0.00</span
+              >
+            </footer>
+          </section>
+
+          <section class="fee-category" data-fee-category="customer">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Customer Add-ons</h4>
+                <p class="fee-category__hint">
+                  Extended warranty, GAP, service plans, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="customer-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Customer Add-ons</span>
+              <span class="fee-category__total" id="customer-fee-total"
+                >$0.00</span
+              >
+            </footer>
+          </section>
+
+          <section class="fee-category" data-fee-category="gov">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Gov't Fees</h4>
+                <p class="fee-category__hint">
+                  Title, registration, plate transfers, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="gov-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Gov't Fees</span>
+              <span class="fee-category__total" id="gov-fee-total">$0.00</span>
+            </footer>
+          </section>
+        </div>
+
+        <div class="fees-tax-block">
+          <div class="fees-tax-block__header">
+            <h4>Taxes</h4>
           </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-customer-addons">Customer Add-ons</label>
-            <input
-              type="text"
-              id="modal-customer-addons"
-              class="form-input"
-              placeholder="0"
-            />
-            <span class="form-hint">Extended warranty, GAP, etc.</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-govt-fees">Gov't Fees</label>
-            <input
-              type="text"
-              id="modal-govt-fees"
-              class="form-input"
-              placeholder="150"
-            />
-            <span class="form-hint">Title, registration, etc.</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-state-tax">State Tax Rate (%)</label>
+          <div class="fees-tax-grid">
+            <label class="fees-tax-grid__label" for="modal-state-tax"
+              >State Tax Rate</label
+            >
             <input
               type="text"
               id="modal-state-tax"
-              class="form-input"
-              placeholder="6.0"
+              class="form-input form-input--readonly"
+              readonly
+              disabled
+              value="6.00"
             />
-            <span class="form-hint">Enter as percentage (e.g., 6.0 for 6%)</span>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label" for="modal-county-tax">County Tax Rate (%)</label>
+            <label class="fees-tax-grid__label" for="modal-county-tax"
+              >County Tax Rate</label
+            >
             <input
               type="text"
               id="modal-county-tax"
-              class="form-input"
-              placeholder="1.0"
+              class="form-input form-input--readonly"
+              readonly
+              disabled
+              value="1.00"
             />
-            <span class="form-hint">Enter as percentage (e.g., 1.0 for 1%)</span>
           </div>
+        </div>
+
+        <div class="fees-summary">
+          <div class="fees-summary__row">
+            <span>Taxes (State + County)</span>
+            <span class="fees-summary__value" id="modal-tax-total">$0.00</span>
+          </div>
+          <div class="fees-summary__row">
+            <span>Total Fees &amp; Add-ons</span>
+            <span class="fees-summary__value" id="modal-fees-total">$0.00</span>
+          </div>
+          <div class="fees-summary__row fees-summary__row--highlight">
+            <span>Other Charges (Fees + Taxes)</span>
+            <span class="fees-summary__value" id="modal-other-charges"
+              >$0.00</span
+            >
+          </div>
+          <a
+            class="fees-summary__link"
+            href="javascript:void(0)"
+            onclick="goToLocationStep()"
+          >
+            Taxes are based on your address. Need to Update?
+          </a>
         </div>
 
         <div class="button-group">
@@ -1200,16 +556,98 @@
             class="btn btn-secondary"
             onclick="closeFeesModal()"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            class="btn btn-primary"
-            onclick="saveFeesAndCalculate()"
-          >
-            Save & Calculate
+            Close
           </button>
         </div>
+      </div>
+    </div>
+
+    <datalist id="dealer-fee-suggestions"></datalist>
+    <datalist id="customer-fee-suggestions"></datalist>
+    <datalist id="gov-fee-suggestions"></datalist>
+
+    <!-- Edit Fee Modal -->
+    <div id="edit-fee-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeEditFeeModal()"></div>
+      <div class="modal-content edit-fee-modal">
+        <button
+          class="modal-close"
+          onclick="closeEditFeeModal()"
+          aria-label="Close edit fee modal"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <h3 class="modal-title">Edit Fee</h3>
+        <p class="modal-description">
+          Update a saved fee or add a new one to your Supabase set. These
+          updates will be available the next time you open this modal.
+        </p>
+
+        <form id="edit-fee-form" class="edit-fee-form">
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-type">Fee Type</label>
+            <select id="edit-fee-type" class="form-select">
+              <option value="dealer">Dealer</option>
+              <option value="customer">Customer</option>
+              <option value="gov">Gov't</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-name">Description</label>
+            <input
+              type="text"
+              id="edit-fee-name"
+              class="form-input"
+              list="dealer-fee-suggestions"
+              placeholder="e.g., Doc Fee"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-amount">Amount</label>
+            <input
+              type="text"
+              id="edit-fee-amount"
+              class="form-input"
+              placeholder="$0.00"
+              required
+            />
+          </div>
+
+          <p
+            class="modal-status"
+            id="edit-fee-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+
+          <div class="button-group">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeEditFeeModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Save Fee</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -1293,6 +731,12 @@
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- Floating Payment Tooltip -->
+    <div id="slider-payment-tooltip" class="slider-payment-tooltip" style="display: none;">
+      <div class="tooltip-payment">$0/mo</div>
+      <div class="tooltip-change">--</div>
     </div>
 
     <!-- JavaScript -->
