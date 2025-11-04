@@ -12,6 +12,11 @@
   --success: #10b981;
   --error: #ef4444;
 
+  /* Text Colors - High Contrast */
+  --text-primary: #0f172a;      /* Slate-900 for primary text */
+  --text-secondary: #475569;    /* Slate-600 for secondary text */
+  --text-tertiary: #64748b;     /* Slate-500 for hints/placeholders */
+
   /* Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.7);
   --glass-border: rgba(255, 255, 255, 0.18);
@@ -572,7 +577,7 @@ body {
 .form-hint {
   display: block;
   font-size: 0.875rem;
-  color: #64748b;
+  color: var(--text-tertiary);
   margin-top: var(--spacing-xs);
 }
 
