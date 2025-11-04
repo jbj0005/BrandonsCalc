@@ -4974,23 +4974,31 @@ async function autoPopulateCalculatorFromProfile() {
     const profile = await loadCustomerProfileData();
     if (!profile) return;
 
+    let valuesChanged = false;
+
     // Auto-populate down payment
     if (profile.preferred_down_payment && profile.preferred_down_payment > 0) {
       const cashDownSlider = document.getElementById('quickSliderCashDown');
       if (cashDownSlider && !wizardData.financing?.cashDown) {
+        // Set slider value
         cashDownSlider.value = profile.preferred_down_payment;
 
         // Update wizardData
         if (!wizardData.financing) wizardData.financing = {};
         wizardData.financing.cashDown = profile.preferred_down_payment;
 
-        // Update display
+        // Update display input
         const cashDownInput = document.getElementById('quickValueCashDown');
         if (cashDownInput) {
           cashDownInput.value = formatCurrency(profile.preferred_down_payment);
         }
 
+        // Dispatch input event to trigger UI updates
+        cashDownSlider.dispatchEvent(new Event('input', { bubbles: true }));
+        cashDownSlider.dispatchEvent(new Event('change', { bubbles: true }));
+
         console.log('[auto-populate] Set down payment to:', formatCurrency(profile.preferred_down_payment));
+        valuesChanged = true;
       }
     }
 
@@ -5011,22 +5019,32 @@ async function autoPopulateCalculatorFromProfile() {
         if (tradeInControls) {
           tradeInControls.style.display = 'block';
         }
+
+        // Dispatch change event on checkbox
+        hasTradeCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
       }
 
       // Set trade-in value
       if (profile.preferred_trade_value && profile.preferred_trade_value > 0) {
         const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
         if (tradeValueSlider && !wizardData.tradein?.value) {
+          // Set slider value
           tradeValueSlider.value = profile.preferred_trade_value;
 
           wizardData.tradein.value = profile.preferred_trade_value;
 
+          // Update display input
           const tradeValueInput = document.getElementById('quickValueTradeAllowance');
           if (tradeValueInput) {
             tradeValueInput.value = formatCurrency(profile.preferred_trade_value);
           }
 
+          // Dispatch input event to trigger UI updates
+          tradeValueSlider.dispatchEvent(new Event('input', { bubbles: true }));
+          tradeValueSlider.dispatchEvent(new Event('change', { bubbles: true }));
+
           console.log('[auto-populate] Set trade-in value to:', formatCurrency(profile.preferred_trade_value));
+          valuesChanged = true;
         }
       }
 
@@ -5034,22 +5052,30 @@ async function autoPopulateCalculatorFromProfile() {
       if (profile.preferred_trade_payoff && profile.preferred_trade_payoff > 0) {
         const tradePayoffSlider = document.getElementById('quickSliderTradePayoff');
         if (tradePayoffSlider && !wizardData.tradein?.payoff) {
+          // Set slider value
           tradePayoffSlider.value = profile.preferred_trade_payoff;
 
           wizardData.tradein.payoff = profile.preferred_trade_payoff;
 
+          // Update display input
           const tradePayoffInput = document.getElementById('quickValueTradePayoff');
           if (tradePayoffInput) {
             tradePayoffInput.value = formatCurrency(profile.preferred_trade_payoff);
           }
 
+          // Dispatch input event to trigger UI updates
+          tradePayoffSlider.dispatchEvent(new Event('input', { bubbles: true }));
+          tradePayoffSlider.dispatchEvent(new Event('change', { bubbles: true }));
+
           console.log('[auto-populate] Set trade-in payoff to:', formatCurrency(profile.preferred_trade_payoff));
+          valuesChanged = true;
         }
       }
     }
 
     // Trigger recalculation if any values were set
-    if (profile.preferred_down_payment || profile.preferred_trade_value || profile.preferred_trade_payoff) {
+    if (valuesChanged) {
+      console.log('[auto-populate] Triggering recalculation...');
       await autoCalculateQuick();
     }
   } catch (error) {
