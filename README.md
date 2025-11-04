@@ -2,6 +2,36 @@
 
 ExcelCalc is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
 
+## v1.2.0 Highlights - Interactive Controls & Offer Management
+
+### Interactive APR/Term Editing
+- **APR Controls**: Arrow buttons to adjust APR by 0.01% increments with real-time payment updates
+- **Term Controls**: Arrow buttons to adjust loan term by 6-month increments
+- **Keyboard Support**: Use arrow keys when focused on APR or Term values
+- **Real-Time Tooltips**: Hover over APR, Term, or Monthly Finance Charge to see payment impacts
+- **Finance Charge Breakdown**: New "Monthly Finance Charge" TIL card shows interest portion per payment
+- **Custom APR Warning**: Modal prompts user when reviewing with adjusted APR
+
+### Smart Slider Tooltips
+- **Specific Impact**: Each slider now shows its individual impact on monthly payment (not cumulative)
+- **Buyer-Centric Colors**: Green for savings, red for increases
+- **Real-Time Updates**: Payment deltas update as you drag sliders
+
+### Offer Management System (Database Ready)
+- **Customer Profiles**: Auto-populate contact info across the app using Supabase
+- **Saved Offers**: Store complete calculation state for instant recall
+- **Salesperson Contacts**: Auto-complete with usage tracking
+- **Offer Submissions**: Track submissions via email, SMS, or native share
+- **Status Tracking**: Manage offer lifecycle (draft, submitted, accepted, rejected)
+
+See [OFFER_MANAGEMENT_SYSTEM.md](docs/OFFER_MANAGEMENT_SYSTEM.md) for complete database schema and API documentation.
+
+### New Database Tables
+- `customer_profiles` - Store customer contact info for auto-population
+- `salesperson_contacts` - Track salesperson contacts with auto-complete
+- `saved_offers` - Store complete offer state for recall and comparison
+- `offer_submissions` - Track when offers are submitted to dealers
+
 ## v1.1.0 Highlights - Contract Summary & Enhanced UX
 - **Contract Summary Modal**: New professional contract summary view (RouteOne format) with Federal Truth-in-Lending disclosures, itemization of amount financed, payment schedule, and cash due at signing.
 - **Vehicle & Dealer Details**: Contract displays comprehensive vehicle information (condition, year, make, model, trim, mileage, VIN) and dealer information (name, address, phone).
