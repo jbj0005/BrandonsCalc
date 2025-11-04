@@ -2524,6 +2524,10 @@ body {
   padding: var(--spacing-2xl);
   text-align: center;
   max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .apr-confirmation-icon {
