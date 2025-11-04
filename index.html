@@ -41,6 +41,13 @@
         <span class="app-header__logo-text">ExcelCalc</span>
       </div>
       <div class="app-header__actions">
+        <button type="button" class="app-header__profile-btn" id="openMyGarageBtn" title="My Garage">
+          <svg class="app-header__profile-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 20h12a2 2 0 002-2v-5a2 2 0 00-2-2H6a2 2 0 00-2 2v5a2 2 0 002 2z"></path>
+          </svg>
+          <span class="app-header__profile-label">Garage</span>
+        </button>
         <button type="button" class="app-header__profile-btn" id="openCustomerProfileBtn" title="Customer Profile">
           <svg class="app-header__profile-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
@@ -1415,6 +1422,133 @@
             </svg>
             Save Profile
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- My Garage Modal -->
+    <div id="my-garage-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeMyGarageModal()"></div>
+      <div class="modal-content my-garage-modal">
+        <button class="modal-close" onclick="closeMyGarageModal()" aria-label="Close">
+          <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+
+        <div class="garage-header">
+          <div class="garage-icon">
+            <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 20h12a2 2 0 002-2v-5a2 2 0 00-2-2H6a2 2 0 00-2 2v5a2 2 0 002 2z"></path>
+            </svg>
+          </div>
+          <h2 class="garage-title">My Garage</h2>
+          <p class="garage-subtitle">Manage your vehicles for quick trade-in selection</p>
+        </div>
+
+        <div class="garage-body">
+          <!-- Vehicle List -->
+          <div id="garage-vehicle-list" class="garage-vehicle-list">
+            <!-- Vehicles will be dynamically inserted here -->
+            <div class="garage-empty-state" id="garage-empty-state">
+              <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h.01M12 12h.01M19 12h.01M6 20h12a2 2 0 002-2v-5a2 2 0 00-2-2H6a2 2 0 00-2 2v5a2 2 0 002 2z"></path>
+              </svg>
+              <p>Your garage is empty</p>
+              <small>Add your first vehicle to get started</small>
+            </div>
+          </div>
+
+          <!-- Add Vehicle Button -->
+          <button type="button" class="btn btn-primary garage-add-btn" onclick="showGarageForm()">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            Add Vehicle
+          </button>
+
+          <!-- Vehicle Form (Hidden by default) -->
+          <div id="garage-vehicle-form" class="garage-vehicle-form" style="display: none;">
+            <h3 class="garage-form-title" id="garage-form-title">Add Vehicle</h3>
+
+            <div class="form-group">
+              <label class="form-label" for="garageNickname">Nickname (Optional)</label>
+              <input type="text" id="garageNickname" class="form-input" placeholder="My Civic, Wife's SUV, etc." />
+              <small class="form-hint">A friendly name to help you identify this vehicle</small>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="garageYear">Year *</label>
+                <input type="number" id="garageYear" class="form-input" placeholder="2020" min="1900" max="2030" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="garageMake">Make *</label>
+                <input type="text" id="garageMake" class="form-input" placeholder="Honda" required />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="garageModel">Model *</label>
+                <input type="text" id="garageModel" class="form-input" placeholder="Civic" required />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="garageTrim">Trim</label>
+                <input type="text" id="garageTrim" class="form-input" placeholder="EX-L" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="garageMileage">Mileage</label>
+                <input type="number" id="garageMileage" class="form-input" placeholder="50000" min="0" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="garageVin">VIN</label>
+              <input type="text" id="garageVin" class="form-input" placeholder="1HGBH41JXMN109186" maxlength="17" />
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="garageCondition">Condition</label>
+              <select id="garageCondition" class="form-select">
+                <option value="">Select Condition</option>
+                <option value="excellent">Excellent</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="garageEstimatedValue">Estimated Trade-In Value</label>
+                <input type="text" id="garageEstimatedValue" class="form-input currency-input" placeholder="$15,000" />
+                <small class="form-hint">Your estimate of what dealers might offer</small>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="garagePayoffAmount">Payoff Amount</label>
+                <input type="text" id="garagePayoffAmount" class="form-input currency-input" placeholder="$0" />
+                <small class="form-hint">Outstanding loan balance</small>
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="garageNotes">Notes</label>
+              <textarea id="garageNotes" class="form-input" rows="3" placeholder="Any additional notes about this vehicle..."></textarea>
+            </div>
+
+            <div class="garage-form-actions">
+              <button type="button" class="btn btn-secondary" onclick="hideGarageForm()">Cancel</button>
+              <button type="button" class="btn btn-primary" onclick="saveGarageVehicle()">
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Save Vehicle
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
