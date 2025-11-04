@@ -5039,6 +5039,12 @@ async function autoPopulateCalculatorFromProfile() {
             tradeValueInput.value = formatCurrency(profile.preferred_trade_value);
           }
 
+          // Also populate the trade-in modal field
+          const tradeValueModalInput = document.getElementById('tradein-value-modal');
+          if (tradeValueModalInput) {
+            tradeValueModalInput.value = formatCurrency(profile.preferred_trade_value);
+          }
+
           // Dispatch input event to trigger UI updates
           tradeValueSlider.dispatchEvent(new Event('input', { bubbles: true }));
           tradeValueSlider.dispatchEvent(new Event('change', { bubbles: true }));
@@ -5061,6 +5067,12 @@ async function autoPopulateCalculatorFromProfile() {
           const tradePayoffInput = document.getElementById('quickValueTradePayoff');
           if (tradePayoffInput) {
             tradePayoffInput.value = formatCurrency(profile.preferred_trade_payoff);
+          }
+
+          // Also populate the trade-in modal field
+          const tradePayoffModalInput = document.getElementById('tradein-payoff-modal');
+          if (tradePayoffModalInput) {
+            tradePayoffModalInput.value = formatCurrency(profile.preferred_trade_payoff);
           }
 
           // Dispatch input event to trigger UI updates
