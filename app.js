@@ -492,8 +492,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     profileBtn.addEventListener('click', openCustomerProfileModal);
   }
 
-  // Load customer profile on page load to update header label
-  await loadCustomerProfileData();
+  // Auto-populate location from customer profile
+  await autoPopulateLocationFromProfile();
 });
 
 /**
@@ -4682,6 +4682,9 @@ async function openCustomerProfileModal() {
   // Load existing profile
   await loadCustomerProfileData();
 
+  // Set up Google Places autocomplete for address field
+  setupProfileAddressAutocomplete();
+
   modal.style.display = 'flex';
 }
 
@@ -4701,7 +4704,7 @@ function closeCustomerProfileModal() {
 async function loadCustomerProfileData() {
   try {
     const profileId = localStorage.getItem('customerProfileId');
-    if (!profileId) return;
+    if (!profileId) return null;
 
     const { data: profile, error } = await supabase
       .from('customer_profiles')
@@ -4711,26 +4714,139 @@ async function loadCustomerProfileData() {
 
     if (error) {
       console.error('Error loading customer profile:', error);
-      return;
+      return null;
     }
 
     if (profile) {
-      // Populate form fields
-      document.getElementById('profileFullName').value = profile.full_name || '';
-      document.getElementById('profileEmail').value = profile.email || '';
-      document.getElementById('profilePhone').value = profile.phone || '';
-      document.getElementById('profileAddress').value = profile.street_address || '';
-      document.getElementById('profileCity').value = profile.city || '';
-      document.getElementById('profileState').value = profile.state_code || '';
-      document.getElementById('profileZip').value = profile.zip_code || '';
-      document.getElementById('profileCreditScore').value = profile.credit_score_range || '';
+      // Populate form fields if modal is open
+      const profileFullName = document.getElementById('profileFullName');
+      if (profileFullName) {
+        profileFullName.value = profile.full_name || '';
+        document.getElementById('profileEmail').value = profile.email || '';
+        document.getElementById('profilePhone').value = profile.phone || '';
+        document.getElementById('profileAddress').value = profile.street_address || '';
+        document.getElementById('profileCity').value = profile.city || '';
+        document.getElementById('profileState').value = profile.state_code || '';
+        document.getElementById('profileZip').value = profile.zip_code || '';
+        document.getElementById('profileCreditScore').value = profile.credit_score_range || '';
+      }
 
       // Update header label with user's first name
       const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'Profile';
-      document.getElementById('customerProfileLabel').textContent = firstName;
+      const profileLabel = document.getElementById('customerProfileLabel');
+      if (profileLabel) {
+        profileLabel.textContent = firstName;
+      }
+
+      return profile;
     }
+
+    return null;
   } catch (error) {
     console.error('Error loading customer profile:', error);
+    return null;
+  }
+}
+
+/**
+ * Setup Google Places autocomplete for profile address field
+ */
+function setupProfileAddressAutocomplete() {
+  const addressInput = document.getElementById('profileAddress');
+  if (!addressInput || !google || !google.maps || !google.maps.places) return;
+
+  // Create autocomplete instance
+  const autocomplete = new google.maps.places.Autocomplete(addressInput, {
+    types: ['address'],
+    componentRestrictions: { country: 'us' },
+    fields: ['address_components', 'formatted_address', 'place_id']
+  });
+
+  // Listen for place selection
+  autocomplete.addListener('place_changed', () => {
+    const place = autocomplete.getPlace();
+    if (!place || !place.address_components) return;
+
+    // Extract address components
+    let streetNumber = '';
+    let route = '';
+    let city = '';
+    let state = '';
+    let stateCode = '';
+    let zip = '';
+    let county = '';
+
+    place.address_components.forEach(component => {
+      const types = component.types;
+
+      if (types.includes('street_number')) {
+        streetNumber = component.long_name;
+      }
+      if (types.includes('route')) {
+        route = component.long_name;
+      }
+      if (types.includes('locality')) {
+        city = component.long_name;
+      }
+      if (types.includes('administrative_area_level_1')) {
+        state = component.long_name;
+        stateCode = component.short_name;
+      }
+      if (types.includes('postal_code')) {
+        zip = component.long_name;
+      }
+      if (types.includes('administrative_area_level_2')) {
+        county = component.long_name.replace(' County', '');
+      }
+    });
+
+    // Populate fields
+    const streetAddress = `${streetNumber} ${route}`.trim();
+    document.getElementById('profileAddress').value = streetAddress;
+    document.getElementById('profileCity').value = city;
+    document.getElementById('profileState').value = stateCode;
+    document.getElementById('profileZip').value = zip;
+
+    // Store county for later use when saving
+    addressInput.dataset.county = county;
+    addressInput.dataset.countyName = county;
+    addressInput.dataset.placeId = place.place_id;
+  });
+}
+
+/**
+ * Auto-populate main location from customer profile on page load
+ */
+async function autoPopulateLocationFromProfile() {
+  try {
+    const profile = await loadCustomerProfileData();
+    if (!profile) return;
+
+    // If profile has address information, populate the main location field
+    if (profile.city && profile.state_code) {
+      const quickLocation = document.getElementById('quick-location');
+      if (quickLocation && !quickLocation.value) {
+        // Format location string
+        const locationString = `${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`;
+        quickLocation.value = locationString;
+
+        // Update wizardData
+        if (wizardData && wizardData.location) {
+          wizardData.location.city = profile.city;
+          wizardData.location.stateCode = profile.state_code;
+          wizardData.location.state = profile.state;
+          wizardData.location.zip = profile.zip_code;
+          wizardData.location.county = profile.county;
+          wizardData.location.countyName = profile.county_name;
+
+          // Trigger location change to load tax rates
+          console.log('Auto-populated location from profile:', locationString);
+          await handleQuickLocationChange();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Error auto-populating location:', error);
   }
 }
 
@@ -4762,6 +4878,12 @@ async function saveCustomerProfile() {
       return;
     }
 
+    // Get county data from Google Places if available
+    const addressInput = document.getElementById('profileAddress');
+    const county = addressInput?.dataset?.county || null;
+    const countyName = addressInput?.dataset?.countyName || null;
+    const googlePlaceId = addressInput?.dataset?.placeId || null;
+
     // Prepare profile data
     const profileData = {
       full_name: fullName,
@@ -4769,8 +4891,12 @@ async function saveCustomerProfile() {
       phone: phone,
       street_address: address || null,
       city: city || null,
+      state: state || null,
       state_code: state || null,
       zip_code: zip || null,
+      county: county,
+      county_name: countyName,
+      google_place_id: googlePlaceId,
       credit_score_range: creditScore || null,
       updated_at: new Date().toISOString(),
       last_used_at: new Date().toISOString()
@@ -4804,8 +4930,11 @@ async function saveCustomerProfile() {
     // Show success message
     console.log('Customer profile saved successfully:', profile);
 
+    // Auto-populate main location from saved profile
+    await autoPopulateLocationFromProfile();
+
     // TODO: Show toast notification
-    alert('Profile saved successfully!');
+    alert('Profile saved successfully! Your location has been auto-populated.');
   } catch (error) {
     console.error('Error saving customer profile:', error);
     alert('Error saving profile. Please try again.');
