@@ -216,7 +216,7 @@
                   <option value="36">36 months (3 years)</option>
                   <option value="48">48 months (4 years)</option>
                   <option value="60">60 months (5 years)</option>
-                  <option value="72">72 months (6 years)</option>
+                  <option value="72" selected>72 months (6 years)</option>
                   <option value="84">84 months (7 years)</option>
                 </select>
               </div>
@@ -396,6 +396,40 @@
                     </div>
                   </div>
                   <div class="quick-til-card">
+                    <div class="quick-til-label">Term (Months)</div>
+                    <div class="quick-til-value-wrapper">
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--left"
+                        id="termArrowLeft"
+                        aria-label="Decrease term by 6 months"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M7 1L2 6L7 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                      <div class="quick-til-value til-editable" id="quickTilTerm" tabindex="0">72</div>
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--right"
+                        id="termArrowRight"
+                        aria-label="Increase term by 6 months"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="quick-til-note">
+                      Length of loan
+                    </div>
+                    <!-- Term Tooltip -->
+                    <div class="apr-tooltip" id="termTooltip" style="display: none;">
+                      <div class="apr-tooltip__payment" id="termTooltipPayment">$0/mo</div>
+                      <div class="apr-tooltip__diff" id="termTooltipDiff">+$0/mo from original</div>
+                    </div>
+                  </div>
+                  <div class="quick-til-card">
                     <div class="quick-til-label">Finance Charge</div>
                     <div class="quick-til-value" id="quickTilFinanceCharge">
                       $0.00
@@ -419,40 +453,6 @@
                       $0.00
                     </div>
                     <div class="quick-til-note">Total after all payments</div>
-                  </div>
-                  <div class="quick-til-card">
-                    <div class="quick-til-label">Term (Months)</div>
-                    <div class="quick-til-value-wrapper">
-                      <button
-                        type="button"
-                        class="til-arrow til-arrow--left"
-                        id="termArrowLeft"
-                        aria-label="Decrease term by 6 months"
-                      >
-                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                          <path d="M7 1L2 6L7 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
-                      <div class="quick-til-value til-editable" id="quickTilTerm" tabindex="0">0</div>
-                      <button
-                        type="button"
-                        class="til-arrow til-arrow--right"
-                        id="termArrowRight"
-                        aria-label="Increase term by 6 months"
-                      >
-                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
-                          <path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                      </button>
-                    </div>
-                    <div class="quick-til-note">
-                      Length of loan
-                    </div>
-                    <!-- Term Tooltip -->
-                    <div class="apr-tooltip" id="termTooltip" style="display: none;">
-                      <div class="apr-tooltip__payment" id="termTooltipPayment">$0/mo</div>
-                      <div class="apr-tooltip__diff" id="termTooltipDiff">+$0/mo from original</div>
-                    </div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Monthly Finance Charge</div>
