@@ -4826,22 +4826,126 @@ async function autoPopulateLocationFromProfile() {
     if (profile.city && profile.state_code) {
       const quickLocation = document.getElementById('quick-location');
       if (quickLocation && !quickLocation.value) {
-        // Format location string
-        const locationString = `${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`;
+        // Format location string with FULL street address for Google Maps distance calculations
+        const locationString = profile.street_address
+          ? `${profile.street_address}, ${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`
+          : `${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`;
+
         quickLocation.value = locationString;
 
-        // Update wizardData
-        if (wizardData && wizardData.location) {
-          wizardData.location.city = profile.city;
-          wizardData.location.stateCode = profile.state_code;
-          wizardData.location.state = profile.state;
-          wizardData.location.zip = profile.zip_code;
-          wizardData.location.county = profile.county;
-          wizardData.location.countyName = profile.county_name;
+        console.log('Auto-populated location from profile:', locationString);
 
-          // Trigger location change to load tax rates
-          console.log('Auto-populated location from profile:', locationString);
-          await handleQuickLocationChange();
+        // Geocode the address to get lat/lng coordinates for distance calculations
+        if (google?.maps?.Geocoder) {
+          const geocoder = new google.maps.Geocoder();
+
+          try {
+            const results = await new Promise((resolve, reject) => {
+              geocoder.geocode({ address: locationString }, (results, status) => {
+                if (status === 'OK' && results?.length) {
+                  resolve(results);
+                } else {
+                  reject(new Error(`Geocoding failed: ${status}`));
+                }
+              });
+            });
+
+            if (results && results[0]) {
+              const place = results[0];
+              const locale = extractLocaleFromComponents(place.address_components ?? []);
+              const zip = extractZipFromPlace(place) || profile.zip_code || '';
+
+              const lat = typeof place.geometry.location?.lat === 'function'
+                ? place.geometry.location.lat()
+                : place.geometry.location?.lat ?? null;
+              const lng = typeof place.geometry.location?.lng === 'function'
+                ? place.geometry.location.lng()
+                : place.geometry.location?.lng ?? null;
+
+              // Update wizardData with geocoded location data (including lat/lng for distance calculations)
+              wizardData.location = {
+                ...wizardData.location,
+                formatted_address: place.formatted_address ?? locationString,
+                address: place.formatted_address ?? locationString,
+                city: profile.city,
+                zip: zip,
+                lat: lat,
+                lng: lng,
+                stateCode: profile.state_code,
+                state: profile.state,
+                county: profile.county,
+                countyName: locale.countyName || profile.county_name
+              };
+
+              // Update user-location field in wizard
+              const wizardLocationInput = document.getElementById('user-location');
+              if (wizardLocationInput) {
+                wizardLocationInput.value = place.formatted_address ?? locationString;
+                const hint = wizardLocationInput.nextElementSibling;
+                if (hint) {
+                  hint.textContent = `✓ Using: ${zip || 'your location'}`;
+                  hint.style.color = 'var(--success)';
+                }
+              }
+
+              // Apply locale-based fees and taxes
+              applyLocaleToFees(locale);
+
+              // Refresh year dropdowns
+              try {
+                await populateYearDropdowns();
+              } catch (error) {
+                console.error('[auto-populate] Unable to refresh year dropdowns after location population', error);
+              }
+
+              console.log('[auto-populate] Location geocoded with coordinates:', { lat, lng });
+
+              // If a vehicle is already selected, refresh the card to show map with distance
+              if (selectedVehicle) {
+                console.log('[auto-populate] Re-displaying vehicle card with coordinates');
+                displayQuickVehicleCard(selectedVehicle);
+              }
+
+              // Trigger auto-calculation
+              autoCalculateQuick().catch((error) => {
+                console.error('[auto-populate] Unable to recalculate after location population', error);
+              });
+            }
+          } catch (geocodeError) {
+            console.error('Geocoding error:', geocodeError);
+
+            // Fallback: Update wizardData without coordinates
+            wizardData.location = {
+              ...wizardData.location,
+              formatted_address: locationString,
+              address: locationString,
+              city: profile.city,
+              zip: profile.zip_code,
+              stateCode: profile.state_code,
+              state: profile.state,
+              county: profile.county,
+              countyName: profile.county_name
+            };
+
+            // Apply locale-based fees even without geocoding
+            applyLocaleToFees({
+              stateCode: profile.state_code,
+              countyName: profile.county_name
+            });
+          }
+        } else {
+          // Google Maps not available - update basic location data
+          wizardData.location = {
+            ...wizardData.location,
+            formatted_address: locationString,
+            address: locationString,
+            city: profile.city,
+            zip: profile.zip_code,
+            stateCode: profile.state_code,
+            state: profile.state,
+            county: profile.county,
+            countyName: profile.county_name
+          };
         }
       }
     }
