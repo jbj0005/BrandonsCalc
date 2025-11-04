@@ -1,1145 +1,1717 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="stylesheet" href="styles.css" />
-
-    <!-- Title -->
-    <title>Brandon's Calculator</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brandon's Calculator - Express Mode</title>
 
     <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;1,100;1,200;1,300&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Oswald:wght@200..700&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Roboto+Condensed:ital,wght@0,100..900;1,100..900&family=Roboto:ital,wght@0,100..900;1,100..900&family=Saira+Extra+Condensed:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">    
-    <!-- Favicon & App Icons -->
-    <link rel="icon" href="/icons/favicon.ico" sizes="any">
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/favicon-16x16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/android-chrome-192x192.png">
-    <link rel="icon" type="image/png" sizes="512x512" href="/icons/android-chrome-512x512.png">
-    
-    <!-- PWA Manifest-->
-    <link rel="manifest" href="site.webmanifest">
-    <meta name="theme-color" content="#0b1f2a">
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;600&family=Montserrat:wght@400;500;600;700&family=Poppins:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css" />
+
+    <!-- Icons -->
+    <link rel="icon" href="/icons/favicon.ico" sizes="any" />
+
     <!-- Supabase credentials (fill these values) -->
-    <meta name="supabase-url" content="">
-    <meta name="supabase-anon-key" content="">
-    <script type="module" src="app.js"></script>
+    <meta name="supabase-url" content="" />
+    <meta name="supabase-anon-key" content="" />
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Google Maps API (loaded dynamically from meta tag or config) -->
+    <script>
+      // Will be loaded dynamically after getting API key from meta tags or Supabase
+    </script>
   </head>
-    <body>
-      <!-- Floating Payment Sidebar -->
-      <div class="floatingPmtNote" id="floatingPaymentCard" aria-live="polite">
-        <div class="floatingPmtNote__meta">
-          <span class="floatingPmtNote__metaLabel">PMT</span>
-          <span
-            class="floatingPmtNote__metaValue usdFormat"
-            type="text"
-            id="floatingMonthlyPmt"
-            data-role="monthly-payment"
-            aria-label="Monthly payment"
-          >$0.00</span>
-          <span class="floatingPmtNote__metaLabel">APR</span>
-          <span class="floatingPmtNote__metaValue" id="floatingAprValue">5.99%</span>
-          <span class="floatingPmtNote__metaLabel">TERM</span>
-          <span class="floatingPmtNote__metaValue" id="floatingTermValue">72</span>
-        </div>
+  <body>
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="hero__floating-shapes">
+        <div class="floating-shape"></div>
+        <div class="floating-shape"></div>
+        <div class="floating-shape"></div>
       </div>
-      <!-- All Cards -->
-      <main>
-        <!-- Card Wrapper -->
-        <div class="flexCards">
-          <!-- Saved Vehicle Card -->
-          <div class="card cornerAnchor" id="SavedVehicleCard">
-            <!-- Logo -->
-            <img
-              class="cornerBadge cornerBadge--top-left"
-              src="./assets/brandons_calculator_patch_1_120px.png"
-              alt="Brandon's Calculator logo"
-            />            
-            <!-- Saved Vehicles -->
-            <div>
-              <h2 class="flexSpace">Saved Vehicles</h2>
-            </div>
-            <div>
-              <form class="flexCenter" id="vehicleForm">
-                <select class="cell vehicleDropDown" id="vehicleSelect">
-                  <option value="">--Select a Saved Vehicle--</option>
-                </select>
-                  <div class="vehicleButtons">
-                    <button type="button" data-vehicle-action="add">ADD</button>
-                    <button type="button" data-vehicle-action="update">UPDATE</button>
-                    <button type="button" data-vehicle-action="delete">DELETE</button>
+
+      <!-- Login Button -->
+      <button
+        class="hero__login-btn"
+        id="hero-login-btn"
+        onclick="handleAuthClick()"
+        style="display: none"
+      >
+        Sign In
+      </button>
+
+      <div class="hero__content">
+        <div class="hero__badge">
+          <svg
+            class="hero__badge-icon"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M13 10V3L4 14h7v7l9-11h-7z"
+            ></path>
+          </svg>
+          <span>Brandon's Calculator</span>
+        </div>
+
+        <h1 class="hero__title">Find > Budget > Submit<br /></h1>
+      </div>
+    </section>
+
+    <!-- Wizard Container -->
+    <div class="wizard-container">
+      <!-- Quick Entry Mode (Single Page) -->
+      <div class="quick-entry-mode" id="quick-entry-mode">
+        <!-- Main Container -->
+        <div class="quick-entry-grid">
+          <!-- Center Column: Inputs -->
+          <div class="quick-entry-inputs">
+            <!-- Section: Location & Vehicle -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Location & Vehicle</h3>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-location"
+                  >Your Location</label
+                >
+                <div class="input-with-icon">
+                  <svg
+                    class="input-with-icon__icon"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                    ></path>
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                    ></path>
+                  </svg>
+                  <input
+                    type="text"
+                    id="quick-location"
+                    class="form-input"
+                    placeholder="Enter your address or ZIP code..."
+                    autocomplete="off"
+                  />
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-vin"
+                  >VIN or Search Saved Vehicles</label
+                >
+                <div class="vin-autocomplete">
+                  <div class="input-with-icon">
+                    <svg
+                      class="input-with-icon__icon"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="2"
+                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                      ></path>
+                    </svg>
+                    <input
+                      type="text"
+                      id="quick-vin"
+                      class="form-input"
+                      placeholder="Paste VIN or select saved vehicle..."
+                      autocomplete="off"
+                    />
                   </div>
-                  <div class="authLinks">
-                    <span class="authLinks__text">
-                      Need an account?
-                      <a
-                        type="button"
-                        class="linkButton"
-                        data-auth-link="signin">
-                        Sign in
-                      </a>
-                    </span>
-                  </div>
-              </form>
-            </div>
-          </div>
-          <!-- Location Card -->
-          <div class="card" id="locationCard">
-            <h2 class="flexSpace">Home Address</h2>
-              <div class="flexCenter">
-                <input
-                  type="text"
-                  id="locationSearch"
-                  placeholder="Enter Location">
-                </input>
+                  <div
+                    id="quick-saved-vehicles-dropdown"
+                    class="saved-vehicles-dropdown"
+                    style="display: none"
+                  ></div>
+                </div>
               </div>
-              <div class="grid2" id="localeNote">
-                <p id="reqAddressNote" class="row2" >Required to Compute Gov't Fees and Sales Tax</p>
+
+              <div
+                id="quick-vehicle-display"
+                class="your-vehicle-section"
+                style="display: none"
+              >
+                <div id="quick-vehicle-card" class="your-vehicle-card"></div>
+
+                <!-- Dealer Map -->
+                <div
+                  id="quick-dealer-map-container"
+                  class="mapCanvas"
+                  style="display: none; margin-top: 1rem"
+                >
+                  <div
+                    id="quick-dealer-map"
+                    class="mapCanvas"
+                    role="application"
+                    aria-label="Driving directions to dealer"
+                    style="height: 300px; border-radius: 8px"
+                  ></div>
+                </div>
               </div>
-          <!-- Dealer Directions Card -->
-          <div class="mapCanvas" id="dealerMapCard">
-            <div
-              id="dealerMap"
-              class="mapCanvas"
-              role="application"
-              aria-label="Driving directions to selected dealer"
-            ></div>
-            <p
-              id="dealerMapStatus"
-              class="dealerMapStatus"
-              role="status"
-              aria-live="polite"
-            >
-              Enter your home address and select a Saved Vehicle to preview directions.
-            </p>
-          </div>
-          </div>
-          <!-- Sale Summary Card -->
-          <div class="card" id="saleSummaryCard">
-            <div class="flexSpace">
-              <h2>Sale Summary</h2>
             </div>
-            <!-- Savings Note-->
-            <form class="grid2">
-              <output
-                id="savingsNote"
-                class="note col2">
-              </output>
-            
-              <!-- Sale Price -->
-              <label class="col1" for="salePrice">SALE PRICE</label>
-                <input
-                  class="cell output stdWidth col2 usdFormat"
-                  type="text"
-                  id="salePrice"
-                  placeholder="$0.00">
-                </input>
 
-              <!-- Trade Offer -->
-              <label class="col1" for="tradeOffer">TRADE OFFER</label>
-                <input
-                  class="cell output stdWidth col2 usdFormat"
-                  type="text"
-                  id="tradeOffer"
-                  placeholder="$0.00">
-                </input>
+            <!-- Section: Financing -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Financing Details</h3>
 
-              <!-- Trade Payoff -->
-              <label class="col1" for="tradePayoff">TRADE PAYOFF</label>
-                <input
-                  class="cell output stdWidth col2 usdFormat"
-                  type="text"
-                  id="tradePayoff"
-                  placeholder="$0.00">
-                </input>
+              <!-- Hidden inputs for slider integration -->
+              <input type="hidden" id="quick-vehicle-price" />
+              <input type="hidden" id="quick-down-payment" />
 
-              <!-- Equity -->
-              <label class="col1" for="equity">EQUITY</label>
-                <output
-                  class="output col2 stdWidth mutedOutput"
-                  id="equity"
-                  placeholder="$0.00">
-                </output>
-              <!-- Cash Difference -->
-              <label
-                class="col1 labelWithTooltip"
-                for="tradeDifference"
-                data-tooltip="Sale Price - Trade Offer"
-                tabindex="0"
-              >TRADE DIFFERENCE</label>
-                <output
-                  class="output col2 stdWidth mutedOutput"
-                  id="tradeDifference"
-                  placeholder="$0.00">
-                </output>
-              <!-- Net Trade Difference -->
-              <label
-                class="col1 labelWithTooltip"
-                for="netTrade"
-                data-tooltip="Sale Price - Equity"
-                tabindex="0"
-              >NET TRADE DIFFERENCE</label>
-                <output
-                  class="output col2 stdWidth mutedOutput"
-                  id="netTrade"
-                  placeholder="$0.00">
-                </output>
-            </form>
-          </div>
-          <!-- Fees Card-->
-          <div class="card" id="feesCard">
-            <div class="flexSpace">
-              <h2>Customer Add-ons & Fees</h2>
-            </div>
-            <div class="flexEnd vehicleButtons">
-              <button id="editFeeButton" type="button">EDIT</button>
-            </div>
-              <!-- Fee Headers -->
-            <form class="grid5">
-              <header
-                class="col1 feeHeaders">TYPE
-              </header>
-              <header
-                class="col2 feeHeaders">DESCRIPTION
-              </header>
-              <header
-                class="col3 feeHeaders">AMOUNT
-              </header>
-
-              <!-- Dealer Fees -->
-              <label class="col1 feeLabels" for="dealerFeeDesc">DEALER</label>
-                <input
-                  id="dealerFeeDesc"
-                  class="cellFeeDesc col2"
-                  type="text"
-                  placeholder="e.g. Doc Fee">
-                </input>
-                <input
-                  id="dealerFeeAmount"
-                  class="cellFeeAmount col3 usdFormat"
-                  type="text"
-                  placeholder="$0.00">
-                </input>
-                <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
-                <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
-                
-                <!-- Dealer Fees Total -->
-                <label class="col2 mutedFeeLabels" for="totalDealerFees">TOTAL DEALER FEES</label>
-                  <output
-                    class="mutedFeeOutput col3"
-                    type="text"
-                    id="totalDealerFees"
-                    placeholder="$0.00">
-                  </output>
-
-              <!-- Customer Add-ons -->
-              <label class="col1 feeLabels" for="customerAddonDesc">CUSTOMER</label>
-                <input
-                  id="customerAddonDesc"
-                  class="cellFeeDesc col2"
-                  type="text"
-                  placeholder="e.g. Extended Warranty">
-                </input>
-                <input
-                  id="customerAddonAmount"
-                  class="cellFeeAmount col3 usdFormat"
-                  type="text"
-                  placeholder="$0.00">
-                </input>
-                <button class="xButtons" type="button" aria-label="Add another customer add-on">-</button>
-                <button class="xButtons" type="button" aria-label="Add another customer add-on">+</button>
-
-                <!-- Customer Add-ons Total -->
-                <label class="col2 mutedFeeLabels" for="totalCustomerAddons">TOTAL CUSTOMER ADD-ONS</label>
-                  <output
-                    class="mutedFeeOutput col3"
-                    type="text"
-                    id="totalCustomerAddons"
-                    placeholder="$0.00">
-                  </output>
-
-              <!-- Gov't Fees -->
-              <label class="col1 feeLabels" for="govtFeeDesc">GOV'T</label>
-                <input
-                  id="govtFeeDesc" 
-                  class="cellFeeDesc col2"
-                  type="text"
-                  placeholder="e.g. Electronic Title">
-                </input>
-                <input
-                  id="govtFeeAmount"
-                  class="cellFeeAmount col3 usdFormat"
-                  type="text"
-                  placeholder="$0.00">
-                </input>
-                <button class="xButtons" type="button" aria-label="Add another dealer fee">-</button>
-                <button class="xButtons" type="button" aria-label="Add another dealer fee">+</button>
-
-              <!-- Gov't Fees Total -->
-                <label class="col2 mutedFeeLabels" for="totalGovtFees">TOTAL GOV'T FEES</label>
-                  <output
-                    class="mutedFeeOutput col3"
-                    type="text"
-                    id="totalGovtFees"
-                    placeholder="$0.00">
-                  </output>
-            </form>
-
-                <!-- Total Fees -->
-              <div class="flexEnd">
-                <label class="output bigOutput" for="totalTF">TOTAL FEES</label>
-                  <output
-                    class="output bigOutput usdFormat"
-                    type="text"
-                    id="totalTF"
-                    placeholder="$0.00">
-                  </output>
-              </div>
-          </div>
-          <!-- Taxes Card-->
-          <div class="card" id="taxesCard">
-            <h2 class="flexSpace">Taxes</h2>
-            <div class="note" id="taxNote"></div>
-            <form class="grid3 flexEnd">
-              <!-- Taxable Base -->
-              <label
-                class="col1 labelWithTooltip"
-                for="taxableBase"
-                data-tooltip="Trade Difference + Dealer Fees + Customer Add-ons"
-                tabindex="0"
-              >TAXABLE BASE</label>
-              <output
-                class="col3 output mutedOutput"
-                id="taxableBase"
-                placeholder="$0.00">
-              </output>
-              <!-- State Tax -->
-              <label
-                class="col1 labelWithTooltip"
-                for="stateTax"
-                data-tooltip="Taxable Base × State Tax Rate"
-                tabindex="0"
-              >STATE TAXES</label>
-              <input
-                class="cell output shortWidth col2 percentFormat"
-                type="text"
-                id="stateTax"
-                placeholder="6.0%">
-              </input>
-              <output
-                class="output mutedOutput col3"
-                id="stateTaxTotal"
-                placeholder="$0.00">$0.00
-              </output>
-              <!-- County Tax -->
-              <label
-                class="col1 labelWithTooltip"
-                for="countyTax"
-                data-tooltip="County Tax Base (Max $5k) × County Tax Rate"
-                tabindex="0"
-              >COUNTY TAXES</label>
-              <input
-                  class="cell output shortWidth col2 percentFormat"
-                  type="text"
-                  id="countyTax"
-                  placeholder="1.0%">
-              </input>
-              <output
-                  class="output mutedOutput col3"
-                  id="countyTaxTotal"
-                  placeholder="$0.00">$0.00
-              </output>
-            </form>
-            <!-- Total Taxes -->
-            <div class="flexEnd">
-              <label
-                class="output bigOutput labelWithTooltip"
-                for="totalTaxes"
-                data-tooltip="State Taxes + County Taxes"
-                tabindex="0"
-              >TOTAL TAXES</label>
-              <output
-                class=" output bigOutput usdFormat"
-                type="text"
-                id="totalTaxes"
-                placeholder="$0.00">
-              </output>
-            </div>
-          </div>
-          <!-- Cash Balance Card-->
-          <div class="card" id="cashBalanceCard">
-            <h2 class="flexSpace">Cash Balance</h2>
-            <div class="insideCard grid2" id="checkboxGrid">
-              <label class="feeLabels col2 row1" for="financeTF">Finance Add-ons, Fees & Taxes?
-                <input
-                  type="checkbox"
-                  id="financeTF"
-                  checked>
-              </label>
-              <output
-                id="financeTFNote"
-                class="feeLabels col1 row1"
-              ></output>
-              <label class="feeLabels col2 row2" for="financeNegEquity">Finance Neg Equity?
-                <input
-                  type="checkbox"
-                  id="financeNegEquity"
-                  checked>
-              </label>
-              <output
-                id="financeNegEquityNote"
-                class="feeLabels col1 row2"
-              ></output>
-              <label class="feeLabels col2 row3" for="cashOutEquity">Cash Out Equity?
-                <input
-                  type="checkbox"
-                  id="cashOutEquity">
-              </label>
-              <output
-                id="cashOutEquityNote"
-                class="feeLabels col1 row3"
-              ></output>
-            </div>
-            <!-- Cash Down -->
-            <form class="grid2">
-              <label class="col1" for="cashDown">CASH DOWN</label>
-                <input
-                  class="cell output stdWidth col2 usdFormat"
-                  type="text"
-                  id="cashDown"
-                  placeholder="$0.00">
-                </input>
-              <!-- Cash 2 Buyer -->
-              <label class="col1" for="cash2Buyer">CASH TO BUYER</label>
-                <output
-                  class="output col2 stdWidth usdFormat"
-                  type="text"
-                  id="cash2Buyer"
-                  placeholder="$0.00">
-                </output>
-                <!-- Cash Due -->
-                <label class="col1" for="cashDue">CASH DUE AT SIGNING</label>
-                  <output
-                    class="output col2 stdWidth usdFormat"
-                    type="text"
-                    id="cashDue"
-                    placeholder="$0.00">
-                  </output>
-            </form>
-              <!-- Amount Financed -->
-            <div class="flexEnd">
-              <label
-                class="output bigOutput"
-                for="amountFinanced">TOTAL FINANCED
-              </label>
-                <output
-                  id="amountFinanced"
-                  class=" output bigOutput usdFormat"
-                  type="text"
-                  placeholder="$0.00">
-                </output>
-            </div>
-            <!-- Contract Summary Button -->
-            <div class="flexEnd">
-              <button
-                id="viewContractButton"
-                type="button"
-                title="View contract summary in RouteOne format">
-                VIEW CONTRACT SUMMARY
-              </button>
-            </div>
-          </div>
-          <!-- Financing Card -->
-          <div class="card" id="financingCard">
-            <h2 class="flexSpace">Financing</h2>
-            <span class="flexEnd" aria-hidden="true"></span>
-              <output
-                class="note"
-                id="rateSourceName"
-                aria-live="polite">
-                User Defined APR
-              </output>
-            <form class="grid2">
-              <label class="col1" for="rateSource">APR SOURCE</label>
-                <select class="cell output stdWidth col2" id="rateSource">
-                  <option value="userDefined">User Defined</option>
+              <div class="form-group">
+                <label class="form-label" for="lender-select"
+                  >Preferred Lender</label
+                >
+                <select id="lender-select" class="form-select">
                   <option value="lowest">Lowest Price by APR</option>
                 </select>
-              <label class="col1" for="creditScore">CREDIT SCORE</label>
-                <input
-                  class="cell output col2 stdWidth"
-                  type="number"
-                  id="creditScore"
-                  min="300"
-                  max="850"
-                  value="750"
-                  placeholder="750">
-                </input>
-              <label class="col1" for="vehicleCondition">VEHICLE CONDITION</label>
-                <select class="cell output col2 stdWidth" id="vehicleCondition">
-                  <option value="new" selected>New</option>
-                  <option value="used">Used</option>
-                </select>
-              <label class="col1" for="financeApr">APR</label>
-                <input
-                  class="cell output col2 stdWidth percentFormat"
-                  type="text"
-                  id="financeApr"
-                  value="5.99%"
-                  placeholder="5.99%">
-                </input>
-              <label class="col1" for="financeTerm">TERM (months)</label>
-                <select class="cell output col2 stdWidth" id="financeTerm">
-                  <option value="24">24</option>
-                  <option value="36">36</option>
-                  <option value="48">48</option>
-                  <option value="60">60</option>
-                  <option value="72" selected>72</option>
-                  <option value="84">84</option>
-                  <option value="96">96</option>
-                </select>
-            </form>
-              <div class="flexEnd">
-                <label class="output bigOutput" for="monthlyPmt">MONTHLY PAYMENT</label>
-                  <output
-                    class="output bigOutput usdFormat"
-                    type="text"
-                    id="monthlyPmt"
-                    data-role="monthly-payment"
-                    placeholder="$0.00">
-                  </output>
-                  <output class="note" id="rateSourceStatus"></output>
+                <div
+                  class="form-hint"
+                  id="lender-effective-date"
+                  style="
+                    display: none;
+                    margin-top: 4px;
+                    font-size: 11px;
+                    color: #64748b;
+                  "
+                >
+                  Rates effective:
+                  <span id="lender-effective-date-value">--</span>
+                </div>
               </div>
-          </div>
-          <!-- Affordability -->
-          <div class="card" id="affordabilityCard">
-            <h2 class="flexSpace">Affordability</h2>
-            <form class="grid2">
-              <label class="col1" for="affordability">MAX MONTHLY PMT</label>
-                <input
-                  class="cell output stdWidth col2 usdFormat"
-                  type="text"
-                  id="affordability"
-                  value="1000"
-                  placeholder="$0.00">
-                </input>
-              <label class="col1" for="affordApr">APR</label>
-                <output
-                  class="output stdWidth col2 percentFormat"
-                  id="affordApr"
-                  aria-live="polite">
-                </output>
-              <label class="col1" for="affordTerm">TERM (months)</label>
-                <output
-                  class="output stdWidth col2 percentFormat"
-                  id="affordTerm"
-                  aria-live="polite">
-                </output>
-            </form>
-            <div class="flexEnd">
-              <label class="bigOutput" for="maxTotalFinanced">MAX TOTAL FINANCED</label>
-                <output
-                  class="output stdWidth bigOutput usdFormat"
-                  type="text"
-                  id="maxTotalFinanced"
-                  placeholder="$0.00">
-                </output>
-            </div>
-            <div class="flexEnd">
-              <output class="output short note" id="affordabilityGap"></output>
-            </div>
-          </div>
-        </div>
-        <!-- Card Wrapper-->
 
-
-        <!-- Modals -->
-        <div
-          id="editFeeModal"
-          class="modalOverlay"
-          aria-hidden="true"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="editFeeModalTitle"
-        >
-          <div class="card modalCard">
-            <header class="modalHeader">
-              <h3 id="editFeeModalTitle">Edit Fee</h3>
-              <button
-                type="button"
-                class="modalClose"
-                aria-label="Close edit fee dialog"
-                data-editfee-action="close"
-              >
-                ×
-              </button>
-            </header>
-            <form id="editFeeForm" class="modalCard">
-              <label for="editFeeType">Fee Type
-                <select id="editFeeType" class="cell" name="type">
-                  <option value="dealer">Dealer</option>
-                  <option value="customer">Customer</option>
-                  <option value="gov">Gov't</option>
+              <div class="form-group">
+                <label class="form-label" for="quick-loan-term"
+                  >Loan Term</label
+                >
+                <select id="quick-loan-term" class="form-select">
+                  <option value="">Select Term</option>
+                  <option value="36">36 months (3 years)</option>
+                  <option value="48">48 months (4 years)</option>
+                  <option value="60">60 months (5 years)</option>
+                  <option value="72">72 months (6 years)</option>
+                  <option value="84">84 months (7 years)</option>
                 </select>
-              </label>
-              <label for="editFeeName">Description
-                <input
-                  id="editFeeName"
-                  class="cell"
-                  type="text"
-                  name="description"
-                  placeholder="e.g. Doc Fee"
-                  required
-                />
-              </label>
-              <label for="editFeeAmount">Amount
-                <input
-                  id="editFeeAmount"
-                  class="cell usdFormat"
-                  type="text"
-                  name="amount"
-                  placeholder="$0.00"
-                  required
-                />
-              </label>
-              <footer class="modalActions">
-                <button type="submit" class="modalPrimary">Save</button>
-                <button type="button" class="modalSecondary" data-editfee-action="cancel">
-                  Cancel
-                </button>
-              </footer>
-              <p class="modalStatus colMerged" id="editFeeStatus" role="status" aria-live="polite"></p>
-            </form>
-          </div>
-        </div>
-        <!-- Vehicle Modal -->
-        <div
-            id="vehicleModal"
-            class="modalOverlay"
-            aria-hidden="true"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="vehicleModalTitle">
-            <div class="card modalCard">
-              <header class="modalHeader">
-                <h3 id="vehicleModalTitle">Save Vehicle</h3>
+              </div>
+
+              <div class="form-group">
+                <label class="form-label" for="quick-credit-score"
+                  >Credit Score Range</label
+                >
+                <select id="quick-credit-score" class="form-select">
+                  <option value="">Select Range</option>
+                  <option value="excellent">Excellent (750+)</option>
+                  <option value="good">Good (700-749)</option>
+                  <option value="fair">Fair (650-699)</option>
+                  <option value="poor">Building Credit (&lt; 650)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Section: Trade-In (Optional) -->
+            <div class="quick-section">
+              <h3 class="quick-section__title">Trade-In (Optional)</h3>
+
+              <!-- Hidden fields for slider integration -->
+              <input type="hidden" id="quick-tradein-value" />
+              <input type="hidden" id="quick-tradein-payoff" />
+
+              <div class="form-group">
+                <label
+                  style="
+                    display: flex;
+                    align-items: center;
+                    gap: 0.5rem;
+                    cursor: pointer;
+                  "
+                >
+                  <input
+                    type="checkbox"
+                    id="quick-has-tradein"
+                    onchange="openTradeInModal(this.checked)"
+                    style="width: auto"
+                  />
+                  <span>I have a trade-in vehicle</span>
+                </label>
+              </div>
+
+              <div
+                id="quick-tradein-summary"
+                style="
+                  display: none;
+                  margin-top: var(--spacing-sm);
+                  padding: var(--spacing-sm);
+                  background: rgba(59, 130, 246, 0.05);
+                  border-radius: var(--radius-md);
+                  border: 1px solid rgba(59, 130, 246, 0.15);
+                "
+              >
+                <div
+                  style="
+                    font-size: 12px;
+                    font-weight: 600;
+                    color: var(--primary-start);
+                    margin-bottom: 4px;
+                  "
+                  id="quick-tradein-summary-title"
+                >
+                  --
+                </div>
+                <div
+                  style="font-size: 11px; color: #64748b"
+                  id="quick-tradein-summary-details"
+                >
+                  --
+                </div>
                 <button
                   type="button"
-                  class="modalClose"
-                  aria-label="Close vehicle editor"
-                  data-modal-action="close"
+                  onclick="openTradeInModal(true)"
+                  style="
+                    margin-top: 8px;
+                    font-size: 11px;
+                    color: var(--primary-start);
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    text-decoration: underline;
+                  "
                 >
-                  ×
+                  Edit Trade-In Details
                 </button>
-              </header>
-              <form id="vehicleModalForm" class="modalCard">
-                <div class="insideCard flexCenter">
-                  <label for="modalVin" class="flexCenter modalVin">VEHICLE IDENTIFICATION NUMBER (VIN)
-                    <input
-                      id="modalVin"
-                      class="modalVinInput flexCenter"
-                      type="text"
-                      name="vin"
-                      maxlength="17"
-                      inputmode="text"
-                      autocomplete="off"
-                      placeholder="Insert a VIN">
-                    </input>
-                  </label>
-                  <span class="note flexCenter" id="vinNote">Enter a VIN to Auto-Populate the Remaining Fields</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Live Summary with Sliders -->
+          <div class="quick-entry-summary">
+            <div class="quick-summary-sticky">
+              <!-- Monthly Payment Hero -->
+              <div class="quick-summary-hero">
+                <div class="quick-summary-hero__label">
+                  Estimated Monthly Payment
                 </div>
-                  <label for="modalVehicleName">Vehicle
-                  <input
-                    id="modalVehicleName"
-                    class="softInput"
-                    type="text"
-                    name="vehicle"
-                    autocomplete="off"
-                  />
-                </label>
-                <label for="modalCondition">Condition
-                  <select
-                    id="modalCondition"
-                    class="softInput"
-                    name="condition"
+                <div class="quick-summary-hero__value" id="quickMonthlyPayment">
+                  $0.00
+                </div>
+                <div class="quick-summary-hero__meta">
+                  <span id="quickTerm">0 months</span>
+                  <span>•</span>
+                  <span id="quickAPR">--%</span>
+                </div>
+                <div
+                  class="quick-summary-hero__lender"
+                  id="quickLenderInfo"
+                  style="display: none"
+                >
+                  <span id="quickLenderName">--</span>
+                  <span
+                    class="quick-summary-hero__lender-separator"
+                    id="quickLenderDateSeparator"
+                    style="display: none"
                   >
-                    <option value="">--Select Condition--</option>
-                    <option value="New">New</option>
-                    <option value="Used">Used</option>
-                    <option value="Certified">Certified Pre-Owned</option>
-                  </select>
-                </label>
-                <label for="modalYear">Year
-                  <input
-                    id="modalYear"
-                    class="softInput"
-                    type="text"
-                  />
-                </label>
-                <label for="modalMake">Make
-                  <input
-                    id="modalMake"
-                    class="softInput"
-                    type="text"
-                    name="make"
-                    autocomplete="off"
-                  />
-                </label>
-                <label for="modalModel">Model
-                  <input
-                    id="modalModel"
-                    class="softInput"
-                    type="text"
-                    name="model"
-                    autocomplete="off"
-                  />
-                </label>
-                <label for="modalTrim">Trim
-                  <input
-                    id="modalTrim"
-                    class="softInput"
-                    type="text"
-                    name="trim"
-                    autocomplete="off"
-                  />
-                </label>
-                </label>
-                <label for="modalMileage">Mileage
-                  <input
-                    id="modalMileage"
-                    class="softInput"
-                    type="number"
-                    name="mileage"
-                    min="0"
-                    step="1"
-                    autocomplete="off"
-                  />
-                </label>
-                <label for="modalAskingPrice">Asking Price
-                  <input
-                    id="modalAskingPrice"
-                    class="softInput usdFormat"
-                    type="text"
-                    name="asking_price"
-                    autocomplete="off"
-                  />
-                </label>
-                <div class="flexEnd">
-                  <label>Dealer
-                    <input class="softInput" id="modalDealerName" name="dealer_name" />
-                  </label>
-                  <label>Street Address
-                    <input class="softInput" id="modalDealerStreet" name="dealer_street" />
-                  </label>
-                  <label>City
-                    <input class="softInput" id="modalDealerCity" name="dealer_city" />
-                  </label>
-                  <label>State
-                    <input class="softInput" id="modalDealerState" name="dealer_state" />
-                  </label>
-                  <label>Zip Code
-                    <input class="softInput" id="modalDealerZip" name="dealer_zip" />
-                  </label>
-                    <input type="hidden" id="modalDealerLat" name="dealer_lat" />
-                    <input type="hidden" id="modalDealerLng" name="dealer_lng" />
-                    <input type="hidden" id="modalDealerPhone" name="dealer_phone" />
+                    •
+                  </span>
+                  <span
+                    class="quick-summary-hero__lender-date"
+                    id="quickLenderDate"
+                    >Rates Effective:</span
+                  >
                 </div>
-                <p class="modalNote">
-                  Have an account?
-                  <button type="button" class="linkButton" data-auth-link="signin">
-                    Sign in
-                  </button>
-                  or
-                  <button type="button" class="linkButton" data-auth-link="signup">
-                    Create one
-                  </button>
-                  to save vehicles.
-                </p>
-                  <label class="flexSpace" for="modalDealerAddress">Dealer Search
-                    <input
-                      id="modalDealerAddress"
-                      class="softInput"
-                      type="text"
-                      name="dealer_address"
-                      placeholder="Search dealer or address"
-                      autocomplete="off">
-                    </input>
-                  </label>
-                <footer class="modalActions">
-                  <button type="button" class="modalPrimary">Submit</button>
+                <!-- Custom APR Badge -->
+                <div
+                  class="quick-summary-hero__custom-apr-badge"
+                  id="quickCustomAprBadge"
+                  style="display: none"
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" style="margin-right: 4px;">
+                    <path d="M6 1L7.5 4.5L11 5L8.5 7.5L9 11L6 9L3 11L3.5 7.5L1 5L4.5 4.5L6 1Z" fill="currentColor"/>
+                  </svg>
+                  <span>User Defined APR</span>
+                </div>
+              </div>
+
+              <!-- TIL Disclosures -->
+              <div class="quick-til-disclosures">
+                <h4 class="quick-til-title">Truth-in-Lending Disclosures</h4>
+                <div class="quick-til-grid">
+                  <div class="quick-til-card" style="position: relative;">
+                    <div class="quick-til-label">Annual Percentage Rate</div>
+                    <div class="quick-til-value-wrapper">
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--left"
+                        id="aprArrowLeft"
+                        aria-label="Decrease APR by 0.01%"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M7 1L2 6L7 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                      <div class="quick-til-value til-editable" id="quickTilAPR" tabindex="0">--%</div>
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--right"
+                        id="aprArrowRight"
+                        aria-label="Increase APR by 0.01%"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="quick-til-note">
+                      Cost of credit as yearly rate
+                    </div>
+                    <!-- APR Tooltip -->
+                    <div class="apr-tooltip" id="aprTooltip" style="display: none;">
+                      <div class="apr-tooltip__payment" id="aprTooltipPayment">$0/mo</div>
+                      <div class="apr-tooltip__diff" id="aprTooltipDiff">+$0/mo from original</div>
+                    </div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Finance Charge</div>
+                    <div class="quick-til-value" id="quickTilFinanceCharge">
+                      $0.00
+                    </div>
+                    <div class="quick-til-note">Dollar cost of credit</div>
+                    <!-- Finance Charge Tooltip (shown when APR is being adjusted) -->
+                    <div class="finance-charge-tooltip" id="financeChargeTooltip" style="display: none;">
+                      <div class="finance-charge-tooltip__diff" id="financeChargeTooltipDiff">+$0</div>
+                    </div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Amount Financed</div>
+                    <div class="quick-til-value" id="quickTilAmountFinanced">
+                      $0.00
+                    </div>
+                    <div class="quick-til-note">Credit provided to you</div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Total of Payments</div>
+                    <div class="quick-til-value" id="quickTilTotalPayments">
+                      $0.00
+                    </div>
+                    <div class="quick-til-note">Total after all payments</div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Term (Months)</div>
+                    <div class="quick-til-value-wrapper">
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--left"
+                        id="termArrowLeft"
+                        aria-label="Decrease term by 6 months"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M7 1L2 6L7 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                      <div class="quick-til-value til-editable" id="quickTilTerm" tabindex="0">0</div>
+                      <button
+                        type="button"
+                        class="til-arrow til-arrow--right"
+                        id="termArrowRight"
+                        aria-label="Increase term by 6 months"
+                      >
+                        <svg width="8" height="12" viewBox="0 0 8 12" fill="currentColor">
+                          <path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                      </button>
+                    </div>
+                    <div class="quick-til-note">
+                      Length of loan
+                    </div>
+                    <!-- Term Tooltip -->
+                    <div class="apr-tooltip" id="termTooltip" style="display: none;">
+                      <div class="apr-tooltip__payment" id="termTooltipPayment">$0/mo</div>
+                      <div class="apr-tooltip__diff" id="termTooltipDiff">+$0/mo from original</div>
+                    </div>
+                  </div>
+                  <div class="quick-til-card">
+                    <div class="quick-til-label">Monthly Finance Charge</div>
+                    <div class="quick-til-value" id="quickTilMonthlyFinanceCharge">
+                      $0.00
+                    </div>
+                    <div class="quick-til-note">Interest portion per month</div>
+                    <!-- Monthly Finance Charge Tooltip -->
+                    <div class="apr-tooltip" id="monthlyFinanceChargeTooltip" style="display: none;">
+                      <div class="apr-tooltip__payment" id="monthlyFinanceChargeTooltipAmount">$0/mo</div>
+                      <div class="apr-tooltip__diff" id="monthlyFinanceChargeTooltipDiff">+$0/mo from original</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Adjust Your Numbers Section -->
+              <div class="quick-adjustments">
+                <div class="quick-adjustments-header">
+                  <h4>Adjust Your Numbers</h4>
                   <button
                     type="button"
-                    class="modalSecondary"
-                    data-modal-action="cancel"
+                    onclick="openFeesModal()"
+                    class="btn-edit-fees"
                   >
-                    Cancel
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                    >
+                      <path
+                        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                      ></path>
+                      <path
+                        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                      ></path>
+                    </svg>
+                    Edit Fees & Taxes
                   </button>
-                </footer>
-                <p class="modalStatus" role="status" aria-live="polite"></p>
-              </form>
-          </div>
-        </div>
-        <!-- Authorization Modal -->
-        <div
-          id="authModal"
-          class="modalOverlay"
-          aria-hidden="true"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="authModalTitle"
-        >
-          <div class="card modalCard">
-            <header class="modalHeader">
-              <h3 id="authModalTitle">Sign In</h3>
-              <button
-                type="button"
-                class="modalClose"
-                aria-label="Close sign-in dialog"
-                data-auth-action="close"
-              >
-                ×
-              </button>
-            </header>
-            <form id="authForm">
-              <label class="flexEnd" for="authEmail">Email
-                <input
-                  id="authEmail"
-                  class="softInput"
-                  type="email"
-                  name="email"
-                  autocomplete="username"
-                  required
-                />
-              </label>
-              <label class="flexEnd" for="authPassword">Password
-                <input
-                  id="authPassword"
-                  class="softInput"
-                  type="password"
-                  name="password"
-                  autocomplete="current-password"
-                  required
-                />
-              </label>
-              <footer class="modalActions">
-                <button type="submit" class="modalPrimary">Sign In</button>
-                <button
-                  type="button"
-                  class="modalSecondary"
-                  data-auth-action="cancel"
-                >
-                  Cancel
-                </button>
-              </footer>
-              <p class="authToggle">
-                <span data-auth-copy="prompt">Need an account?</span>
-                <button
-                  type="button"
-                  class="linkButton"
-                  data-auth-action="toggle-mode"
-                >
-                  Create one
-                </button>
-              </p>
-              <p class="modalStatus" role="status" aria-live="polite"></p>
-            </form>
-          </div>
-        </div>
+                </div>
 
-        <!-- Contract Summary Modal -->
-        <div
-          id="contractModal"
-          class="modalOverlay"
-          aria-hidden="true"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="contractModalTitle"
-        >
-          <div class="card contractModalCard">
-            <header class="modalHeader">
-              <h3 id="contractModalTitle">Sale & Finance Summary</h3>
-              <button
-                type="button"
-                class="modalClose"
-                aria-label="Close contract summary"
-                data-contract-action="close"
-              >
-                ×
-              </button>
-            </header>
+                <div class="quick-adjustments-list">
+                  <!-- Sale Price Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonSalePrice"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">Sale Price</div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderSalePrice"
+                        min="0"
+                        max="150000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputSalePrice"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffSalePrice"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetSalePrice"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
 
-            <div class="contractContent">
-              <!-- Contract Header -->
-              <div class="contractHeader">
-                <h4 class="contractTitle">RETAIL CUSTOMER OFFER & FINANCIAL ESTIMATE</h4>
+                  <!-- Cash Down Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonCashDown"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">Cash Down</div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderCashDown"
+                        min="0"
+                        max="50000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputCashDown"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffCashDown"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetCashDown"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Trade Allowance Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonTradeAllowance"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">Trade-In Allowance</div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderTradeAllowance"
+                        min="0"
+                        max="75000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputTradeAllowance"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffTradeAllowance"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetTradeAllowance"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Trade Payoff Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonTradePayoff"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">Trade-In Payoff</div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderTradePayoff"
+                        min="0"
+                        max="75000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputTradePayoff"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffTradePayoff"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetTradePayoff"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Dealer Fees Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonDealerFees"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">Total Dealer Fees</div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderDealerFees"
+                        min="0"
+                        max="10000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputDealerFees"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffDealerFees"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetDealerFees"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Customer Add-ons Slider -->
+                  <div class="quick-adjustment">
+                    <div
+                      class="quick-adjustment__hover-ribbon"
+                      id="ribbonCustomerAddons"
+                    >
+                      $0/mo
+                    </div>
+                    <div class="quick-adjustment-label">
+                      Total Customer Add-ons
+                    </div>
+                    <div class="quick-slider-control">
+                      <input
+                        type="range"
+                        class="quick-slider"
+                        id="quickSliderCustomerAddons"
+                        min="0"
+                        max="10000"
+                        step="100"
+                      />
+                      <div class="quick-value-wrapper">
+                        <input
+                          type="text"
+                          class="quick-value-input"
+                          id="quickInputCustomerAddons"
+                        />
+                        <div
+                          class="quick-diff-indicator"
+                          id="quickDiffCustomerAddons"
+                          style="display: none"
+                        ></div>
+                        <button
+                          type="button"
+                          class="quick-reset-btn"
+                          id="quickResetCustomerAddons"
+                          style="display: none"
+                          title="Reset to original"
+                        >
+                          ↺
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <!-- Customer Contact Information -->
-              <section class="contractSection">
-                <h5 class="contractSectionTitle">CUSTOMER INFO</h5>
-                <div class="contractForm">
-                  <div class="contractFormRow">
-                    <div class="contractFormField">
-                      <label for="contractCustomerFirstName" class="contractFormLabel">FIRST NAME</label>
-                      <input type="text" id="contractCustomerFirstName" class="contractFormInput" placeholder="First Name">
-                    </div>
-                    <div class="contractFormField">
-                      <label for="contractCustomerLastName" class="contractFormLabel">LAST NAME</label>
-                      <input type="text" id="contractCustomerLastName" class="contractFormInput" placeholder="Last Name">
-                    </div>
-                  </div>
-                  <div class="contractFormRow">
-                    <div class="contractFormField">
-                      <label for="contractCustomerPhone" class="contractFormLabel">PHONE</label>
-                      <input type="tel" id="contractCustomerPhone" class="contractFormInput" placeholder="(555) 555-5555">
-                    </div>
-                    <div class="contractFormField">
-                      <label for="contractCustomerEmail" class="contractFormLabel">EMAIL</label>
-                      <input type="email" id="contractCustomerEmail" class="contractFormInput" placeholder="email@example.com">
+              <!-- Itemization / Calculation Breakdown -->
+              <div class="quick-itemization">
+                <div class="quick-itemization-header">
+                  <h4>Itemization of Costs</h4>
+                </div>
+
+                <div class="quick-itemization-list">
+                  <!-- Sale Price -->
+                  <div class="quick-item quick-item--header">
+                    <div class="quick-item-label">Sale Price</div>
+                    <div class="quick-item-value" id="quickCalcSalePrice">
+                      $0.00
                     </div>
                   </div>
-                  <div class="contractFormRow">
-                    <div class="contractFormField contractFormFieldFull">
-                      <label for="contractCustomerAddress" class="contractFormLabel">HOME ADDRESS</label>
-                      <input type="text" id="contractCustomerAddress" class="contractFormInput" placeholder="Street, City, State ZIP">
+
+                  <!-- LESS Cash Down -->
+                  <div class="quick-item quick-item--less quick-item--header">
+                    <div class="quick-item-label">LESS Cash Down</div>
+                    <div class="quick-item-value" id="quickCalcCashDown">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- LESS Net Trade-In -->
+                  <div class="quick-item quick-item--less quick-item--header">
+                    <div class="quick-item-label">LESS Net Trade-In</div>
+                    <div class="quick-item-value" id="quickNetTrade">$0.00</div>
+                  </div>
+
+                  <!-- Trade Allowance (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Trade-In Allowance</div>
+                    <div class="quick-item-value" id="quickCalcTradeAllowance">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Trade Payoff (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Trade-In Payoff</div>
+                    <div class="quick-item-value" id="quickCalcTradePayoff">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Unpaid Balance -->
+                  <div class="quick-item quick-item--header">
+                    <div class="quick-item-label">Unpaid Balance</div>
+                    <div class="quick-item-value" id="quickUnpaidBalance">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- PLUS Other Charges -->
+                  <div class="quick-item quick-item--plus quick-item--header">
+                    <div class="quick-item-label">PLUS Other Charges</div>
+                    <div class="quick-item-value" id="quickOtherCharges">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Dealer Fees (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Total Dealer Fees</div>
+                    <div class="quick-item-value" id="quickCalcDealerFees">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Customer Add-ons (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Total Customer Add-ons</div>
+                    <div class="quick-item-value" id="quickCalcCustomerAddons">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Gov't Fees (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label">Total Gov't Fees</div>
+                    <div class="quick-item-value" id="quickGovtFees">$0.00</div>
+                  </div>
+
+                  <!-- Sales Tax (Header) -->
+                  <div class="quick-item quick-item--header">
+                    <div class="quick-item-label">Sales Tax</div>
+                    <div class="quick-item-value" id="quickSaleTaxTotal">$0.00</div>
+                  </div>
+
+                  <!-- State Tax (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label" id="quickStateTaxLabel">
+                      State Taxes
+                    </div>
+                    <div class="quick-item-value" id="quickStateTax">$0.00</div>
+                  </div>
+
+                  <!-- County Tax (Indented) -->
+                  <div class="quick-item quick-item--indent">
+                    <div class="quick-item-label" id="quickCountyTaxLabel">
+                      County Taxes
+                    </div>
+                    <div class="quick-item-value" id="quickCountyTax">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Amount Financed (Total) -->
+                  <div class="quick-item quick-item--total">
+                    <div class="quick-item-label">AMOUNT FINANCED</div>
+                    <div class="quick-item-value" id="quickAmountFinancedTotal">
+                      $0.00
+                    </div>
+                  </div>
+
+                  <!-- Divider -->
+                  <div style="border-top: 1px solid rgba(0,0,0,0.1); margin: 12px 0;"></div>
+
+                  <!-- Cash Due at Signing -->
+                  <div class="quick-item quick-item--highlight">
+                    <div class="quick-item-label">Cash Due at Signing</div>
+                    <div class="quick-item-value" id="quickCashDueHighlight">
+                      $0.00
                     </div>
                   </div>
                 </div>
-              </section>
+              </div>
 
-              <!-- Dealer Information -->
-              <section class="contractSection">
-                <h5 class="contractSectionTitle">DEALER INFORMATION</h5>
-                <div id="contractDealerNote" class="contractNote" style="display: none;">
-                  Note: Dealer details were not provided.
-                </div>
-                <div class="contractGrid" id="contractDealerGrid">
-                  <div class="contractRow">
-                    <span class="contractLabel">DEALER NAME</span>
-                    <span class="contractValue" id="contractDealerName"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">STREET</span>
-                    <span class="contractValue" id="contractDealerStreet"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">CITY</span>
-                    <span class="contractValue" id="contractDealerCity"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">STATE</span>
-                    <span class="contractValue" id="contractDealerState"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">ZIP</span>
-                    <span class="contractValue" id="contractDealerZip"></span>
-                  </div>
-                  <div class="contractRow">
-                    <span class="contractLabel">PHONE</span>
-                    <span class="contractValue" id="contractDealerPhone"></span>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Offer Hero Section -->
-              <section class="contractSection offerHeroSection">
-                <div id="contractVehicleNote" class="contractNote" style="display: none;">
-                  Note: Vehicle details were not provided. This contract summary reflects loan calculations only.
-                </div>
-                <div class="offerHero">
-                  <div class="offerLabel">CUSTOMER OFFER</div>
-                  <div class="offerPrice" id="heroOfferPrice">$50,000.00</div>
-                  <div class="offerVehicleDetails">
-                    <span id="heroYear"></span>
-                    <span id="heroMake"></span>
-                    <span id="heroModel"></span>
-                    <span id="heroTrim"></span>
-                  </div>
-                  <div class="offerVehicleMeta">
-                    <span class="offerVin" id="heroVin"></span>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Federal Truth-in-Lending Disclosures -->
-              <section class="contractSection contractDisclosures">
-                <div class="tilHeader">
-                  <h5>ESTIMATED FEDERAL TRUTH-IN-LENDING DISCLOSURES</h5>
-                  <p class="note">*** YOUR ACTUAL AMOUNTS MAY VARY BASED ON YOUR APPROVED CREDIT & LENDER AGREEMENT ***</p>
-                </div>
-                <div class="disclosuresGrid">
-                  <div class="disclosureItem">
-                    <div class="disclosureLabel">ANNUAL<br/>PERCENTAGE<br/>RATE</div>
-                    <div class="disclosureValue" id="contractAPR">5.99%</div>
-                    <div class="disclosureNote">The cost of your credit as a yearly rate</div>
-                  </div>
-                  <div class="disclosureItem">
-                    <div class="disclosureLabel">FINANCE<br/>CHARGE</div>
-                    <div class="disclosureValue" id="contractFinanceCharge">$8,500.00</div>
-                    <div class="disclosureNote">The dollar amount the credit will cost you</div>
-                  </div>
-                  <div class="disclosureItem">
-                    <div class="disclosureLabel">AMOUNT<br/>FINANCED</div>
-                    <div class="disclosureValue" id="contractAmountFinanced">$45,000.00</div>
-                    <div class="disclosureNote">The amount of credit provided to you</div>
-                  </div>
-                  <div class="disclosureItem">
-                    <div class="disclosureLabel">TOTAL OF<br/>PAYMENTS</div>
-                    <div class="disclosureValue" id="contractTotalPayments">$53,500.00</div>
-                    <div class="disclosureNote">The amount you will have paid after making all payments as scheduled</div>
-                  </div>
-                  <div class="disclosureItem">
-                    <div class="disclosureLabel">TOTAL<br/>SALE<br/>PRICE</div>
-                    <div class="disclosureValue" id="contractTotalSalePrice">$55,990.00</div>
-                    <div class="disclosureNote">The total cost of your purchase on credit</div>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Payment Schedule -->
-              <section class="contractSection">
-                <h5 class="contractSectionTitle">PAYMENT SCHEDULE</h5>
-                <div class="paymentSchedule">
-                  <div class="paymentRow">
-                    <span class="paymentLabel">NUMBER OF PAYMENTS</span>
-                    <span class="paymentValue" id="contractNumPayments">72</span>
-                  </div>
-                  <div class="paymentRow">
-                    <span class="paymentLabel">AMOUNT OF PAYMENTS</span>
-                    <span class="paymentValue" id="contractPaymentAmount">$750.00</span>
-                  </div>
-                  <div class="paymentRow">
-                    <span class="paymentLabel">PAYMENT FREQUENCY</span>
-                    <span class="paymentValue" id="contractPaymentFreq">Monthly</span>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Itemization of Amount Financed -->
-              <section class="contractSection">
-                <h5 class="contractSectionTitle">ITEMIZATION OF AMOUNT FINANCED</h5>
-                <div class="itemizationTable">
-                  <!-- Cash Price -->
-                  <div class="itemRow itemRowBold">
-                    <span class="itemLabel">SALE PRICE</span>
-                    <span class="itemValue" id="contractCashPrice">$50,000.00</span>
-                  </div>
-
-                  <!-- Cash Down -->
-                  <div class="itemRow itemRowBold">
-                    <span class="itemLabel">LESS Cash Down</span>
-                    <span class="itemValue" id="contractCashDown">$3,000.00</span>
-                  </div>
-
-                  <!-- Net Trade-In -->
-                  <div class="itemRow itemRowBold">
-                    <span class="itemLabel">LESS Net Trade-In</span>
-                    <span class="itemValue" id="contractNetTrade">$2,000.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Trade-In Allowance</span>
-                    <span class="itemValue" id="contractTradeAllowance">$2,000.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Trade-in Pay-Off Made By Seller</span>
-                    <span class="itemValue" id="contractTradePayoff">$0.00</span>
-                  </div>
-
-                  <!-- Unpaid Balance of Cash Price -->
-                  <div class="itemRow itemRowBold">
-                    <span class="itemLabel">UNPAID BALANCE OF SALE PRICE</span>
-                    <span class="itemValue" id="contractUnpaidBalance">$45,000.00</span>
-                  </div>
-
-                  <!-- Other Charges -->
-                  <div class="itemRow itemRowBold">
-                    <span class="itemLabel">PLUS OTHER CHARGES</span>
-                    <span class="itemValue" id="sumOtherCharges"></span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Total Dealer Fees</span>
-                    <span class="itemValue" id="contractDealerFees">$799.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Total Customer Add-ons</span>
-                    <span class="itemValue" id="contractCustomerAddons">$0.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">Total Gov't Fees</span>
-                    <span class="itemValue" id="contractGovtFees">$150.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">State Taxes</span>
-                    <span class="itemValue" id="contractStateTax">$2,500.00</span>
-                  </div>
-                  <div class="itemRow itemRowIndent">
-                    <span class="itemLabel">County Taxes</span>
-                    <span class="itemValue" id="contractCountyTax">$50.00</span>
-                  </div>
-
-                  <!-- Amount Financed -->
-                  <div class="itemRow itemRowBold itemRowTotal">
-                    <span class="itemLabel">AMOUNT FINANCED</span>
-                    <span class="itemValue" id="contractAmountFinanced2">$48,499.00</span>
-                  </div>
-                </div>
-              </section>
-
-              <!-- Cash Due at Signing -->
-              <section class="contractSection">
-                <div class="cashDueBox">
-                  <div class="cashDueRow" id="contractCashToBuyerRow" style="display: none;">
-                    <span class="cashDueLabel">CASH TO BUYER AT SIGNING</span>
-                    <span class="cashDueValue contractCashToBuyer" id="contractCashToBuyer">$0.00</span>
-                  </div>
-                  <div class="cashDueRow">
-                    <span class="cashDueLabel">CASH DUE AT SIGNING</span>
-                    <span class="cashDueValue" id="contractCashDue">$1,500.00</span>
-                  </div>
-                </div>
-                <div class="contractNote contractNetNote" id="contractNetNote" style="display: none;">
-                  <strong id="contractNetLabel">NET AMOUNT:</strong>
-                  <span id="contractNetAmount"></span>
-                  <br>
-                  <span id="contractNetExplanation"></span>
-                </div>
-              </section>
+              <!-- View Summary Button -->
+              <button
+                type="button"
+                onclick="openReviewContractModal()"
+                class="btn-review-contract"
+              >
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path
+                    d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+                  ></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                View Summary
+              </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
-            <footer class="modalActions">
-              <button
-                type="button"
-                class="modalPrimary"
-                id="submitOfferButton"
-                title="Submit offer to dealer"
+    <!-- Fees & Taxes Modal -->
+    <div id="fees-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeFeesModal()"></div>
+      <div class="modal-content fees-modal">
+        <button
+          class="modal-close"
+          onclick="closeFeesModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <h3 class="modal-title">Enter Fees & Taxes</h3>
+        <div class="modal-toolbar">
+          <p class="modal-description">
+            Tune the fees that roll into your amount financed. We’ll auto-save
+            as you go.
+          </p>
+          <button
+            type="button"
+            class="modal-toolbar__action"
+            id="modal-edit-fee-button"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path
+                d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+              />
+              <path
+                d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+              />
+            </svg>
+            Edit Fee Templates
+          </button>
+        </div>
+
+        <div class="fees-modal-sections">
+          <section class="fee-category" data-fee-category="dealer">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Dealer Fees</h4>
+                <p class="fee-category__hint">
+                  Doc fee, dealer prep, PDI, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="dealer-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Dealer Fees</span>
+              <span class="fee-category__total" id="dealer-fee-total"
+                >$0.00</span
               >
-                Submit
-              </button>
-              <button
-                type="button"
-                class="modalPrimary"
-                id="printContractButton"
-                title="Print contract summary"
-              >
-                Print
-              </button>
-              <button
-                type="button"
-                class="modalSecondary"
-                data-contract-action="close"
-              >
-                Close
-              </button>
             </footer>
+          </section>
+
+          <section class="fee-category" data-fee-category="customer">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Customer Add-ons</h4>
+                <p class="fee-category__hint">
+                  Extended warranty, GAP, service plans, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="customer-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Customer Add-ons</span>
+              <span class="fee-category__total" id="customer-fee-total"
+                >$0.00</span
+              >
+            </footer>
+          </section>
+
+          <section class="fee-category" data-fee-category="gov">
+            <header class="fee-category__header">
+              <div class="fee-category__heading">
+                <h4>Gov't Fees</h4>
+                <p class="fee-category__hint">
+                  Title, registration, plate transfers, etc.
+                </p>
+              </div>
+            </header>
+            <div class="fee-category__rows" id="gov-fee-rows"></div>
+            <footer class="fee-category__footer">
+              <span>Total Gov't Fees</span>
+              <span class="fee-category__total" id="gov-fee-total">$0.00</span>
+            </footer>
+          </section>
+        </div>
+
+        <div class="fees-tax-block">
+          <div class="fees-tax-block__header">
+            <h4>Taxes</h4>
+          </div>
+          <div class="fees-tax-grid">
+            <label class="fees-tax-grid__label" for="modal-state-tax"
+              >State Tax Rate</label
+            >
+            <input
+              type="text"
+              id="modal-state-tax"
+              class="form-input form-input--readonly"
+              readonly
+              disabled
+              value="6.00"
+            />
+            <label class="fees-tax-grid__label" for="modal-county-tax"
+              >County Tax Rate</label
+            >
+            <input
+              type="text"
+              id="modal-county-tax"
+              class="form-input form-input--readonly"
+              readonly
+              disabled
+              value="1.00"
+            />
           </div>
         </div>
 
-        <!-- Toast Notification Container -->
-        <div id="toastContainer" class="toastContainer"></div>
+        <div class="fees-summary">
+          <div class="fees-summary__row">
+            <span>Taxes (State + County)</span>
+            <span class="fees-summary__value" id="modal-tax-total">$0.00</span>
+          </div>
+          <div class="fees-summary__row">
+            <span>Total Fees &amp; Add-ons</span>
+            <span class="fees-summary__value" id="modal-fees-total">$0.00</span>
+          </div>
+          <div class="fees-summary__row fees-summary__row--highlight">
+            <span>Other Charges (Fees + Taxes)</span>
+            <span class="fees-summary__value" id="modal-other-charges"
+              >$0.00</span
+            >
+          </div>
+          <p class="fees-summary__link" style="cursor: default">
+            Taxes are based on your address entered above.
+          </p>
+        </div>
 
-      </main>
-    </body>
+        <div class="button-group">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick="closeFeesModal()"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <datalist id="dealer-fee-suggestions"></datalist>
+    <datalist id="customer-fee-suggestions"></datalist>
+    <datalist id="gov-fee-suggestions"></datalist>
+
+    <!-- Edit Fee Modal -->
+    <div id="edit-fee-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeEditFeeModal()"></div>
+      <div class="modal-content edit-fee-modal">
+        <button
+          class="modal-close"
+          onclick="closeEditFeeModal()"
+          aria-label="Close edit fee modal"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <h3 class="modal-title">Edit Fee</h3>
+        <p class="modal-description">
+          Update a saved fee or add a new one to your Supabase set. These
+          updates will be available the next time you open this modal.
+        </p>
+
+        <form id="edit-fee-form" class="edit-fee-form">
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-type">Fee Type</label>
+            <select id="edit-fee-type" class="form-select">
+              <option value="dealer">Dealer</option>
+              <option value="customer">Customer</option>
+              <option value="gov">Gov't</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-name">Description</label>
+            <input
+              type="text"
+              id="edit-fee-name"
+              class="form-input"
+              list="dealer-fee-suggestions"
+              placeholder="e.g., Doc Fee"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="edit-fee-amount">Amount</label>
+            <input
+              type="text"
+              id="edit-fee-amount"
+              class="form-input"
+              placeholder="$0.00"
+              required
+            />
+          </div>
+
+          <p
+            class="modal-status"
+            id="edit-fee-status"
+            role="status"
+            aria-live="polite"
+          ></p>
+
+          <div class="button-group">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeEditFeeModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Save Fee</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Unavailable Vehicle Modal -->
+    <div id="unavailable-vehicle-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeUnavailableVehicleModal()"></div>
+      <div class="modal-content unavailable-vehicle-modal">
+        <button
+          class="modal-close"
+          onclick="closeUnavailableVehicleModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <div class="unavailable-vehicle-icon">
+          <svg
+            width="64"
+            height="64"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            ></path>
+          </svg>
+        </div>
+
+        <h2 class="unavailable-vehicle-title">Vehicle No Longer Available</h2>
+
+        <div class="unavailable-vehicle-message">
+          <p>
+            This vehicle has been sold or is no longer listed on MarketCheck.
+          </p>
+          <div
+            id="unavailable-vehicle-details"
+            class="unavailable-vehicle-details"
+          ></div>
+        </div>
+
+        <div class="unavailable-vehicle-actions">
+          <button class="btn btn-danger" onclick="removeUnavailableVehicle()">
+            <svg
+              width="20"
+              height="20"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+              ></path>
+            </svg>
+            Remove from Saved Vehicles
+          </button>
+          <button
+            class="btn btn-secondary"
+            onclick="closeUnavailableVehicleModal()"
+          >
+            Keep in My List
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Retail Buyers Summary Modal -->
+    <!-- APR Confirmation Modal -->
+    <div id="apr-confirmation-modal" class="modal" style="display: none">
+      <div class="modal-overlay"></div>
+      <div class="modal-content apr-confirmation-modal">
+        <div class="apr-confirmation-icon">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        </div>
+        <h2 class="apr-confirmation-title">Custom APR Detected</h2>
+        <p class="apr-confirmation-message">
+          You've adjusted the APR from the lender's rate. Would you like to:
+        </p>
+        <div class="apr-confirmation-details">
+          <div class="apr-detail-row">
+            <span class="apr-detail-label">Lender Rate:</span>
+            <span class="apr-detail-value" id="aprConfirmLenderRate">--%</span>
+          </div>
+          <div class="apr-detail-row">
+            <span class="apr-detail-label">Your Custom Rate:</span>
+            <span class="apr-detail-value" id="aprConfirmCustomRate">--%</span>
+          </div>
+        </div>
+        <div class="apr-confirmation-buttons">
+          <button class="apr-confirmation-btn apr-confirmation-btn--reset" onclick="confirmAprChoice('reset')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+            </svg>
+            Reset to Lender Rate
+          </button>
+          <button class="apr-confirmation-btn apr-confirmation-btn--keep" onclick="confirmAprChoice('keep')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            Keep Custom Rate
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="review-contract-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeReviewContractModal()"></div>
+      <div class="modal-content review-contract-modal">
+        <button
+          class="modal-close"
+          onclick="closeReviewContractModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <div class="contract-document" id="contract-document">
+          <!-- Contract Header -->
+          <div class="contract-header">
+            <h1 class="contract-title">RETAIL BUYERS SUMMARY</h1>
+            <p class="contract-subtitle">Payment & Financing Overview</p>
+          </div>
+
+          <!-- Truth in Lending Disclosure Box -->
+          <div class="contract-til-box">
+            <h2 class="contract-til-title">
+              FEDERAL TRUTH IN LENDING DISCLOSURES
+            </h2>
+            <div class="contract-til-grid">
+              <div class="contract-til-item">
+                <div class="contract-til-label">Annual Percentage Rate</div>
+                <div class="contract-til-desc">
+                  The cost of your credit as a yearly rate
+                </div>
+                <div class="contract-til-value" id="contractAPR">--</div>
+              </div>
+              <div class="contract-til-item">
+                <div class="contract-til-label">Finance Charge</div>
+                <div class="contract-til-desc">
+                  The dollar amount the credit will cost you
+                </div>
+                <div class="contract-til-value" id="contractFinanceCharge">
+                  --
+                </div>
+              </div>
+              <div class="contract-til-item">
+                <div class="contract-til-label">Amount Financed</div>
+                <div class="contract-til-desc">
+                  The amount of credit provided to you
+                </div>
+                <div class="contract-til-value" id="contractAmountFinanced">
+                  --
+                </div>
+              </div>
+              <div class="contract-til-item">
+                <div class="contract-til-label">Total of Payments</div>
+                <div class="contract-til-desc">
+                  The amount you will have paid after all payments
+                </div>
+                <div class="contract-til-value" id="contractTotalPayments">
+                  --
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Payment Schedule -->
+          <div class="contract-section">
+            <h3 class="contract-section-title">Payment Schedule</h3>
+            <div class="contract-payment-grid">
+              <div class="contract-row">
+                <span class="contract-label">Number of Payments:</span>
+                <span class="contract-value" id="contractNumPayments">--</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Amount of Each Payment:</span>
+                <span class="contract-value" id="contractMonthlyPayment"
+                  >--</span
+                >
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">When Payments Are Due:</span>
+                <span class="contract-value"
+                  >Monthly beginning 1 month from date hereof</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Vehicle Information -->
+          <div class="contract-section">
+            <h3 class="contract-section-title">Description of Motor Vehicle</h3>
+            <div class="contract-vehicle-grid">
+              <div class="contract-row">
+                <span class="contract-label">Year Make Model:</span>
+                <span class="contract-value" id="contractVehicle">--</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label"
+                  >Vehicle Identification Number:</span
+                >
+                <span class="contract-value contract-vin" id="contractVIN"
+                  >--</span
+                >
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Odometer Reading:</span>
+                <span class="contract-value" id="contractMileage">--</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Condition:</span>
+                <span class="contract-value" id="contractCondition">--</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Itemization of Costs -->
+          <div class="contract-section">
+            <h3 class="contract-section-title">
+              Itemization of Costs
+            </h3>
+            <table class="contract-table">
+              <tr class="contract-header">
+                <td class="contract-item-label">Sale Price</td>
+                <td class="contract-item-value" id="contractSalePrice">--</td>
+              </tr>
+              <tr class="contract-header">
+                <td class="contract-item-label">LESS Cash Down</td>
+                <td class="contract-item-value" id="contractDownPayment">--</td>
+              </tr>
+              <tr class="contract-header">
+                <td class="contract-item-label">LESS Net Trade-In</td>
+                <td class="contract-item-value" id="contractNetTrade">--</td>
+              </tr>
+              <tr>
+                <td class="contract-item-label contract-indent">
+                  Trade-In Allowance
+                </td>
+                <td class="contract-item-value" id="contractTradeAllowance">
+                  --
+                </td>
+              </tr>
+              <tr>
+                <td class="contract-item-label contract-indent">
+                  Trade-In Payoff
+                </td>
+                <td class="contract-item-value" id="contractTradePayoff">--</td>
+              </tr>
+              <tr class="contract-header">
+                <td class="contract-item-label">Unpaid Balance</td>
+                <td class="contract-item-value" id="contractUnpaidBalance">
+                  --
+                </td>
+              </tr>
+              <tr class="contract-header">
+                <td class="contract-item-label">PLUS Other Charges</td>
+                <td class="contract-item-value" id="contractOtherCharges">
+                  --
+                </td>
+              </tr>
+              <tr>
+                <td class="contract-item-label contract-indent">Total Dealer Fees</td>
+                <td class="contract-item-value" id="contractDealerFees">--</td>
+              </tr>
+              <tr>
+                <td class="contract-item-label contract-indent">
+                  Total Customer Add-ons
+                </td>
+                <td class="contract-item-value" id="contractCustomerAddons">
+                  --
+                </td>
+              </tr>
+              <tr>
+                <td class="contract-item-label contract-indent">
+                  Total Gov't Fees
+                </td>
+                <td class="contract-item-value" id="contractGovtFees">--</td>
+              </tr>
+              <tr class="contract-header">
+                <td class="contract-item-label">Sales Tax</td>
+                <td class="contract-item-value" id="contractSaleTaxTotal">--</td>
+              </tr>
+              <tr>
+                <td
+                  class="contract-item-label contract-indent"
+                  id="contractStateTaxLabel"
+                >
+                  State Tax
+                </td>
+                <td class="contract-item-value" id="contractStateTax">--</td>
+              </tr>
+              <tr>
+                <td
+                  class="contract-item-label contract-indent"
+                  id="contractCountyTaxLabel"
+                >
+                  County Tax
+                </td>
+                <td class="contract-item-value" id="contractCountyTax">--</td>
+              </tr>
+              <tr class="contract-subtotal">
+                <td class="contract-item-label">Cash Due at Signing</td>
+                <td class="contract-item-value" id="contractCashDue">--</td>
+              </tr>
+              <tr class="contract-total">
+                <td class="contract-item-label">AMOUNT FINANCED</td>
+                <td
+                  class="contract-item-value"
+                  id="contractAmountFinancedTotal"
+                >
+                  --
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Disclosure Footer -->
+          <div class="contract-footer">
+            <p>
+              <strong>IMPORTANT:</strong> This summary is provided for your convenience to help you understand the key terms of your potential purchase. All final terms and conditions will be presented at the dealership.
+            </p>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="contract-actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick="closeReviewContractModal()"
+          >
+            Close
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            onclick="printContract()"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path
+                d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
+              ></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Print Contract
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade-In Modal -->
+    <div id="tradein-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeTradeInModal()"></div>
+      <div class="modal-content edit-fee-modal">
+        <button
+          class="modal-close"
+          onclick="closeTradeInModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <h2 class="modal-title">Trade-In Vehicle Details</h2>
+        <p class="modal-description">
+          Enter your trade-in vehicle information to calculate your net trade
+          value.
+        </p>
+
+        <form id="tradein-form" class="edit-fee-form">
+          <div class="form-group">
+            <label class="form-label" for="tradein-vin">VIN (Optional)</label>
+            <input
+              type="text"
+              id="tradein-vin"
+              class="form-input"
+              placeholder="1G6KD57Y65U123456"
+              maxlength="17"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-year">Year</label>
+            <input
+              type="number"
+              id="tradein-year"
+              class="form-input"
+              placeholder="2020"
+              min="1900"
+              max="2030"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-make">Make</label>
+            <input
+              type="text"
+              id="tradein-make"
+              class="form-input"
+              placeholder="Toyota"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-model">Model</label>
+            <input
+              type="text"
+              id="tradein-model"
+              class="form-input"
+              placeholder="Camry"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-trim">Trim (Optional)</label>
+            <input
+              type="text"
+              id="tradein-trim"
+              class="form-input"
+              placeholder="SE"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-mileage">Mileage</label>
+            <input
+              type="text"
+              id="tradein-mileage"
+              class="form-input"
+              placeholder="50,000"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-value-modal"
+              >Estimated Trade-In Value</label
+            >
+            <input
+              type="text"
+              id="tradein-value-modal"
+              class="form-input"
+              placeholder="$15,000"
+            />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="tradein-payoff-modal"
+              >Outstanding Loan Balance</label
+            >
+            <input
+              type="text"
+              id="tradein-payoff-modal"
+              class="form-input"
+              placeholder="$0"
+            />
+          </div>
+
+          <div class="button-group">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeTradeInModal()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="saveTradeInDetails()"
+            >
+              Save Trade-In
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Floating Payment Tooltip -->
+    <div
+      id="slider-payment-tooltip"
+      class="slider-payment-tooltip"
+      style="display: none"
+    >
+      <div class="tooltip-payment">$0/mo</div>
+      <div class="tooltip-change">--</div>
+    </div>
+
+    <!-- JavaScript -->
+    <script type="module" src="app.js"></script>
+  </body>
 </html>

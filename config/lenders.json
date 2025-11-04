@@ -24,13 +24,15 @@
         "loanType": "new",
         "termMin": 72,
         "termMax": 72,
-        "baseApr": 6.25
+        "baseApr": 6.25,
+        "effectiveDate": "2025-01-15"
       },
       {
         "loanType": "used",
         "termMin": 72,
         "termMax": 72,
-        "baseApr": 6.49
+        "baseApr": 6.49,
+        "effectiveDate": "2025-01-15"
       }
     ],
     "notes": "Stub data - real scraping not yet implemented"
@@ -49,13 +51,15 @@
         "loanType": "new",
         "termMin": 36,
         "termMax": 84,
-        "baseApr": 5.99
+        "baseApr": 5.99,
+        "effectiveDate": "2025-01-15"
       },
       {
         "loanType": "used",
         "termMin": 36,
         "termMax": 72,
-        "baseApr": 6.49
+        "baseApr": 6.49,
+        "effectiveDate": "2025-01-15"
       }
     ],
     "notes": "Disabled by default - enable when needed"
@@ -74,38 +78,15 @@
         "loanType": "new",
         "termMin": 60,
         "termMax": 65,
-        "baseApr": 5.74
+        "baseApr": 5.74,
+        "effectiveDate": "2025-01-15"
       },
       {
         "loanType": "used",
         "termMin": 60,
         "termMax": 65,
-        "baseApr": 5.74
-      }
-    ],
-    "notes": "Disabled by default - enable when needed"
-  },
-  {
-    "id": "alliant",
-    "source": "ALLIANT",
-    "longName": "Alliant Credit Union",
-    "shortName": "ALLIANT",
-    "enabled": true,
-    "scraper": "stub",
-    "website": "https://www.alliantcreditunion.org",
-    "sourceUrl": "https://www.alliantcreditunion.org/bank/auto-loans",
-    "stubRates": [
-      {
-        "loanType": "new",
-        "termMin": 60,
-        "termMax": 84,
-        "baseApr": 6.24
-      },
-      {
-        "loanType": "used",
-        "termMin": 60,
-        "termMax": 72,
-        "baseApr": 6.74
+        "baseApr": 5.74,
+        "effectiveDate": "2025-01-15"
       }
     ],
     "notes": "Disabled by default - enable when needed"
@@ -124,13 +105,15 @@
         "loanType": "new",
         "termMin": 60,
         "termMax": 72,
-        "baseApr": 5.99
+        "baseApr": 5.99,
+        "effectiveDate": "2025-01-15"
       },
       {
         "loanType": "used",
         "termMin": 60,
         "termMax": 72,
-        "baseApr": 6.49
+        "baseApr": 6.49,
+        "effectiveDate": "2025-01-15"
       }
     ],
     "notes": "Auto-discovered on 2025-10-08 - Review and verify rates before enabling"
@@ -149,15 +132,28 @@
         "loanType": "new",
         "termMin": 36,
         "termMax": 84,
-        "baseApr": 5.25
+        "baseApr": 5.25,
+        "effectiveDate": "2025-01-15"
       },
       {
         "loanType": "used",
         "termMin": 36,
         "termMax": 84,
-        "baseApr": 5.50
+        "baseApr": 5.50,
+        "effectiveDate": "2025-01-15"
       }
     ],
     "notes": "Rates verified 2025-10-30. New: 5.25%, Used 2022-2023: 5.50%, Used 2019-2021: 6.25%, Used 2017-2018: 7.49%"
+  },
+  {
+    "id": "ccufl",
+    "source": "CCUFL",
+    "longName": "Community Credit Union of Florida",
+    "shortName": "CCUFL",
+    "enabled": true,
+    "scraper": "stub",
+    "website": "https://www.ccuflorida.org",
+    "sourceUrl": "https://www.ccuflorida.org/home/rates/loan",
+    "notes": "Rates fetched 2025-11-04"
   }
 ]

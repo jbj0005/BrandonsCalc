@@ -346,8 +346,274 @@ async function handleRemoval(remValue) {
     process.exitCode = 1;
   }
 }
+// --- Consumers Credit Union (Online via Car Buying Service) ---
+async function fetchCCU_Online() {
+  const url = "https://www.myconsumers.org/loans/auto-loans";
+  const { html } = await fetchPage(url, { selector: "table" });
+  const document = parseDocument(html);
+
+  // Effective date (e.g., "Rates effective June 26, 2025")
+  let effectiveDateISO = null;
+  const effNode = Array.from(document.querySelectorAll("*")).find((el) =>
+    /Rates\s+effective\s+[A-Za-z]{3,}\s+\d{1,2},\s+\d{4}/i.test(
+      normalizedText(el)
+    )
+  );
+  if (effNode) {
+    const m = normalizedText(effNode).match(
+      /Rates\s+effective\s+([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})/i
+    );
+    if (m) {
+      const d = new Date(m[1]);
+      if (!isNaN(d)) effectiveDateISO = d.toISOString().slice(0, 10);
+    }
+  }
+
+  // Same table as CCU (IL), but prefer the "With Auto Buying Service" APR column
+  const table = Array.from(document.querySelectorAll("table")).find((tbl) => {
+    const text = normalizedText(tbl);
+    return /2023\s+and\s+Newer/i.test(text) && /2019\s+to\s+2022/i.test(text);
+  });
+  const matrix = [];
+  if (table) {
+    table.querySelectorAll("tr").forEach((tr) => {
+      const tds = Array.from(tr.querySelectorAll("td, th")).map((cell) =>
+        normalizedText(cell)
+      );
+      if (!tds.length) return;
+      const line = tds.join(" ");
+      const mTerm = line.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*Months/i);
+      if (!mTerm) return;
+      const lo = Number(mTerm[1]);
+      const hi = Number(mTerm[2]);
+
+      // Prefer WITH Auto Buying Service; fall back to WITHOUT if needed
+      const mABS = line.match(
+        /With\s+Auto\s+Buying\s+Service\s+([0-9]+(?:\.[0-9]+)?)%\s+([0-9]+(?:\.[0-9]+)?)%/i
+      );
+      const mNoABS = line.match(
+        /Without\s+Auto\s+Buying\s+Service\**\s+([0-9]+(?:\.[0-9]+)?)%\s+([0-9]+(?:\.[0-9]+)?)%/i
+      );
+      const pick = mABS || mNoABS;
+      if (!pick) return;
+      const aprNew = Number(pick[1]) / 100; // 2023 and Newer
+      const aprUsed = Number(pick[2]) / 100; // 2019 to 2022
+
+      for (const loan_type of ["purchase", "refinance"]) {
+        matrix.push({
+          termMin: lo,
+          termMax: hi,
+          apr: aprNew,
+          vehicle_condition: "new",
+          loan_type,
+        });
+        matrix.push({
+          termMin: lo,
+          termMax: hi,
+          apr: aprUsed,
+          vehicle_condition: "used",
+          loan_type,
+        });
+      }
+    });
+  }
+
+  if (!matrix.length) throw new Error("CCU-Online auto rates table not parsed");
+
+  return {
+    provider: "ccu_online",
+    shortName: PROVIDER_NAMES.ccu_online.short,
+    longName: PROVIDER_NAMES.ccu_online.long,
+    sourceUrl: url,
+    effectiveDate: effectiveDateISO || todayISO(),
+    loanType: null,
+    matrix: matrix.sort(
+      (a, b) =>
+        a.termMin - b.termMin ||
+        a.termMax - b.termMax ||
+        a.vehicle_condition.localeCompare(b.vehicle_condition) ||
+        a.loan_type.localeCompare(b.loan_type)
+    ),
+  };
+}
 // --- Consumers Credit Union (IL) ---
+async function fetchCCU_IL() {
+  const url = "https://www.myconsumers.org/loans/auto-loans";
+  const { html } = await fetchPage(url, { selector: "table" });
+  const document = parseDocument(html);
+
+  // Effective date (e.g., "Rates effective June 26, 2025")
+  let effectiveDateISO = null;
+  const effNode = Array.from(document.querySelectorAll("*")).find((el) =>
+    /Rates\s+effective\s+[A-Za-z]{3,}\s+\d{1,2},\s+\d{4}/i.test(
+      normalizedText(el)
+    )
+  );
+  if (effNode) {
+    const m = normalizedText(effNode).match(
+      /Rates\s+effective\s+([A-Za-z]{3,}\s+\d{1,2},\s+\d{4})/i
+    );
+    if (m) {
+      const d = new Date(m[1]);
+      if (!isNaN(d)) effectiveDateISO = d.toISOString().slice(0, 10);
+    }
+  }
+
+  // Locate the Auto Loan rate table by its distinctive header row
+  const table = Array.from(document.querySelectorAll("table")).find((tbl) => {
+    const text = normalizedText(tbl);
+    return /2023\s+and\s+Newer/i.test(text) && /2019\s+to\s+2022/i.test(text);
+  });
+
+  const matrix = [];
+  if (table) {
+    table.querySelectorAll("tr").forEach((tr) => {
+      const tds = Array.from(tr.querySelectorAll("td, th")).map((cell) =>
+        normalizedText(cell)
+      );
+      if (!tds.length) return;
+      const line = tds.join(" ");
+      // Term buckets like "0-60 Months", "61-72 Months", "73-84 Months"
+      const mTerm = line.match(/(\d{1,2})\s*[-–]\s*(\d{1,2})\s*Months/i);
+      if (!mTerm) return;
+      const lo = Number(mTerm[1]);
+      const hi = Number(mTerm[2]);
+
+      // Prefer the "Without Auto Buying Service" APRs if present; otherwise fall back to "With Auto Buying Service"
+      // Rows include two APRs: one for 2023+ (treat as NEW) and one for 2019–2022 (treat as USED)
+      // We search in-order for patterns ending with two percents
+      let mNoABS = line.match(
+        /Without\s+Auto\s+Buying\s+Service\**\s+([0-9]+(?:\.[0-9]+)?)%\s+([0-9]+(?:\.[0-9]+)?)%/i
+      );
+      let mABS = line.match(
+        /With\s+Auto\s+Buying\s+Service\s+([0-9]+(?:\.[0-9]+)?)%\s+([0-9]+(?:\.[0-9]+)?)%/i
+      );
+      const pick = mNoABS || mABS;
+      if (!pick) return;
+      const aprNew = Number(pick[1]) / 100; // 2023 and Newer
+      const aprUsed = Number(pick[2]) / 100; // 2019 to 2022
+
+      // Emit rows for both purchase and refinance
+      for (const loan_type of ["purchase", "refinance"]) {
+        matrix.push({
+          termMin: lo,
+          termMax: hi,
+          apr: aprNew,
+          vehicle_condition: "new",
+          loan_type,
+        });
+        matrix.push({
+          termMin: lo,
+          termMax: hi,
+          apr: aprUsed,
+          vehicle_condition: "used",
+          loan_type,
+        });
+      }
+    });
+  }
+
+  if (!matrix.length) throw new Error("CCU (IL) auto rates table not parsed");
+  return {
+    provider: "ccu_il",
+    shortName: PROVIDER_NAMES.ccu_il.short,
+    longName: PROVIDER_NAMES.ccu_il.long,
+    sourceUrl: url,
+    effectiveDate: effectiveDateISO || todayISO(),
+    loanType: null,
+    matrix: matrix.sort(
+      (a, b) =>
+        a.termMin - b.termMin ||
+        a.termMax - b.termMax ||
+        a.vehicle_condition.localeCompare(b.vehicle_condition) ||
+        a.loan_type.localeCompare(b.loan_type)
+    ),
+  };
+}
+
 // --- Consumers Credit Union (MI) ---
+async function fetchCCU_MI() {
+  const url = "https://www.consumerscu.org/rates/lending-rates";
+  const res = await fetch(url, {
+    headers: { "User-Agent": "rates-bot/1.0 (+excelcalc)" },
+  });
+  if (!res.ok) throw new Error(`Consumers CU (MI) fetch failed: ${res.status}`);
+  // The public page populates rates via XHR to the secure JSON endpoint; fetch that directly.
+  const apiUrl = "https://secure.consumerscu.org/rates/?cat=6";
+  const apiRes = await fetch(apiUrl, {
+    headers: { "User-Agent": "rates-bot/1.0 (+excelcalc)" },
+  });
+  if (!apiRes.ok)
+    throw new Error(`Consumers CU (MI) rates api failed: ${apiRes.status}`);
+  const data = await apiRes.json();
+  const subcategories = data?.Category?.Subcategories ?? [];
+  const auto = subcategories.find((sub) =>
+    /automobile/i.test(sub?.SubcategoryDescription ?? "")
+  );
+  const products = Array.isArray(auto?.Products) ? auto.Products : [];
+
+  function parseTermRange(raw) {
+    if (typeof raw !== "string") return { min: null, max: null };
+    const lower = raw.toLowerCase();
+    let min = null;
+    let max = null;
+    const between = lower.match(/(\d{1,3})\s*(?:-|to)\s*(\d{1,3})\s*month/);
+    if (between) {
+      min = Number(between[1]);
+      max = Number(between[2]);
+    } else {
+      const upTo = lower.match(/up\s*to\s*(\d{1,3})\s*month/);
+      if (upTo) {
+        min = 0;
+        max = Number(upTo[1]);
+      } else {
+        const exact = lower.match(/(\d{1,3})\s*month/);
+        if (exact) {
+          min = Number(exact[1]);
+          max = Number(exact[1]);
+        }
+      }
+    }
+    return {
+      min: Number.isFinite(min) ? min : null,
+      max: Number.isFinite(max) ? max : null,
+    };
+  }
+
+  const matrix = [];
+  for (const product of products) {
+    const { min: termMin, max: termMax } = parseTermRange(product?.Max ?? "");
+    const apr = toPct(product?.Rate1);
+    if (apr == null || termMax == null) continue;
+    const name = decodeHtmlEntities(product?.ProductName ?? "");
+    const vehicle_condition = /newer|less than/i.test(name)
+      ? "new"
+      : /older|years old|more than/i.test(name)
+      ? "used"
+      : "new_or_used";
+    for (const loan_type of ["purchase", "refinance"]) {
+      matrix.push({
+        termMin: termMin ?? 0,
+        termMax,
+        apr,
+        vehicle_condition,
+        loan_type,
+      });
+    }
+  }
+
+  if (!matrix.length)
+    throw new Error("Consumers CU (MI) automobile loan pattern not found");
+  return {
+    provider: "ccu_mi",
+    shortName: PROVIDER_NAMES.ccu_mi.short,
+    longName: PROVIDER_NAMES.ccu_mi.long,
+    sourceUrl: url,
+    effectiveDate: todayISO(),
+    loanType: null,
+    matrix,
+  };
+}
 
 // --- Launch Credit Union ---
 async function fetchLaunchCU() {

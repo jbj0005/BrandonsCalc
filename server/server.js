@@ -821,73 +821,6 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
   }
 });
 
-// GET /api/mc/listing/:id
-app.get("/api/mc/listing/:id", async (req, res) => {
-  try {
-    const apiKey = await ensureApiKey(res);
-    if (!apiKey) return;
-    const id = String(req.params.id || "").trim();
-    if (!id) return res.status(400).json({ error: "Missing listing id" });
-    const url = mcUrl(`/listing/car/${encodeURIComponent(id)}`, {}, apiKey);
-    const data = await getJson(url);
-    return res.json({ ok: true, id, payload: normalizeListing(data), raw: data ?? null });
-  } catch (err) {
-    console.error("[/listing] error:", err);
-    const status =
-      typeof err?.status === "number" && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    res.status(status).json({
-      error: "Listing details failed",
-      detail:
-        typeof err?.body === "string" && err.body.trim()
-          ? err.body.trim()
-          : err?.message || "Unknown error",
-    });
-  }
-});
-
-// GET /api/mc/history/:vin
-app.get("/api/mc/history/:vin", async (req, res) => {
-  try {
-    const apiKey = await ensureApiKey(res);
-    if (!apiKey) return;
-    const vin = String(req.params.vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
-    if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(vin)) {
-      return res.status(400).json({ error: "Invalid VIN" });
-    }
-    const historyEndpoint = MARKETCHECK_ENDPOINTS.historyByVin;
-    if (!historyEndpoint) {
-      return res
-        .status(500)
-        .json({ error: "VIN history endpoint is not configured." });
-    }
-    const path =
-      historyEndpoint.buildPath?.({ vin }) ?? historyEndpoint.path ?? null;
-    if (!path) {
-      return res
-        .status(500)
-        .json({ error: "VIN history endpoint path could not be resolved." });
-    }
-    const params = historyEndpoint.buildParams?.({ vin }) ?? {};
-    const data = await getJson(mcUrl(path, params, apiKey));
-    return res.json({ ok: true, vin, history: data });
-  } catch (err) {
-    console.error("[/history] error:", err);
-    const status =
-      typeof err?.status === "number" && err.status >= 400 && err.status < 600
-        ? err.status
-        : 502;
-    res.status(status).json({
-      error: "VIN history lookup failed",
-      detail:
-        typeof err?.body === "string" && err.body.trim()
-          ? err.body.trim()
-          : err?.message || "Unknown error",
-    });
-  }
-});
-
 // GET /api/mc/search?year=2023&make=Honda&model=Accord&...
 app.get("/api/mc/search", async (req, res) => {
   try {
@@ -1294,6 +1227,111 @@ app.get("/api/mc/trims", async (req, res) => {
     console.error("[/trims] error:", err);
     res.status(err?.status || 500).json({
       error: "Failed to fetch trims",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
+// GET /api/rates?source=NFCU
+// Get lender rates from Supabase or fall back to stub rates
+app.get("/api/rates", async (req, res) => {
+  try {
+    const source = req.query.source ? String(req.query.source).toUpperCase().trim() : "";
+
+    if (!source) {
+      return res.status(400).json({ error: "source parameter required" });
+    }
+
+    // Load lenders.json
+    const { readFile } = await import('fs/promises');
+    const lendersPath = join(__dirname, '..', 'config', 'lenders.json');
+    const lendersData = await readFile(lendersPath, 'utf-8');
+    const lenders = JSON.parse(lendersData);
+
+    // Find lender by source or id
+    const lender = lenders.find(l =>
+      l.source?.toUpperCase() === source ||
+      l.id?.toLowerCase() === source.toLowerCase()
+    );
+
+    if (!lender) {
+      return res.status(404).json({
+        error: "Lender not found",
+        detail: `No lender configuration found for source: ${source}`
+      });
+    }
+
+    // Try to fetch live rates from Supabase
+    let liveRates = null;
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        // Try both uppercase and lowercase source (Supabase has mixed case)
+        const sourceLower = lender.source.toLowerCase();
+        const sourceUpper = lender.source.toUpperCase();
+
+        const url = new URL(`${SUPABASE_URL}/rest/v1/auto_rates`);
+        url.searchParams.set('or', `(source.eq.${sourceLower},source.eq.${sourceUpper},source.eq.${lender.id})`);
+        url.searchParams.set('select', '*');
+        url.searchParams.set('order', 'effective_at.desc');
+
+        const response = await fetch(url, {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            Accept: 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            // Transform Supabase format to frontend format (snake_case expected by frontend)
+            liveRates = data.map(rate => ({
+              source: rate.source,
+              vehicle_condition: rate.vehicle_condition, // "new" or "used"
+              loan_type: rate.loan_type, // "purchase" or "refinance"
+              term_min: rate.term_range_min,
+              term_max: rate.term_range_max,
+              base_apr: rate.apr_percent,
+              credit_score_min: rate.credit_score_min || 300,
+              credit_score_max: rate.credit_score_max || 850,
+              effective_date: rate.effective_at,
+            }));
+            console.log(`[rates] Returning ${liveRates.length} live rates for ${lender.shortName} from Supabase`);
+          }
+        }
+      } catch (error) {
+        console.warn(`[rates] Failed to fetch live rates from Supabase for ${source}:`, error.message);
+      }
+    }
+
+    // Return live rates if available
+    if (liveRates && liveRates.length > 0) {
+      return res.json({
+        ok: true,
+        source: lender.source,
+        lenderId: lender.id,
+        lenderName: lender.longName,
+        rates: liveRates,
+        dataSource: 'supabase'
+      });
+    }
+
+    // No rates available - return error
+    console.error(`[rates] No rates available in Supabase for ${lender.shortName}`);
+    return res.status(404).json({
+      ok: false,
+      error: 'No rates available',
+      source: lender.source,
+      lenderId: lender.id,
+      lenderName: lender.longName,
+      message: `No rates found in Supabase for ${lender.longName}`
+    });
+
+  } catch (err) {
+    console.error("[/rates] error:", err);
+    res.status(500).json({
+      error: "Failed to fetch rates",
       detail: err?.message || "Unknown error"
     });
   }

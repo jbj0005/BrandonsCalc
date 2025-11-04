@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "fetch:rates": "node scripts/fetch-rates.mjs",
+    "fetch:lender": "node scripts/fetch-lender-rates.mjs",
     "import:gov-fees": "node scripts/import-gov-fees.mjs",
     "import:tax": "node scripts/import-tax-rates.mjs",
     "show:lenders": "node scripts/show-lenders.mjs",

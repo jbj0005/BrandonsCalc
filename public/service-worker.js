@@ -1,4 +1,4 @@
-const CACHE_NAME = "excelcalc-cache-v1";
+const CACHE_NAME = "excelcalc-cache-v4";
 const BASE_PATH = self.location.pathname.replace(/service-worker\.js$/, "");
 const PRECACHE_URLS = [
   "",
@@ -35,6 +35,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const requestUrl = new URL(event.request.url);
+
+  // Skip service worker for development mode (Vite dev server)
+  // Don't cache @vite URLs, localhost:5173, or HMR requests
+  if (
+    requestUrl.pathname.includes("@vite") ||
+    requestUrl.pathname.includes("node_modules") ||
+    requestUrl.hostname === "localhost" ||
+    requestUrl.search.includes("t=") // Vite timestamp query param
+  ) {
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -51,7 +64,6 @@ self.addEventListener("fetch", (event) => {
             return networkResponse;
           }
 
-          const requestUrl = new URL(event.request.url);
           if (requestUrl.protocol === "chrome-extension:") {
             return networkResponse;
           }
