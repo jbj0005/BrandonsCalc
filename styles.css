@@ -222,11 +222,10 @@ body {
   align-items: center;
   gap: var(--spacing-xs);
   padding: var(--spacing-xs) var(--spacing-md);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: var(--glass-backdrop);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--radius-full);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   font-size: 0.875rem;
   font-weight: 600;
   color: var(--text-primary);
@@ -237,6 +236,7 @@ body {
 .hero__badge-icon {
   width: 20px;
   height: 20px;
+  color: var(--primary-end);
   animation: pulse 2s ease-in-out infinite;
 }
 
