@@ -485,6 +485,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize Quick Entry mode (now the default and only mode)
   await initializeQuickEntry();
+
+  // Set up customer profile button
+  const profileBtn = document.getElementById('openCustomerProfileBtn');
+  if (profileBtn) {
+    profileBtn.addEventListener('click', openCustomerProfileModal);
+  }
+
+  // Load customer profile on page load to update header label
+  await loadCustomerProfileData();
 });
 
 /**
@@ -4658,6 +4667,854 @@ function printContract() {
   window.print();
 }
 window.printContract = printContract;
+
+/* ============================================================================
+   Customer Profile Functions
+   ============================================================================ */
+
+/**
+ * Open the Customer Profile modal and load existing profile
+ */
+async function openCustomerProfileModal() {
+  const modal = document.getElementById('customer-profile-modal');
+  if (!modal) return;
+
+  // Load existing profile
+  await loadCustomerProfileData();
+
+  modal.style.display = 'flex';
+}
+
+/**
+ * Close the Customer Profile modal
+ */
+function closeCustomerProfileModal() {
+  const modal = document.getElementById('customer-profile-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+/**
+ * Load customer profile from Supabase
+ */
+async function loadCustomerProfileData() {
+  try {
+    const profileId = localStorage.getItem('customerProfileId');
+    if (!profileId) return;
+
+    const { data: profile, error } = await supabase
+      .from('customer_profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+
+    if (error) {
+      console.error('Error loading customer profile:', error);
+      return;
+    }
+
+    if (profile) {
+      // Populate form fields
+      document.getElementById('profileFullName').value = profile.full_name || '';
+      document.getElementById('profileEmail').value = profile.email || '';
+      document.getElementById('profilePhone').value = profile.phone || '';
+      document.getElementById('profileAddress').value = profile.street_address || '';
+      document.getElementById('profileCity').value = profile.city || '';
+      document.getElementById('profileState').value = profile.state_code || '';
+      document.getElementById('profileZip').value = profile.zip_code || '';
+      document.getElementById('profileCreditScore').value = profile.credit_score_range || '';
+
+      // Update header label with user's first name
+      const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'Profile';
+      document.getElementById('customerProfileLabel').textContent = firstName;
+    }
+  } catch (error) {
+    console.error('Error loading customer profile:', error);
+  }
+}
+
+/**
+ * Save customer profile to Supabase
+ */
+async function saveCustomerProfile() {
+  try {
+    // Get form values
+    const fullName = document.getElementById('profileFullName').value.trim();
+    const email = document.getElementById('profileEmail').value.trim();
+    const phone = document.getElementById('profilePhone').value.trim();
+    const address = document.getElementById('profileAddress').value.trim();
+    const city = document.getElementById('profileCity').value.trim();
+    const state = document.getElementById('profileState').value.trim().toUpperCase();
+    const zip = document.getElementById('profileZip').value.trim();
+    const creditScore = document.getElementById('profileCreditScore').value;
+
+    // Validate required fields
+    if (!fullName || !email || !phone) {
+      alert('Please fill in all required fields: Full Name, Email, and Phone');
+      return;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert('Please enter a valid email address');
+      return;
+    }
+
+    // Prepare profile data
+    const profileData = {
+      full_name: fullName,
+      email: email,
+      phone: phone,
+      street_address: address || null,
+      city: city || null,
+      state_code: state || null,
+      zip_code: zip || null,
+      credit_score_range: creditScore || null,
+      updated_at: new Date().toISOString(),
+      last_used_at: new Date().toISOString()
+    };
+
+    // Upsert profile (insert or update)
+    const { data: profile, error } = await supabase
+      .from('customer_profiles')
+      .upsert(profileData, {
+        onConflict: 'email'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error saving customer profile:', error);
+      alert('Error saving profile. Please try again.');
+      return;
+    }
+
+    // Save profile ID to localStorage
+    localStorage.setItem('customerProfileId', profile.id);
+
+    // Update header label with user's first name
+    const firstName = fullName.split(' ')[0];
+    document.getElementById('customerProfileLabel').textContent = firstName;
+
+    // Close modal
+    closeCustomerProfileModal();
+
+    // Show success message
+    console.log('Customer profile saved successfully:', profile);
+
+    // TODO: Show toast notification
+    alert('Profile saved successfully!');
+  } catch (error) {
+    console.error('Error saving customer profile:', error);
+    alert('Error saving profile. Please try again.');
+  }
+}
+
+// Make functions globally available
+window.openCustomerProfileModal = openCustomerProfileModal;
+window.closeCustomerProfileModal = closeCustomerProfileModal;
+window.saveCustomerProfile = saveCustomerProfile;
+
+/* ============================================================================
+   Submit Offer Functions
+   ============================================================================ */
+
+/**
+ * Format offer data into fancy unicode text with emoji
+ */
+function formatOfferText(customerNotes = '') {
+  const reviewData = computeReviewData();
+  if (!reviewData) {
+    return 'Error: Unable to generate offer. Please ensure all fields are filled.';
+  }
+
+  const vehicle = wizardData.vehicle || {};
+  const financing = wizardData.financing || {};
+  const location = wizardData.location || {};
+  const dealer = wizardData.dealer || {};
+  const trade = wizardData.trade || {};
+
+  // Format currency helper
+  const fmt = (num) => {
+    if (typeof num !== 'number' || !Number.isFinite(num)) return '$0.00';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(num);
+  };
+
+  // Format number helper
+  const fmtNum = (num) => {
+    if (typeof num !== 'number' || !Number.isFinite(num)) return '0';
+    return new Intl.NumberFormat('en-US').format(num);
+  };
+
+  // Build the formatted offer text
+  let offerText = `
+╔═════════════════════════════════════════╗
+║      VEHICLE PURCHASE OFFER             ║
+╚═════════════════════════════════════════╝
+
+🚗 VEHICLE DETAILS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}
+Condition: ${vehicle.condition === 'new' ? 'New' : 'Used'}  |  Mileage: ${fmtNum(vehicle.mileage || 0)} mi
+${vehicle.vin ? 'VIN: ' + vehicle.vin : ''}
+
+💰 PRICING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Sale Price:              ${fmt(reviewData.salePrice || 0)}
+Down Payment:            ${fmt(reviewData.downPayment || 0)}`;
+
+  // Add trade-in if present
+  if (trade && (trade.offer > 0 || trade.payoff > 0)) {
+    offerText += `
+Trade-In Allowance:      ${fmt(trade.offer || 0)}
+Trade-In Payoff:         ${fmt(trade.payoff || 0)}
+                        ─────────────
+Net Trade Value:         ${fmt((trade.offer || 0) - (trade.payoff || 0))}`;
+  }
+
+  offerText += `
+
+📊 FINANCING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  // Add lender info if available
+  const selectedApr = wizardData.selectedApr || {};
+  if (selectedApr.lender_name) {
+    offerText += `
+Lender: ${selectedApr.lender_name}`;
+  }
+
+  offerText += `
+APR: ${((reviewData.apr || 0) * 100).toFixed(2)}%  |  Term: ${reviewData.term || 0} months
+Monthly Payment:         ${fmt(reviewData.monthlyPayment || 0)}
+Total Finance Charge:    ${fmt(reviewData.financeCharge || 0)}
+Amount Financed:         ${fmt(reviewData.amountFinanced || 0)}
+Total of Payments:       ${fmt(reviewData.totalOfPayments || 0)}`;
+
+  // Add fees breakdown if present
+  const fees = reviewData.fees || {};
+  if (fees.totalDealerFees > 0 || fees.totalCustomerAddons > 0 || fees.totalGovtFees > 0) {
+    offerText += `
+
+💵 FEES & COSTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    if (fees.totalDealerFees > 0) {
+      offerText += `
+Dealer Fees:             ${fmt(fees.totalDealerFees)}`;
+    }
+    if (fees.totalCustomerAddons > 0) {
+      offerText += `
+Customer Add-ons:        ${fmt(fees.totalCustomerAddons)}`;
+    }
+    if (fees.totalGovtFees > 0) {
+      offerText += `
+Govt Fees:               ${fmt(fees.totalGovtFees)}`;
+    }
+  }
+
+  // Add tax information
+  offerText += `
+
+📍 LOCATION & TAX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+  if (location.countyName || location.stateCode) {
+    offerText += `
+Location: ${location.countyName ? location.countyName + ', ' : ''}${location.stateCode || ''}`;
+  }
+
+  if (fees.salesTax > 0) {
+    offerText += `
+Sales Tax:               ${fmt(fees.salesTax)} (${((fees.taxRate || 0) * 100).toFixed(2)}%)`;
+  }
+
+  // Add dealer information if available
+  if (dealer && (dealer.name || dealer.address)) {
+    offerText += `
+
+🏢 DEALER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
+    if (dealer.name) {
+      offerText += `
+${dealer.name}`;
+    }
+    if (dealer.address) {
+      offerText += `
+${dealer.address}`;
+    }
+    if (dealer.phone) {
+      offerText += `
+Phone: ${dealer.phone}`;
+    }
+  }
+
+  // Add customer notes if provided
+  if (customerNotes && customerNotes.trim()) {
+    offerText += `
+
+📝 NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+${customerNotes.trim()}`;
+  }
+
+  // Add footer
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  offerText += `
+
+─────────────────────────────────────────
+Generated on ${currentDate}
+Powered by ExcelCalc Finance Calculator
+https://excelcalc.com
+`;
+
+  return offerText.trim();
+}
+
+/**
+ * Open Submit Offer modal
+ */
+async function openSubmitOfferModal() {
+  const modal = document.getElementById('submit-offer-modal');
+  if (!modal) return;
+
+  // Generate and display offer preview
+  const offerText = formatOfferText();
+  const previewElement = document.getElementById('offerPreviewText');
+  if (previewElement) {
+    previewElement.textContent = offerText;
+  }
+
+  // Auto-populate customer information from profile
+  await loadCustomerDataForSubmission();
+
+  // Auto-populate dealer information from wizardData
+  await loadDealerDataForSubmission();
+
+  modal.style.display = 'flex';
+}
+
+/**
+ * Close Submit Offer modal
+ */
+function closeSubmitOfferModal() {
+  const modal = document.getElementById('submit-offer-modal');
+  if (modal) {
+    modal.style.display = 'none';
+  }
+}
+
+/**
+ * Load customer data for submission (auto-populate from profile)
+ */
+async function loadCustomerDataForSubmission() {
+  try {
+    const profileId = localStorage.getItem('customerProfileId');
+    if (!profileId) return;
+
+    const { data: profile, error } = await supabase
+      .from('customer_profiles')
+      .select('*')
+      .eq('id', profileId)
+      .single();
+
+    if (error || !profile) return;
+
+    // Populate customer fields
+    document.getElementById('submitCustomerName').value = profile.full_name || '';
+    document.getElementById('submitCustomerEmail').value = profile.email || '';
+    document.getElementById('submitCustomerPhone').value = profile.phone || '';
+  } catch (error) {
+    console.error('Error loading customer data:', error);
+  }
+}
+
+/**
+ * Load dealer data for submission (auto-populate from wizardData)
+ */
+async function loadDealerDataForSubmission() {
+  const dealer = wizardData.dealer || {};
+
+  // Populate dealer fields if available
+  if (dealer.name) {
+    document.getElementById('submitDealershipName').value = dealer.name;
+  }
+  if (dealer.phone) {
+    document.getElementById('submitSalespersonPhone').value = dealer.phone;
+  }
+
+  // Set up salesperson auto-complete
+  setupSalespersonAutoComplete();
+}
+
+/**
+ * Setup salesperson auto-complete functionality
+ */
+function setupSalespersonAutoComplete() {
+  const salespersonNameInput = document.getElementById('submitSalespersonName');
+  if (!salespersonNameInput) return;
+
+  let debounceTimer;
+
+  salespersonNameInput.addEventListener('input', async (e) => {
+    clearTimeout(debounceTimer);
+
+    const query = e.target.value.trim();
+    if (query.length < 2) return; // Only search after 2 characters
+
+    debounceTimer = setTimeout(async () => {
+      await loadSalespersonSuggestions(query);
+    }, 300); // Debounce 300ms
+  });
+
+  // When user selects a suggestion, auto-fill other fields
+  salespersonNameInput.addEventListener('change', async (e) => {
+    const selectedName = e.target.value.trim();
+    if (!selectedName) return;
+
+    // Find matching salesperson in database
+    const { data: salespeople, error } = await supabase
+      .from('salesperson_contacts')
+      .select('*')
+      .eq('full_name', selectedName)
+      .order('last_used_at', { ascending: false })
+      .limit(1);
+
+    if (error || !salespeople || salespeople.length === 0) return;
+
+    const salesperson = salespeople[0];
+
+    // Auto-fill fields
+    if (salesperson.dealership_name) {
+      document.getElementById('submitDealershipName').value = salesperson.dealership_name;
+    }
+    if (salesperson.phone) {
+      document.getElementById('submitSalespersonPhone').value = salesperson.phone;
+    }
+    if (salesperson.email) {
+      document.getElementById('submitSalespersonEmail').value = salesperson.email;
+    }
+  });
+}
+
+/**
+ * Load salesperson suggestions from Supabase
+ */
+async function loadSalespersonSuggestions(query = '') {
+  try {
+    const datalist = document.getElementById('salespersonSuggestions');
+    if (!datalist) return;
+
+    // Clear existing options
+    datalist.innerHTML = '';
+
+    if (!query || query.length < 2) return;
+
+    // Query database for matching salespeople
+    const { data: salespeople, error } = await supabase
+      .from('salesperson_contacts')
+      .select('*')
+      .or(`full_name.ilike.%${query}%,dealership_name.ilike.%${query}%`)
+      .order('times_used', { ascending: false })
+      .order('last_used_at', { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error('Error loading salesperson suggestions:', error);
+      return;
+    }
+
+    if (!salespeople || salespeople.length === 0) return;
+
+    // Populate datalist with suggestions
+    salespeople.forEach((person) => {
+      const option = document.createElement('option');
+      option.value = person.full_name;
+      option.textContent = `${person.full_name} - ${person.dealership_name || 'Unknown Dealership'}`;
+      datalist.appendChild(option);
+    });
+  } catch (error) {
+    console.error('Error loading salesperson suggestions:', error);
+  }
+}
+
+/* ============================================================================
+   Submission Methods
+   ============================================================================ */
+
+/**
+ * Handle Share button (Web Share API)
+ */
+async function handleShareOffer() {
+  try {
+    // Validate customer information
+    if (!validateSubmissionForm()) return;
+
+    // Get formatted offer text with notes
+    const notes = document.getElementById('submitOfferNotes').value.trim();
+    const offerText = formatOfferText(notes);
+
+    // Check if Web Share API is available
+    if (!navigator.share) {
+      alert('Share feature is not supported on this device. Please use Copy or Email instead.');
+      return;
+    }
+
+    // Save offer to database before sharing
+    await saveOfferToDatabase('share', offerText);
+
+    // Use Web Share API
+    await navigator.share({
+      title: 'Vehicle Purchase Offer',
+      text: offerText
+    });
+
+    // Success - redirect to My Saved Offers
+    await handleSubmissionSuccess();
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.error('Error sharing offer:', error);
+      alert('Error sharing offer. Please try again.');
+    }
+  }
+}
+
+/**
+ * Handle Email button (mailto: link)
+ */
+async function handleEmailOffer() {
+  try {
+    // Validate customer information and dealer email
+    if (!validateSubmissionForm()) return;
+
+    const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+    if (!salespersonEmail) {
+      alert('Please enter the dealer\'s email address.');
+      return;
+    }
+
+    // Get formatted offer text with notes
+    const notes = document.getElementById('submitOfferNotes').value.trim();
+    const offerText = formatOfferText(notes);
+
+    // Save offer to database before emailing
+    await saveOfferToDatabase('email', offerText, salespersonEmail);
+
+    // Create mailto link
+    const vehicle = wizardData.vehicle || {};
+    const subject = encodeURIComponent(`Vehicle Purchase Offer - ${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`);
+    const body = encodeURIComponent(offerText);
+
+    window.location.href = `mailto:${salespersonEmail}?subject=${subject}&body=${body}`;
+
+    // Success - redirect to My Saved Offers after brief delay
+    setTimeout(async () => {
+      await handleSubmissionSuccess();
+    }, 1000);
+  } catch (error) {
+    console.error('Error emailing offer:', error);
+    alert('Error preparing email. Please try again.');
+  }
+}
+
+/**
+ * Handle SMS button (sms: link)
+ */
+async function handleSmsOffer() {
+  try {
+    // Validate customer information and dealer phone
+    if (!validateSubmissionForm()) return;
+
+    const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
+    if (!salespersonPhone) {
+      alert('Please enter the dealer\'s phone number.');
+      return;
+    }
+
+    // Get formatted offer text with notes
+    const notes = document.getElementById('submitOfferNotes').value.trim();
+    const offerText = formatOfferText(notes);
+
+    // Save offer to database before texting
+    await saveOfferToDatabase('sms', offerText, salespersonPhone);
+
+    // Create SMS link
+    const body = encodeURIComponent(offerText);
+
+    // Different SMS URL schemes for different platforms
+    const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+    const smsUrl = isMac
+      ? `sms:${salespersonPhone}&body=${body}`
+      : `sms:${salespersonPhone}?body=${body}`;
+
+    window.location.href = smsUrl;
+
+    // Success - redirect to My Saved Offers after brief delay
+    setTimeout(async () => {
+      await handleSubmissionSuccess();
+    }, 1000);
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    alert('Error preparing text message. Please try again.');
+  }
+}
+
+/**
+ * Handle Copy button (Clipboard API)
+ */
+async function handleCopyOffer() {
+  try {
+    // Validate customer information
+    if (!validateSubmissionForm()) return;
+
+    // Get formatted offer text with notes
+    const notes = document.getElementById('submitOfferNotes').value.trim();
+    const offerText = formatOfferText(notes);
+
+    // Save offer to database before copying
+    await saveOfferToDatabase('copy', offerText);
+
+    // Copy to clipboard
+    await navigator.clipboard.writeText(offerText);
+
+    alert('Offer copied to clipboard! You can now paste it anywhere.');
+
+    // Success - redirect to My Saved Offers
+    await handleSubmissionSuccess();
+  } catch (error) {
+    console.error('Error copying offer:', error);
+    alert('Error copying to clipboard. Please try again.');
+  }
+}
+
+/**
+ * Validate submission form
+ */
+function validateSubmissionForm() {
+  const customerName = document.getElementById('submitCustomerName').value.trim();
+  const customerEmail = document.getElementById('submitCustomerEmail').value.trim();
+  const customerPhone = document.getElementById('submitCustomerPhone').value.trim();
+  const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
+  const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+
+  // Validate required customer fields
+  if (!customerName || !customerEmail || !customerPhone) {
+    alert('Please fill in all required customer fields (Name, Email, Phone).');
+    return false;
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(customerEmail)) {
+    alert('Please enter a valid email address.');
+    return false;
+  }
+
+  // Validate at least one dealer contact method
+  if (!salespersonPhone && !salespersonEmail) {
+    alert('Please provide at least one contact method for the dealer (phone or email).');
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Handle successful submission
+ */
+async function handleSubmissionSuccess() {
+  // Close the submit offer modal
+  closeSubmitOfferModal();
+
+  // Close the review contract modal if open
+  closeReviewContractModal();
+
+  // Show congratulatory message
+  alert('🎉 Offer submitted successfully!\n\nYou can view your saved offers anytime.');
+
+  // TODO: Redirect to My Saved Offers modal
+  // For now, just scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/**
+ * Save offer to Supabase database
+ */
+async function saveOfferToDatabase(submissionMethod, formattedText, recipientContact = null) {
+  try {
+    const reviewData = computeReviewData();
+    if (!reviewData) {
+      console.error('Unable to compute review data');
+      return null;
+    }
+
+    // Get customer profile ID
+    const profileId = localStorage.getItem('customerProfileId');
+
+    // Get customer data from form
+    const customerName = document.getElementById('submitCustomerName').value.trim();
+    const customerEmail = document.getElementById('submitCustomerEmail').value.trim();
+    const customerPhone = document.getElementById('submitCustomerPhone').value.trim();
+
+    // Save/update customer profile if not exists
+    let customerId = profileId;
+    if (!customerId) {
+      const { data: profile, error: profileError } = await supabase
+        .from('customer_profiles')
+        .upsert({
+          full_name: customerName,
+          email: customerEmail,
+          phone: customerPhone,
+          last_used_at: new Date().toISOString()
+        }, { onConflict: 'email' })
+        .select()
+        .single();
+
+      if (!profileError && profile) {
+        customerId = profile.id;
+        localStorage.setItem('customerProfileId', profile.id);
+      }
+    }
+
+    // Get salesperson data from form
+    const salespersonName = document.getElementById('submitSalespersonName').value.trim();
+    const dealershipName = document.getElementById('submitDealershipName').value.trim();
+    const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
+    const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+
+    // Save/update salesperson if provided
+    let salespersonId = null;
+    if (salespersonName || dealershipName) {
+      const { data: salesperson, error: salespersonError } = await supabase
+        .from('salesperson_contacts')
+        .upsert({
+          full_name: salespersonName || 'Unknown',
+          dealership_name: dealershipName || null,
+          phone: salespersonPhone || null,
+          email: salespersonEmail || null,
+          last_used_at: new Date().toISOString()
+        }, { onConflict: 'full_name,dealership_name' })
+        .select()
+        .single();
+
+      if (!salespersonError && salesperson) {
+        salespersonId = salesperson.id;
+
+        // Increment usage count
+        await supabase.rpc('increment_salesperson_usage', {
+          salesperson_id: salesperson.id
+        });
+      }
+    }
+
+    // Prepare offer data
+    const vehicle = wizardData.vehicle || {};
+    const trade = wizardData.trade || {};
+    const location = wizardData.location || {};
+    const notes = document.getElementById('submitOfferNotes').value.trim();
+
+    const offerData = {
+      customer_profile_id: customerId,
+      salesperson_id: salespersonId,
+      offer_name: `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim(),
+      status: 'submitted',
+
+      // Vehicle data
+      vehicle_year: vehicle.year || null,
+      vehicle_make: vehicle.make || null,
+      vehicle_model: vehicle.model || null,
+      vehicle_trim: vehicle.trim || null,
+      vehicle_vin: vehicle.vin || null,
+      vehicle_condition: vehicle.condition || null,
+      vehicle_mileage: vehicle.mileage || null,
+
+      // Pricing
+      sale_price: reviewData.salePrice || 0,
+      down_payment: reviewData.downPayment || 0,
+
+      // Trade-in
+      has_tradein: !!(trade && (trade.offer > 0 || trade.payoff > 0)),
+      tradein_allowance: trade?.offer || null,
+      tradein_payoff: trade?.payoff || null,
+      tradein_net: trade ? (trade.offer || 0) - (trade.payoff || 0) : null,
+
+      // Financing
+      term: reviewData.term || null,
+      apr: reviewData.apr || null,
+      monthly_payment: reviewData.monthlyPayment || 0,
+      finance_charge: reviewData.financeCharge || 0,
+      amount_financed: reviewData.amountFinanced || 0,
+      total_of_payments: reviewData.totalOfPayments || 0,
+      lender_id: wizardData.selectedApr?.lender_id || null,
+      lender_name: wizardData.selectedApr?.lender_name || null,
+
+      // Fees
+      fees: reviewData.fees || null,
+
+      // Location
+      state_code: location.stateCode || null,
+      county_name: location.countyName || null,
+
+      // Complete state snapshot
+      wizard_state: wizardData,
+
+      // Notes
+      customer_notes: notes || null
+    };
+
+    // Insert offer
+    const { data: offer, error: offerError } = await supabase
+      .from('saved_offers')
+      .insert(offerData)
+      .select()
+      .single();
+
+    if (offerError) {
+      console.error('Error saving offer:', offerError);
+      return null;
+    }
+
+    // Record submission
+    if (offer) {
+      await supabase
+        .from('offer_submissions')
+        .insert({
+          saved_offer_id: offer.id,
+          salesperson_id: salespersonId,
+          submission_method: submissionMethod,
+          formatted_text: formattedText,
+          recipient_contact: recipientContact
+        });
+    }
+
+    console.log('Offer saved successfully:', offer);
+    return offer;
+  } catch (error) {
+    console.error('Error saving offer to database:', error);
+    return null;
+  }
+}
+
+// Make functions globally available
+window.formatOfferText = formatOfferText;
+window.openSubmitOfferModal = openSubmitOfferModal;
+window.closeSubmitOfferModal = closeSubmitOfferModal;
+window.setupSalespersonAutoComplete = setupSalespersonAutoComplete;
+window.handleShareOffer = handleShareOffer;
+window.handleEmailOffer = handleEmailOffer;
+window.handleSmsOffer = handleSmsOffer;
+window.handleCopyOffer = handleCopyOffer;
 
 function getFeeCategoryState(categoryKey) {
   return feeModalState.categories?.[categoryKey] ?? null;
