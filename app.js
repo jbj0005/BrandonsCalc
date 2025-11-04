@@ -5020,8 +5020,8 @@ async function autoPopulateCalculatorFromProfile() {
           tradeInControls.style.display = 'block';
         }
 
-        // Dispatch change event on checkbox
-        hasTradeCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
+        // Don't dispatch change event - just silently check the box and show controls
+        // The slider events will handle all necessary UI updates
       }
 
       // Set trade-in value
