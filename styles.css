@@ -4956,62 +4956,71 @@ body {
   width: 100%;
   border-collapse: collapse;
   margin-top: var(--spacing-sm);
+  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  overflow: hidden;
 }
 
 .contract-table tr {
   border-bottom: 1px solid #f3f4f6;
 }
 
+.contract-table tr:last-child {
+  border-bottom: none;
+}
+
 .contract-item-label {
-  padding: 10px 8px;
-  font-size: 13px;
+  padding: 12px 16px;
+  font-size: 14px;
   font-weight: 500;
   font-family: var(--font-body);
   color: #374151;
+  background: white;
 }
 
 .contract-item-value {
-  padding: 10px 8px;
-  font-size: 13px;
+  padding: 12px 16px;
+  font-size: 14px;
   font-family: var(--font-mono);
   font-weight: 600;
   text-align: right;
   white-space: nowrap;
   color: #111827;
+  background: white;
 }
 
 .contract-indent {
-  padding-left: var(--spacing-xl);
-  font-size: 12px;
+  padding-left: 40px !important;
+  font-size: 13px;
   font-weight: 400;
   color: #6b7280;
+  background: #fafafa !important;
 }
 
 .contract-indent2 {
-  padding-left: calc(var(--spacing-xl) * 1.5);
-  font-size: 11px;
+  padding-left: 56px !important;
+  font-size: 12px;
   font-style: italic;
   color: #9ca3af;
+  background: #fafafa !important;
 }
 
-/* Header rows for main calculation flow (matching quick-item--header) */
+/* Main category rows - clean and bold */
 .contract-header {
-  background: linear-gradient(
-    135deg,
-    rgba(59, 130, 246, 0.06),
-    rgba(37, 99, 235, 0.03)
-  );
-  border-left: 3px solid #3b82f6;
+  background: #f9fafb !important;
 }
 
 .contract-header .contract-item-label,
 .contract-header .contract-item-value {
   font-weight: 700;
-  padding: 10px 4px;
+  font-size: 14px;
+  color: #111827;
+  padding: 14px 16px;
 }
 
+/* Cash Due at Signing - subtle highlight */
 .contract-subtotal {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(217, 119, 6, 0.05));
+  background: #fffbeb !important;
   border-top: 2px solid #f59e0b;
   border-bottom: 2px solid #f59e0b;
 }
@@ -5019,32 +5028,34 @@ body {
 .contract-subtotal .contract-item-label,
 .contract-subtotal .contract-item-value {
   font-weight: 700;
-  padding: var(--spacing-md) 8px;
+  padding: 14px 16px;
   font-family: var(--font-body);
   color: #92400e;
+  font-size: 15px;
 }
 
 .contract-subtotal .contract-item-value {
   font-family: var(--font-mono);
 }
 
+/* Amount Financed - prominent total */
 .contract-total {
-  background: linear-gradient(135deg, #1f2937, #111827);
+  background: linear-gradient(135deg, #1e293b, #0f172a) !important;
   color: white;
-  border-top: 3px solid #3b82f6;
-  border-bottom: 3px solid #3b82f6;
 }
 
 .contract-total .contract-item-label,
 .contract-total .contract-item-value {
   color: white;
   font-weight: 700;
-  padding: var(--spacing-lg) 8px;
-  font-size: 15px;
+  padding: 16px;
+  font-size: 16px;
+  letter-spacing: 0.5px;
 }
 
 .contract-total .contract-item-label {
   font-family: var(--font-display);
+  text-transform: uppercase;
 }
 
 .contract-total .contract-item-value {
