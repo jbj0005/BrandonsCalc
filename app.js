@@ -492,8 +492,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     profileBtn.addEventListener('click', openCustomerProfileModal);
   }
 
-  // Auto-populate location from customer profile
+  // Auto-populate location and calculator fields from customer profile
   await autoPopulateLocationFromProfile();
+  await autoPopulateCalculatorFromProfile();
 });
 
 /**
@@ -4729,6 +4730,17 @@ async function loadCustomerProfileData() {
         document.getElementById('profileState').value = profile.state_code || '';
         document.getElementById('profileZip').value = profile.zip_code || '';
         document.getElementById('profileCreditScore').value = profile.credit_score_range || '';
+
+        // Populate preference fields
+        document.getElementById('profileDownPayment').value = profile.preferred_down_payment
+          ? formatCurrency(profile.preferred_down_payment)
+          : '';
+        document.getElementById('profileTradeValue').value = profile.preferred_trade_value
+          ? formatCurrency(profile.preferred_trade_value)
+          : '';
+        document.getElementById('profileTradePayoff').value = profile.preferred_trade_payoff
+          ? formatCurrency(profile.preferred_trade_payoff)
+          : '';
       }
 
       // Update header label with user's first name
@@ -4955,6 +4967,97 @@ async function autoPopulateLocationFromProfile() {
 }
 
 /**
+ * Auto-populate calculator fields from customer profile preferences
+ */
+async function autoPopulateCalculatorFromProfile() {
+  try {
+    const profile = await loadCustomerProfileData();
+    if (!profile) return;
+
+    // Auto-populate down payment
+    if (profile.preferred_down_payment && profile.preferred_down_payment > 0) {
+      const cashDownSlider = document.getElementById('quickSliderCashDown');
+      if (cashDownSlider && !wizardData.financing?.cashDown) {
+        cashDownSlider.value = profile.preferred_down_payment;
+
+        // Update wizardData
+        if (!wizardData.financing) wizardData.financing = {};
+        wizardData.financing.cashDown = profile.preferred_down_payment;
+
+        // Update display
+        const cashDownInput = document.getElementById('quickValueCashDown');
+        if (cashDownInput) {
+          cashDownInput.value = formatCurrency(profile.preferred_down_payment);
+        }
+
+        console.log('[auto-populate] Set down payment to:', formatCurrency(profile.preferred_down_payment));
+      }
+    }
+
+    // Auto-populate trade-in values
+    if ((profile.preferred_trade_value && profile.preferred_trade_value > 0) ||
+        (profile.preferred_trade_payoff && profile.preferred_trade_payoff > 0)) {
+
+      // Enable trade-in checkbox
+      const hasTradeCheckbox = document.getElementById('quick-has-tradein');
+      if (hasTradeCheckbox && !wizardData.tradein?.hasTradeIn) {
+        hasTradeCheckbox.checked = true;
+
+        if (!wizardData.tradein) wizardData.tradein = {};
+        wizardData.tradein.hasTradeIn = true;
+
+        // Show trade-in sliders
+        const tradeInControls = document.querySelector('.trade-in-controls');
+        if (tradeInControls) {
+          tradeInControls.style.display = 'block';
+        }
+      }
+
+      // Set trade-in value
+      if (profile.preferred_trade_value && profile.preferred_trade_value > 0) {
+        const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
+        if (tradeValueSlider && !wizardData.tradein?.value) {
+          tradeValueSlider.value = profile.preferred_trade_value;
+
+          wizardData.tradein.value = profile.preferred_trade_value;
+
+          const tradeValueInput = document.getElementById('quickValueTradeAllowance');
+          if (tradeValueInput) {
+            tradeValueInput.value = formatCurrency(profile.preferred_trade_value);
+          }
+
+          console.log('[auto-populate] Set trade-in value to:', formatCurrency(profile.preferred_trade_value));
+        }
+      }
+
+      // Set trade-in payoff
+      if (profile.preferred_trade_payoff && profile.preferred_trade_payoff > 0) {
+        const tradePayoffSlider = document.getElementById('quickSliderTradePayoff');
+        if (tradePayoffSlider && !wizardData.tradein?.payoff) {
+          tradePayoffSlider.value = profile.preferred_trade_payoff;
+
+          wizardData.tradein.payoff = profile.preferred_trade_payoff;
+
+          const tradePayoffInput = document.getElementById('quickValueTradePayoff');
+          if (tradePayoffInput) {
+            tradePayoffInput.value = formatCurrency(profile.preferred_trade_payoff);
+          }
+
+          console.log('[auto-populate] Set trade-in payoff to:', formatCurrency(profile.preferred_trade_payoff));
+        }
+      }
+    }
+
+    // Trigger recalculation if any values were set
+    if (profile.preferred_down_payment || profile.preferred_trade_value || profile.preferred_trade_payoff) {
+      await autoCalculateQuick();
+    }
+  } catch (error) {
+    console.error('Error auto-populating calculator from profile:', error);
+  }
+}
+
+/**
  * Save customer profile to Supabase
  */
 async function saveCustomerProfile() {
@@ -4968,6 +5071,11 @@ async function saveCustomerProfile() {
     const state = document.getElementById('profileState').value.trim().toUpperCase();
     const zip = document.getElementById('profileZip').value.trim();
     const creditScore = document.getElementById('profileCreditScore').value;
+
+    // Get preference values
+    const downPayment = parseCurrency(document.getElementById('profileDownPayment').value) || null;
+    const tradeValue = parseCurrency(document.getElementById('profileTradeValue').value) || null;
+    const tradePayoff = parseCurrency(document.getElementById('profileTradePayoff').value) || null;
 
     // Validate required fields
     if (!fullName || !email || !phone) {
@@ -5002,6 +5110,9 @@ async function saveCustomerProfile() {
       county_name: countyName,
       google_place_id: googlePlaceId,
       credit_score_range: creditScore || null,
+      preferred_down_payment: downPayment,
+      preferred_trade_value: tradeValue,
+      preferred_trade_payoff: tradePayoff,
       updated_at: new Date().toISOString(),
       last_used_at: new Date().toISOString()
     };
@@ -5037,8 +5148,11 @@ async function saveCustomerProfile() {
     // Auto-populate main location from saved profile
     await autoPopulateLocationFromProfile();
 
+    // Auto-populate calculator fields from saved profile
+    await autoPopulateCalculatorFromProfile();
+
     // TODO: Show toast notification
-    alert('Profile saved successfully! Your location has been auto-populated.');
+    alert('Profile saved successfully! Your location and preferences have been auto-populated.');
   } catch (error) {
     console.error('Error saving customer profile:', error);
     alert('Error saving profile. Please try again.');
