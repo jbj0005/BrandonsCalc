@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS garage_vehicles (
   mileage INTEGER,
   vin TEXT,
   condition TEXT, -- 'excellent', 'good', 'fair', 'poor'
+  photo_url TEXT, -- URL to vehicle photo in Supabase Storage
 
   -- Financial Information
   estimated_value NUMERIC(10, 2), -- User's estimate of trade-in value
