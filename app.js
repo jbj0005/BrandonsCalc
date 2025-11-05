@@ -1342,14 +1342,8 @@ async function loadSavedVehicles() {
     console.log('✅ [loadSavedVehicles] Successfully loaded', savedVehicles.length, 'vehicles');
     console.log('✅ [loadSavedVehicles] savedVehicles array:', savedVehicles);
 
-    // Re-render the quick VIN dropdown
-    const quickDropdown = document.getElementById("quick-saved-vehicles-dropdown");
-    if (quickDropdown && savedVehicles.length > 0) {
-      console.log('🔄 [loadSavedVehicles] Re-rendering quick VIN dropdown');
-      displayQuickSavedVehicles();
-    } else if (!quickDropdown) {
-      console.log('⚠️ [loadSavedVehicles] Quick VIN dropdown element not found yet (might not be on this page)');
-    }
+    // Note: Dropdown will be populated when user focuses on VIN field
+    // via setupQuickSavedVehicles() event listeners - don't show it automatically
   } catch (error) {
     console.error("[vehicles] Error loading saved vehicles:", error);
     savedVehicles = [];
@@ -6627,6 +6621,168 @@ async function updateTradeInCalculations() {
 }
 
 /**
+ * Add a saved vehicle to My Garage (for trade-in purposes)
+ */
+async function addSavedVehicleToGarage(savedVehicleId) {
+  try {
+    console.log('🚗 [addSavedVehicleToGarage] Adding vehicle to garage:', savedVehicleId);
+
+    if (!supabase || !currentUserId) {
+      showToast('Please sign in to add vehicles to your garage', 'error');
+      return;
+    }
+
+    // Show loading state
+    showToast('Adding vehicle to garage...', 'info');
+
+    // 1. Fetch the saved vehicle
+    const { data: savedVehicle, error: fetchError } = await supabase
+      .from('vehicles')
+      .select('*')
+      .eq('id', savedVehicleId)
+      .single();
+
+    if (fetchError || !savedVehicle) {
+      console.error('[addSavedVehicleToGarage] Error fetching saved vehicle:', fetchError);
+      showToast('Unable to find saved vehicle', 'error');
+      return;
+    }
+
+    // VIN is required
+    if (!savedVehicle.vin) {
+      showToast('Cannot add vehicle without VIN', 'error');
+      return;
+    }
+
+    // Validate required fields
+    const year = Number(savedVehicle.year);
+    if (!year || !savedVehicle.make || !savedVehicle.model) {
+      console.error('[addSavedVehicleToGarage] Missing required fields:', {
+        year: savedVehicle.year,
+        make: savedVehicle.make,
+        model: savedVehicle.model
+      });
+      showToast('Vehicle is missing year/make/model; cannot add', 'error');
+      return;
+    }
+
+    // 2. Check for duplicate by VIN
+    const { data: existingVehicle, error: dupError } = await supabase
+      .from('garage_vehicles')
+      .select('id')
+      .eq('user_id', currentUserId)
+      .eq('vin', savedVehicle.vin)
+      .single();
+
+    if (dupError && dupError.code !== 'PGRST116') {
+      // PGRST116 = not found (which is what we want)
+      console.error('[addSavedVehicleToGarage] Duplicate check error:', dupError);
+      showToast(dupError.message || 'Error checking duplicates', 'error');
+      return;
+    }
+
+    if (existingVehicle) {
+      showToast('This vehicle is already in your garage', 'warning');
+      return;
+    }
+
+    // 3. Normalize condition to what garage_vehicles allows
+    // garage_vehicles: excellent/good/fair/poor
+    // saved vehicles might have: new/used or other values
+    let normalizedCondition = null;
+    const allowedConditions = ['excellent', 'good', 'fair', 'poor'];
+    if (savedVehicle.condition) {
+      const lower = savedVehicle.condition.toLowerCase();
+      if (allowedConditions.includes(lower)) {
+        normalizedCondition = lower;
+      } else if (lower === 'new') {
+        normalizedCondition = 'excellent'; // Map 'new' to 'excellent'
+      } else if (lower === 'used') {
+        normalizedCondition = 'good'; // Map 'used' to 'good'
+      }
+    }
+
+    // 4. Map saved vehicle to garage schema
+    const garageVehicle = {
+      user_id: currentUserId,
+      nickname: savedVehicle.heading || null,
+      year: year,
+      make: savedVehicle.make,
+      model: savedVehicle.model,
+      trim: savedVehicle.trim || null,
+      vin: savedVehicle.vin,
+      mileage: savedVehicle.mileage || null,
+      condition: normalizedCondition,
+      // Use 85% of asking price as estimated trade-in value
+      estimated_value: savedVehicle.asking_price
+        ? Math.round(savedVehicle.asking_price * 0.85)
+        : 0,
+      payoff_amount: 0,
+      photo_url: savedVehicle.photo_url || null,
+      notes: 'Imported from saved vehicles'
+    };
+
+    console.log('🚗 [addSavedVehicleToGarage] Inserting garage vehicle:', garageVehicle);
+
+    // 4. Insert into garage_vehicles
+    const { error: insertError } = await supabase
+      .from('garage_vehicles')
+      .insert([garageVehicle]);
+
+    if (insertError) {
+      console.error('[addSavedVehicleToGarage] Error inserting:', insertError);
+      console.error('[addSavedVehicleToGarage] Error details:', insertError.message, insertError.details);
+      showToast(insertError.message ?? 'Could not add to garage', 'error');
+      return;
+    }
+
+    // 5. Remove from saved vehicles
+    console.log('🗑️ [addSavedVehicleToGarage] Removing from saved vehicles table...');
+    const { error: deleteError } = await supabase
+      .from('vehicles')
+      .delete()
+      .eq('id', savedVehicleId)
+      .eq('user_id', currentUserId);
+
+    if (deleteError) {
+      console.error('[addSavedVehicleToGarage] Error removing from saved vehicles:', deleteError);
+      console.error('[addSavedVehicleToGarage] Delete error details:', deleteError.message, deleteError.details);
+      // Don't fail the operation, just log it - vehicle was added to garage successfully
+    } else {
+      console.log('✅ [addSavedVehicleToGarage] Vehicle removed from saved vehicles');
+    }
+
+    // 6. Refresh both lists
+    console.log('🔄 [addSavedVehicleToGarage] Refreshing saved vehicles list...');
+    await loadSavedVehicles();
+    console.log('🔄 [addSavedVehicleToGarage] Refreshing garage vehicles list...');
+    await loadGarageVehicles();
+
+    // 7. Refresh the dropdown if it's currently visible
+    const quickDropdown = document.getElementById("quick-saved-vehicles-dropdown");
+    if (quickDropdown && quickDropdown.style.display !== "none") {
+      console.log('🔄 [addSavedVehicleToGarage] Refreshing visible dropdown');
+      if (savedVehicles.length > 0) {
+        displayQuickSavedVehicles();
+      } else {
+        // No more saved vehicles - show empty state
+        quickDropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+        quickDropdown.style.display = "block";
+      }
+    }
+
+    // 8. Success toast!
+    showToast(`${savedVehicle.year} ${savedVehicle.make} ${savedVehicle.model} added to My Garage`, 'success');
+
+    console.log('✅ [addSavedVehicleToGarage] Vehicle successfully added to garage');
+
+  } catch (error) {
+    console.error('[addSavedVehicleToGarage] Unexpected error:', error);
+    showToast('Error adding vehicle to garage', 'error');
+  }
+}
+
+/**
  * Show garage form for adding/editing
  */
 async function showGarageForm(vehicleId = null) {
@@ -6704,11 +6860,19 @@ function hideGarageForm() {
  * Open edit vehicle modal
  */
 async function openEditVehicleModal(vehicleId) {
+  console.log('🔧 [openEditVehicleModal] Opening edit modal for vehicle:', vehicleId);
   const modal = document.getElementById("edit-vehicle-modal");
-  if (!modal) return;
+
+  if (!modal) {
+    console.error('❌ [openEditVehicleModal] Modal element not found');
+    return;
+  }
+
+  console.log('✅ [openEditVehicleModal] Modal element found');
 
   try {
     // Fetch vehicle data from garage
+    console.log('🔍 [openEditVehicleModal] Fetching vehicle data...');
     const { data: vehicle, error } = await supabase
       .from("garage_vehicles")
       .select("*")
@@ -6718,6 +6882,8 @@ async function openEditVehicleModal(vehicleId) {
     if (error) throw error;
 
     if (vehicle) {
+      console.log('✅ [openEditVehicleModal] Vehicle data loaded:', vehicle);
+
       // Store the vehicle ID in the modal
       modal.dataset.editingVehicleId = vehicleId;
 
@@ -6737,11 +6903,12 @@ async function openEditVehicleModal(vehicleId) {
         : "";
       document.getElementById("editNotes").value = vehicle.notes || "";
 
+      console.log('✅ [openEditVehicleModal] Form fields populated, showing modal');
       // Show modal
       modal.style.display = "flex";
     }
   } catch (error) {
-    console.error("Error loading vehicle for editing:", error);
+    console.error("❌ [openEditVehicleModal] Error loading vehicle:", error);
     showToast("Error loading vehicle data", "error");
   }
 }
@@ -6776,13 +6943,17 @@ window.closeEditVehicleModal = closeEditVehicleModal;
  * Save edited vehicle
  */
 async function saveEditedVehicle() {
+  console.log('💾 [saveEditedVehicle] Starting save...');
   const modal = document.getElementById("edit-vehicle-modal");
   const vehicleId = modal?.dataset.editingVehicleId;
 
   if (!vehicleId) {
+    console.error('❌ [saveEditedVehicle] Vehicle ID not found');
     showToast("Error: Vehicle ID not found", "error");
     return;
   }
+
+  console.log('💾 [saveEditedVehicle] Saving vehicle ID:', vehicleId);
 
   try {
     // Collect form values
@@ -6806,13 +6977,19 @@ async function saveEditedVehicle() {
       ) || 0;
     const notes = document.getElementById("editNotes").value?.trim() || null;
 
+    console.log('💾 [saveEditedVehicle] Collected form values:', {
+      nickname, year, make, model, trim, mileage, condition, estimatedValue, payoffAmount
+    });
+
     // Validate required fields
     if (!year || !make || !model) {
+      console.error('❌ [saveEditedVehicle] Missing required fields');
       showToast("Please fill in all required fields", "error");
       return;
     }
 
     // Update in garage_vehicles database
+    console.log('💾 [saveEditedVehicle] Updating database...');
     const { error } = await supabase
       .from("garage_vehicles")
       .update({
@@ -6830,22 +7007,28 @@ async function saveEditedVehicle() {
       })
       .eq("id", vehicleId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [saveEditedVehicle] Database error:', error);
+      throw error;
+    }
 
+    console.log('✅ [saveEditedVehicle] Vehicle updated successfully');
     showToast("Vehicle updated successfully", "success");
 
     // Close modal
     closeEditVehicleModal();
 
     // Reload vehicles to reflect changes
+    console.log('🔄 [saveEditedVehicle] Reloading garage vehicles...');
     await loadGarageVehicles();
 
     // Update trade-in calculations if this vehicle is selected
     if (selectedTradeIns.includes(vehicleId)) {
+      console.log('🔄 [saveEditedVehicle] Updating trade-in calculations...');
       await updateTradeInCalculations();
     }
   } catch (error) {
-    console.error("Error saving vehicle:", error);
+    console.error("❌ [saveEditedVehicle] Error saving vehicle:", error);
     showToast("Error saving changes", "error");
   }
 }
@@ -7143,6 +7326,7 @@ window.openMyGarageModal = openMyGarageModal;
 window.closeMyGarageModal = closeMyGarageModal;
 window.loadGarageVehicles = loadGarageVehicles;
 window.handleTradeInSelection = handleTradeInSelection;
+window.addSavedVehicleToGarage = addSavedVehicleToGarage;
 window.showGarageForm = showGarageForm;
 window.hideGarageForm = hideGarageForm;
 window.editGarageVehicle = editGarageVehicle;
@@ -9464,19 +9648,33 @@ function displayQuickSavedVehicles() {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${
-        vehicle.year || ""
-      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+      <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
+        <div class="saved-vehicle-item__title">${
+          vehicle.year || ""
+        } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
       vehicle.model || ""
     )}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(
-        vehicle.trim || ""
-      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
-        vehicle.vin || "N/A"
-      )}</div>
+        <div class="saved-vehicle-item__details">${capitalizeWords(
+          vehicle.trim || ""
+        )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+        <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+          vehicle.vin || "N/A"
+        )}</div>
+      </div>
+      <button
+        class="btn-add-to-garage"
+        onclick="event.stopPropagation(); addSavedVehicleToGarage('${vehicle.id}')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        <span>Add to My Garage</span>
+      </button>
     `;
-    item.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
+
+    // Click on content area to select vehicle
+    const contentArea = item.querySelector('.saved-vehicle-item__content');
+    contentArea.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
+
     dropdown.appendChild(item);
   });
 
@@ -9509,19 +9707,33 @@ function filterQuickSavedVehicles(searchTerm) {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${
-        vehicle.year || ""
-      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+      <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
+        <div class="saved-vehicle-item__title">${
+          vehicle.year || ""
+        } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
       vehicle.model || ""
     )}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(
-        vehicle.trim || ""
-      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
-        vehicle.vin || "N/A"
-      )}</div>
+        <div class="saved-vehicle-item__details">${capitalizeWords(
+          vehicle.trim || ""
+        )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+        <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+          vehicle.vin || "N/A"
+        )}</div>
+      </div>
+      <button
+        class="btn-add-to-garage"
+        onclick="event.stopPropagation(); addSavedVehicleToGarage('${vehicle.id}')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+        </svg>
+        <span>Add to My Garage</span>
+      </button>
     `;
-    item.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
+
+    // Click on content area to select vehicle
+    const contentArea = item.querySelector('.saved-vehicle-item__content');
+    contentArea.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
+
     dropdown.appendChild(item);
   });
 

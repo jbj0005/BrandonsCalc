@@ -1928,6 +1928,173 @@
       </div>
     </div>
 
+    <!-- Edit Vehicle Modal -->
+    <div id="edit-vehicle-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeEditVehicleModal()"></div>
+      <div class="modal-content edit-vehicle-modal">
+        <button
+          class="modal-close"
+          onclick="closeEditVehicleModal()"
+          aria-label="Close edit vehicle modal"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <h3 class="modal-title">Edit Vehicle</h3>
+        <p class="modal-description">
+          Update your vehicle information
+        </p>
+
+        <form id="edit-vehicle-form" class="edit-vehicle-form" onsubmit="event.preventDefault(); saveEditedVehicle();">
+          <div class="form-group">
+            <label class="form-label" for="editNickname">Nickname (Optional)</label>
+            <input
+              type="text"
+              id="editNickname"
+              class="form-input"
+              placeholder="My Civic, Wife's SUV, etc."
+            />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editYear">Year *</label>
+              <input
+                type="number"
+                id="editYear"
+                class="form-input"
+                placeholder="2020"
+                min="1900"
+                max="2030"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editMake">Make *</label>
+              <input
+                type="text"
+                id="editMake"
+                class="form-input"
+                placeholder="Honda"
+                required
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editModel">Model *</label>
+              <input
+                type="text"
+                id="editModel"
+                class="form-input"
+                placeholder="Civic"
+                required
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editTrim">Trim</label>
+              <input
+                type="text"
+                id="editTrim"
+                class="form-input"
+                placeholder="EX-L"
+              />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editMileage">Mileage</label>
+              <input
+                type="number"
+                id="editMileage"
+                class="form-input"
+                placeholder="50000"
+                min="0"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editCondition">Condition</label>
+              <select id="editCondition" class="form-select">
+                <option value="">Select condition</option>
+                <option value="excellent">Excellent</option>
+                <option value="good">Good</option>
+                <option value="fair">Fair</option>
+                <option value="poor">Poor</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editVin">VIN</label>
+            <input
+              type="text"
+              id="editVin"
+              class="form-input"
+              placeholder="1HGBH41JXMN109186"
+              maxlength="17"
+            />
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="editEstimatedValue">Estimated Value</label>
+              <input
+                type="text"
+                id="editEstimatedValue"
+                class="form-input"
+                placeholder="$15,000"
+              />
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="editPayoffAmount">Payoff Amount</label>
+              <input
+                type="text"
+                id="editPayoffAmount"
+                class="form-input"
+                placeholder="$0"
+              />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editNotes">Notes</label>
+            <textarea
+              id="editNotes"
+              class="form-input"
+              rows="3"
+              placeholder="Additional notes about this vehicle..."
+            ></textarea>
+          </div>
+
+          <div class="button-group">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeEditVehicleModal()"
+            >
+              Cancel
+            </button>
+            <button type="submit" class="btn btn-primary">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Submit Offer Modal -->
     <div id="submit-offer-modal" class="modal" style="display: none">
       <div class="modal-overlay" onclick="closeSubmitOfferModal()"></div>
