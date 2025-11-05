@@ -7481,11 +7481,35 @@ body {
   border-radius: 10px 10px 0 0;
 }
 
+/* Section headers for "In My Garage" and "Saved Vehicles" */
+.vehicle-section-header {
+  padding: 10px 16px;
+  background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.vehicle-section-header:first-child {
+  border-radius: 10px 10px 0 0;
+}
+
+.vehicle-section-header.with-top-margin {
+  margin-top: 8px;
+  border-top: 2px solid rgba(0, 0, 0, 0.1);
+}
+
 .vehicle-selector-item {
   padding: 12px 16px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   cursor: pointer;
   transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .vehicle-selector-item:last-child {
@@ -7496,6 +7520,65 @@ body {
   background: rgba(59, 130, 246, 0.08);
 }
 
+/* Garage vehicles get special styling */
+.vehicle-selector-item.garage-vehicle {
+  border-left: 3px solid var(--primary-end);
+  background: rgba(59, 130, 246, 0.02);
+}
+
+.vehicle-selector-item.garage-vehicle:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+/* Vehicle info container */
+.vehicle-info {
+  flex: 1;
+  cursor: pointer;
+}
+
+.vehicle-main-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-wrap: wrap;
+}
+
+.vehicle-main-line strong {
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.vehicle-condition {
+  display: inline-block;
+  padding: 2px 8px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.vehicle-trim {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: normal;
+}
+
+.vehicle-detail-line {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.vehicle-detail-line span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* Legacy classes for backward compatibility */
 .vehicle-selector-main {
   display: flex;
   align-items: center;
@@ -7508,12 +7591,6 @@ body {
   font-size: 14px;
 }
 
-.vehicle-trim {
-  color: var(--text-secondary);
-  font-size: 13px;
-  font-weight: normal;
-}
-
 .vehicle-selector-details {
   display: flex;
   gap: 12px;
@@ -7522,6 +7599,19 @@ body {
 .vehicle-selector-details small {
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+/* Saved vehicle row with "Add to Garage" button */
+.saved-vehicle-row {
+  cursor: default;
+}
+
+.saved-vehicle-row .vehicle-info {
+  cursor: pointer;
+}
+
+.saved-vehicle-row .btn-add-to-garage {
+  flex-shrink: 0;
 }
 
 .vehicle-selector-empty {

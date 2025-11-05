@@ -704,54 +704,108 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  // Update vehicle selector dropdown with current garage vehicles
+  // Update vehicle selector dropdown with current garage vehicles and saved vehicles
   function updateVehicleSelectorDropdown() {
     const dropdown = document.getElementById('vehicle-selector-dropdown');
     if (!dropdown) return;
 
     const garageStore = useGarageStore.getState();
-    const vehicles = garageStore.vehicles || [];
+    const garageVehicles = garageStore.vehicles || [];
+    const savedVehiclesData = savedVehicles || [];
 
-    if (vehicles.length === 0) {
+    if (garageVehicles.length === 0 && savedVehiclesData.length === 0) {
       dropdown.innerHTML = `
         <div class="vehicle-selector-empty">
-          <p>No saved vehicles</p>
-          <small>Click "My Garage" to add vehicles</small>
+          <p>No vehicles</p>
+          <small>Click "My Garage" to add vehicles or search for vehicles to save</small>
         </div>
       `;
       return;
     }
 
-    dropdown.innerHTML = `
-      <div class="vehicle-selector-header">
-        <span>Select a saved vehicle</span>
-      </div>
-      ${vehicles.map(vehicle => `
-        <div class="vehicle-selector-item" data-vehicle-id="${vehicle.id}">
-          <div class="vehicle-selector-main">
-            <strong>${vehicle.year} ${vehicle.make} ${vehicle.model}</strong>
-            ${vehicle.trim ? `<span class="vehicle-trim">${vehicle.trim}</span>` : ''}
-          </div>
-          <div class="vehicle-selector-details">
-            ${vehicle.vin ? `<small>VIN: ${vehicle.vin}</small>` : ''}
-            ${vehicle.mileage ? `<small>${vehicle.mileage.toLocaleString()} mi</small>` : ''}
-          </div>
-        </div>
-      `).join('')}
-    `;
+    let html = '';
 
-    // Add click handlers for each vehicle
-    dropdown.querySelectorAll('.vehicle-selector-item').forEach(item => {
+    // Render "In My Garage" section if there are garage vehicles
+    if (garageVehicles.length > 0) {
+      html += `
+        <div class="vehicle-section-header">In My Garage</div>
+        ${garageVehicles.map(vehicle => `
+          <div class="vehicle-selector-item garage-vehicle" data-vehicle-id="${vehicle.id}" data-source="garage">
+            <div class="vehicle-info">
+              <div class="vehicle-main-line">
+                ${vehicle.condition ? `<span class="vehicle-condition">${capitalizeWords(vehicle.condition)}</span>` : ''}
+                <strong>${vehicle.year} ${capitalizeWords(vehicle.make)} ${capitalizeWords(vehicle.model)}</strong>
+                ${vehicle.trim ? `<span class="vehicle-trim">${capitalizeWords(vehicle.trim)}</span>` : ''}
+              </div>
+              <div class="vehicle-detail-line">
+                ${vehicle.mileage ? `<span>${formatMileage(vehicle.mileage)} miles</span>` : '<span>—</span>'}
+                ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : '<span>No VIN</span>'}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    // Render "Saved Vehicles" section if there are saved vehicles
+    if (savedVehiclesData.length > 0) {
+      html += `
+        <div class="vehicle-section-header ${garageVehicles.length > 0 ? 'with-top-margin' : ''}">Saved Vehicles</div>
+        ${savedVehiclesData.map(vehicle => `
+          <div class="vehicle-selector-item saved-vehicle-row" data-vehicle-id="${vehicle.id}" data-source="saved">
+            <div class="vehicle-info" data-vehicle-id="${vehicle.id}">
+              <div class="vehicle-main-line">
+                ${vehicle.condition ? `<span class="vehicle-condition">${capitalizeWords(vehicle.condition)}</span>` : ''}
+                <strong>${vehicle.year} ${capitalizeWords(vehicle.make)} ${capitalizeWords(vehicle.model)}</strong>
+                ${vehicle.trim ? `<span class="vehicle-trim">${capitalizeWords(vehicle.trim)}</span>` : ''}
+              </div>
+              <div class="vehicle-detail-line">
+                ${vehicle.mileage ? `<span>${formatMileage(vehicle.mileage)} miles</span>` : '<span>—</span>'}
+                ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : '<span>No VIN</span>'}
+              </div>
+            </div>
+            <button
+              class="btn-add-to-garage"
+              onclick="event.stopPropagation(); addSavedVehicleToGarage('${vehicle.id}')">
+              <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+              </svg>
+              <span>Add to My Garage</span>
+            </button>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    dropdown.innerHTML = html;
+
+    // Add click handlers for garage vehicles
+    dropdown.querySelectorAll('.garage-vehicle').forEach(item => {
       item.addEventListener('click', () => {
         const vehicleId = item.dataset.vehicleId;
-        const vehicle = vehicles.find(v => v.id === vehicleId);
+        const vehicle = garageVehicles.find(v => v.id === vehicleId);
         if (vehicle) {
           selectGarageVehicle(vehicle);
           dropdown.style.display = 'none';
         }
       });
     });
+
+    // Add click handlers for saved vehicles (click on info area)
+    dropdown.querySelectorAll('.saved-vehicle-row .vehicle-info').forEach(infoArea => {
+      infoArea.addEventListener('click', () => {
+        const vehicleId = infoArea.dataset.vehicleId;
+        const vehicle = savedVehiclesData.find(v => v.id === vehicleId);
+        if (vehicle) {
+          selectQuickSavedVehicle(vehicle);
+          dropdown.style.display = 'none';
+        }
+      });
+    });
   }
+
+  // Make updateVehicleSelectorDropdown globally accessible
+  window.updateVehicleSelectorDropdown = updateVehicleSelectorDropdown;
 
   // Handle vehicle selection from garage
   function selectGarageVehicle(vehicle) {
@@ -1341,6 +1395,12 @@ async function loadSavedVehicles() {
 
     console.log('✅ [loadSavedVehicles] Successfully loaded', savedVehicles.length, 'vehicles');
     console.log('✅ [loadSavedVehicles] savedVehicles array:', savedVehicles);
+
+    // Update the vehicle selector dropdown with saved vehicles
+    // Check if updateVehicleSelectorDropdown is available (it's defined in event listener setup)
+    if (typeof updateVehicleSelectorDropdown === 'function') {
+      updateVehicleSelectorDropdown();
+    }
 
     // Note: Dropdown will be populated when user focuses on VIN field
     // via setupQuickSavedVehicles() event listeners - don't show it automatically
@@ -2143,6 +2203,7 @@ function showUnavailableVehicleModal(vehicle) {
     <div class="vehicle-info">VIN: ${formatVIN(vehicle.vin || "N/A")}</div>
   `;
 
+  modal.classList.add("active");
   modal.style.display = "flex";
 }
 
@@ -2151,7 +2212,10 @@ function showUnavailableVehicleModal(vehicle) {
  */
 function closeUnavailableVehicleModal() {
   const modal = document.getElementById("unavailable-vehicle-modal");
-  modal.style.display = "none";
+  if (modal) {
+    modal.classList.remove("active");
+    modal.style.display = "none";
+  }
   unavailableVehicleData = null;
 
   // Clear VIN input
@@ -5204,6 +5268,7 @@ function openFeesModal() {
   updateTaxLabels();
 
   renderFeeModalFromWizardData();
+  modal.classList.add("active");
   modal.style.display = "flex";
 }
 window.openFeesModal = openFeesModal;
@@ -5211,6 +5276,7 @@ window.openFeesModal = openFeesModal;
 function closeFeesModal() {
   const modal = document.getElementById("fees-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 }
@@ -5256,6 +5322,7 @@ function showAprConfirmationModal() {
   }
 
   // Show the modal
+  modal.classList.add("active");
   modal.style.display = "flex";
 }
 
@@ -5265,6 +5332,7 @@ function showAprConfirmationModal() {
 async function confirmAprChoice(choice) {
   const modal = document.getElementById("apr-confirmation-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 
@@ -5497,6 +5565,7 @@ async function proceedToReviewModal() {
     }
 
     // Show the modal
+    modal.classList.add("active");
     modal.style.display = "flex";
   } catch (error) {
     console.error("[review-contract] Error opening modal:", error);
@@ -5511,6 +5580,7 @@ window.openReviewContractModal = openReviewContractModal;
 function closeReviewContractModal() {
   const modal = document.getElementById("review-contract-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 }
@@ -6756,18 +6826,14 @@ async function addSavedVehicleToGarage(savedVehicleId) {
     console.log('🔄 [addSavedVehicleToGarage] Refreshing saved vehicles list...');
     await loadSavedVehicles();
     console.log('🔄 [addSavedVehicleToGarage] Refreshing garage vehicles list...');
-    await loadGarageVehicles();
+    await loadUserGarageVehicles();
 
-    // 7. Refresh the dropdown if it's currently visible
-    const quickDropdown = document.getElementById("quick-saved-vehicles-dropdown");
-    if (quickDropdown && quickDropdown.style.display !== "none") {
+    // 7. Refresh the unified vehicle selector dropdown if it's currently visible
+    const vehicleDropdown = document.getElementById("vehicle-selector-dropdown");
+    if (vehicleDropdown && vehicleDropdown.style.display !== "none") {
       console.log('🔄 [addSavedVehicleToGarage] Refreshing visible dropdown');
-      if (savedVehicles.length > 0) {
-        displayQuickSavedVehicles();
-      } else {
-        // No more saved vehicles - show empty state
-        quickDropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
-        quickDropdown.style.display = "block";
+      if (typeof updateVehicleSelectorDropdown === 'function') {
+        updateVehicleSelectorDropdown();
       }
     }
 
@@ -6905,6 +6971,7 @@ async function openEditVehicleModal(vehicleId) {
 
       console.log('✅ [openEditVehicleModal] Form fields populated, showing modal');
       // Show modal
+      modal.classList.add("active");
       modal.style.display = "flex";
     }
   } catch (error) {
@@ -6920,6 +6987,7 @@ window.openEditVehicleModal = openEditVehicleModal;
 function closeEditVehicleModal() {
   const modal = document.getElementById("edit-vehicle-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
     modal.dataset.editingVehicleId = "";
 
