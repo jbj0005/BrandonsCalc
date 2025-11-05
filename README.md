@@ -1,6 +1,6 @@
-# ExcelCalc
+# Brandon's Calculator
 
-ExcelCalc is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
+Brandon's Calculator is a dealership-ready finance calculator that surfaces real-time payment scenarios, lender APRs, and vehicle data so sales teams can structure deals without leaving the browser. The app runs as a Vite single-page experience backed by Supabase for rates and lender metadata, plus optional MarketCheck and Google integrations for inventory enrichment.
 
 ## v1.2.0 Highlights - Interactive Controls & Offer Management
 
