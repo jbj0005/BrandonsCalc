@@ -468,9 +468,12 @@ export class AuthManager {
     
     // Menu actions
     profileMenu?.addEventListener('click', (e) => {
+      console.log('🖱️  [Auth Manager] Profile menu clicked');
       const target = e.target as HTMLElement;
+      console.log('🖱️  [Auth Manager] Click target:', target);
       const action = target.closest('[data-action]')?.getAttribute('data-action');
-      
+      console.log('🖱️  [Auth Manager] Found action:', action);
+
       if (action) {
         e.preventDefault();
         this.handleMenuAction(action);
@@ -631,11 +634,14 @@ export class AuthManager {
    * Handle menu actions
    */
   private async handleMenuAction(action: string): Promise<void> {
+    console.log('🔧 [Auth Manager] handleMenuAction called with action:', action);
     const profileMenu = document.getElementById('profile-menu');
     profileMenu?.classList.remove('active');
-    
+
     switch (action) {
       case 'profile':
+        console.log('👤 [Auth Manager] Attempting to open profile modal...');
+        console.log('👤 [Auth Manager] window.openCustomerProfileModal exists?', typeof window.openCustomerProfileModal === 'function');
         if (typeof window.openCustomerProfileModal === 'function') {
           window.openCustomerProfileModal();
         } else {
@@ -644,6 +650,8 @@ export class AuthManager {
         break;
 
       case 'garage':
+        console.log('🚗 [Auth Manager] Attempting to open garage modal...');
+        console.log('🚗 [Auth Manager] window.openMyGarageModal exists?', typeof window.openMyGarageModal === 'function');
         if (typeof window.openMyGarageModal === 'function') {
           window.openMyGarageModal();
         } else {
@@ -652,6 +660,8 @@ export class AuthManager {
         break;
 
       case 'offers':
+        console.log('📋 [Auth Manager] Attempting to open offers modal...');
+        console.log('📋 [Auth Manager] window.openMyOffersModal exists?', typeof window.openMyOffersModal === 'function');
         if (typeof window.openMyOffersModal === 'function') {
           window.openMyOffersModal();
         } else {

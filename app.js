@@ -579,7 +579,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initializeFeeModal();
   await loadFeeSuggestionData();
   updateTaxInputs();
-  await loadSavedVehicles();
+  // Note: loadSavedVehicles() will be called automatically when profile-loaded event fires
   await loadLenders(); // Load lenders for rate comparison
 
   // ============================================
@@ -588,9 +588,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   console.log('🚀 Initializing ExcelCalc v2.0 Phase 1...');
 
   // Listen for profile loaded event (MUST be set up BEFORE AuthManager initializes)
-  window.addEventListener('profile-loaded', (e) => {
+  window.addEventListener('profile-loaded', async (e) => {
     const { profile } = e.detail;
     console.log('✅ Profile loaded:', profile);
+
+    // Update currentUserId for legacy code
+    const authStore = useAuthStore.getState();
+    if (authStore.user) {
+      currentUserId = authStore.user.id;
+      console.log('✅ Updated currentUserId:', currentUserId);
+    }
 
     // Auto-populate wizardData with user profile
     if (profile.full_name) wizardData.customer.name = profile.full_name;
@@ -617,6 +624,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Load user's garage vehicles
     loadUserGarageVehicles();
+
+    // Load saved vehicles for the dropdown
+    await loadSavedVehicles();
+    console.log('✅ Saved vehicles loaded:', savedVehicles.length, 'vehicles');
   });
 
   // Listen for slider changes
@@ -924,18 +935,33 @@ async function initializeSupabase() {
 
     // Get createClient from the global Supabase library (loaded from CDN)
     const { createClient } = window.supabase;
-    supabase = createClient(supabaseUrl, supabaseKey);
+    const authOptions = {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage,
+        storageKey: "excelcalc-auth"
+      }
+    };
+    supabase = createClient(supabaseUrl, supabaseKey, authOptions);
+    console.log('✅ [initializeSupabase] Created Supabase client with storageKey: excelcalc-auth');
 
     // Get current session
     const { data, error } = await supabase.auth.getSession();
 
     currentUserId = data?.session?.user?.id ?? null;
+    if (currentUserId) {
+      console.log("✅ [initializeSupabase] Restored session for user:", currentUserId);
+      await loadSavedVehicles();
+    }
 
     // Listen for auth state changes
     supabase.auth.onAuthStateChange((_event, session) => {
       const newUserId = session?.user?.id ?? null;
       if (newUserId !== currentUserId) {
         currentUserId = newUserId;
+        console.log("🔄 [initializeSupabase] Auth state changed. New user:", currentUserId);
         loadSavedVehicles();
         updateLoginButton();
       }
@@ -1227,15 +1253,21 @@ function setupLocationInput() {
  */
 async function loadSavedVehicles() {
   try {
+    console.log('🚗 [loadSavedVehicles] Starting to load saved vehicles...');
+    console.log('🚗 [loadSavedVehicles] currentUserId:', currentUserId);
+
     if (!supabase) {
+      console.warn('🚗 [loadSavedVehicles] Supabase client not initialized');
       return;
     }
 
     if (!currentUserId) {
+      console.warn('🚗 [loadSavedVehicles] No currentUserId, clearing savedVehicles array');
       savedVehicles = [];
       return;
     }
 
+    console.log('🚗 [loadSavedVehicles] Querying vehicles table...');
     // Query vehicles table with specific columns (using inserted_at like main app)
     const { data, error } = await supabase
       .from("vehicles")
@@ -1306,6 +1338,18 @@ async function loadSavedVehicles() {
         condition: condition, // Normalized to lowercase 'new' or 'used'
       };
     });
+
+    console.log('✅ [loadSavedVehicles] Successfully loaded', savedVehicles.length, 'vehicles');
+    console.log('✅ [loadSavedVehicles] savedVehicles array:', savedVehicles);
+
+    // Re-render the quick VIN dropdown
+    const quickDropdown = document.getElementById("quick-saved-vehicles-dropdown");
+    if (quickDropdown && savedVehicles.length > 0) {
+      console.log('🔄 [loadSavedVehicles] Re-rendering quick VIN dropdown');
+      displayQuickSavedVehicles();
+    } else if (!quickDropdown) {
+      console.log('⚠️ [loadSavedVehicles] Quick VIN dropdown element not found yet (might not be on this page)');
+    }
   } catch (error) {
     console.error("[vehicles] Error loading saved vehicles:", error);
     savedVehicles = [];
@@ -5508,6 +5552,7 @@ async function openCustomerProfileModal() {
   // Set up Google Places autocomplete for address field
   setupProfileAddressAutocomplete();
 
+  modal.classList.add("active");
   modal.style.display = "flex";
   console.log("✅ [My Profile] Modal opened");
 }
@@ -5518,6 +5563,7 @@ async function openCustomerProfileModal() {
 function closeCustomerProfileModal() {
   const modal = document.getElementById("customer-profile-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 }
@@ -6017,6 +6063,7 @@ async function saveCustomerProfile() {
 window.openCustomerProfileModal = openCustomerProfileModal;
 window.closeCustomerProfileModal = closeCustomerProfileModal;
 window.saveCustomerProfile = saveCustomerProfile;
+console.log('✅ [app.js] Customer Profile modal functions exported to window');
 
 /* ============================================================================
    Profile Dropdown Functions
@@ -6256,6 +6303,7 @@ async function openMyGarageModal() {
     console.error("❌ [My Garage] Modal element not found!");
     return;
   }
+  modal.classList.add("active");
   modal.style.display = "flex";
   console.log("✅ [My Garage] Modal opened, loading vehicles...");
   await loadGarageVehicles();
@@ -6267,6 +6315,7 @@ async function openMyGarageModal() {
 function closeMyGarageModal() {
   const modal = document.getElementById("my-garage-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
   hideGarageForm();
@@ -7097,6 +7146,7 @@ window.handleTradeInSelection = handleTradeInSelection;
 window.showGarageForm = showGarageForm;
 window.hideGarageForm = hideGarageForm;
 window.editGarageVehicle = editGarageVehicle;
+console.log('✅ [app.js] My Garage modal functions exported to window');
 window.deleteGarageVehicle = deleteGarageVehicle;
 window.saveGarageVehicle = saveGarageVehicle;
 window.closeDuplicateVehicleModal = closeDuplicateVehicleModal;
@@ -7118,6 +7168,7 @@ async function openMyOffersModal() {
     return;
   }
 
+  modal.classList.add("active");
   modal.style.display = "flex";
   console.log("✅ [My Offers] Modal opened, loading offers...");
 
@@ -7131,6 +7182,7 @@ async function openMyOffersModal() {
 function closeMyOffersModal() {
   const modal = document.getElementById("my-offers-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 }
@@ -7517,6 +7569,7 @@ window.switchOffersTab = switchOffersTab;
 window.viewOfferDetails = viewOfferDetails;
 window.closeOffer = closeOffer;
 window.saveOffer = saveOffer;
+console.log('✅ [app.js] My Offers modal functions exported to window');
 
 /* ============================================================================
    Submit Offer Functions
