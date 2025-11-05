@@ -781,11 +781,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Add click handlers for garage vehicles
     dropdown.querySelectorAll('.garage-vehicle').forEach(item => {
-      item.addEventListener('click', () => {
+      item.addEventListener('click', async () => {
         const vehicleId = item.dataset.vehicleId;
         const vehicle = garageVehicles.find(v => v.id === vehicleId);
         if (vehicle) {
-          selectGarageVehicle(vehicle);
+          await selectGarageVehicle(vehicle);
           dropdown.style.display = 'none';
         }
       });
@@ -808,7 +808,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.updateVehicleSelectorDropdown = updateVehicleSelectorDropdown;
 
   // Handle vehicle selection from garage
-  function selectGarageVehicle(vehicle) {
+  async function selectGarageVehicle(vehicle) {
     console.log('🚗 Selected garage vehicle:', vehicle);
     console.log('🔍 Vehicle keys:', Object.keys(vehicle));
     console.log('💵 Vehicle price fields:', {
@@ -918,6 +918,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Trigger payment calculation
     refreshReview();
+
+    // FIX: Also trigger autoCalculateQuick to update the quick-entry payment display
+    // This is needed because refreshReview() only updates the review section,
+    // but autoCalculateQuick() is required to update the monthly payment hero
+    console.log('🔄 Triggering autoCalculateQuick after vehicle selection...');
+    await autoCalculateQuick();
+    console.log('✅ autoCalculateQuick completed');
 
     console.log('✅ Vehicle data populated from garage');
   }
@@ -3768,18 +3775,6 @@ async function populateYearDropdowns() {
     }
   }
 
-  // Also populate trade-in year dropdown (no location filter needed for trade-ins)
-  const tradeinYearSelect = document.getElementById("tradein-year");
-  if (tradeinYearSelect) {
-    const currentYear = new Date().getFullYear();
-    tradeinYearSelect.innerHTML = '<option value="">Select Year</option>';
-    for (let year = currentYear; year >= 1990; year--) {
-      const option = document.createElement("option");
-      option.value = year;
-      option.textContent = year;
-      tradeinYearSelect.appendChild(option);
-    }
-  }
 }
 
 /**
@@ -3847,7 +3842,7 @@ function setupEnterKeyNavigation() {
  */
 function setupInputFormatting() {
   // Currency fields (vehicle-price handled separately for formula support)
-  const currencyFields = ["down-payment", "tradein-value", "tradein-payoff"];
+  const currencyFields = ["down-payment"];
 
   currencyFields.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
@@ -3857,14 +3852,7 @@ function setupInputFormatting() {
   });
 
   // Mileage fields (only trade-in mileage remains)
-  const mileageFields = ["tradein-mileage"];
-
-  mileageFields.forEach((fieldId) => {
-    const field = document.getElementById(fieldId);
-    if (field) {
-      setupMileageInput(field);
-    }
-  });
+  // No standalone mileage fields remain (trade-in handled via My Garage)
 }
 
 /**
@@ -4134,24 +4122,16 @@ function saveStepData(step) {
       break;
 
     case 3: // Trade-in
-      const hasTradeIn =
-        document.querySelector('input[name="has-tradein"]:checked')?.value ===
-        "yes";
-      if (hasTradeIn) {
-        const tradeValueRaw = document.getElementById("tradein-value").value;
-        const tradePayoffRaw = document.getElementById("tradein-payoff").value;
-
-        wizardData.tradein = {
-          hasTradeIn: true,
-          year: document.getElementById("tradein-year").value,
-          make: document.getElementById("tradein-make").value,
-          model: document.getElementById("tradein-model").value,
-          mileage: document.getElementById("tradein-mileage").value,
-          value: parseFloat(tradeValueRaw.replace(/[^0-9.-]/g, "")) || 0,
-          payoff: parseFloat(tradePayoffRaw.replace(/[^0-9.-]/g, "")) || 0,
-        };
-      } else {
+      if (!wizardData.tradein?.hasTradeIn) {
         wizardData.tradein = { hasTradeIn: false };
+      }
+      if (!wizardData.trade || !wizardData.trade.hasTradeIn) {
+        wizardData.trade = {
+          hasTradeIn: false,
+          value: 0,
+          payoff: 0,
+          vehicles: []
+        };
       }
       break;
 
@@ -4169,13 +4149,6 @@ function saveStepData(step) {
 /**
  * Toggle trade-in fields visibility
  */
-function toggleTradeIn(show) {
-  const tradeinFields = document.getElementById("tradein-fields");
-  if (tradeinFields) {
-    tradeinFields.style.display = show ? "block" : "none";
-  }
-}
-
 /**
  * Compute review data shared between summary and detail views
  */
@@ -4547,6 +4520,8 @@ async function calculateLowestApr() {
       : "used";
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
 
+  console.log('🔍 [calculateLowestApr] Comparing lenders at term:', term, 'months');
+
   const candidates = [];
 
   // Try each lender
@@ -4582,6 +4557,8 @@ async function calculateLowestApr() {
   }
 
   // Find winner with lowest APR
+  // NOTE: Since all lenders are compared at the same user-selected term,
+  // lowest APR = lowest monthly payment = lowest total cost
   if (candidates.length === 0) {
     // Default fallback rate
     return {
@@ -4592,9 +4569,18 @@ async function calculateLowestApr() {
     };
   }
 
+  // INSTRUMENTATION: Log all candidates for debugging
+  console.log('📊 [calculateLowestApr] All candidates at', term, 'months:');
+  const sortedCandidates = [...candidates].sort((a, b) => a.apr - b.apr);
+  sortedCandidates.forEach((c, idx) => {
+    console.log(`  ${idx + 1}. ${c.lenderName}: ${formatPercent(c.apr)} APR`);
+  });
+
   const winner = candidates.reduce((best, candidate) =>
     candidate.apr < best.apr ? candidate : best
   );
+
+  console.log(`✅ [calculateLowestApr] Winner: ${winner.lenderName} (${formatPercent(winner.apr)} APR at ${term} months)`);
 
   return winner;
 }
@@ -4973,10 +4959,18 @@ function initializeReviewSliders(reviewData) {
       setValue: (val) => {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.tradeValue = val;
-        // Update trade-in value in step 3
-        const tradeValueInput = document.getElementById("tradein-value");
-        if (tradeValueInput) {
-          tradeValueInput.value = formatCurrency(val);
+        wizardData.tradein.hasTradeIn = val > 0 || (wizardData.tradein.tradePayoff || 0) > 0;
+
+        if (!wizardData.trade) {
+          wizardData.trade = {
+            hasTradeIn: wizardData.tradein.hasTradeIn,
+            value: val,
+            payoff: wizardData.tradein?.tradePayoff || 0,
+            vehicles: wizardData.trade?.vehicles || []
+          };
+        } else {
+          wizardData.trade.value = val;
+          wizardData.trade.hasTradeIn = wizardData.tradein.hasTradeIn;
         }
       },
       max: 75000,
@@ -10370,185 +10364,6 @@ function hideDealerMap() {
 }
 
 /**
- * Trade-in modal helpers (manual entry fallback for quick mode)
- */
-let tradeInData = {
-  vin: "",
-  year: "",
-  make: "",
-  model: "",
-  trim: "",
-  mileage: 0,
-  value: 0,
-  payoff: 0,
-};
-
-function openTradeInModal() {
-  const modal = document.getElementById("tradein-modal");
-  if (!modal) return;
-
-  const existingTrade = wizardData.tradein?.hasTradeIn
-    ? wizardData.tradein
-    : null;
-  const existingVehicle =
-    Array.isArray(wizardData.trade?.vehicles) &&
-    wizardData.trade.vehicles.length
-      ? wizardData.trade.vehicles[0]
-      : null;
-
-  if (existingTrade) {
-    tradeInData = {
-      ...tradeInData,
-      value: parseCurrencyToNumber(existingTrade.tradeValue),
-      payoff: parseCurrencyToNumber(existingTrade.tradePayoff),
-    };
-    if (existingTrade.manualDetails) {
-      tradeInData = {
-        ...tradeInData,
-        ...existingTrade.manualDetails,
-      };
-    }
-  }
-
-  if (!existingTrade?.manualDetails && existingVehicle) {
-    tradeInData = {
-      ...tradeInData,
-      vin: existingVehicle.vin || tradeInData.vin,
-      year: existingVehicle.year || tradeInData.year,
-      make: existingVehicle.make || tradeInData.make,
-      model: existingVehicle.model || tradeInData.model,
-      trim: existingVehicle.trim || tradeInData.trim,
-      mileage: existingVehicle.mileage || tradeInData.mileage,
-    };
-  }
-
-  const populate = (id, value) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = value ?? "";
-  };
-
-  populate("tradein-vin", tradeInData.vin || "");
-  populate("tradein-year", tradeInData.year || "");
-  populate("tradein-make", tradeInData.make || "");
-  populate("tradein-model", tradeInData.model || "");
-  populate("tradein-trim", tradeInData.trim || "");
-
-  const mileageField = document.getElementById("tradein-mileage");
-  if (mileageField) {
-    mileageField.value = tradeInData.mileage
-      ? formatMileage(tradeInData.mileage)
-      : "";
-  }
-
-  const valueField = document.getElementById("tradein-value-modal");
-  if (valueField) {
-    valueField.value = tradeInData.value
-      ? formatCurrency(tradeInData.value)
-      : "";
-  }
-
-  const payoffField = document.getElementById("tradein-payoff-modal");
-  if (payoffField) {
-    payoffField.value = tradeInData.payoff
-      ? formatCurrency(tradeInData.payoff)
-      : "";
-  }
-
-  modal.style.display = "flex";
-}
-window.openTradeInModal = openTradeInModal;
-
-function closeTradeInModal() {
-  const modal = document.getElementById("tradein-modal");
-  if (modal) {
-    modal.style.display = "none";
-  }
-}
-window.closeTradeInModal = closeTradeInModal;
-
-function saveTradeInDetails() {
-  const getValue = (id) => document.getElementById(id)?.value ?? "";
-
-  const vin = getValue("tradein-vin").trim();
-  const year = getValue("tradein-year").trim();
-  const make = getValue("tradein-make").trim();
-  const model = getValue("tradein-model").trim();
-  const trim = getValue("tradein-trim").trim();
-  const mileage = parseCurrency(getValue("tradein-mileage")) || 0;
-  const value = parseCurrency(getValue("tradein-value-modal"));
-  const payoff = parseCurrency(getValue("tradein-payoff-modal"));
-
-  const hasAnyData =
-    vin || year || make || model || trim || mileage || value || payoff;
-  if (hasAnyData && (!value || value <= 0)) {
-    alert("Please enter a trade-in value greater than $0.");
-    return;
-  }
-
-  tradeInData = {
-    vin,
-    year,
-    make,
-    model,
-    trim,
-    mileage,
-    value: value || 0,
-    payoff: payoff || 0,
-  };
-
-  const normalizedValue = Math.max(tradeInData.value || 0, 0);
-  const normalizedPayoff = Math.max(tradeInData.payoff || 0, 0);
-  const hasTrade = normalizedValue > 0 || normalizedPayoff > 0;
-
-  wizardData.tradein = {
-    ...(wizardData.tradein || {}),
-    hasTradeIn: hasTrade,
-    tradeValue: normalizedValue,
-    tradePayoff: normalizedPayoff,
-    manualDetails: { vin, year, make, model, trim, mileage },
-  };
-
-  const existingVehicles = Array.isArray(wizardData.trade?.vehicles)
-    ? wizardData.trade.vehicles
-    : [];
-  const manualVehicle = {
-    vin,
-    year,
-    make,
-    model,
-    trim,
-    mileage,
-    estimated_value: normalizedValue,
-    payoff_amount: normalizedPayoff,
-    nickname: "Manual Trade-In",
-    condition: null,
-  };
-
-  wizardData.trade = {
-    hasTradeIn: hasTrade,
-    value: normalizedValue,
-    payoff: normalizedPayoff,
-    vehicles: existingVehicles.length
-      ? existingVehicles
-      : hasTrade
-      ? [manualVehicle]
-      : [],
-  };
-
-  updateQuickSliderValues();
-  autoCalculateQuick().catch((error) => {
-    console.error(
-      "[tradein-modal] Unable to recalculate after saving trade-in details:",
-      error
-    );
-  });
-
-  closeTradeInModal();
-}
-window.saveTradeInDetails = saveTradeInDetails;
-
-/**
  * Setup auto-calculation for Quick Entry mode
  */
 function setupQuickAutoCalculation() {
@@ -11226,8 +11041,32 @@ async function autoCalculateQuick() {
   const quickLoanTerm = parseInt(
     document.getElementById("quick-loan-term")?.value
   );
-  const quickCreditScore = document.getElementById("quick-credit-score")?.value;
-  const quickHasTradeInEl = document.getElementById("quick-has-tradein");
+  let quickCreditScore = document.getElementById("quick-credit-score")?.value;
+
+  // INSTRUMENTATION: Log all gathered values for debugging
+  console.log('🔍 [autoCalculateQuick] Gathered inputs:', {
+    quickVehiclePrice,
+    quickDownPayment,
+    quickLoanTerm,
+    quickCreditScore,
+    hasPrice: !!quickVehiclePrice,
+    priceValid: quickVehiclePrice > 0,
+    hasTerm: !!quickLoanTerm,
+    hasCredit: !!quickCreditScore
+  });
+
+  // FIX: If credit score is not set, use a default value from user profile or "excellent" (750+)
+  if (!quickCreditScore) {
+    // Try to get from wizardData, otherwise default to 'excellent' (750+)
+    quickCreditScore = wizardData?.financing?.creditScoreRange || 'excellent';
+    console.log('⚠️  [autoCalculateQuick] Credit score not set, defaulting to:', quickCreditScore);
+
+    // Set it in the DOM so it shows up
+    const creditScoreSelect = document.getElementById("quick-credit-score");
+    if (creditScoreSelect) {
+      creditScoreSelect.value = quickCreditScore;
+    }
+  }
 
   // Only calculate if we have the minimum required inputs
   if (
@@ -11236,8 +11075,16 @@ async function autoCalculateQuick() {
     !quickLoanTerm ||
     !quickCreditScore
   ) {
+    console.warn('⚠️  [autoCalculateQuick] Missing required inputs, cannot calculate:', {
+      hasPrice: !!quickVehiclePrice,
+      priceValid: quickVehiclePrice > 0,
+      hasTerm: !!quickLoanTerm,
+      hasCredit: !!quickCreditScore
+    });
     return; // Silently return, don't show alerts
   }
+
+  console.log('✅ [autoCalculateQuick] All inputs valid, proceeding with calculation...');
 
   // Update wizard data
   wizardData.financing = {
@@ -11271,10 +11118,9 @@ async function autoCalculateQuick() {
     quickTradePayoff = parseCurrencyToNumber(existingTradein.tradePayoff);
   }
 
-  const quickHasTradeIn =
-    quickHasTradeInEl?.checked ?? !!existingTradein.hasTradeIn;
+  const quickHasTradeIn = existingTradein.hasTradeIn ?? false;
 
-  // Consider trade-in active if checkbox is checked OR if any trade values are non-zero
+  // Consider trade-in active if wizard state indicates one or any trade values are non-zero
   const hasActiveTradeIn =
     quickHasTradeIn || quickTradeValue > 0 || quickTradePayoff > 0;
 

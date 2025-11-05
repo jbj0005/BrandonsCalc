@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
 
   -- Preferences (auto-populate defaults)
   preferred_lender_id TEXT, -- Last used lender
-  preferred_term INTEGER DEFAULT 60, -- Default term preference in months
+  preferred_term INTEGER DEFAULT 72, -- Default term preference in months
   credit_score_range TEXT, -- Last used credit score range
 
   -- Meta

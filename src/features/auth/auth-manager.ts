@@ -312,15 +312,25 @@ export class AuthManager {
    * Setup profile dropdown UI
    */
   private setupProfileDropdown(): void {
+    console.log('🔧 [Auth Manager] setupProfileDropdown() called');
+
     // Create dropdown HTML if it doesn't exist
     if (!document.getElementById('profile-dropdown')) {
       const header = document.querySelector('header') || document.querySelector('.header');
+      console.log('🔍 [Auth Manager] Looking for header element:', !!header);
+
       if (header) {
+        console.log('✅ [Auth Manager] Header found, injecting profile dropdown HTML');
         header.insertAdjacentHTML('beforeend', this.getProfileDropdownHTML());
         this.attachDropdownListeners();
+        console.log('✅ [Auth Manager] Profile dropdown HTML injected and listeners attached');
+      } else {
+        console.error('❌ [Auth Manager] Header element not found! Cannot inject profile dropdown');
       }
+    } else {
+      console.log('ℹ️  [Auth Manager] Profile dropdown already exists');
     }
-    
+
     this.updateProfileDropdownUI();
   }
   

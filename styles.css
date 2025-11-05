@@ -691,8 +691,7 @@ body {
 
 /* VIN input fields should use monospace font for better readability */
 #quick-vin,
-#garageVin,
-#tradein-vin {
+#garageVin {
   font-family: var(--font-mono);
   letter-spacing: 0.5px;
 }
@@ -2527,6 +2526,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+  overflow-y: auto;
 }
 
 .modal-overlay {
@@ -5860,8 +5861,10 @@ body {
 
 .edit-vehicle-modal {
   max-width: 600px;
-  max-height: 90vh;
+  width: 90%;
+  max-height: calc(100vh - 40px);
   overflow-y: auto;
+  margin: auto;
 }
 
 .garage-header {
@@ -7634,4 +7637,3 @@ body {
 #quick-vin {
   position: relative;
 }
-
