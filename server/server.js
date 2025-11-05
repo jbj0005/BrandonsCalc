@@ -5,6 +5,7 @@ import NodeCache from "node-cache";
 import { fetch } from "undici";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import twilio from 'twilio';
 import {
   MARKETCHECK_ENDPOINTS,
   VIN_ENRICHMENT_ENDPOINTS,
@@ -45,6 +46,14 @@ const GOOGLE_MAPS_API_KEY_FALLBACK =
   (process.env.GOOGLE_MAPS_API_KEY || "").trim();
 const GOOGLE_MAPS_MAP_ID_FALLBACK =
   (process.env.GOOGLE_MAPS_MAP_ID || "").trim();
+
+// Twilio Configuration
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "";
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
+const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "";
+const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
+  ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+  : null;
 
 let MARKETCHECK_API_KEY =
   (process.env.MARKETCHECK_API_KEY || process.env.MARKETCHECK_KEY || "").trim();
@@ -1332,6 +1341,78 @@ app.get("/api/rates", async (req, res) => {
     console.error("[/rates] error:", err);
     res.status(500).json({
       error: "Failed to fetch rates",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
+// POST /api/send-sms
+// Send SMS with offer link via Twilio
+app.post("/api/send-sms", async (req, res) => {
+  try {
+    // Check if Twilio is configured
+    if (!twilioClient || !TWILIO_PHONE_NUMBER) {
+      return res.status(500).json({
+        error: "Twilio not configured",
+        detail: "TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_PHONE_NUMBER must be set in .env"
+      });
+    }
+
+    const { offerId, offerName, recipientPhone } = req.body;
+
+    if (!offerId) {
+      return res.status(400).json({ error: "offerId is required" });
+    }
+
+    if (!recipientPhone) {
+      return res.status(400).json({ error: "recipientPhone is required" });
+    }
+
+    // Format phone number to E.164 format if not already
+    const cleanPhone = recipientPhone.replace(/\D/g, '');
+    const formattedPhone = recipientPhone.startsWith('+')
+      ? recipientPhone
+      : `+1${cleanPhone}`;
+
+    // Generate offer view URL
+    const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
+    const offerUrl = `${baseUrl}/offer.html?id=${offerId}`;
+
+    // Create SMS message
+    const message = `Vehicle Purchase Offer${offerName ? ` - ${offerName}` : ''}\n\nView your personalized offer:\n${offerUrl}`;
+
+    console.log(`[send-sms] Sending SMS to ${formattedPhone}`);
+
+    // Send SMS via Twilio
+    const twilioMessage = await twilioClient.messages.create({
+      body: message,
+      from: TWILIO_PHONE_NUMBER,
+      to: formattedPhone
+    });
+
+    console.log(`[send-sms] SMS sent successfully. SID: ${twilioMessage.sid}`);
+
+    return res.json({
+      ok: true,
+      messageSid: twilioMessage.sid,
+      status: twilioMessage.status,
+      to: formattedPhone
+    });
+
+  } catch (err) {
+    console.error("[send-sms] error:", err);
+
+    // Handle Twilio-specific errors
+    if (err.code) {
+      return res.status(400).json({
+        error: "Twilio error",
+        code: err.code,
+        detail: err.message
+      });
+    }
+
+    res.status(500).json({
+      error: "Failed to send SMS",
       detail: err?.message || "Unknown error"
     });
   }

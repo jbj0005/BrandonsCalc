@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle Purchase Offer</title>
+  <link rel="stylesheet" href="/offer-styles.css">
+</head>
+<body>
+  <div class="offer-container">
+    <div class="offer-header">
+      <svg class="offer-icon" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+      </svg>
+      <h1>Vehicle Purchase Offer</h1>
+      <p class="offer-subtitle">Your personalized financing offer</p>
+    </div>
+
+    <div id="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading your offer...</p>
+    </div>
+
+    <div id="error" class="error-state" style="display: none;">
+      <svg class="error-icon" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      <h2>Offer Not Found</h2>
+      <p id="error-message">We couldn't find the offer you're looking for.</p>
+    </div>
+
+    <div id="offer-content" class="offer-content" style="display: none;">
+      <div class="offer-card">
+        <pre id="offer-text"></pre>
+      </div>
+
+      <div class="offer-footer">
+        <p class="offer-date">Submitted: <span id="offer-date"></span></p>
+        <p class="offer-disclaimer">
+          This offer was generated using your provided information. Final terms subject to credit approval and dealer acceptance.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+
+    // Initialize Supabase client
+    const SUPABASE_URL = 'https://txndueuqljeujlccngbj.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.xSFsD9LmN-OadCVi4qcY7iT0jPCCZJMGmHpVYFPW8EE';
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    const loadingEl = document.getElementById('loading');
+    const errorEl = document.getElementById('error');
+    const errorMessageEl = document.getElementById('error-message');
+    const offerContentEl = document.getElementById('offer-content');
+    const offerTextEl = document.getElementById('offer-text');
+    const offerDateEl = document.getElementById('offer-date');
+
+    async function loadOffer() {
+      try {
+        // Get offer ID from URL
+        const params = new URLSearchParams(window.location.search);
+        const offerId = params.get('id');
+
+        if (!offerId) {
+          throw new Error('No offer ID provided');
+        }
+
+        // Fetch offer from Supabase
+        const { data: offer, error } = await supabase
+          .from('customer_offers')
+          .select('*')
+          .eq('id', offerId)
+          .single();
+
+        if (error || !offer) {
+          throw new Error('Offer not found');
+        }
+
+        // Display the offer
+        offerTextEl.textContent = offer.offer_text;
+
+        // Format the date
+        const submittedDate = new Date(offer.submitted_at);
+        offerDateEl.textContent = submittedDate.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
+        // Show offer content
+        loadingEl.style.display = 'none';
+        offerContentEl.style.display = 'block';
+
+      } catch (error) {
+        console.error('Error loading offer:', error);
+        errorMessageEl.textContent = error.message || 'Unable to load offer';
+        loadingEl.style.display = 'none';
+        errorEl.style.display = 'block';
+      }
+    }
+
+    // Load offer when page loads
+    loadOffer();
+  </script>
+</body>
+</html>

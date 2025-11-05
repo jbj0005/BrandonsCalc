@@ -1,25 +1,34 @@
-// vite.config.js
-import { defineConfig } from "vite";
-
-const repoName = "BrandonsCalc";
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
 
 export default defineConfig({
-  base: process.env.NODE_ENV === "production" ? `/${repoName}/` : "/",
-  server: {
-    port: 5173, // dev server port
-    open: true, // auto-open browser on start
-    host: true, // listen on 0.0.0.0 for LAN testing
-    proxy: {
-      "/api": {
-        target: "http://localhost:5174",
-        changeOrigin: true,
-        secure: false,
+  root: '.',
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        offer: resolve(__dirname, 'offer.html'),
       },
     },
   },
-  preview: {
-    port: 4173,
+  server: {
+    port: 3000,
     open: true,
-    host: true,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+      },
+    },
+  },
+  resolve: {
+    alias: {
+      '@': resolve(__dirname, './src'),
+      '@/types': resolve(__dirname, './src/types/index.ts'),
+      '@/core': resolve(__dirname, './src/core'),
+      '@/features': resolve(__dirname, './src/features'),
+      '@/lib': resolve(__dirname, './src/lib'),
+    },
   },
 });

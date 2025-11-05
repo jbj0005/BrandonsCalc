@@ -1,3 +1,17 @@
+// ============================================
+// TYPESCRIPT MODULE IMPORTS (Phase 1)
+// ============================================
+import { AuthManager } from './src/features/auth/auth-manager';
+import { sliderManager } from './src/features/calculator/slider-manager';
+import { SMSSender } from './src/features/offers/sms-sender';
+import { useAuthStore, useCalculatorStore, useGarageStore, useOfferStore } from './src/core/state';
+import {
+  supabase as supabaseClient,
+  createCustomerOffer,
+  getGarageVehicles,
+  getRateSheets
+} from './src/lib/supabase';
+
 /**
  * EXPRESS MODE WIZARD - WITH SUPABASE & GOOGLE PLACES
  * Integrated with real saved vehicles and location services
@@ -12,7 +26,7 @@ const wizardData = {
   financing: {},
   tradein: {},
   customer: {},
-  location: {}
+  location: {},
 };
 
 let latestReviewData = null;
@@ -22,46 +36,118 @@ const TAX_RATE_CONFIG = {
     stateRate: 0.06,
     counties: {
       HAMILTON: 0.02,
-      BREVARD: 0.01
-    }
-  }
+      BREVARD: 0.01,
+    },
+  },
 };
 
 const FEE_CATEGORY_CONFIG = {
   dealer: {
-    containerId: 'dealer-fee-rows',
-    totalId: 'dealer-fee-total',
-    datalistId: 'dealer-fee-suggestions',
-    label: 'Dealer Fees'
+    containerId: "dealer-fee-rows",
+    totalId: "dealer-fee-total",
+    datalistId: "dealer-fee-suggestions",
+    label: "Dealer Fees",
   },
   customer: {
-    containerId: 'customer-fee-rows',
-    totalId: 'customer-fee-total',
-    datalistId: 'customer-fee-suggestions',
-    label: 'Customer Add-ons'
+    containerId: "customer-fee-rows",
+    totalId: "customer-fee-total",
+    datalistId: "customer-fee-suggestions",
+    label: "Customer Add-ons",
   },
   gov: {
-    containerId: 'gov-fee-rows',
-    totalId: 'gov-fee-total',
-    datalistId: 'gov-fee-suggestions',
-    label: "Gov't Fees"
-  }
+    containerId: "gov-fee-rows",
+    totalId: "gov-fee-total",
+    datalistId: "gov-fee-suggestions",
+    label: "Gov't Fees",
+  },
 };
 
 const feeSetState = {
   dealer: { id: null, items: [] },
   customer: { id: null, items: [] },
-  gov: { id: null, items: [] }
+  gov: { id: null, items: [] },
 };
 
 const feeModalState = {
   categories: {},
-  initialized: false
+  initialized: false,
 };
 
 const editFeeModalState = {
-  activeCategory: 'dealer'
+  activeCategory: "dealer",
 };
+
+const feeDebug =
+  (typeof window !== "undefined" && window.feeDebug) ||
+  (() => {
+    const api = {
+      enabled: false,
+      enable(flag = true) {
+        api.enabled = Boolean(flag);
+        // eslint-disable-next-line no-console
+        console.info(`[fee-debug] ${api.enabled ? "enabled" : "disabled"}`);
+      },
+      log(label, payload) {
+        if (!api.enabled) return;
+        if (typeof payload === "undefined") {
+          // eslint-disable-next-line no-console
+          console.log("[fee-debug]", label);
+          return;
+        }
+        // eslint-disable-next-line no-console
+        console.log("[fee-debug]", label, payload);
+      },
+      table(label, rows) {
+        if (!api.enabled) return;
+        try {
+          // eslint-disable-next-line no-console
+          console.groupCollapsed(`[fee-debug] ${label}`);
+          // eslint-disable-next-line no-console
+          console.table(rows);
+          // eslint-disable-next-line no-console
+          console.groupEnd();
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.log("[fee-debug]", label, rows);
+        }
+      },
+    };
+    if (typeof window !== "undefined") {
+      window.feeDebug = api;
+    }
+    return api;
+  })();
+if (typeof window !== "undefined") {
+  try {
+    if (window.sessionStorage?.getItem("feeDebugEnabled") === "true") {
+      feeDebug.enable(true);
+    }
+  } catch (storageError) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[fee-debug] unable to read feeDebugEnabled flag",
+      storageError
+    );
+  }
+  window.enableFeeDebugging = function enableFeeDebugging() {
+    try {
+      window.sessionStorage?.setItem("feeDebugEnabled", "true");
+    } catch (storageError) {
+      // eslint-disable-next-line no-console
+      console.warn("[fee-debug] unable to persist flag", storageError);
+    }
+    feeDebug.enable(true);
+  };
+  window.disableFeeDebugging = function disableFeeDebugging() {
+    try {
+      window.sessionStorage?.removeItem("feeDebugEnabled");
+    } catch (storageError) {
+      // eslint-disable-next-line no-console
+      console.warn("[fee-debug] unable to clear flag", storageError);
+    }
+    feeDebug.enable(false);
+  };
+}
 
 // Supabase client
 let supabase = null;
@@ -97,13 +183,16 @@ const API_BASE = window.location.origin;
  * @returns {string} Formatted currency string
  */
 function formatCurrency(value, showNegative = true) {
-  const num = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : value;
-  if (isNaN(num)) return '';
+  const num =
+    typeof value === "string"
+      ? parseFloat(value.replace(/[^0-9.-]/g, ""))
+      : value;
+  if (isNaN(num)) return "";
 
   const absValue = Math.abs(num);
-  const formatted = absValue.toLocaleString('en-US', {
+  const formatted = absValue.toLocaleString("en-US", {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0
+    maximumFractionDigits: 0,
   });
 
   if (num < 0 && showNegative) {
@@ -118,12 +207,12 @@ function formatCurrency(value, showNegative = true) {
  * @returns {number}
  */
 function parseCurrencyToNumber(value) {
-  if (typeof value === 'number' && Number.isFinite(value)) {
+  if (typeof value === "number" && Number.isFinite(value)) {
     return value;
   }
 
-  if (typeof value === 'string') {
-    const cleaned = value.replace(/[^0-9.-]/g, '');
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9.-]/g, "");
     if (!cleaned) return 0;
     const parsed = parseFloat(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
@@ -143,17 +232,17 @@ function toTitleCase(str) {
     .toLowerCase()
     .split(/\s+/)
     .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-    .join(' ')
+    .join(" ")
     .trim();
 }
 
 function safeParseJSON(raw) {
-  if (typeof raw !== 'string') return [];
+  if (typeof raw !== "string") return [];
   try {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.warn('[fees] Failed to parse JSON', { error, raw });
+    console.warn("[fees] Failed to parse JSON", { error, raw });
     return [];
   }
 }
@@ -162,14 +251,13 @@ function normalizeFeeItems(records) {
   const items = Array.isArray(records) ? records : [];
   const dedup = new Map();
   for (const item of items) {
-    const name =
-      typeof item?.name === 'string' ? item.name.trim() : '';
+    const name = typeof item?.name === "string" ? item.name.trim() : "";
     if (!name) continue;
     const key = name.toLowerCase();
     let amount = null;
-    if (typeof item?.amount === 'number' && Number.isFinite(item.amount)) {
+    if (typeof item?.amount === "number" && Number.isFinite(item.amount)) {
       amount = item.amount;
-    } else if (typeof item?.amount === 'string') {
+    } else if (typeof item?.amount === "string") {
       const parsed = Number(item.amount);
       if (Number.isFinite(parsed)) {
         amount = parsed;
@@ -190,11 +278,11 @@ function createSuggestionStore(datalistId) {
     setItems(items) {
       this.items = Array.isArray(items) ? items : [];
       if (!this.datalist) return;
-      this.datalist.innerHTML = '';
+      this.datalist.innerHTML = "";
       const fragment = document.createDocumentFragment();
       this.items.forEach((item) => {
         if (!item?.name) return;
-        const option = document.createElement('option');
+        const option = document.createElement("option");
         option.value = item.name;
         fragment.appendChild(option);
       });
@@ -207,20 +295,21 @@ function createSuggestionStore(datalistId) {
         (item) => item?.name?.toLowerCase?.() === normalized
       );
       return Number.isFinite(found?.amount) ? found.amount : null;
-    }
+    },
   };
   return store;
 }
 
 function getFeeSuggestionStore(type) {
-  const category = type === 'gov' ? 'gov' : type === 'customer' ? 'customer' : 'dealer';
+  const category =
+    type === "gov" ? "gov" : type === "customer" ? "customer" : "dealer";
   return feeModalState.categories?.[category]?.suggestionStore ?? null;
 }
 
 function getFeeSetState(type) {
-  return type === 'gov'
+  return type === "gov"
     ? feeSetState.gov
-    : type === 'customer'
+    : type === "customer"
     ? feeSetState.customer
     : feeSetState.dealer;
 }
@@ -229,21 +318,21 @@ async function fetchFeeItemsFromSet(tableName) {
   if (!supabase) return { setId: null, rawItems: [], normalizedItems: [] };
   const { data, error } = await supabase
     .from(tableName)
-    .select('id, label, items')
-    .eq('active', true);
+    .select("id, label, items")
+    .eq("active", true);
   if (error) throw error;
   const records = Array.isArray(data) ? data : [];
   const primary = records[0] ?? null;
   const setId = primary?.id ?? null;
   const rawItems = records.flatMap((record) => {
     if (Array.isArray(record?.items)) return record.items;
-    if (typeof record?.items === 'string') return safeParseJSON(record.items);
+    if (typeof record?.items === "string") return safeParseJSON(record.items);
     return [];
   });
   return {
     setId,
     rawItems,
-    normalizedItems: normalizeFeeItems(rawItems)
+    normalizedItems: normalizeFeeItems(rawItems),
   };
 }
 
@@ -251,17 +340,17 @@ async function fetchFeeItemsFromView(viewName) {
   if (!supabase) return { rawItems: [], normalizedItems: [] };
   const { data, error } = await supabase
     .from(viewName)
-    .select('name, amount, sort_order')
-    .order('sort_order', { ascending: true });
+    .select("name, amount, sort_order")
+    .order("sort_order", { ascending: true });
   if (error) throw error;
   const records = Array.isArray(data) ? data : [];
   const normalizedItems = normalizeFeeItems(records);
   const rawItems = records.map((item) => ({
-    name: typeof item?.name === 'string' ? item.name : '',
+    name: typeof item?.name === "string" ? item.name : "",
     amount:
-      typeof item?.amount === 'number'
+      typeof item?.amount === "number"
         ? item.amount
-        : Number(item?.amount) || 0
+        : Number(item?.amount) || 0,
   }));
   return { rawItems, normalizedItems };
 }
@@ -273,74 +362,89 @@ function setSuggestionItems(store, items, context) {
     store.setItems([]);
     return;
   }
+  if (feeDebug.enabled) {
+    feeDebug.table(
+      `suggestion items updated (${context})`,
+      items.map((item) => ({
+        name: item?.name ?? "",
+        amount: item?.amount ?? null,
+      }))
+    );
+  }
   store.setItems(items);
 }
 
 async function loadDealerFeeSuggestions() {
   try {
-    const store = getFeeSuggestionStore('dealer');
+    const store = getFeeSuggestionStore("dealer");
     if (!store) return;
-    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('dealer_fee_sets');
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet(
+      "dealer_fee_sets"
+    );
     feeSetState.dealer.id = setId;
     feeSetState.dealer.items = rawItems;
     let items = normalizedItems;
-    let source = 'dealer_fee_sets';
+    let source = "dealer_fee_sets";
     if (!items.length) {
-      const fallback = await fetchFeeItemsFromView('dealer_fee_items_v');
+      const fallback = await fetchFeeItemsFromView("dealer_fee_items_v");
       items = fallback.normalizedItems;
       feeSetState.dealer.items = fallback.rawItems;
-      source = 'dealer_fee_items_v';
+      source = "dealer_fee_items_v";
     }
     setSuggestionItems(store, items, source);
   } catch (error) {
-    console.error('[fees] Failed to load dealer fee suggestions', error);
-    const store = getFeeSuggestionStore('dealer');
+    console.error("[fees] Failed to load dealer fee suggestions", error);
+    const store = getFeeSuggestionStore("dealer");
     store?.setItems([]);
   }
 }
 
 async function loadCustomerAddonSuggestions() {
   try {
-    const store = getFeeSuggestionStore('customer');
+    const store = getFeeSuggestionStore("customer");
     if (!store) return;
-    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('customer_addon_sets');
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet(
+      "customer_addon_sets"
+    );
     feeSetState.customer.id = setId;
     feeSetState.customer.items = rawItems;
     let items = normalizedItems;
-    let source = 'customer_addon_sets';
+    let source = "customer_addon_sets";
     if (!items.length) {
-      const fallback = await fetchFeeItemsFromView('customer_addon_items_v');
+      const fallback = await fetchFeeItemsFromView("customer_addon_items_v");
       items = fallback.normalizedItems;
       feeSetState.customer.items = fallback.rawItems;
-      source = 'customer_addon_items_v';
+      source = "customer_addon_items_v";
     }
     setSuggestionItems(store, items, source);
   } catch (error) {
-    console.error('[fees] Failed to load customer addon suggestions', error);
-    const store = getFeeSuggestionStore('customer');
+    console.error("[fees] Failed to load customer addon suggestions", error);
+    const store = getFeeSuggestionStore("customer");
     store?.setItems([]);
   }
 }
 
 async function loadGovFeeSuggestions() {
   try {
-    const store = getFeeSuggestionStore('gov');
+    const store = getFeeSuggestionStore("gov");
     if (!store) return;
-    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet('gov_fee_sets');
+    let { setId, rawItems, normalizedItems } = await fetchFeeItemsFromSet(
+      "gov_fee_sets"
+    );
     feeSetState.gov.id = setId;
     feeSetState.gov.items = rawItems;
     let items = normalizedItems;
-    let source = 'gov_fee_sets';
+    let source = "gov_fee_sets";
     if (!items.length) {
-      const fallback = await fetchFeeItemsFromView('gov_fee_items_v');
+      const fallback = await fetchFeeItemsFromView("gov_fee_items_v");
       items = fallback.normalizedItems;
       feeSetState.gov.items = fallback.rawItems;
-      source = 'gov_fee_items_v';
+      source = "gov_fee_items_v";
     }
     setSuggestionItems(store, items, source);
   } catch (error) {
-    console.error('[fees] Failed to load gov fee suggestions', error);
-    const store = getFeeSuggestionStore('gov');
+    console.error("[fees] Failed to load gov fee suggestions", error);
+    const store = getFeeSuggestionStore("gov");
     store?.setItems([]);
   }
 }
@@ -349,7 +453,7 @@ async function loadFeeSuggestionData() {
   await Promise.all([
     loadDealerFeeSuggestions(),
     loadCustomerAddonSuggestions(),
-    loadGovFeeSuggestions()
+    loadGovFeeSuggestions(),
   ]);
 }
 
@@ -358,19 +462,19 @@ async function loadFeeSuggestionData() {
  * @param {HTMLInputElement} input - The input element
  */
 function setupCurrencyInput(input) {
-  input.addEventListener('input', (e) => {
+  input.addEventListener("input", (e) => {
     const cursorPosition = e.target.selectionStart;
     const oldLength = e.target.value.length;
 
     // Remove non-numeric characters except minus
-    let value = e.target.value.replace(/[^0-9-]/g, '');
+    let value = e.target.value.replace(/[^0-9-]/g, "");
 
     // Handle negative sign
-    const isNegative = value.startsWith('-');
-    value = value.replace(/-/g, '');
+    const isNegative = value.startsWith("-");
+    value = value.replace(/-/g, "");
 
-    if (value === '') {
-      e.target.value = '';
+    if (value === "") {
+      e.target.value = "";
       return;
     }
 
@@ -383,9 +487,13 @@ function setupCurrencyInput(input) {
     e.target.setSelectionRange(cursorPosition + diff, cursorPosition + diff);
   });
 
-  input.addEventListener('blur', (e) => {
-    if (e.target.value && !e.target.value.startsWith('$') && !e.target.value.startsWith('(')) {
-      const num = parseFloat(e.target.value.replace(/[^0-9.-]/g, ''));
+  input.addEventListener("blur", (e) => {
+    if (
+      e.target.value &&
+      !e.target.value.startsWith("$") &&
+      !e.target.value.startsWith("(")
+    ) {
+      const num = parseFloat(e.target.value.replace(/[^0-9.-]/g, ""));
       if (!isNaN(num)) {
         e.target.value = formatCurrency(num);
       }
@@ -399,9 +507,10 @@ function setupCurrencyInput(input) {
  * @returns {string} Formatted mileage string
  */
 function formatMileage(value) {
-  const num = typeof value === 'string' ? parseInt(value.replace(/[^0-9]/g, '')) : value;
-  if (isNaN(num) || num === 0) return '';
-  return num.toLocaleString('en-US');
+  const num =
+    typeof value === "string" ? parseInt(value.replace(/[^0-9]/g, "")) : value;
+  if (isNaN(num) || num === 0) return "";
+  return num.toLocaleString("en-US");
 }
 
 /**
@@ -409,10 +518,10 @@ function formatMileage(value) {
  * @param {HTMLInputElement} input - The input element
  */
 function setupMileageInput(input) {
-  input.addEventListener('input', (e) => {
-    const value = e.target.value.replace(/[^0-9]/g, '');
-    if (value === '') {
-      e.target.value = '';
+  input.addEventListener("input", (e) => {
+    const value = e.target.value.replace(/[^0-9]/g, "");
+    if (value === "") {
+      e.target.value = "";
       return;
     }
     e.target.value = formatMileage(value);
@@ -425,10 +534,11 @@ function setupMileageInput(input) {
  * @returns {string} Capitalized text
  */
 function capitalizeWords(text) {
-  if (!text) return '';
-  return text.split(' ').map(word =>
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  ).join(' ');
+  if (!text) return "";
+  return text
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
 }
 
 /**
@@ -437,33 +547,22 @@ function capitalizeWords(text) {
  * @returns {string} Formatted VIN
  */
 function formatVIN(vin) {
-  if (!vin) return '';
+  if (!vin) return "";
   return vin.toUpperCase();
 }
 
-/**
- * Generate a pleasant accent color based on trim text
- * @param {string} trim
- * @returns {string} CSS color
- */
-function getTrimAccentColor(trim) {
-  if (!trim) return '#3b82f6';
-  let hash = 0;
-  const normalized = trim.toLowerCase();
-  for (let i = 0; i < normalized.length; i += 1) {
-    hash = normalized.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  const hue = Math.abs(hash) % 360;
-  return `hsl(${hue}, 65%, 55%)`;
-}
-
 // Initialize on page load
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener("DOMContentLoaded", async () => {
   await initializeSupabase();
+
+  // Sync Supabase Auth session with customer profile
+  // This must run before auto-populate functions
+  await syncAuthWithProfile();
+
   await loadGoogleMaps();
 
   // Initialize year dropdown as disabled until location is set
-  const yearSelect = document.getElementById('year-input');
+  const yearSelect = document.getElementById("year-input");
   if (yearSelect) {
     yearSelect.innerHTML = '<option value="">Enter location first</option>';
     yearSelect.disabled = true;
@@ -483,18 +582,326 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadSavedVehicles();
   await loadLenders(); // Load lenders for rate comparison
 
+  // ============================================
+  // PHASE 1: Initialize TypeScript Modules
+  // ============================================
+  console.log('🚀 Initializing ExcelCalc v2.0 Phase 1...');
+
+  // Listen for profile loaded event (MUST be set up BEFORE AuthManager initializes)
+  window.addEventListener('profile-loaded', (e) => {
+    const { profile } = e.detail;
+    console.log('✅ Profile loaded:', profile);
+
+    // Auto-populate wizardData with user profile
+    if (profile.full_name) wizardData.customer.name = profile.full_name;
+    if (profile.email) wizardData.customer.email = profile.email;
+    if (profile.phone) wizardData.customer.phone = profile.phone;
+
+    if (profile.preferred_down_payment) {
+      wizardData.financing.cashDown = profile.preferred_down_payment;
+      const cashDownInput = document.getElementById('quickSliderCashDown');
+      if (cashDownInput) cashDownInput.value = profile.preferred_down_payment;
+    }
+
+    if (profile.preferred_trade_value) {
+      wizardData.tradein.tradeValue = profile.preferred_trade_value;
+    }
+
+    if (profile.preferred_trade_payoff) {
+      wizardData.tradein.tradePayoff = profile.preferred_trade_payoff;
+    }
+
+    // Set financing preferences with defaults
+    wizardData.financing.term = profile.preferred_term || 72;
+    wizardData.financing.creditScoreRange = profile.preferred_credit_score || profile.credit_score_range || 'excellent';
+
+    // Load user's garage vehicles
+    loadUserGarageVehicles();
+  });
+
+  // Listen for slider changes
+  window.addEventListener('slider-changed', (e) => {
+    const { id, value, delta, percentage } = e.detail;
+    console.log('🎚️ Slider changed:', id, value, `Δ ${delta} (${percentage.toFixed(1)}%)`);
+
+    // Update wizardData based on slider ID
+    switch(id) {
+      case 'quickSliderSalePrice':
+        wizardData.financing.salePrice = value;
+        break;
+      case 'quickSliderCashDown':
+        wizardData.financing.cashDown = value;
+        break;
+      case 'quickSliderTradeAllowance':
+        wizardData.tradein.tradeValue = value;
+        break;
+      case 'quickSliderTradePayoff':
+        wizardData.tradein.tradePayoff = value;
+        break;
+    }
+
+    // Recalculate payment
+    refreshReview();
+  });
+
+  // Initialize Authentication Manager (after event listeners are set up)
+  await AuthManager.initialize();
+
+  // Helper function to load user's garage vehicles
+  async function loadUserGarageVehicles() {
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) {
+      console.log('⏭️  Skipping garage load - no user yet');
+      return;
+    }
+
+    const vehicles = await getGarageVehicles(authStore.user.id);
+    useGarageStore.getState().setVehicles(vehicles);
+
+    console.log('🚗 Loaded garage vehicles:', vehicles);
+
+    // Update vehicle selector dropdown if it exists
+    updateVehicleSelectorDropdown();
+  }
+
+  // Setup vehicle selector dropdown for VIN field
+  function setupVehicleSelector() {
+    const vinInput = document.getElementById('quick-vin');
+    if (!vinInput) return;
+
+    // Create dropdown container
+    const dropdown = document.createElement('div');
+    dropdown.id = 'vehicle-selector-dropdown';
+    dropdown.className = 'vehicle-selector-dropdown';
+    dropdown.style.display = 'none';
+    vinInput.parentElement.appendChild(dropdown);
+
+    // Show dropdown on focus
+    vinInput.addEventListener('focus', () => {
+      const garageStore = useGarageStore.getState();
+      if (garageStore.vehicles && garageStore.vehicles.length > 0) {
+        updateVehicleSelectorDropdown();
+        dropdown.style.display = 'block';
+      }
+    });
+
+    // Hide dropdown on outside click
+    document.addEventListener('click', (e) => {
+      if (!vinInput.contains(e.target) && !dropdown.contains(e.target)) {
+        dropdown.style.display = 'none';
+      }
+    });
+  }
+
+  // Update vehicle selector dropdown with current garage vehicles
+  function updateVehicleSelectorDropdown() {
+    const dropdown = document.getElementById('vehicle-selector-dropdown');
+    if (!dropdown) return;
+
+    const garageStore = useGarageStore.getState();
+    const vehicles = garageStore.vehicles || [];
+
+    if (vehicles.length === 0) {
+      dropdown.innerHTML = `
+        <div class="vehicle-selector-empty">
+          <p>No saved vehicles</p>
+          <small>Click "My Garage" to add vehicles</small>
+        </div>
+      `;
+      return;
+    }
+
+    dropdown.innerHTML = `
+      <div class="vehicle-selector-header">
+        <span>Select a saved vehicle</span>
+      </div>
+      ${vehicles.map(vehicle => `
+        <div class="vehicle-selector-item" data-vehicle-id="${vehicle.id}">
+          <div class="vehicle-selector-main">
+            <strong>${vehicle.year} ${vehicle.make} ${vehicle.model}</strong>
+            ${vehicle.trim ? `<span class="vehicle-trim">${vehicle.trim}</span>` : ''}
+          </div>
+          <div class="vehicle-selector-details">
+            ${vehicle.vin ? `<small>VIN: ${vehicle.vin}</small>` : ''}
+            ${vehicle.mileage ? `<small>${vehicle.mileage.toLocaleString()} mi</small>` : ''}
+          </div>
+        </div>
+      `).join('')}
+    `;
+
+    // Add click handlers for each vehicle
+    dropdown.querySelectorAll('.vehicle-selector-item').forEach(item => {
+      item.addEventListener('click', () => {
+        const vehicleId = item.dataset.vehicleId;
+        const vehicle = vehicles.find(v => v.id === vehicleId);
+        if (vehicle) {
+          selectGarageVehicle(vehicle);
+          dropdown.style.display = 'none';
+        }
+      });
+    });
+  }
+
+  // Handle vehicle selection from garage
+  function selectGarageVehicle(vehicle) {
+    console.log('🚗 Selected garage vehicle:', vehicle);
+    console.log('🔍 Vehicle keys:', Object.keys(vehicle));
+    console.log('💵 Vehicle price fields:', {
+      asking_price: vehicle.asking_price,
+      price: vehicle.price,
+      estimated_value: vehicle.estimated_value,
+      msrp: vehicle.msrp
+    });
+
+    // Populate VIN field
+    const vinInput = document.getElementById('quick-vin');
+    if (vinInput && vehicle.vin) {
+      vinInput.value = vehicle.vin;
+      vinInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Determine sale price from available fields
+    const salePrice = vehicle.asking_price || vehicle.price || vehicle.estimated_value || vehicle.msrp;
+
+    // Update wizardData
+    console.log('🔍 Checking wizardData:', !!wizardData, typeof wizardData);
+    if (wizardData) {
+      wizardData.vehicle = {
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim || '',
+        vin: vehicle.vin || '',
+        condition: vehicle.condition || 'good',
+        mileage: vehicle.mileage || 0
+      };
+
+      // Set sale price
+      console.log('💵 Vehicle price:', salePrice, 'Type:', typeof salePrice);
+
+      if (salePrice) {
+        // Update the hidden input that autoCalculateQuick reads from
+        const quickVehiclePrice = document.getElementById('quick-vehicle-price');
+        if (quickVehiclePrice) {
+          quickVehiclePrice.value = salePrice;
+          console.log('📝 Set hidden input value to:', quickVehiclePrice.value);
+        }
+
+        // Update the slider (but don't dispatch event yet - will happen after centered sliders init)
+        const salePriceSlider = document.getElementById('quickSliderSalePrice');
+        if (salePriceSlider) {
+          console.log('🎚️ Slider max BEFORE:', salePriceSlider.max);
+          console.log('🎚️ Slider value BEFORE setting:', salePriceSlider.value);
+
+          // Ensure max is high enough to accommodate the price
+          const minMax = Math.max(150000, salePrice * 1.5); // At least 1.5x the price or 150k
+          salePriceSlider.max = minMax.toString();
+
+          salePriceSlider.value = salePrice;
+          console.log('🎚️ Slider max AFTER:', salePriceSlider.max);
+          console.log('🎚️ Slider value AFTER setting:', salePriceSlider.value);
+        }
+
+        // Set wizardData AFTER updating slider to avoid race condition
+        wizardData.financing.salePrice = Number(salePrice);
+
+        console.log('💰 Set sale price to:', wizardData.financing.salePrice);
+        console.log('🔍 wizardData.financing:', wizardData.financing);
+      } else {
+        console.warn('⚠️ No price field found on vehicle');
+      }
+
+      // Set trade-in values if available - ONLY from actual trade-in fields
+      if (vehicle.estimated_value) {
+        wizardData.tradein.tradeValue = vehicle.estimated_value;
+        const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
+        if (tradeValueSlider) {
+          // Ensure max is high enough
+          const minMax = Math.max(150000, vehicle.estimated_value * 1.5);
+          tradeValueSlider.max = minMax.toString();
+          tradeValueSlider.value = vehicle.estimated_value;
+        }
+      }
+
+      if (vehicle.payoff_amount) {
+        wizardData.tradein.tradePayoff = vehicle.payoff_amount;
+        const payoffSlider = document.getElementById('quickSliderTradePayoff');
+        if (payoffSlider) {
+          payoffSlider.value = vehicle.payoff_amount;
+        }
+      }
+    } else {
+      console.error('❌ wizardData is not defined!');
+    }
+
+    // Trigger VIN decode if the VIN input has a handler
+    if (vinInput && vehicle.vin) {
+      console.log('🔍 Triggering VIN decode for:', vehicle.vin);
+    }
+
+    // Initialize centered sliders if we have a sale price
+    if (salePrice) {
+      console.log('🎯 About to initialize sliders, wizardData.financing.salePrice:', wizardData.financing.salePrice);
+      initializeCenteredSliders();
+    }
+
+    // Log wizardData state before calculation
+    console.log('📊 wizardData before calculation:', {
+      financing: wizardData.financing,
+      tradein: wizardData.tradein
+    });
+
+    // Trigger payment calculation
+    refreshReview();
+
+    console.log('✅ Vehicle data populated from garage');
+  }
+
+  console.log('✅ ExcelCalc v2.0 Phase 1 initialized successfully!');
+
   // Initialize Quick Entry mode (now the default and only mode)
   await initializeQuickEntry();
 
+  // Setup vehicle selector dropdown
+  setupVehicleSelector();
+
   // Set up customer profile button
-  const profileBtn = document.getElementById('openCustomerProfileBtn');
+  const profileBtn = document.getElementById("openCustomerProfileBtn");
   if (profileBtn) {
-    profileBtn.addEventListener('click', openCustomerProfileModal);
+    profileBtn.addEventListener("click", openCustomerProfileModal);
   }
+
+  // NOTE: Profile dropdown removed in Phase 1 - now using separate Garage/Profile buttons
+  // The header now has two buttons: openMyGarageBtn and openCustomerProfileBtn
+  // Old dropdown code commented out to prevent console errors
+
+  // Set up profile dropdown
+  // const profileDropdownBtn = document.getElementById("profileDropdownBtn");
+  // if (profileDropdownBtn) {
+  //   profileDropdownBtn.addEventListener("click", (e) => {
+  //     e.stopPropagation();
+  //     e.preventDefault();
+  //     toggleProfileDropdown();
+  //   });
+  // }
+
+  // Close dropdown when clicking outside
+  // document.addEventListener("click", (e) => {
+  //   const dropdown = document.querySelector(".profile-dropdown");
+  //   if (dropdown && !dropdown.contains(e.target)) {
+  //     closeProfileDropdown();
+  //   }
+  // });
 
   // Auto-populate location and calculator fields from customer profile
   await autoPopulateLocationFromProfile();
   await autoPopulateCalculatorFromProfile();
+
+  // Auto-populate trade-in from most recently used garage vehicle
+  await autoPopulateFromGarage();
+
+  // Update profile dropdown label with user's first name
+  await updateProfileDropdownLabel();
 });
 
 /**
@@ -503,13 +910,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 async function initializeSupabase() {
   try {
     // Get Supabase credentials from meta tags (like main calculator does)
-    const supabaseUrl = document.querySelector('meta[name="supabase-url"]')?.content ||
-                        'https://txndueuqljeujlccngbj.supabase.co'; // Fallback from main app
-    const supabaseKey = document.querySelector('meta[name="supabase-anon-key"]')?.content ||
-                        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.ozHVMxQ0qL4mzZ2q2cRkYPduBk927_a7ffd3tOI6Pdc';
+    const supabaseUrl =
+      document.querySelector('meta[name="supabase-url"]')?.content ||
+      "https://txndueuqljeujlccngbj.supabase.co"; // Fallback from main app
+    const supabaseKey =
+      document.querySelector('meta[name="supabase-anon-key"]')?.content ||
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.ozHVMxQ0qL4mzZ2q2cRkYPduBk927_a7ffd3tOI6Pdc";
 
     if (!supabaseUrl || !supabaseKey) {
-      console.warn('Supabase credentials not found');
+      console.warn("Supabase credentials not found");
       return;
     }
 
@@ -520,39 +929,32 @@ async function initializeSupabase() {
     // Get current session
     const { data, error } = await supabase.auth.getSession();
 
-    console.log('[express-mode] getSession result:', {
-      hasSession: !!data?.session,
-      hasUser: !!data?.session?.user,
-      userId: data?.session?.user?.id,
-      error
-    });
-
     currentUserId = data?.session?.user?.id ?? null;
 
     // Listen for auth state changes
     supabase.auth.onAuthStateChange((_event, session) => {
       const newUserId = session?.user?.id ?? null;
-      console.log('[auth] Auth state changed:', _event, 'User ID:', newUserId);
       if (newUserId !== currentUserId) {
         currentUserId = newUserId;
-        console.log('[auth] User changed:', currentUserId ? 'signed in' : 'signed out');
         loadSavedVehicles();
         updateLoginButton();
       }
     });
-
-    console.log('[express-mode] Supabase initialized. User ID:', currentUserId || 'Anonymous');
 
     // Update login button state
     updateLoginButton();
 
     // If no session, check if user needs to sign in
     if (!currentUserId) {
-      console.warn('[express-mode] No active session. User needs to sign in on the main app first.');
-      console.warn('[express-mode] Visit http://localhost:5174 and sign in, then return here.');
+      console.warn(
+        "[express-mode] No active session. User needs to sign in on the main app first."
+      );
+      console.warn(
+        "[express-mode] Visit http://localhost:5174 and sign in, then return here."
+      );
     }
   } catch (error) {
-    console.error('Error initializing Supabase:', error);
+    console.error("Error initializing Supabase:", error);
   }
 }
 
@@ -560,16 +962,16 @@ async function initializeSupabase() {
  * Update login button based on auth state
  */
 function updateLoginButton() {
-  const loginBtn = document.getElementById('hero-login-btn');
+  const loginBtn = document.getElementById("hero-login-btn");
   if (!loginBtn) return;
 
   if (currentUserId) {
-    loginBtn.textContent = 'Sign Out';
+    // Hide the button when logged in - sign out is now in profile dropdown
+    loginBtn.style.display = "none";
   } else {
-    loginBtn.textContent = 'Sign In';
+    loginBtn.textContent = "Sign In";
+    loginBtn.style.display = "block";
   }
-
-  loginBtn.style.display = 'block';
 }
 
 /**
@@ -577,7 +979,7 @@ function updateLoginButton() {
  */
 async function handleAuthClick() {
   if (!supabase) {
-    alert('Authentication not available. Please check your configuration.');
+    alert("Authentication not available. Please check your configuration.");
     return;
   }
 
@@ -585,22 +987,22 @@ async function handleAuthClick() {
     // Sign out
     const { error } = await supabase.auth.signOut();
     if (error) {
-      console.error('Sign out error:', error);
-      alert('Error signing out. Please try again.');
+      console.error("Sign out error:", error);
+      alert("Error signing out. Please try again.");
     }
   } else {
     // Redirect to sign in - use magic link or redirect to auth page
     const redirectUrl = window.location.origin + window.location.pathname;
     const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
+      provider: "google",
       options: {
-        redirectTo: redirectUrl
-      }
+        redirectTo: redirectUrl,
+      },
     });
 
     if (error) {
-      console.error('Sign in error:', error);
-      alert('Error signing in. Please try again.');
+      console.error("Sign in error:", error);
+      alert("Error signing in. Please try again.");
     }
   }
 }
@@ -614,18 +1016,18 @@ async function loadGoogleMaps() {
   try {
     // Try to get API key from server endpoint (like main app does)
     const response = await fetch(`${API_BASE}/api/config`);
-    if (!response.ok) throw new Error('Failed to get config');
+    if (!response.ok) throw new Error("Failed to get config");
 
     const data = await response.json();
     const apiKey = data.googleMaps?.apiKey;
 
     if (!apiKey) {
-      console.warn('Google Maps API key not available');
+      console.warn("Google Maps API key not available");
       return;
     }
 
     // Load Google Maps script
-    const script = document.createElement('script');
+    const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGooglePlaces`;
     script.async = true;
     script.defer = true;
@@ -638,7 +1040,7 @@ async function loadGoogleMaps() {
       setupQuickLocationAutocomplete();
     };
   } catch (error) {
-    console.error('Error loading Google Maps:', error);
+    console.error("Error loading Google Maps:", error);
   }
 }
 
@@ -646,16 +1048,16 @@ async function loadGoogleMaps() {
  * Setup Google Places autocomplete on location input
  */
 function setupPlacesAutocomplete() {
-  const locationInput = document.getElementById('user-location');
+  const locationInput = document.getElementById("user-location");
   if (!locationInput || !google || !google.maps || !google.maps.places) return;
 
   try {
     placesAutocomplete = new google.maps.places.Autocomplete(locationInput, {
-      types: ['address'],
-      componentRestrictions: { country: 'us' }
+      types: ["address"],
+      componentRestrictions: { country: "us" },
     });
 
-    placesAutocomplete.addListener('place_changed', async () => {
+    placesAutocomplete.addListener("place_changed", async () => {
       const place = placesAutocomplete.getPlace();
       if (!place.geometry) return;
 
@@ -664,36 +1066,39 @@ function setupPlacesAutocomplete() {
         address: place.formatted_address,
         lat: place.geometry.location.lat(),
         lng: place.geometry.location.lng(),
-        zip: extractZipFromPlace(place)
+        zip: extractZipFromPlace(place),
       };
 
-      const locale = extractLocaleFromComponents(place.address_components ?? []);
+      const locale = extractLocaleFromComponents(
+        place.address_components ?? []
+      );
       location.stateCode = locale.stateCode;
       location.countyName = locale.countyName;
 
       wizardData.location = location;
-      console.log('Location selected:', location);
 
       applyLocaleToFees(locale);
 
       // Update hint to show selected location
       const hint = locationInput.nextElementSibling;
       if (hint) {
-        hint.textContent = `✓ Using: ${location.zip || 'your location'}`;
-        hint.style.color = 'var(--success)';
+        hint.textContent = `✓ Using: ${location.zip || "your location"}`;
+        hint.style.color = "var(--success)";
       }
 
       // Populate year dropdown now that location is set
       await populateYearDropdowns();
 
       // Show vehicle selection section now that location is set
-      const vehicleSelectionSection = document.getElementById('vehicle-selection-section');
+      const vehicleSelectionSection = document.getElementById(
+        "vehicle-selection-section"
+      );
       if (vehicleSelectionSection) {
-        vehicleSelectionSection.style.display = 'block';
+        vehicleSelectionSection.style.display = "block";
       }
     });
   } catch (error) {
-    console.error('Error setting up Places autocomplete:', error);
+    console.error("Error setting up Places autocomplete:", error);
   }
 }
 
@@ -704,7 +1109,7 @@ function extractZipFromPlace(place) {
   if (!place.address_components) return null;
 
   for (const component of place.address_components) {
-    if (component.types.includes('postal_code')) {
+    if (component.types.includes("postal_code")) {
       return component.long_name;
     }
   }
@@ -712,17 +1117,17 @@ function extractZipFromPlace(place) {
 }
 
 function extractLocaleFromComponents(components = []) {
-  let stateCode = '';
-  let countyName = '';
+  let stateCode = "";
+  let countyName = "";
   components.forEach((component) => {
     const types = component?.types ?? [];
-    if (types.includes('administrative_area_level_1')) {
+    if (types.includes("administrative_area_level_1")) {
       stateCode =
-        component.short_name ?? component.long_name ?? stateCode ?? '';
+        component.short_name ?? component.long_name ?? stateCode ?? "";
     }
-    if (types.includes('administrative_area_level_2')) {
-      countyName = (component.long_name ?? component.short_name ?? '')
-        .replace(/ County$/i, '')
+    if (types.includes("administrative_area_level_2")) {
+      countyName = (component.long_name ?? component.short_name ?? "")
+        .replace(/ County$/i, "")
         .trim();
     }
   });
@@ -731,24 +1136,28 @@ function extractLocaleFromComponents(components = []) {
 
 function applyLocaleToFees({ stateCode, countyName }) {
   ensureWizardFeeDefaults();
-  const upperState = stateCode ? stateCode.toUpperCase() : '';
-  const upperCounty = countyName ? countyName.toUpperCase() : '';
+  const upperState = stateCode ? stateCode.toUpperCase() : "";
+  const upperCounty = countyName ? countyName.toUpperCase() : "";
   wizardData.location = {
     ...wizardData.location,
     stateCode: upperState,
-    countyName: countyName ?? ''
+    countyName: countyName ?? "",
   };
 
   const config = TAX_RATE_CONFIG[upperState] ?? null;
   if (config) {
     const statePercent = Math.round((config.stateRate ?? 0) * 10000) / 100;
-    const countyPercent = Math.round(((config.counties?.[upperCounty] ?? 0) * 10000)) / 100;
+    const countyPercent =
+      Math.round((config.counties?.[upperCounty] ?? 0) * 10000) / 100;
     wizardData.fees.stateTaxRate = statePercent;
     wizardData.fees.countyTaxRate = countyPercent;
     updateTaxInputs();
     if (currentStep === 4) {
       refreshReview().catch((error) => {
-        console.error('[fees] Unable to refresh review after applying locale', error);
+        console.error(
+          "[fees] Unable to refresh review after applying locale",
+          error
+        );
       });
     }
   } else {
@@ -763,37 +1172,37 @@ function applyLocaleToFees({ stateCode, countyName }) {
  * Setup location input (manual ZIP entry if Google Maps not available)
  */
 function setupLocationInput() {
-  const locationInput = document.getElementById('user-location');
+  const locationInput = document.getElementById("user-location");
 
   // Skip if element doesn't exist (e.g., in express mode without wizard)
   if (!locationInput) {
-    console.log('[location-input] Wizard location input not found; skipping setup');
     return;
   }
 
   // Also allow manual ZIP entry
-  locationInput.addEventListener('input', async (e) => {
+  locationInput.addEventListener("input", async (e) => {
     const value = e.target.value.trim();
 
     // If it looks like a ZIP code (5 digits)
     if (/^\d{5}$/.test(value)) {
       wizardData.location = {
         zip: value,
-        address: value
+        address: value,
       };
 
       const hint = locationInput.nextElementSibling;
       if (hint) {
         hint.textContent = `✓ Using ZIP: ${value}`;
-        hint.style.color = 'var(--success)';
+        hint.style.color = "var(--success)";
       }
 
       if (google?.maps?.Geocoder) {
         const geocoder = new google.maps.Geocoder();
         geocoder.geocode({ address: value }, (results, status) => {
-          if (status === 'OK' && results?.length) {
+          if (status === "OK" && results?.length) {
             const components = results[0].address_components ?? [];
-            const { stateCode, countyName } = extractLocaleFromComponents(components);
+            const { stateCode, countyName } =
+              extractLocaleFromComponents(components);
             applyLocaleToFees({ stateCode, countyName });
           }
         });
@@ -803,9 +1212,11 @@ function setupLocationInput() {
       await populateYearDropdowns();
 
       // Show vehicle selection section now that location is set
-      const vehicleSelectionSection = document.getElementById('vehicle-selection-section');
+      const vehicleSelectionSection = document.getElementById(
+        "vehicle-selection-section"
+      );
       if (vehicleSelectionSection) {
-        vehicleSelectionSection.style.display = 'block';
+        vehicleSelectionSection.style.display = "block";
       }
     }
   });
@@ -817,22 +1228,19 @@ function setupLocationInput() {
 async function loadSavedVehicles() {
   try {
     if (!supabase) {
-      console.log('[vehicles] Supabase not initialized');
       return;
     }
 
     if (!currentUserId) {
-      console.log('[vehicles] No user signed in, skipping saved vehicles');
       savedVehicles = [];
       return;
     }
 
-    console.log('[vehicles] Loading saved vehicles for user:', currentUserId);
-
     // Query vehicles table with specific columns (using inserted_at like main app)
     const { data, error } = await supabase
-      .from('vehicles')
-      .select(`
+      .from("vehicles")
+      .select(
+        `
         id,
         user_id,
         vin,
@@ -857,54 +1265,49 @@ async function loadSavedVehicles() {
         listing_url,
         photo_url,
         inserted_at
-      `)
-      .eq('user_id', currentUserId)
-      .order('inserted_at', { ascending: false });
+      `
+      )
+      .eq("user_id", currentUserId)
+      .order("inserted_at", { ascending: false });
 
     if (error) {
-      console.error('[vehicles] Error loading saved vehicles:', error);
+      console.error("[vehicles] Error loading saved vehicles:", error);
       savedVehicles = [];
       return;
     }
 
     savedVehicles = (data || []).map((vehicle) => {
-      const parsedLat = typeof vehicle.dealer_lat === 'number'
-        ? vehicle.dealer_lat
-        : vehicle.dealer_lat != null
+      const parsedLat =
+        typeof vehicle.dealer_lat === "number"
+          ? vehicle.dealer_lat
+          : vehicle.dealer_lat != null
           ? Number.parseFloat(vehicle.dealer_lat)
           : null;
-      const parsedLng = typeof vehicle.dealer_lng === 'number'
-        ? vehicle.dealer_lng
-        : vehicle.dealer_lng != null
+      const parsedLng =
+        typeof vehicle.dealer_lng === "number"
+          ? vehicle.dealer_lng
+          : vehicle.dealer_lng != null
           ? Number.parseFloat(vehicle.dealer_lng)
           : null;
 
       // Normalize condition: auto-detect based on year if missing or incorrect
       const currentYear = new Date().getFullYear();
-      let condition = vehicle.condition ? vehicle.condition.toLowerCase() : '';
+      let condition = vehicle.condition ? vehicle.condition.toLowerCase() : "";
 
       // If condition is missing or invalid, auto-detect from year
-      if (!condition || (condition !== 'new' && condition !== 'used')) {
-        condition = parseInt(vehicle.year) >= currentYear ? 'new' : 'used';
+      if (!condition || (condition !== "new" && condition !== "used")) {
+        condition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
       }
 
       return {
         ...vehicle,
         dealer_lat: Number.isFinite(parsedLat) ? parsedLat : null,
         dealer_lng: Number.isFinite(parsedLng) ? parsedLng : null,
-        condition: condition  // Normalized to lowercase 'new' or 'used'
+        condition: condition, // Normalized to lowercase 'new' or 'used'
       };
     });
-    console.log(`[vehicles] Loaded ${savedVehicles.length} saved vehicles`);
-    console.log('[vehicles] First 3 vehicles:', savedVehicles.slice(0, 3).map(v => ({
-      vin: v.vin,
-      year: v.year,
-      make: v.make,
-      model: v.model,
-      condition: v.condition
-    })));
   } catch (error) {
-    console.error('[vehicles] Error loading saved vehicles:', error);
+    console.error("[vehicles] Error loading saved vehicles:", error);
     savedVehicles = [];
   }
 }
@@ -913,27 +1316,29 @@ async function loadSavedVehicles() {
  * Setup VIN input with autocomplete and search
  */
 function setupVINInput() {
-  const vinInput = document.getElementById('vin-input');
-  const dropdown = document.getElementById('saved-vehicles-dropdown');
+  const vinInput = document.getElementById("vin-input");
+  const dropdown = document.getElementById("saved-vehicles-dropdown");
 
   if (!vinInput || !dropdown) {
-    console.warn('[vin-input] VIN input elements not found; skipping main wizard VIN setup');
+    console.warn(
+      "[vin-input] VIN input elements not found; skipping main wizard VIN setup"
+    );
     return;
   }
 
-  vinInput.addEventListener('focus', () => {
+  vinInput.addEventListener("focus", () => {
     if (savedVehicles.length > 0) {
       showSavedVehiclesDropdown();
     }
   });
 
-  vinInput.addEventListener('input', (e) => {
+  vinInput.addEventListener("input", (e) => {
     const value = e.target.value.toUpperCase().trim();
 
     if (/^[A-HJ-NPR-Z0-9]{17}$/.test(value)) {
-      vinInput.style.borderColor = 'var(--success)';
+      vinInput.style.borderColor = "var(--success)";
     } else {
-      vinInput.style.borderColor = '';
+      vinInput.style.borderColor = "";
     }
 
     if (value.length > 0) {
@@ -943,21 +1348,21 @@ function setupVINInput() {
     }
   });
 
-  vinInput.addEventListener('keydown', async (e) => {
-    if (e.key === 'Enter') {
+  vinInput.addEventListener("keydown", async (e) => {
+    if (e.key === "Enter") {
       e.preventDefault();
       const vin = vinInput.value.trim();
       if (vin.length === 17) {
         await searchVehicleByVIN(vin);
       }
-    } else if (e.key === 'Escape') {
-      dropdown.style.display = 'none';
+    } else if (e.key === "Escape") {
+      dropdown.style.display = "none";
     }
   });
 
-  document.addEventListener('click', (e) => {
+  document.addEventListener("click", (e) => {
     if (!vinInput.contains(e.target) && !dropdown.contains(e.target)) {
-      dropdown.style.display = 'none';
+      dropdown.style.display = "none";
     }
   });
 }
@@ -966,85 +1371,84 @@ function setupVINInput() {
  * Setup cascading dropdowns for manual vehicle entry
  */
 function setupCascadingDropdowns() {
-  const yearInput = document.getElementById('year-input');
-  const makeInput = document.getElementById('make-input');
-  const modelInput = document.getElementById('model-input');
-  const trimInput = document.getElementById('trim-input');
+  const yearInput = document.getElementById("year-input");
+  const makeInput = document.getElementById("make-input");
+  const modelInput = document.getElementById("model-input");
+  const trimInput = document.getElementById("trim-input");
 
-  const makeGroup = document.getElementById('make-group');
-  const modelGroup = document.getElementById('model-group');
-  const trimGroup = document.getElementById('trim-group');
+  const makeGroup = document.getElementById("make-group");
+  const modelGroup = document.getElementById("model-group");
+  const trimGroup = document.getElementById("trim-group");
 
   // Skip if elements don't exist (e.g., in express mode without wizard)
   if (!yearInput || !makeInput || !modelInput || !trimInput) {
-    console.log('[cascading-dropdowns] Wizard elements not found; skipping cascading dropdowns setup');
     return;
   }
 
   // Populate makes when year is selected
-  yearInput.addEventListener('change', async () => {
+  yearInput.addEventListener("change", async () => {
     const year = yearInput.value;
 
     if (!year) {
       // Hide all subsequent dropdowns
-      makeGroup.style.display = 'none';
-      modelGroup.style.display = 'none';
-      trimGroup.style.display = 'none';
+      makeGroup.style.display = "none";
+      modelGroup.style.display = "none";
+      trimGroup.style.display = "none";
       return;
     }
 
     // Show make dropdown and populate it
-    makeGroup.style.display = 'block';
+    makeGroup.style.display = "block";
     await populateMakes(year);
 
     // Hide subsequent dropdowns until make is selected
-    modelGroup.style.display = 'none';
-    trimGroup.style.display = 'none';
+    modelGroup.style.display = "none";
+    trimGroup.style.display = "none";
 
     checkAndShowPreview();
   });
 
   // Populate models when make is selected
-  makeInput.addEventListener('change', async () => {
+  makeInput.addEventListener("change", async () => {
     const year = yearInput.value;
     const make = makeInput.value;
 
     if (!year || !make) {
-      modelGroup.style.display = 'none';
-      trimGroup.style.display = 'none';
+      modelGroup.style.display = "none";
+      trimGroup.style.display = "none";
       return;
     }
 
     // Show model dropdown and populate it
-    modelGroup.style.display = 'block';
+    modelGroup.style.display = "block";
     await populateModels(year, make);
 
     // Hide trim dropdown until model is selected
-    trimGroup.style.display = 'none';
+    trimGroup.style.display = "none";
 
     checkAndShowPreview();
   });
 
   // Populate trims when model is selected
-  modelInput.addEventListener('change', async () => {
+  modelInput.addEventListener("change", async () => {
     const year = yearInput.value;
     const make = makeInput.value;
     const model = modelInput.value;
 
     if (!year || !make || !model) {
-      trimGroup.style.display = 'none';
+      trimGroup.style.display = "none";
       return;
     }
 
     // Show trim dropdown and populate it
-    trimGroup.style.display = 'block';
+    trimGroup.style.display = "block";
     await populateTrims(year, make, model);
 
     checkAndShowPreview();
   });
 
   // Check for preview when trim changes
-  trimInput.addEventListener('change', () => {
+  trimInput.addEventListener("change", () => {
     checkAndShowPreview();
   });
 }
@@ -1053,33 +1457,37 @@ function setupCascadingDropdowns() {
  * Check if manual selection is complete and show preview
  */
 async function checkAndShowPreview() {
-  const yearInput = document.getElementById('year-input');
-  const makeInput = document.getElementById('make-input');
-  const modelInput = document.getElementById('model-input');
-  const trimInput = document.getElementById('trim-input');
+  const yearInput = document.getElementById("year-input");
+  const makeInput = document.getElementById("make-input");
+  const modelInput = document.getElementById("model-input");
+  const trimInput = document.getElementById("trim-input");
 
   const year = yearInput.value;
   const make = makeInput.value;
   const model = modelInput.value;
-  const trim = trimInput.value || '';
+  const trim = trimInput.value || "";
 
   // Hide preview if required fields aren't filled
   if (!year || !make || !model) {
-    document.getElementById('manual-vehicle-preview').style.display = 'none';
+    document.getElementById("manual-vehicle-preview").style.display = "none";
     return;
   }
 
-  console.log('[manual-preview] Searching for vehicle:', { year, make, model, trim });
-
   try {
     // Search for matching vehicle with the user's exact selection
-    const zip = wizardData.location?.zip || '';
-    const trimParam = trim ? `&trim=${encodeURIComponent(trim)}` : '';
+    const zip = wizardData.location?.zip || "";
+    const trimParam = trim ? `&trim=${encodeURIComponent(trim)}` : "";
 
-    const response = await fetch(`${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${trimParam}&zip=${zip}&radius=100&rows=1`);
+    const response = await fetch(
+      `${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(
+        make
+      )}&model=${encodeURIComponent(
+        model
+      )}${trimParam}&zip=${zip}&radius=100&rows=1`
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to search for vehicle');
+      throw new Error("Failed to search for vehicle");
     }
 
     const data = await response.json();
@@ -1088,15 +1496,14 @@ async function checkAndShowPreview() {
       const vehicle = data.listings[0];
       // Auto-detect condition based on year
       const currentYear = new Date().getFullYear();
-      vehicle.condition = parseInt(year) >= currentYear ? 'new' : 'used';
+      vehicle.condition = parseInt(year) >= currentYear ? "new" : "used";
       displayManualVehiclePreview(vehicle);
     } else {
       // No listings found - show informative message
-      console.log('[manual-preview] No active listings found for this vehicle');
       displayNoListingsMessage(year, make, model, trim);
     }
   } catch (error) {
-    console.error('[manual-preview] Error:', error);
+    console.error("[manual-preview] Error:", error);
     displayNoListingsMessage(year, make, model, trim);
   }
 }
@@ -1105,11 +1512,13 @@ async function checkAndShowPreview() {
  * Display message when no listings are found
  */
 function displayNoListingsMessage(year, make, model, trim) {
-  const previewSection = document.getElementById('manual-vehicle-preview');
-  const previewCard = document.getElementById('manual-vehicle-preview-card');
+  const previewSection = document.getElementById("manual-vehicle-preview");
+  const previewCard = document.getElementById("manual-vehicle-preview-card");
 
-  const trimText = trim ? ` - ${capitalizeWords(trim)}` : '';
-  const vehicleText = `${year} ${capitalizeWords(make)} ${capitalizeWords(model)}${trimText}`;
+  const trimText = trim ? ` - ${capitalizeWords(trim)}` : "";
+  const vehicleText = `${year} ${capitalizeWords(make)} ${capitalizeWords(
+    model
+  )}${trimText}`;
 
   previewCard.innerHTML = `
     <div class="no-listings-message">
@@ -1137,16 +1546,15 @@ function displayNoListingsMessage(year, make, model, trim) {
     </div>
   `;
 
-  previewSection.style.display = 'block';
-  console.log('[manual-preview] Displayed no listings message');
+  previewSection.style.display = "block";
 }
 
 /**
  * Display manual vehicle selection preview card
  */
 function displayManualVehiclePreview(vehicle) {
-  const previewSection = document.getElementById('manual-vehicle-preview');
-  const previewCard = document.getElementById('manual-vehicle-preview-card');
+  const previewSection = document.getElementById("manual-vehicle-preview");
+  const previewCard = document.getElementById("manual-vehicle-preview-card");
 
   // Clean model name
   const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
@@ -1154,7 +1562,7 @@ function displayManualVehiclePreview(vehicle) {
   // Make card clickable if listing URL exists
   const cardClickHandler = vehicle.listing_url
     ? `onclick="window.open('${vehicle.listing_url}', '_blank')" style="cursor: pointer;"`
-    : '';
+    : "";
 
   const imageHtml = vehicle.photo_url
     ? `<img src="${vehicle.photo_url}" alt="${vehicle.year} ${vehicle.make} ${cleanedModel}" class="manual-preview__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -1169,7 +1577,11 @@ function displayManualVehiclePreview(vehicle) {
          </svg>
        </div>`;
 
-  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(
+    vehicle.make || ""
+  )} ${capitalizeWords(cleanedModel || "")}${
+    vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ""
+  }`;
 
   previewCard.innerHTML = `
     <div class="manual-preview__badge">
@@ -1189,48 +1601,67 @@ function displayManualVehiclePreview(vehicle) {
       </div>
 
       <div class="manual-preview__details">
-        ${vehicle.condition ? `
+        ${
+          vehicle.condition
+            ? `
           <div class="manual-preview__info">
             <span class="label">Condition:</span>
             <span class="value">${vehicle.condition}</span>
           </div>
-        ` : ''}
-        ${vehicle.mileage ? `
+        `
+            : ""
+        }
+        ${
+          vehicle.mileage
+            ? `
           <div class="manual-preview__info">
             <span class="label">Mileage:</span>
             <span class="value">${formatMileage(vehicle.mileage)} mi</span>
           </div>
-        ` : ''}
-        ${vehicle.asking_price ? `
+        `
+            : ""
+        }
+        ${
+          vehicle.asking_price
+            ? `
           <div class="manual-preview__info">
             <span class="label">Asking Price:</span>
             <span class="value">${formatCurrency(vehicle.asking_price)}</span>
           </div>
-        ` : ''}
-        ${vehicle.vin ? `
+        `
+            : ""
+        }
+        ${
+          vehicle.vin
+            ? `
           <div class="manual-preview__info">
             <span class="label">VIN:</span>
             <span class="value vin-value">${formatVIN(vehicle.vin)}</span>
           </div>
-        ` : ''}
-        ${vehicle.listing_url ? `
+        `
+            : ""
+        }
+        ${
+          vehicle.listing_url
+            ? `
           <a href="${vehicle.listing_url}" target="_blank" class="manual-preview__link-button">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
             </svg>
             View Full Listing & Photos on Dealer Website
           </a>
-        ` : ''}
+        `
+            : ""
+        }
     </div>
   `;
 
-  previewSection.style.display = 'block';
-  console.log('[manual-preview] Displayed preview for:', vehicleDetailsText);
+  previewSection.style.display = "block";
 
   // Store the selection for use in next step
   selectedVehicle = {
     ...vehicle,
-    condition: vehicle.condition || 'Used'
+    condition: vehicle.condition || "Used",
   };
 }
 
@@ -1238,21 +1669,23 @@ function displayManualVehiclePreview(vehicle) {
  * Populate makes for selected year
  */
 async function populateMakes(year) {
-  const makeSelect = document.getElementById('make-input');
+  const makeSelect = document.getElementById("make-input");
 
   try {
     makeSelect.innerHTML = '<option value="">Loading...</option>';
     makeSelect.disabled = true;
 
     // Get user's zip if available for more relevant results
-    const zip = wizardData.location?.zip || '';
-    const zipParam = zip ? `&zip=${zip}` : '';
+    const zip = wizardData.location?.zip || "";
+    const zipParam = zip ? `&zip=${zip}` : "";
 
     // Try to query MarketCheck for makes by year
-    const response = await fetch(`${API_BASE}/api/mc/makes?year=${year}${zipParam}`);
+    const response = await fetch(
+      `${API_BASE}/api/mc/makes?year=${year}${zipParam}`
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to fetch makes');
+      throw new Error("Failed to fetch makes");
     }
 
     const data = await response.json();
@@ -1260,17 +1693,15 @@ async function populateMakes(year) {
 
     // If MarketCheck returns no makes, fall back to Supabase saved vehicles
     if (makes.length === 0) {
-      console.log('[cascading-dropdowns] No makes from MarketCheck, falling back to Supabase vehicles');
       const makesSet = new Set();
       savedVehicles
-        .filter(v => parseInt(v.year) === parseInt(year))
-        .forEach(v => {
+        .filter((v) => parseInt(v.year) === parseInt(year))
+        .forEach((v) => {
           if (v.make) makesSet.add(v.make);
         });
       makes = Array.from(makesSet);
 
       if (makes.length > 0) {
-        console.log(`[cascading-dropdowns] Using ${makes.length} makes from Supabase saved vehicles`);
       }
     }
 
@@ -1279,32 +1710,32 @@ async function populateMakes(year) {
 
     // Populate dropdown
     makeSelect.innerHTML = '<option value="">Select Make</option>';
-    makes.forEach(make => {
-      const option = document.createElement('option');
+    makes.forEach((make) => {
+      const option = document.createElement("option");
       option.value = make;
       option.textContent = capitalizeWords(make);
       makeSelect.appendChild(option);
     });
 
     makeSelect.disabled = false;
-
-    console.log('[cascading-dropdowns] Populated', makes.length, 'makes for year', year);
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching makes from MarketCheck:', error);
+    console.error(
+      "[cascading-dropdowns] Error fetching makes from MarketCheck:",
+      error
+    );
 
     // Fall back to Supabase saved vehicles
-    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
     const makesSet = new Set();
     savedVehicles
-      .filter(v => parseInt(v.year) === parseInt(year))
-      .forEach(v => {
+      .filter((v) => parseInt(v.year) === parseInt(year))
+      .forEach((v) => {
         if (v.make) makesSet.add(v.make);
       });
     const makes = Array.from(makesSet).sort((a, b) => a.localeCompare(b));
 
     makeSelect.innerHTML = '<option value="">Select Make</option>';
-    makes.forEach(make => {
-      const option = document.createElement('option');
+    makes.forEach((make) => {
+      const option = document.createElement("option");
       option.value = make;
       option.textContent = capitalizeWords(make);
       makeSelect.appendChild(option);
@@ -1313,10 +1744,8 @@ async function populateMakes(year) {
     makeSelect.disabled = false;
 
     if (makes.length > 0) {
-      console.log(`[cascading-dropdowns] Using ${makes.length} makes from Supabase (MarketCheck unavailable)`);
     } else {
       makeSelect.innerHTML = '<option value="">No makes available</option>';
-      console.log('[cascading-dropdowns] No makes available for year', year);
     }
   }
 }
@@ -1325,21 +1754,25 @@ async function populateMakes(year) {
  * Populate models for selected year and make
  */
 async function populateModels(year, make) {
-  const modelSelect = document.getElementById('model-input');
+  const modelSelect = document.getElementById("model-input");
 
   try {
     modelSelect.innerHTML = '<option value="">Loading...</option>';
     modelSelect.disabled = true;
 
     // Get user's zip if available for more relevant results
-    const zip = wizardData.location?.zip || '';
-    const zipParam = zip ? `&zip=${zip}` : '';
+    const zip = wizardData.location?.zip || "";
+    const zipParam = zip ? `&zip=${zip}` : "";
 
     // Try to query MarketCheck for models
-    const response = await fetch(`${API_BASE}/api/mc/models?year=${year}&make=${encodeURIComponent(make)}${zipParam}`);
+    const response = await fetch(
+      `${API_BASE}/api/mc/models?year=${year}&make=${encodeURIComponent(
+        make
+      )}${zipParam}`
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to fetch models');
+      throw new Error("Failed to fetch models");
     }
 
     const data = await response.json();
@@ -1347,17 +1780,15 @@ async function populateModels(year, make) {
 
     // If MarketCheck returns no models, fall back to Supabase saved vehicles
     if (models.length === 0) {
-      console.log('[cascading-dropdowns] No models from MarketCheck, falling back to Supabase vehicles');
       const modelsSet = new Set();
       savedVehicles
-        .filter(v => parseInt(v.year) === parseInt(year) && v.make === make)
-        .forEach(v => {
+        .filter((v) => parseInt(v.year) === parseInt(year) && v.make === make)
+        .forEach((v) => {
           if (v.model) modelsSet.add(v.model);
         });
       models = Array.from(modelsSet);
 
       if (models.length > 0) {
-        console.log(`[cascading-dropdowns] Using ${models.length} models from Supabase saved vehicles`);
       }
     }
 
@@ -1366,32 +1797,32 @@ async function populateModels(year, make) {
 
     // Populate dropdown
     modelSelect.innerHTML = '<option value="">Select Model</option>';
-    models.forEach(model => {
-      const option = document.createElement('option');
+    models.forEach((model) => {
+      const option = document.createElement("option");
       option.value = model;
       option.textContent = capitalizeWords(model);
       modelSelect.appendChild(option);
     });
 
     modelSelect.disabled = false;
-
-    console.log('[cascading-dropdowns] Populated', models.length, 'models for', year, make);
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching models from MarketCheck:', error);
+    console.error(
+      "[cascading-dropdowns] Error fetching models from MarketCheck:",
+      error
+    );
 
     // Fall back to Supabase saved vehicles
-    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
     const modelsSet = new Set();
     savedVehicles
-      .filter(v => parseInt(v.year) === parseInt(year) && v.make === make)
-      .forEach(v => {
+      .filter((v) => parseInt(v.year) === parseInt(year) && v.make === make)
+      .forEach((v) => {
         if (v.model) modelsSet.add(v.model);
       });
     const models = Array.from(modelsSet).sort((a, b) => a.localeCompare(b));
 
     modelSelect.innerHTML = '<option value="">Select Model</option>';
-    models.forEach(model => {
-      const option = document.createElement('option');
+    models.forEach((model) => {
+      const option = document.createElement("option");
       option.value = model;
       option.textContent = capitalizeWords(model);
       modelSelect.appendChild(option);
@@ -1400,10 +1831,8 @@ async function populateModels(year, make) {
     modelSelect.disabled = false;
 
     if (models.length > 0) {
-      console.log(`[cascading-dropdowns] Using ${models.length} models from Supabase (MarketCheck unavailable)`);
     } else {
       modelSelect.innerHTML = '<option value="">No models available</option>';
-      console.log('[cascading-dropdowns] No models available for', year, make);
     }
   }
 }
@@ -1412,21 +1841,25 @@ async function populateModels(year, make) {
  * Populate trims for selected year, make, and model
  */
 async function populateTrims(year, make, model) {
-  const trimSelect = document.getElementById('trim-input');
+  const trimSelect = document.getElementById("trim-input");
 
   try {
     trimSelect.innerHTML = '<option value="">Loading...</option>';
     trimSelect.disabled = true;
 
     // Get user's zip if available for more relevant results
-    const zip = wizardData.location?.zip || '';
-    const zipParam = zip ? `&zip=${zip}` : '';
+    const zip = wizardData.location?.zip || "";
+    const zipParam = zip ? `&zip=${zip}` : "";
 
     // Try to query MarketCheck for trims
-    const response = await fetch(`${API_BASE}/api/mc/trims?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}${zipParam}`);
+    const response = await fetch(
+      `${API_BASE}/api/mc/trims?year=${year}&make=${encodeURIComponent(
+        make
+      )}&model=${encodeURIComponent(model)}${zipParam}`
+    );
 
     if (!response.ok) {
-      throw new Error('Failed to fetch trims');
+      throw new Error("Failed to fetch trims");
     }
 
     const data = await response.json();
@@ -1434,25 +1867,28 @@ async function populateTrims(year, make, model) {
 
     if (trims.length === 0) {
       // Fall back to Supabase saved vehicles
-      console.log('[cascading-dropdowns] No trims from MarketCheck, falling back to Supabase vehicles');
       const trimsSet = new Set();
       savedVehicles
-        .filter(v => parseInt(v.year) === parseInt(year) && v.make === make && v.model === model)
-        .forEach(v => {
+        .filter(
+          (v) =>
+            parseInt(v.year) === parseInt(year) &&
+            v.make === make &&
+            v.model === model
+        )
+        .forEach((v) => {
           if (v.trim) trimsSet.add(v.trim);
         });
       trims = Array.from(trimsSet).sort((a, b) => a.localeCompare(b));
 
       trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
-      trims.forEach(trim => {
-        const option = document.createElement('option');
+      trims.forEach((trim) => {
+        const option = document.createElement("option");
         option.value = trim;
         option.textContent = capitalizeWords(trim);
         trimSelect.appendChild(option);
       });
       trimSelect.disabled = false;
 
-      console.log(`[cascading-dropdowns] Using ${trims.length} trims from Supabase (MarketCheck unavailable)`);
       return;
     }
 
@@ -1460,14 +1896,17 @@ async function populateTrims(year, make, model) {
     trims.sort((a, b) => a.localeCompare(b));
 
     // Validate each trim by checking if it actually has listings (only if MarketCheck is working)
-    console.log('[cascading-dropdowns] Validating', trims.length, 'trims for availability...');
     const validTrims = [];
 
     // We'll validate trims in batches for better performance
     for (const trim of trims) {
       try {
         const searchResponse = await fetch(
-          `${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(make)}&model=${encodeURIComponent(model)}&trim=${encodeURIComponent(trim)}&zip=${zip}&radius=100&rows=1`
+          `${API_BASE}/api/mc/search?year=${year}&make=${encodeURIComponent(
+            make
+          )}&model=${encodeURIComponent(model)}&trim=${encodeURIComponent(
+            trim
+          )}&zip=${zip}&radius=100&rows=1`
         );
 
         if (searchResponse.ok) {
@@ -1475,23 +1914,22 @@ async function populateTrims(year, make, model) {
           if (searchData.listings && searchData.listings.length > 0) {
             // Verify the trim actually matches (case-insensitive)
             const listing = searchData.listings[0];
-            const listingTrim = listing.trim || listing.build?.trim || '';
+            const listingTrim = listing.trim || listing.build?.trim || "";
             if (listingTrim.toLowerCase() === trim.toLowerCase()) {
               validTrims.push(trim);
-              console.log(`[cascading-dropdowns] ✓ Trim "${trim}" has listings`);
             } else {
-              console.log(`[cascading-dropdowns] ✗ Trim "${trim}" - no exact match (found "${listingTrim}")`);
             }
           } else {
-            console.log(`[cascading-dropdowns] ✗ Trim "${trim}" - no listings found`);
           }
         }
       } catch (err) {
-        console.warn(`[cascading-dropdowns] Error validating trim "${trim}":`, err.message);
+        console.warn(
+          `[cascading-dropdowns] Error validating trim "${trim}":`,
+          err.message
+        );
         // If validation fails due to API quota, skip validation and use all trims
-        if (err.message.includes('429')) {
-          console.log('[cascading-dropdowns] API quota exhausted, skipping trim validation');
-          validTrims.push(...trims.filter(t => !validTrims.includes(t)));
+        if (err.message.includes("429")) {
+          validTrims.push(...trims.filter((t) => !validTrims.includes(t)));
           break;
         }
       }
@@ -1501,42 +1939,45 @@ async function populateTrims(year, make, model) {
     trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
 
     if (validTrims.length > 0) {
-      validTrims.forEach(trim => {
-        const option = document.createElement('option');
+      validTrims.forEach((trim) => {
+        const option = document.createElement("option");
         option.value = trim;
         option.textContent = capitalizeWords(trim);
         trimSelect.appendChild(option);
       });
-      console.log(`[cascading-dropdowns] Populated ${validTrims.length} validated trims (out of ${trims.length} total)`);
     } else {
       // No valid trims, but don't disable - user can still search without trim
-      console.log('[cascading-dropdowns] No valid trims with listings - trim selection optional');
     }
 
     trimSelect.disabled = false;
   } catch (error) {
-    console.error('[cascading-dropdowns] Error fetching trims from MarketCheck:', error);
+    console.error(
+      "[cascading-dropdowns] Error fetching trims from MarketCheck:",
+      error
+    );
 
     // Fall back to Supabase saved vehicles
-    console.log('[cascading-dropdowns] Falling back to Supabase saved vehicles');
     const trimsSet = new Set();
     savedVehicles
-      .filter(v => parseInt(v.year) === parseInt(year) && v.make === make && v.model === model)
-      .forEach(v => {
+      .filter(
+        (v) =>
+          parseInt(v.year) === parseInt(year) &&
+          v.make === make &&
+          v.model === model
+      )
+      .forEach((v) => {
         if (v.trim) trimsSet.add(v.trim);
       });
     const trims = Array.from(trimsSet).sort((a, b) => a.localeCompare(b));
 
     trimSelect.innerHTML = '<option value="">Select Trim (Optional)</option>';
-    trims.forEach(trim => {
-      const option = document.createElement('option');
+    trims.forEach((trim) => {
+      const option = document.createElement("option");
       option.value = trim;
       option.textContent = capitalizeWords(trim);
       trimSelect.appendChild(option);
     });
     trimSelect.disabled = false;
-
-    console.log(`[cascading-dropdowns] Using ${trims.length} trims from Supabase (MarketCheck unavailable)`);
   }
 }
 
@@ -1544,75 +1985,86 @@ async function populateTrims(year, make, model) {
  * Show saved vehicles dropdown
  */
 function showSavedVehiclesDropdown() {
-  const dropdown = document.getElementById('saved-vehicles-dropdown');
-  dropdown.innerHTML = '';
-
-  console.log('[dropdown] Showing saved vehicles dropdown, count:', savedVehicles.length);
+  const dropdown = document.getElementById("saved-vehicles-dropdown");
+  dropdown.innerHTML = "";
 
   if (savedVehicles.length === 0) {
-    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
-    dropdown.style.display = 'block';
+    dropdown.innerHTML =
+      '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+    dropdown.style.display = "block";
     return;
   }
 
   savedVehicles.forEach((vehicle, index) => {
-    console.log(`[dropdown] Adding vehicle ${index + 1}:`, vehicle.vin, vehicle.year, vehicle.make, vehicle.model);
-    const item = document.createElement('div');
-    item.className = 'saved-vehicle-item';
+    const item = document.createElement("div");
+    item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(vehicle.trim || '')} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+      <div class="saved-vehicle-item__title">${
+        vehicle.year || ""
+      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+      vehicle.model || ""
+    )}</div>
+      <div class="saved-vehicle-item__details">${capitalizeWords(
+        vehicle.trim || ""
+      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+        vehicle.vin || "N/A"
+      )}</div>
     `;
-    item.addEventListener('click', () => selectSavedVehicle(vehicle));
+    item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
 
-  dropdown.style.display = 'block';
-  console.log('[dropdown] Dropdown displayed with', dropdown.children.length, 'items');
+  dropdown.style.display = "block";
 }
 
 /**
  * Filter saved vehicles by search term
  */
 function filterSavedVehicles(searchTerm) {
-  const dropdown = document.getElementById('saved-vehicles-dropdown');
-  const filtered = savedVehicles.filter(v =>
-    (v.vin && v.vin.includes(searchTerm)) ||
-    (v.make && v.make.toUpperCase().includes(searchTerm)) ||
-    (v.model && v.model.toUpperCase().includes(searchTerm)) ||
-    (v.year && String(v.year).includes(searchTerm))
+  const dropdown = document.getElementById("saved-vehicles-dropdown");
+  const filtered = savedVehicles.filter(
+    (v) =>
+      (v.vin && v.vin.includes(searchTerm)) ||
+      (v.make && v.make.toUpperCase().includes(searchTerm)) ||
+      (v.model && v.model.toUpperCase().includes(searchTerm)) ||
+      (v.year && String(v.year).includes(searchTerm))
   );
 
-  dropdown.innerHTML = '';
+  dropdown.innerHTML = "";
 
   if (filtered.length === 0) {
-    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No matches found</div>';
-    dropdown.style.display = 'block';
+    dropdown.innerHTML =
+      '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No matches found</div>';
+    dropdown.style.display = "block";
     return;
   }
 
-  filtered.forEach(vehicle => {
-    const item = document.createElement('div');
-    item.className = 'saved-vehicle-item';
+  filtered.forEach((vehicle) => {
+    const item = document.createElement("div");
+    item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}</div>
-      <div class="saved-vehicle-item__details">${vehicle.trim || ''} • ${vehicle.mileage?.toLocaleString() || 'N/A'} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin || 'N/A'}</div>
+      <div class="saved-vehicle-item__title">${vehicle.year || ""} ${
+      vehicle.make || ""
+    } ${vehicle.model || ""}</div>
+      <div class="saved-vehicle-item__details">${vehicle.trim || ""} • ${
+      vehicle.mileage?.toLocaleString() || "N/A"
+    } miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin || "N/A"}</div>
     `;
-    item.addEventListener('click', () => selectSavedVehicle(vehicle));
+    item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
 
-  dropdown.style.display = 'block';
+  dropdown.style.display = "block";
 }
 
 /**
  * Select a saved vehicle
  */
 function selectSavedVehicle(vehicle) {
-  document.getElementById('vin-input').value = vehicle.vin || '';
-  document.getElementById('saved-vehicles-dropdown').style.display = 'none';
+  document.getElementById("vin-input").value = vehicle.vin || "";
+  document.getElementById("saved-vehicles-dropdown").style.display = "none";
   if (vehicle.vin) {
     searchVehicleByVIN(vehicle.vin, vehicle);
   }
@@ -1627,34 +2079,45 @@ let unavailableVehicleData = null;
 function showUnavailableVehicleModal(vehicle) {
   unavailableVehicleData = vehicle;
 
-  const modal = document.getElementById('unavailable-vehicle-modal');
-  const detailsDiv = document.getElementById('unavailable-vehicle-details');
+  const modal = document.getElementById("unavailable-vehicle-modal");
+  const detailsDiv = document.getElementById("unavailable-vehicle-details");
 
   // Populate vehicle details
   detailsDiv.innerHTML = `
     <strong>Vehicle Information:</strong>
-    <div class="vehicle-info">${vehicle.year || 'N/A'} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
-    ${vehicle.trim ? `<div class="vehicle-info">Trim: ${capitalizeWords(vehicle.trim)}</div>` : ''}
-    ${vehicle.mileage ? `<div class="vehicle-info">Mileage: ${formatMileage(vehicle.mileage)} miles</div>` : ''}
-    <div class="vehicle-info">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+    <div class="vehicle-info">${vehicle.year || "N/A"} ${capitalizeWords(
+    vehicle.make || ""
+  )} ${capitalizeWords(vehicle.model || "")}</div>
+    ${
+      vehicle.trim
+        ? `<div class="vehicle-info">Trim: ${capitalizeWords(
+            vehicle.trim
+          )}</div>`
+        : ""
+    }
+    ${
+      vehicle.mileage
+        ? `<div class="vehicle-info">Mileage: ${formatMileage(
+            vehicle.mileage
+          )} miles</div>`
+        : ""
+    }
+    <div class="vehicle-info">VIN: ${formatVIN(vehicle.vin || "N/A")}</div>
   `;
 
-  modal.style.display = 'flex';
-  console.log('[unavailable-vehicle] Modal shown for:', vehicle.vin);
+  modal.style.display = "flex";
 }
 
 /**
  * Close unavailable vehicle modal
  */
 function closeUnavailableVehicleModal() {
-  const modal = document.getElementById('unavailable-vehicle-modal');
-  modal.style.display = 'none';
+  const modal = document.getElementById("unavailable-vehicle-modal");
+  modal.style.display = "none";
   unavailableVehicleData = null;
 
   // Clear VIN input
-  document.getElementById('vin-input').value = '';
-
-  console.log('[unavailable-vehicle] Modal closed');
+  document.getElementById("vin-input").value = "";
 }
 window.closeUnavailableVehicleModal = closeUnavailableVehicleModal;
 
@@ -1663,31 +2126,27 @@ window.closeUnavailableVehicleModal = closeUnavailableVehicleModal;
  */
 async function removeUnavailableVehicle() {
   if (!unavailableVehicleData || !unavailableVehicleData.vin) {
-    console.error('[remove-vehicle] No vehicle data to remove');
+    console.error("[remove-vehicle] No vehicle data to remove");
     return;
   }
 
   if (!supabase || !currentUserId) {
-    alert('Unable to remove vehicle: Not signed in');
+    alert("Unable to remove vehicle: Not signed in");
     return;
   }
 
   try {
-    console.log('[remove-vehicle] Removing vehicle:', unavailableVehicleData.vin);
-
     const { error } = await supabase
-      .from('vehicles')
+      .from("vehicles")
       .delete()
-      .eq('user_id', currentUserId)
-      .eq('vin', unavailableVehicleData.vin);
+      .eq("user_id", currentUserId)
+      .eq("vin", unavailableVehicleData.vin);
 
     if (error) {
-      console.error('[remove-vehicle] Error removing vehicle:', error);
-      alert('Failed to remove vehicle from database');
+      console.error("[remove-vehicle] Error removing vehicle:", error);
+      alert("Failed to remove vehicle from database");
       return;
     }
-
-    console.log('[remove-vehicle] Vehicle removed successfully');
 
     // Reload saved vehicles to update the dropdown
     await loadSavedVehicles();
@@ -1696,11 +2155,10 @@ async function removeUnavailableVehicle() {
     closeUnavailableVehicleModal();
 
     // Show success message
-    alert('Vehicle removed from your saved vehicles');
-
+    alert("Vehicle removed from your saved vehicles");
   } catch (error) {
-    console.error('[remove-vehicle] Error:', error);
-    alert('Failed to remove vehicle');
+    console.error("[remove-vehicle] Error:", error);
+    alert("Failed to remove vehicle");
   }
 }
 window.removeUnavailableVehicle = removeUnavailableVehicle;
@@ -1711,29 +2169,29 @@ window.removeUnavailableVehicle = removeUnavailableVehicle;
  * @param {object} savedVehicle - Optional saved vehicle data (if loading from saved vehicles)
  */
 async function searchVehicleByVIN(vin, savedVehicle = null) {
-  const vinInput = document.getElementById('vin-input');
-  const loading = document.getElementById('vin-loading');
-  const similarSection = document.getElementById('similar-vehicles-section');
-  const similarGrid = document.getElementById('similar-vehicles-grid');
+  const vinInput = document.getElementById("vin-input");
+  const loading = document.getElementById("vin-loading");
+  const similarSection = document.getElementById("similar-vehicles-section");
+  const similarGrid = document.getElementById("similar-vehicles-grid");
 
   if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
-    alert('Please enter a valid 17-character VIN');
+    alert("Please enter a valid 17-character VIN");
     return;
   }
 
   // Check if user has entered location (required for distance calculations and Smart Offer)
   const userZip = wizardData.location?.zip;
   if (!userZip) {
-    alert('Please enter your location first.\n\nYour location is needed to:\n• Calculate distance from dealer\n• Find similar vehicles nearby\n• Generate Smart Offer pricing');
-    document.getElementById('user-location').focus();
+    alert(
+      "Please enter your location first.\n\nYour location is needed to:\n• Calculate distance from dealer\n• Find similar vehicles nearby\n• Generate Smart Offer pricing"
+    );
+    document.getElementById("user-location").focus();
     return;
   }
 
-  console.log('[search-vehicle] Searching for VIN:', vin, 'from zip:', userZip);
-
-  loading.style.display = 'block';
+  loading.style.display = "block";
   vinInput.disabled = true;
-  similarSection.style.display = 'none';
+  similarSection.style.display = "none";
 
   try {
     let vehicleDetails = null;
@@ -1741,7 +2199,9 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
 
     // 1. Try to get vehicle details by VIN from MarketCheck
     try {
-      const vinResponse = await fetch(`${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`);
+      const vinResponse = await fetch(
+        `${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`
+      );
 
       if (vinResponse.ok) {
         const vinData = await vinResponse.json();
@@ -1749,19 +2209,16 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
           vehicleDetails = vinData.payload;
         }
       }
-    } catch (mcError) {
-      console.log('[search-vehicle] MarketCheck VIN lookup failed:', mcError.message);
-    }
+    } catch (mcError) {}
 
     // 2. If MarketCheck failed and we have saved vehicle data, use it
     if (!vehicleDetails && savedVehicle) {
-      console.log('[search-vehicle] Using saved vehicle data (MarketCheck unavailable)');
       vehicleDetails = savedVehicle;
     }
 
     // If we still don't have vehicle details, throw error
     if (!vehicleDetails) {
-      throw new Error('VIN not found');
+      throw new Error("VIN not found");
     }
 
     // 3. Try to search for similar vehicles from MarketCheck
@@ -1772,69 +2229,75 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
         model: vehicleDetails.model,
         zip: userZip,
         radius: 100,
-        rows: 50
+        rows: 50,
       });
 
-      const searchResponse = await fetch(`${API_BASE}/api/mc/search?${searchParams}`);
+      const searchResponse = await fetch(
+        `${API_BASE}/api/mc/search?${searchParams}`
+      );
       if (searchResponse.ok) {
         const searchData = await searchResponse.json();
         allSimilarVehicles = searchData.listings || [];
       }
     } catch (mcError) {
-      console.log('[search-vehicle] MarketCheck search failed:', mcError.message);
       // Continue with empty similar vehicles array
     }
 
     // 4. Calculate Smart Offer for display in "Your Vehicle" card
     // This will use saved vehicles even if MarketCheck is unavailable
-    const smartOfferData = calculateQuickSmartOffer(allSimilarVehicles, vehicleDetails);
+    const smartOfferData = calculateQuickSmartOffer(
+      allSimilarVehicles,
+      vehicleDetails
+    );
 
     // 5. Display the user's vehicle with Smart Offer
     displayYourVehicle(vehicleDetails, smartOfferData);
 
     // 6. Prioritize vehicles by trim match quality
-    similarVehicles = prioritizeVehiclesByTrim(allSimilarVehicles, vehicleDetails);
+    similarVehicles = prioritizeVehiclesByTrim(
+      allSimilarVehicles,
+      vehicleDetails
+    );
 
     // 7. Auto-select the vehicle (whether or not similar vehicles are found)
-    console.log('[search-vehicle] Auto-selecting vehicle');
     selectedVehicle = {
       ...vehicleDetails,
-      condition: vehicleDetails.condition || (parseInt(vehicleDetails.year) >= new Date().getFullYear() ? 'new' : 'used')
+      condition:
+        vehicleDetails.condition ||
+        (parseInt(vehicleDetails.year) >= new Date().getFullYear()
+          ? "new"
+          : "used"),
     };
     hideManualEntry();
 
     // Populate vehicle price field with asking price or Smart Offer
-    const vehiclePriceInput = document.getElementById('vehicle-price');
+    const vehiclePriceInput = document.getElementById("vehicle-price");
     if (vehiclePriceInput) {
       const priceToUse = smartOfferData?.offer || vehicleDetails.asking_price;
       if (priceToUse) {
         vehiclePriceInput.value = formatCurrency(priceToUse);
         vehiclePriceInput.dataset.basePrice = priceToUse; // Store base price for formula calculations
         wizardData.financing.salePrice = priceToUse;
-        console.log('[vehicle-price] Auto-populated with:', formatCurrency(priceToUse));
       }
     }
 
     // 8. Display similar vehicles if found (as alternatives)
     if (similarVehicles.length > 0) {
       displaySimilarVehicles(similarVehicles, vehicleDetails);
-      similarSection.style.display = 'block';
+      similarSection.style.display = "block";
     }
-
   } catch (error) {
-    console.error('[search-vehicle] Error:', error);
+    console.error("[search-vehicle] Error:", error);
 
     // If this was a saved vehicle that's no longer available and we couldn't use saved data
-    if (savedVehicle && !error.message.includes('quota')) {
-      console.log('[search-vehicle] Saved vehicle not found in MarketCheck:', savedVehicle.vin);
+    if (savedVehicle && !error.message.includes("quota")) {
       showUnavailableVehicleModal(savedVehicle);
     } else {
       // Manual VIN entry that failed - just show alert
       alert(`Could not find vehicle: ${error.message}`);
     }
-
   } finally {
-    loading.style.display = 'none';
+    loading.style.display = "none";
     vinInput.disabled = false;
   }
 }
@@ -1855,19 +2318,21 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
 
   // IMPORTANT: Include saved vehicles in the comparison
   // Filter saved vehicles that match year/make/model
-  const matchingSavedVehicles = savedVehicles.filter(sv =>
-    sv.year === vehicle.year &&
-    sv.make?.toLowerCase() === vehicle.make?.toLowerCase() &&
-    sv.model?.toLowerCase() === vehicle.model?.toLowerCase() &&
-    sv.asking_price && sv.asking_price > 0 &&
-    sv.vin !== vehicle.vin // Don't compare vehicle to itself
+  const matchingSavedVehicles = savedVehicles.filter(
+    (sv) =>
+      sv.year === vehicle.year &&
+      sv.make?.toLowerCase() === vehicle.make?.toLowerCase() &&
+      sv.model?.toLowerCase() === vehicle.model?.toLowerCase() &&
+      sv.asking_price &&
+      sv.asking_price > 0 &&
+      sv.vin !== vehicle.vin // Don't compare vehicle to itself
   );
-
-  console.log('[smart-offer] Found', matchingSavedVehicles.length, 'matching saved vehicles');
 
   // Combine MarketCheck results with saved vehicles
   const allVehicles = [...similarVehicles, ...matchingSavedVehicles];
-  const vehiclesWithPrices = allVehicles.filter(v => v.asking_price && v.asking_price > 0);
+  const vehiclesWithPrices = allVehicles.filter(
+    (v) => v.asking_price && v.asking_price > 0
+  );
 
   if (vehiclesWithPrices.length < 3) {
     return null; // Not enough data
@@ -1877,8 +2342,8 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
   let filteredVehicles = [];
   if (vehicle.trim) {
     const vehicleTrim = vehicle.trim.toLowerCase();
-    filteredVehicles = vehiclesWithPrices.filter(v =>
-      v.trim && v.trim.toLowerCase() === vehicleTrim
+    filteredVehicles = vehiclesWithPrices.filter(
+      (v) => v.trim && v.trim.toLowerCase() === vehicleTrim
     );
   }
 
@@ -1890,9 +2355,10 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
   // Check for significantly cheaper saved vehicles (same trim, $5k+ cheaper)
   let cheaperSavedVehicle = null;
   if (vehicle.trim) {
-    const sameTrimSaved = matchingSavedVehicles.filter(sv =>
-      sv.trim?.toLowerCase() === vehicle.trim.toLowerCase() &&
-      sv.asking_price < vehicle.asking_price - 5000 // At least $5k cheaper
+    const sameTrimSaved = matchingSavedVehicles.filter(
+      (sv) =>
+        sv.trim?.toLowerCase() === vehicle.trim.toLowerCase() &&
+        sv.asking_price < vehicle.asking_price - 5000 // At least $5k cheaper
     );
 
     if (sameTrimSaved.length > 0) {
@@ -1900,92 +2366,74 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
       cheaperSavedVehicle = sameTrimSaved.reduce((cheapest, current) =>
         current.asking_price < cheapest.asking_price ? current : cheapest
       );
-      console.log('[smart-offer] WARNING: Found cheaper saved vehicle:', {
-        vin: cheaperSavedVehicle.vin,
-        price: cheaperSavedVehicle.asking_price,
-        difference: vehicle.asking_price - cheaperSavedVehicle.asking_price
-      });
     }
   }
 
   // Calculate market statistics
-  const prices = filteredVehicles.map(v => v.asking_price).sort((a, b) => a - b);
+  const prices = filteredVehicles
+    .map((v) => v.asking_price)
+    .sort((a, b) => a - b);
   const average = prices.reduce((sum, p) => sum + p, 0) / prices.length;
   const lowestPrice = prices[0];
   const highestPrice = prices[prices.length - 1];
   const priceRange = highestPrice - lowestPrice;
 
   // Determine vehicle's market position
-  const percentileInMarket = priceRange > 0 ? (vehicle.asking_price - lowestPrice) / priceRange : 0.5;
+  const percentileInMarket =
+    priceRange > 0 ? (vehicle.asking_price - lowestPrice) / priceRange : 0.5;
   const vsAverage = vehicle.asking_price / average;
 
   let smartOffer;
-  let message = '';
-  let pricePosition = '';
+  let message = "";
+  let pricePosition = "";
 
   // CASE 1: Vehicle is already the cheapest or within 5% of lowest price
   if (vehicle.asking_price <= lowestPrice * 1.05) {
     smartOffer = vehicle.asking_price - 500; // Only $500 discount
-    message = 'Already at a great price!';
-    pricePosition = 'lowest';
-    console.log('[smart-offer] Vehicle is at/near lowest price - minimal discount');
+    message = "Already at a great price!";
+    pricePosition = "lowest";
   }
   // CASE 2: Vehicle is below market average (good deal already)
   else if (vsAverage < 0.95) {
     // 3-5% discount for below-average prices
     const discountPercent = 0.04;
-    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
-    message = 'Priced below market average';
-    pricePosition = 'below-average';
-    console.log('[smart-offer] Vehicle below average - small discount:', discountPercent * 100 + '%');
+    smartOffer =
+      Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = "Priced below market average";
+    pricePosition = "below-average";
   }
   // CASE 3: Vehicle is near market average (±5%)
   else if (vsAverage >= 0.95 && vsAverage <= 1.05) {
     // 8% discount for average-priced vehicles
     const discountPercent = 0.08;
-    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
-    message = 'Priced at market average';
-    pricePosition = 'average';
-    console.log('[smart-offer] Vehicle at average - moderate discount:', discountPercent * 100 + '%');
+    smartOffer =
+      Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = "Priced at market average";
+    pricePosition = "average";
   }
   // CASE 4: Vehicle is above market average (room for negotiation)
   else {
     // 10-12% discount for above-average prices
-    const discountPercent = vsAverage > 1.15 ? 0.12 : 0.10;
-    smartOffer = Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
-    message = 'Priced above market average';
-    pricePosition = 'above-average';
-    console.log('[smart-offer] Vehicle above average - larger discount:', discountPercent * 100 + '%');
+    const discountPercent = vsAverage > 1.15 ? 0.12 : 0.1;
+    smartOffer =
+      Math.round((vehicle.asking_price * (1 - discountPercent)) / 500) * 500;
+    message = "Priced above market average";
+    pricePosition = "above-average";
   }
 
   // CRITICAL: Override market position if cheaper saved vehicle exists
   let priceDiff = 0;
   if (cheaperSavedVehicle) {
     priceDiff = vehicle.asking_price - cheaperSavedVehicle.asking_price;
-    message = `Appears ${formatCurrency(priceDiff)} higher than similar vehicle`;
-    pricePosition = 'overpriced-vs-saved';
+    message = `Appears ${formatCurrency(
+      priceDiff
+    )} higher than similar vehicle`;
+    pricePosition = "overpriced-vs-saved";
   }
 
   // Safety check: Smart Offer must be at least $500 below asking
   const minimumOffer = vehicle.asking_price - 500;
   smartOffer = Math.min(smartOffer, minimumOffer);
-
-  console.log('[smart-offer] Calculation:', {
-    userAskingPrice: vehicle.asking_price,
-    marketAverage: Math.round(average),
-    lowestPrice,
-    highestPrice,
-    vsAverage: (vsAverage * 100).toFixed(1) + '%',
-    pricePosition,
-    calculatedOffer: smartOffer,
-    discount: vehicle.asking_price - smartOffer,
-    discountPercent: ((vehicle.asking_price - smartOffer) / vehicle.asking_price * 100).toFixed(1) + '%',
-    cheaperSavedVehicle: cheaperSavedVehicle ? {
-      vin: cheaperSavedVehicle.vin,
-      price: cheaperSavedVehicle.asking_price,
-      difference: priceDiff
-    } : null
-  });
 
   return {
     offer: smartOffer,
@@ -1995,17 +2443,19 @@ function calculateQuickSmartOffer(similarVehicles, vehicle) {
     pricePosition,
     lowestPrice,
     highestPrice,
-    cheaperSavedVehicle: cheaperSavedVehicle ? {
-      vin: cheaperSavedVehicle.vin,
-      year: cheaperSavedVehicle.year,
-      make: cheaperSavedVehicle.make,
-      model: cheaperSavedVehicle.model,
-      trim: cheaperSavedVehicle.trim,
-      asking_price: cheaperSavedVehicle.asking_price,
-      mileage: cheaperSavedVehicle.mileage,
-      photo_url: cheaperSavedVehicle.photo_url,
-      priceDifference: priceDiff
-    } : null
+    cheaperSavedVehicle: cheaperSavedVehicle
+      ? {
+          vin: cheaperSavedVehicle.vin,
+          year: cheaperSavedVehicle.year,
+          make: cheaperSavedVehicle.make,
+          model: cheaperSavedVehicle.model,
+          trim: cheaperSavedVehicle.trim,
+          asking_price: cheaperSavedVehicle.asking_price,
+          mileage: cheaperSavedVehicle.mileage,
+          photo_url: cheaperSavedVehicle.photo_url,
+          priceDifference: priceDiff,
+        }
+      : null,
   };
 }
 
@@ -2019,7 +2469,7 @@ function cleanModelName(make, model) {
   const modelLower = model.toLowerCase();
 
   // Check if model starts with the make name
-  if (modelLower.startsWith(makeLower + ' ')) {
+  if (modelLower.startsWith(makeLower + " ")) {
     return model.substring(make.length + 1);
   }
 
@@ -2030,8 +2480,8 @@ function cleanModelName(make, model) {
  * Display the user's vehicle in a prominent card with badge
  */
 function displayYourVehicle(vehicle, smartOfferData = null) {
-  const section = document.getElementById('your-vehicle-section');
-  const card = document.getElementById('your-vehicle-card');
+  const section = document.getElementById("your-vehicle-section");
+  const card = document.getElementById("your-vehicle-card");
 
   // Clean model name to avoid duplicates
   const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
@@ -2039,7 +2489,7 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
   // Make card clickable if listing URL exists
   const cardClickHandler = vehicle.listing_url
     ? `onclick="window.open('${vehicle.listing_url}', '_blank')" style="cursor: pointer;"`
-    : '';
+    : "";
 
   const imageHtml = vehicle.photo_url
     ? `<img src="${vehicle.photo_url}" alt="${vehicle.year} ${vehicle.make} ${cleanedModel}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -2055,10 +2505,15 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
        </div>`;
 
   // Build compact vehicle details line: "Year Make Model - Trim"
-  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(
+    vehicle.make || ""
+  )} ${capitalizeWords(cleanedModel || "")}${
+    vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ""
+  }`;
 
   // Warning about cheaper saved vehicle
-  const cheaperVehicleWarning = smartOfferData?.cheaperSavedVehicle ? `
+  const cheaperVehicleWarning = smartOfferData?.cheaperSavedVehicle
+    ? `
     <div class="cheaper-vehicle-warning">
       <div class="cheaper-vehicle-warning__icon">
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2068,17 +2523,33 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
       <div class="cheaper-vehicle-warning__content">
         <div class="cheaper-vehicle-warning__title">Similar Vehicle Found for Less</div>
         <div class="cheaper-vehicle-warning__details">
-          You previously viewed a ${smartOfferData.cheaperSavedVehicle.year} ${capitalizeWords(smartOfferData.cheaperSavedVehicle.make)} ${capitalizeWords(smartOfferData.cheaperSavedVehicle.model)} ${smartOfferData.cheaperSavedVehicle.trim ? '- ' + capitalizeWords(smartOfferData.cheaperSavedVehicle.trim) : ''} for <strong>${formatCurrency(smartOfferData.cheaperSavedVehicle.asking_price)}</strong>
-          (${formatCurrency(smartOfferData.cheaperSavedVehicle.priceDifference)} less).
-          <a href="#" class="cheaper-vehicle-link" onclick="event.preventDefault(); document.getElementById('vin-input').value='${smartOfferData.cheaperSavedVehicle.vin}'; searchVehicleByVIN('${smartOfferData.cheaperSavedVehicle.vin}');">
+          You previously viewed a ${
+            smartOfferData.cheaperSavedVehicle.year
+          } ${capitalizeWords(
+        smartOfferData.cheaperSavedVehicle.make
+      )} ${capitalizeWords(smartOfferData.cheaperSavedVehicle.model)} ${
+        smartOfferData.cheaperSavedVehicle.trim
+          ? "- " + capitalizeWords(smartOfferData.cheaperSavedVehicle.trim)
+          : ""
+      } for <strong>${formatCurrency(
+        smartOfferData.cheaperSavedVehicle.asking_price
+      )}</strong>
+          (${formatCurrency(
+            smartOfferData.cheaperSavedVehicle.priceDifference
+          )} less).
+          <a href="#" class="cheaper-vehicle-link" onclick="event.preventDefault(); document.getElementById('vin-input').value='${
+            smartOfferData.cheaperSavedVehicle.vin
+          }'; searchVehicleByVIN('${smartOfferData.cheaperSavedVehicle.vin}');">
             View that vehicle
           </a>
         </div>
       </div>
     </div>
-  ` : '';
+  `
+    : "";
 
-  const smartOfferHtml = smartOfferData ? `
+  const smartOfferHtml = smartOfferData
+    ? `
     <div class="your-vehicle-card__smart-offer">
       <div class="your-vehicle-card__smart-offer-badge">
         <svg fill="currentColor" viewBox="0 0 20 20">
@@ -2087,11 +2558,17 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
         </svg>
         <span>Smart Offer</span>
       </div>
-      <div class="your-vehicle-card__smart-offer-value">${formatCurrency(smartOfferData.offer)}</div>
-      <div class="your-vehicle-card__smart-offer-text">${smartOfferData.message || 'Based on ' + smartOfferData.count + ' similar vehicles'}</div>
+      <div class="your-vehicle-card__smart-offer-value">${formatCurrency(
+        smartOfferData.offer
+      )}</div>
+      <div class="your-vehicle-card__smart-offer-text">${
+        smartOfferData.message ||
+        "Based on " + smartOfferData.count + " similar vehicles"
+      }</div>
       ${cheaperVehicleWarning}
     </div>
-  ` : '';
+  `
+    : "";
 
   card.innerHTML = `
     <div class="your-vehicle-card__badge">
@@ -2112,18 +2589,26 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
 
       <div class="your-vehicle-card__details">
         <div class="your-vehicle-card__info-row">
-          ${vehicle.mileage ? `
+          ${
+            vehicle.mileage
+              ? `
             <div class="your-vehicle-card__info-inline">
               <span class="label">Mileage:</span>
               <span class="value">${formatMileage(vehicle.mileage)} mi</span>
             </div>
-          ` : ''}
-          ${vehicle.asking_price ? `
+          `
+              : ""
+          }
+          ${
+            vehicle.asking_price
+              ? `
             <div class="your-vehicle-card__info-inline">
               <span class="label">Asking Price:</span>
               <span class="value">${formatCurrency(vehicle.asking_price)}</span>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
         </div>
 
         ${smartOfferHtml}
@@ -2135,8 +2620,7 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
     </div>
   `;
 
-  section.style.display = 'block';
-  console.log('[your-vehicle] Displayed vehicle card:', vehicle.vin, smartOfferData);
+  section.style.display = "block";
 }
 
 /**
@@ -2150,14 +2634,14 @@ function prioritizeVehiclesByTrim(vehicles, originalVehicle) {
   }
 
   const originalTrim = originalVehicle.trim.toLowerCase();
-  const trimKeywords = originalTrim.split(/\s+/).filter(w => w.length > 2);
+  const trimKeywords = originalTrim.split(/\s+/).filter((w) => w.length > 2);
 
   // Categorize vehicles by match quality
   const exactMatches = [];
   const similarMatches = [];
   const otherVehicles = [];
 
-  vehicles.forEach(vehicle => {
+  vehicles.forEach((vehicle) => {
     if (!vehicle.trim) {
       otherVehicles.push(vehicle);
       return;
@@ -2170,7 +2654,7 @@ function prioritizeVehiclesByTrim(vehicles, originalVehicle) {
       exactMatches.push(vehicle);
     }
     // Similar match (contains key words)
-    else if (trimKeywords.some(keyword => vehicleTrim.includes(keyword))) {
+    else if (trimKeywords.some((keyword) => vehicleTrim.includes(keyword))) {
       similarMatches.push(vehicle);
     }
     // Other trims
@@ -2179,18 +2663,11 @@ function prioritizeVehiclesByTrim(vehicles, originalVehicle) {
     }
   });
 
-  console.log('[similar-vehicles] Trim prioritization:', {
-    original: originalVehicle.trim,
-    exact: exactMatches.length,
-    similar: similarMatches.length,
-    other: otherVehicles.length
-  });
-
   // Combine in priority order, limit to 12 total
   const prioritized = [
     ...exactMatches,
     ...similarMatches,
-    ...otherVehicles
+    ...otherVehicles,
   ].slice(0, 12);
 
   return prioritized;
@@ -2200,51 +2677,89 @@ function prioritizeVehiclesByTrim(vehicles, originalVehicle) {
  * Display similar vehicles in horizontal scrollable grid
  */
 function displaySimilarVehicles(vehicles, originalVehicle) {
-  const grid = document.getElementById('similar-vehicles-grid');
-  grid.innerHTML = '';
+  const grid = document.getElementById("similar-vehicles-grid");
+  grid.innerHTML = "";
 
   vehicles.forEach((vehicle, index) => {
-    const card = document.createElement('div');
-    card.className = 'vehicle-card';
+    const card = document.createElement("div");
+    card.className = "vehicle-card";
     card.dataset.index = index;
 
     const isOriginal = vehicle.vin === originalVehicle.vin;
 
     // Determine trim match badge
-    let trimMatchBadge = '';
+    let trimMatchBadge = "";
     if (originalVehicle.trim && vehicle.trim && !isOriginal) {
       const originalTrim = originalVehicle.trim.toLowerCase();
       const vehicleTrim = vehicle.trim.toLowerCase();
-      const trimKeywords = originalTrim.split(/\s+/).filter(w => w.length > 2);
+      const trimKeywords = originalTrim
+        .split(/\s+/)
+        .filter((w) => w.length > 2);
 
       if (vehicleTrim === originalTrim) {
-        trimMatchBadge = '<div class="vehicle-card__trim-badge exact">Exact Match</div>';
-      } else if (trimKeywords.some(keyword => vehicleTrim.includes(keyword))) {
-        trimMatchBadge = '<div class="vehicle-card__trim-badge similar">Similar Trim</div>';
+        trimMatchBadge =
+          '<div class="vehicle-card__trim-badge exact">Exact Match</div>';
+      } else if (
+        trimKeywords.some((keyword) => vehicleTrim.includes(keyword))
+      ) {
+        trimMatchBadge =
+          '<div class="vehicle-card__trim-badge similar">Similar Trim</div>';
       }
     }
 
     card.innerHTML = `
-      ${isOriginal ? '<div class="vehicle-card__badge">Your VIN</div>' : trimMatchBadge}
-      ${vehicle.photo_url ? `<img src="${vehicle.photo_url}" alt="${vehicle.heading}" class="vehicle-card__image" onerror="this.style.display='none'">` : '<div class="vehicle-card__image"></div>'}
-      <div class="vehicle-card__title">${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
+      ${
+        isOriginal
+          ? '<div class="vehicle-card__badge">Your VIN</div>'
+          : trimMatchBadge
+      }
+      ${
+        vehicle.photo_url
+          ? `<img src="${vehicle.photo_url}" alt="${vehicle.heading}" class="vehicle-card__image" onerror="this.style.display='none'">`
+          : '<div class="vehicle-card__image"></div>'
+      }
+      <div class="vehicle-card__title">${vehicle.year} ${capitalizeWords(
+      vehicle.make || ""
+    )} ${capitalizeWords(vehicle.model || "")}</div>
       <div class="vehicle-card__details">
-        ${vehicle.trim ? `<div class="vehicle-card__detail"><span>${capitalizeWords(vehicle.trim)}</span></div>` : ''}
-        ${vehicle.mileage ? `
+        ${
+          vehicle.trim
+            ? `<div class="vehicle-card__detail"><span>${capitalizeWords(
+                vehicle.trim
+              )}</span></div>`
+            : ""
+        }
+        ${
+          vehicle.mileage
+            ? `
           <div class="vehicle-card__detail">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
             </svg>
             ${formatMileage(vehicle.mileage)} mi
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
-      ${vehicle.asking_price ? `<div class="vehicle-card__price">${formatCurrency(vehicle.asking_price)}</div>` : '<div class="vehicle-card__price">Price Not Available</div>'}
-      ${vehicle.dealer_city && vehicle.dealer_state ? `<div class="vehicle-card__location">${capitalizeWords(vehicle.dealer_city || '')}, ${vehicle.dealer_state}</div>` : ''}
+      ${
+        vehicle.asking_price
+          ? `<div class="vehicle-card__price">${formatCurrency(
+              vehicle.asking_price
+            )}</div>`
+          : '<div class="vehicle-card__price">Price Not Available</div>'
+      }
+      ${
+        vehicle.dealer_city && vehicle.dealer_state
+          ? `<div class="vehicle-card__location">${capitalizeWords(
+              vehicle.dealer_city || ""
+            )}, ${vehicle.dealer_state}</div>`
+          : ""
+      }
       <div class="vehicle-card__vin">VIN: ${formatVIN(vehicle.vin)}</div>
     `;
 
-    card.addEventListener('click', () => selectVehicleCard(index));
+    card.addEventListener("click", () => selectVehicleCard(index));
     grid.appendChild(card);
   });
 }
@@ -2255,11 +2770,13 @@ function displaySimilarVehicles(vehicles, originalVehicle) {
 async function selectVehicleCard(index) {
   const vehicle = similarVehicles[index];
 
-  document.querySelectorAll('.vehicle-card').forEach(card => {
-    card.classList.remove('selected');
+  document.querySelectorAll(".vehicle-card").forEach((card) => {
+    card.classList.remove("selected");
   });
 
-  document.querySelector(`.vehicle-card[data-index="${index}"]`).classList.add('selected');
+  document
+    .querySelector(`.vehicle-card[data-index="${index}"]`)
+    .classList.add("selected");
 
   await selectVehicleFromSearch(vehicle);
 }
@@ -2274,7 +2791,7 @@ function selectVehicleFromVIN(vehicleDetails) {
     make: vehicleDetails.make,
     model: vehicleDetails.model,
     trim: vehicleDetails.trim,
-    mileage: vehicleDetails.mileage
+    mileage: vehicleDetails.mileage,
   };
 
   showSelectedVehicle();
@@ -2289,18 +2806,17 @@ function selectVehicleFromVIN(vehicleDetails) {
  */
 async function selectVehicleFromSearch(vehicle) {
   try {
-    console.log('[vehicle-select] Selected vehicle:', vehicle);
-
     // Store full vehicle data
     selectedVehicle = {
       vin: vehicle.vin,
       year: vehicle.year,
       make: vehicle.make,
       model: vehicle.model,
-      trim: vehicle.trim || '',
+      trim: vehicle.trim || "",
       mileage: vehicle.mileage || 0,
-      condition: vehicle.condition || 'Used',
-      heading: vehicle.heading || `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+      condition: vehicle.condition || "Used",
+      heading:
+        vehicle.heading || `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
       asking_price: vehicle.asking_price || null,
       dealer_name: vehicle.dealer_name || null,
       dealer_street: vehicle.dealer_street || null,
@@ -2311,63 +2827,61 @@ async function selectVehicleFromSearch(vehicle) {
       dealer_lat: vehicle.dealer_lat || null,
       dealer_lng: vehicle.dealer_lng || null,
       listing_id: vehicle.listing_id || null,
-      listing_source: 'marketcheck',
+      listing_source: "marketcheck",
       listing_url: vehicle.listing_url || null,
-      photo_url: vehicle.photo_url || null
+      photo_url: vehicle.photo_url || null,
     };
 
     // Save to Supabase if user is signed in
     if (supabase && currentUserId) {
-      console.log('[vehicle-select] Saving to Supabase...');
-
       // Check if vehicle already exists
       const { data: existingVehicles } = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('user_id', currentUserId)
-        .eq('vin', selectedVehicle.vin)
+        .from("vehicles")
+        .select("id")
+        .eq("user_id", currentUserId)
+        .eq("vin", selectedVehicle.vin)
         .limit(1);
 
       if (!existingVehicles || existingVehicles.length === 0) {
         // Insert new vehicle
         const { data, error } = await supabase
-          .from('vehicles')
-          .insert([{
-            user_id: currentUserId,
-            ...selectedVehicle
-          }])
+          .from("vehicles")
+          .insert([
+            {
+              user_id: currentUserId,
+              ...selectedVehicle,
+            },
+          ])
           .select();
 
         if (error) {
-          console.error('[vehicle-select] Error saving vehicle:', error);
+          console.error("[vehicle-select] Error saving vehicle:", error);
         } else {
-          console.log('[vehicle-select] Vehicle saved successfully:', data);
           // Reload saved vehicles to update the dropdown
           await loadSavedVehicles();
         }
       } else {
-        console.log('[vehicle-select] Vehicle already exists in database');
       }
     }
 
     // Auto-populate Vehicle Price field
     if (selectedVehicle.asking_price) {
-      const vehiclePriceInput = document.getElementById('vehicle-price');
+      const vehiclePriceInput = document.getElementById("vehicle-price");
       if (vehiclePriceInput) {
         vehiclePriceInput.value = formatCurrency(selectedVehicle.asking_price);
         vehiclePriceInput.dataset.basePrice = selectedVehicle.asking_price; // Store base price for formula calculations
         wizardData.financing.salePrice = selectedVehicle.asking_price;
-        console.log('[vehicle-select] Auto-populated Vehicle Price:', formatCurrency(selectedVehicle.asking_price));
       }
     }
 
     // Reset custom APR override when vehicle changes
     customAprOverride = null;
-    console.log('[vehicle-change] Reset custom APR override');
     // Reset tooltip original values
     if (window.resetAprTooltipOriginal) window.resetAprTooltipOriginal();
     if (window.resetTermTooltipOriginal) window.resetTermTooltipOriginal();
-    if (window.resetMonthlyFCTooltipOriginal) window.resetMonthlyFCTooltipOriginal();
+    if (window.resetMonthlyFCTooltipOriginal)
+      window.resetMonthlyFCTooltipOriginal();
+    if (window.resetTilBaselines) window.resetTilBaselines();
 
     showSelectedVehicle();
     hideManualEntry();
@@ -2375,7 +2889,7 @@ async function selectVehicleFromSearch(vehicle) {
     // Calculate and display Smart Offer
     await calculateSmartOffer(selectedVehicle);
   } catch (error) {
-    console.error('[vehicle-select] Error selecting vehicle:', error);
+    console.error("[vehicle-select] Error selecting vehicle:", error);
     // Still show the vehicle even if save failed
     showSelectedVehicle();
     hideManualEntry();
@@ -2388,12 +2902,12 @@ async function selectVehicleFromSearch(vehicle) {
 function clearSelectedVehicle() {
   selectedVehicle = null;
   // Hide your-vehicle-section instead of deprecated selected-vehicle-display
-  document.getElementById('your-vehicle-section').style.display = 'none';
-  document.getElementById('smart-offer-display').style.display = 'none';
-  document.getElementById('similar-vehicles-section').style.display = 'none';
-  document.getElementById('manual-entry-fields').style.display = 'block';
-  document.getElementById('vin-input').value = '';
-  document.getElementById('vin-input').focus();
+  document.getElementById("your-vehicle-section").style.display = "none";
+  document.getElementById("smart-offer-display").style.display = "none";
+  document.getElementById("similar-vehicles-section").style.display = "none";
+  document.getElementById("manual-entry-fields").style.display = "block";
+  document.getElementById("vin-input").value = "";
+  document.getElementById("vin-input").focus();
 }
 
 /**
@@ -2403,11 +2917,8 @@ async function calculateSmartOffer(vehicle) {
   try {
     const userZip = wizardData.location?.zip;
     if (!userZip) {
-      console.log('[smart-offer] No user location, skipping Smart Offer');
       return;
     }
-
-    console.log('[smart-offer] Calculating Smart Offer for:', vehicle);
 
     // Query Marketcheck for similar vehicles (broader search first)
     const searchParams = new URLSearchParams({
@@ -2416,90 +2927,89 @@ async function calculateSmartOffer(vehicle) {
       model: vehicle.model,
       zip: userZip,
       radius: 100,
-      rows: 100  // Get more results to enable trim filtering
+      rows: 100, // Get more results to enable trim filtering
     });
 
     // Add trim to search if available (API may support it)
     if (vehicle.trim) {
-      searchParams.append('trim', vehicle.trim);
+      searchParams.append("trim", vehicle.trim);
     }
 
     const response = await fetch(`${API_BASE}/api/mc/search?${searchParams}`);
     if (!response.ok) {
-      throw new Error('Failed to fetch similar vehicles');
+      throw new Error("Failed to fetch similar vehicles");
     }
 
     const data = await response.json();
     const allVehicles = data.listings || [];
 
-    console.log('[smart-offer] Found', allVehicles.length, 'total vehicles');
-
     // Filter out vehicles without asking prices
-    const vehiclesWithPrices = allVehicles.filter(v => v.asking_price && v.asking_price > 0);
+    const vehiclesWithPrices = allVehicles.filter(
+      (v) => v.asking_price && v.asking_price > 0
+    );
 
     // Tiered trim filtering for statistical significance
-    const MIN_EXACT_MATCHES = 5;  // Ideal: exact trim matches
+    const MIN_EXACT_MATCHES = 5; // Ideal: exact trim matches
     const MIN_SIMILAR_MATCHES = 3; // Acceptable: similar trim matches
-    const MIN_BROAD_MATCHES = 3;   // Minimum: any trim (with warning)
+    const MIN_BROAD_MATCHES = 3; // Minimum: any trim (with warning)
 
     let filteredVehicles = [];
-    let matchQuality = 'none';
-    let trimMatchInfo = '';
+    let matchQuality = "none";
+    let trimMatchInfo = "";
 
     if (vehicle.trim) {
       const vehicleTrim = vehicle.trim.toLowerCase();
 
       // Level 1: Try exact trim match
-      const exactMatches = vehiclesWithPrices.filter(v =>
-        v.trim && v.trim.toLowerCase() === vehicleTrim
+      const exactMatches = vehiclesWithPrices.filter(
+        (v) => v.trim && v.trim.toLowerCase() === vehicleTrim
       );
-
-      console.log('[smart-offer] Exact trim matches:', exactMatches.length);
 
       if (exactMatches.length >= MIN_EXACT_MATCHES) {
         filteredVehicles = exactMatches;
-        matchQuality = 'exact';
+        matchQuality = "exact";
         trimMatchInfo = `exact "${capitalizeWords(vehicle.trim)}" trim`;
       } else {
         // Level 2: Try similar trim (contains key words)
-        const trimKeywords = vehicleTrim.split(/\s+/).filter(w => w.length > 2);
-        const similarMatches = vehiclesWithPrices.filter(v => {
+        const trimKeywords = vehicleTrim
+          .split(/\s+/)
+          .filter((w) => w.length > 2);
+        const similarMatches = vehiclesWithPrices.filter((v) => {
           if (!v.trim) return false;
           const vTrim = v.trim.toLowerCase();
-          return trimKeywords.some(keyword => vTrim.includes(keyword));
+          return trimKeywords.some((keyword) => vTrim.includes(keyword));
         });
-
-        console.log('[smart-offer] Similar trim matches:', similarMatches.length);
 
         if (similarMatches.length >= MIN_SIMILAR_MATCHES) {
           filteredVehicles = similarMatches;
-          matchQuality = 'similar';
+          matchQuality = "similar";
           trimMatchInfo = `similar to "${capitalizeWords(vehicle.trim)}" trim`;
         } else if (vehiclesWithPrices.length >= MIN_BROAD_MATCHES) {
           // Level 3: Use broader search with warning
           filteredVehicles = vehiclesWithPrices;
-          matchQuality = 'broad';
-          trimMatchInfo = 'all trims (limited trim-specific data)';
+          matchQuality = "broad";
+          trimMatchInfo = "all trims (limited trim-specific data)";
         }
       }
     } else {
       // No trim specified - use all vehicles
       if (vehiclesWithPrices.length >= MIN_BROAD_MATCHES) {
         filteredVehicles = vehiclesWithPrices;
-        matchQuality = 'no-trim';
-        trimMatchInfo = 'all trims';
+        matchQuality = "no-trim";
+        trimMatchInfo = "all trims";
       }
     }
 
     // Check if we have statistically significant data
     if (filteredVehicles.length < MIN_BROAD_MATCHES) {
-      console.log('[smart-offer] Insufficient data:', filteredVehicles.length, 'vehicles');
       displayInsufficientDataWarning(vehicle, filteredVehicles.length);
       return;
     }
 
     // Extract and sort prices
-    const prices = filteredVehicles.map(v => v.asking_price).sort((a, b) => a - b);
+    const prices = filteredVehicles
+      .map((v) => v.asking_price)
+      .sort((a, b) => a - b);
 
     // Calculate statistics
     const count = prices.length;
@@ -2509,7 +3019,9 @@ async function calculateSmartOffer(vehicle) {
     const max = prices[prices.length - 1];
 
     // Calculate standard deviation
-    const variance = prices.reduce((sum, price) => sum + Math.pow(price - average, 2), 0) / count;
+    const variance =
+      prices.reduce((sum, price) => sum + Math.pow(price - average, 2), 0) /
+      count;
     const stdDev = Math.sqrt(variance);
 
     // ============================================================================
@@ -2526,7 +3038,11 @@ async function calculateSmartOffer(vehicle) {
     // 4. Adjust base offer price accordingly
     // ============================================================================
 
-    const mileageAnalysis = calculateMileageDepreciation(filteredVehicles, vehicle, matchQuality);
+    const mileageAnalysis = calculateMileageDepreciation(
+      filteredVehicles,
+      vehicle,
+      matchQuality
+    );
 
     // Smart Offer Algorithm:
     // - Start with median (more robust than average for outliers)
@@ -2534,18 +3050,21 @@ async function calculateSmartOffer(vehicle) {
     // - Apply mileage-based adjustment (if calculated)
     // - Ensure it's not below minimum (would be unrealistic)
     // - Round to nearest $500 for psychological appeal
-    const discountPercent = matchQuality === 'exact' ? 0.06 :
-                           matchQuality === 'similar' ? 0.05 :
-                           0.04; // More conservative for broad matches
+    const discountPercent =
+      matchQuality === "exact"
+        ? 0.06
+        : matchQuality === "similar"
+        ? 0.05
+        : 0.04; // More conservative for broad matches
 
-    const basePrice = matchQuality === 'exact' ? median :
-                     (median + average) / 2; // Average median and mean for less certain data
+    const basePrice =
+      matchQuality === "exact" ? median : (median + average) / 2; // Average median and mean for less certain data
 
-    let recommendedOffer = Math.round((basePrice * (1 - discountPercent)) / 500) * 500;
+    let recommendedOffer =
+      Math.round((basePrice * (1 - discountPercent)) / 500) * 500;
 
     // Apply mileage adjustment if analysis is reliable
     if (mileageAnalysis.hasReliableData && mileageAnalysis.adjustment !== 0) {
-      console.log('[smart-offer] Applying mileage adjustment:', mileageAnalysis.adjustment);
       recommendedOffer += mileageAnalysis.adjustment;
 
       // Round to nearest $500 after adjustment
@@ -2560,20 +3079,12 @@ async function calculateSmartOffer(vehicle) {
     const savingsPercent = ((savingsFromAverage / average) * 100).toFixed(1);
 
     // Calculate confidence score
-    const confidenceScore = calculateConfidenceScore(count, matchQuality, stdDev, average);
-
-    console.log('[smart-offer] Price Analysis:', {
+    const confidenceScore = calculateConfidenceScore(
       count,
       matchQuality,
-      average,
-      median,
-      min,
-      max,
       stdDev,
-      recommendedOffer: finalOffer,
-      savings: savingsFromAverage,
-      confidence: confidenceScore
-    });
+      average
+    );
 
     // Display the Smart Offer
     displaySmartOffer({
@@ -2590,12 +3101,11 @@ async function calculateSmartOffer(vehicle) {
       trimMatchInfo,
       confidence: confidenceScore,
       stdDev,
-      mileageAnalysis // Add mileage impact data for display
+      mileageAnalysis, // Add mileage impact data for display
     });
-
   } catch (error) {
-    console.error('[smart-offer] Error calculating Smart Offer:', error);
-    document.getElementById('smart-offer-display').style.display = 'none';
+    console.error("[smart-offer] Error calculating Smart Offer:", error);
+    document.getElementById("smart-offer-display").style.display = "none";
   }
 }
 
@@ -2647,13 +3157,13 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
     mileageDifference: 0,
     adjustment: 0,
     rSquared: 0,
-    correlation: 'none', // 'none', 'weak', 'moderate', 'strong'
-    vehicleCount: 0
+    correlation: "none", // 'none', 'weak', 'moderate', 'strong'
+    vehicleCount: 0,
   };
 
   // Only calculate for vehicles with mileage data
-  const vehiclesWithMileage = vehicles.filter(v =>
-    v.mileage && v.mileage > 0 && v.asking_price && v.asking_price > 0
+  const vehiclesWithMileage = vehicles.filter(
+    (v) => v.mileage && v.mileage > 0 && v.asking_price && v.asking_price > 0
   );
 
   analysis.vehicleCount = vehiclesWithMileage.length;
@@ -2661,20 +3171,17 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
   // Require minimum sample size and exact trim matches for accuracy
   const MIN_VEHICLES_FOR_MILEAGE_ANALYSIS = 5;
   if (vehiclesWithMileage.length < MIN_VEHICLES_FOR_MILEAGE_ANALYSIS) {
-    console.log('[mileage-analysis] Insufficient data:', vehiclesWithMileage.length, 'vehicles');
     return analysis;
   }
 
   // Only use mileage analysis for exact trim matches
   // Mixed trims have too much price variance from trim differences
-  if (matchQuality !== 'exact') {
-    console.log('[mileage-analysis] Skipping - only exact trim matches supported');
+  if (matchQuality !== "exact") {
     return analysis;
   }
 
   // Require user vehicle to have mileage
   if (!userVehicle.mileage || userVehicle.mileage <= 0) {
-    console.log('[mileage-analysis] User vehicle has no mileage data');
     return analysis;
   }
 
@@ -2693,7 +3200,7 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
   let sumX2 = 0; // sum of (mileage²)
   let sumY2 = 0; // sum of (price²)
 
-  vehiclesWithMileage.forEach(v => {
+  vehiclesWithMileage.forEach((v) => {
     const x = v.mileage;
     const y = v.asking_price;
     sumX += x;
@@ -2717,7 +3224,7 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
   // R² measures how well mileage predicts price (0 = no correlation, 1 = perfect correlation)
   const ssTotal = sumY2 - (sumY * sumY) / n; // Total sum of squares
   const ssResidual = sumY2 - intercept * sumY - slope * sumXY; // Residual sum of squares
-  const rSquared = 1 - (ssResidual / ssTotal);
+  const rSquared = 1 - ssResidual / ssTotal;
 
   analysis.rSquared = Math.max(0, Math.min(1, rSquared)); // Clamp between 0 and 1
   analysis.depreciationPer1kMiles = Math.round(slope * 1000); // Convert to per 1,000 miles
@@ -2731,13 +3238,13 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
   // > 0.6: Strong - mileage is a primary price determinant
 
   if (analysis.rSquared < 0.3) {
-    analysis.correlation = 'weak';
+    analysis.correlation = "weak";
     analysis.hasReliableData = false; // Don't adjust price for weak correlations
   } else if (analysis.rSquared < 0.6) {
-    analysis.correlation = 'moderate';
+    analysis.correlation = "moderate";
     analysis.hasReliableData = true;
   } else {
-    analysis.correlation = 'strong';
+    analysis.correlation = "strong";
     analysis.hasReliableData = true;
   }
 
@@ -2753,23 +3260,17 @@ function calculateMileageDepreciation(vehicles, userVehicle, matchQuality) {
     // Calculate adjustment: (mileage difference / 1000) * depreciation per 1k miles
     // Negative mileage difference (below average) = POSITIVE adjustment (worth more)
     // Positive mileage difference (above average) = NEGATIVE adjustment (worth less)
-    analysis.adjustment = Math.round(-1 * (analysis.mileageDifference / 1000) * analysis.depreciationPer1kMiles);
+    analysis.adjustment = Math.round(
+      -1 * (analysis.mileageDifference / 1000) * analysis.depreciationPer1kMiles
+    );
 
     // Cap adjustment at ±20% of average price to prevent extreme values
-    const maxAdjustment = meanY * 0.20;
-    analysis.adjustment = Math.max(-maxAdjustment, Math.min(maxAdjustment, analysis.adjustment));
+    const maxAdjustment = meanY * 0.2;
+    analysis.adjustment = Math.max(
+      -maxAdjustment,
+      Math.min(maxAdjustment, analysis.adjustment)
+    );
   }
-
-  console.log('[mileage-analysis] Analysis complete:', {
-    vehicles: n,
-    avgMileage: analysis.averageMileage,
-    userMileage: analysis.userMileage,
-    depreciationPer1k: analysis.depreciationPer1kMiles,
-    rSquared: analysis.rSquared.toFixed(3),
-    correlation: analysis.correlation,
-    adjustment: analysis.adjustment,
-    reliable: analysis.hasReliableData
-  });
 
   return analysis;
 }
@@ -2782,27 +3283,33 @@ function calculateConfidenceScore(count, matchQuality, stdDev, average) {
   const coefficientOfVariation = stdDev / average; // Normalized measure of dispersion
 
   // High confidence: exact trim, good sample size, low variance
-  if (matchQuality === 'exact' && count >= 10 && coefficientOfVariation < 0.15) {
-    return 'high';
+  if (
+    matchQuality === "exact" &&
+    count >= 10 &&
+    coefficientOfVariation < 0.15
+  ) {
+    return "high";
   }
 
   // Medium confidence: similar trim or decent sample
-  if ((matchQuality === 'similar' && count >= 5) ||
-      (matchQuality === 'exact' && count >= 5) ||
-      (count >= 15 && coefficientOfVariation < 0.20)) {
-    return 'medium';
+  if (
+    (matchQuality === "similar" && count >= 5) ||
+    (matchQuality === "exact" && count >= 5) ||
+    (count >= 15 && coefficientOfVariation < 0.2)
+  ) {
+    return "medium";
   }
 
   // Low confidence: broad match or small sample
-  return 'low';
+  return "low";
 }
 
 /**
  * Display warning when insufficient data is available
  */
 function displayInsufficientDataWarning(vehicle, count) {
-  const display = document.getElementById('smart-offer-display');
-  const content = display.querySelector('.smart-offer-content');
+  const display = document.getElementById("smart-offer-display");
+  const content = display.querySelector(".smart-offer-content");
 
   content.innerHTML = `
     <div class="smart-offer-warning">
@@ -2813,10 +3320,18 @@ function displayInsufficientDataWarning(vehicle, count) {
       </div>
       <div class="smart-offer-warning-title">Limited Market Data</div>
       <div class="smart-offer-warning-text">
-        We found only ${count} similar ${vehicle.year} ${capitalizeWords(vehicle.make)} ${capitalizeWords(vehicle.model)}
-        ${vehicle.trim ? `<strong>${capitalizeWords(vehicle.trim)}</strong>` : ''} vehicles in your area.
+        We found only ${count} similar ${vehicle.year} ${capitalizeWords(
+    vehicle.make
+  )} ${capitalizeWords(vehicle.model)}
+        ${
+          vehicle.trim
+            ? `<strong>${capitalizeWords(vehicle.trim)}</strong>`
+            : ""
+        } vehicles in your area.
         <br><br>
-        This ${vehicle.trim ? 'trim may be rare' : 'vehicle'} or in limited supply.
+        This ${
+          vehicle.trim ? "trim may be rare" : "vehicle"
+        } or in limited supply.
         We need at least 3 comparable vehicles to provide a reliable Smart Offer.
         <br><br>
         <strong>Recommendation:</strong> Expand your search radius or consult with a dealer for pricing guidance on this specific vehicle.
@@ -2824,69 +3339,97 @@ function displayInsufficientDataWarning(vehicle, count) {
     </div>
   `;
 
-  display.style.display = 'block';
+  display.style.display = "block";
 }
 
 /**
  * Display Smart Offer recommendation
  */
 function displaySmartOffer(data) {
-  const display = document.getElementById('smart-offer-display');
-  const content = document.getElementById('smart-offer-content');
+  const display = document.getElementById("smart-offer-display");
+  const content = document.getElementById("smart-offer-content");
 
   // Determine confidence badge styling
-  const confidenceBadgeClass = data.confidence === 'high' ? 'confidence-high' :
-                               data.confidence === 'medium' ? 'confidence-medium' :
-                               'confidence-low';
-  const confidenceLabel = data.confidence === 'high' ? 'High Confidence' :
-                         data.confidence === 'medium' ? 'Medium Confidence' :
-                         'Low Confidence';
-  const confidenceIcon = data.confidence === 'high' ? '✓' :
-                        data.confidence === 'medium' ? '•' :
-                        '⚠';
+  const confidenceBadgeClass =
+    data.confidence === "high"
+      ? "confidence-high"
+      : data.confidence === "medium"
+      ? "confidence-medium"
+      : "confidence-low";
+  const confidenceLabel =
+    data.confidence === "high"
+      ? "High Confidence"
+      : data.confidence === "medium"
+      ? "Medium Confidence"
+      : "Low Confidence";
+  const confidenceIcon =
+    data.confidence === "high" ? "✓" : data.confidence === "medium" ? "•" : "⚠";
 
   // Determine trim match badge styling
-  const trimBadgeClass = data.matchQuality === 'exact' ? 'trim-exact' :
-                        data.matchQuality === 'similar' ? 'trim-similar' :
-                        'trim-broad';
+  const trimBadgeClass =
+    data.matchQuality === "exact"
+      ? "trim-exact"
+      : data.matchQuality === "similar"
+      ? "trim-similar"
+      : "trim-broad";
 
   // Confidence explanation text
-  const confidenceText = data.confidence === 'high' ?
-    'Strong statistical significance with exact trim matches and consistent pricing.' :
-    data.confidence === 'medium' ?
-    'Good data quality with sufficient comparable vehicles.' :
-    'Limited comparable data. Use this as a starting point but verify with additional research.';
+  const confidenceText =
+    data.confidence === "high"
+      ? "Strong statistical significance with exact trim matches and consistent pricing."
+      : data.confidence === "medium"
+      ? "Good data quality with sufficient comparable vehicles."
+      : "Limited comparable data. Use this as a starting point but verify with additional research.";
 
   // Warning for broad trim matches
-  const trimWarning = (data.matchQuality === 'broad' || data.matchQuality === 'no-trim') ? `
+  const trimWarning =
+    data.matchQuality === "broad" || data.matchQuality === "no-trim"
+      ? `
     <div class="smart-offer-trim-warning">
       <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" style="width: 20px; height: 20px; flex-shrink: 0;">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
       </svg>
       <div>
-        <strong>Mixed Trim Data:</strong> Limited ${data.vehicle.trim ? 'exact trim' : 'trim'} matches found.
-        This analysis includes ${data.matchQuality === 'broad' ? 'multiple trims' : 'all available trims'}.
+        <strong>Mixed Trim Data:</strong> Limited ${
+          data.vehicle.trim ? "exact trim" : "trim"
+        } matches found.
+        This analysis includes ${
+          data.matchQuality === "broad"
+            ? "multiple trims"
+            : "all available trims"
+        }.
         Pricing may vary significantly based on specific trim packages and options.
       </div>
     </div>
-  ` : '';
+  `
+      : "";
 
   // ============================================================================
   // MILEAGE IMPACT VISUALIZATION
   // ============================================================================
   // Show how mileage affects pricing when we have reliable data
-  let mileageImpact = '';
+  let mileageImpact = "";
   if (data.mileageAnalysis && data.mileageAnalysis.hasReliableData) {
     const mil = data.mileageAnalysis;
-    const mileagePosition = mil.userMileage < mil.averageMileage ? 'below' :
-                           mil.userMileage > mil.averageMileage ? 'above' : 'at';
-    const mileageColor = mil.adjustment > 0 ? 'var(--success)' :
-                        mil.adjustment < 0 ? '#ef4444' : '#64748b';
-    const mileageIcon = mil.adjustment > 0 ? '↑' : mil.adjustment < 0 ? '↓' : '→';
+    const mileagePosition =
+      mil.userMileage < mil.averageMileage
+        ? "below"
+        : mil.userMileage > mil.averageMileage
+        ? "above"
+        : "at";
+    const mileageColor =
+      mil.adjustment > 0
+        ? "var(--success)"
+        : mil.adjustment < 0
+        ? "#ef4444"
+        : "#64748b";
+    const mileageIcon =
+      mil.adjustment > 0 ? "↑" : mil.adjustment < 0 ? "↓" : "→";
 
-    const correlationBadge = mil.correlation === 'strong' ?
-      '<span class="mileage-correlation strong">Strong Correlation</span>' :
-      '<span class="mileage-correlation moderate">Moderate Correlation</span>';
+    const correlationBadge =
+      mil.correlation === "strong"
+        ? '<span class="mileage-correlation strong">Strong Correlation</span>'
+        : '<span class="mileage-correlation moderate">Moderate Correlation</span>';
 
     mileageImpact = `
       <div class="mileage-impact-section">
@@ -2896,7 +3439,11 @@ function displaySmartOffer(data) {
           </svg>
           <div>
             <div class="mileage-impact-title">Mileage Impact Analysis</div>
-            <div class="mileage-impact-subtitle">How mileage affects this ${data.vehicle.year} ${capitalizeWords(data.vehicle.make)} ${capitalizeWords(data.vehicle.model)}</div>
+            <div class="mileage-impact-subtitle">How mileage affects this ${
+              data.vehicle.year
+            } ${capitalizeWords(data.vehicle.make)} ${capitalizeWords(
+      data.vehicle.model
+    )}</div>
           </div>
         </div>
 
@@ -2909,11 +3456,15 @@ function displaySmartOffer(data) {
           </div>
           <div class="mileage-impact-stat">
             <div class="mileage-impact-stat-label">Market Average</div>
-            <div class="mileage-impact-stat-value">${formatMileage(mil.averageMileage)} miles</div>
+            <div class="mileage-impact-stat-value">${formatMileage(
+              mil.averageMileage
+            )} miles</div>
           </div>
           <div class="mileage-impact-stat">
             <div class="mileage-impact-stat-label">Depreciation Rate</div>
-            <div class="mileage-impact-stat-value">${formatCurrency(Math.abs(mil.depreciationPer1kMiles))}/1k mi</div>
+            <div class="mileage-impact-stat-value">${formatCurrency(
+              Math.abs(mil.depreciationPer1kMiles)
+            )}/1k mi</div>
           </div>
           <div class="mileage-impact-stat highlight">
             <div class="mileage-impact-stat-label">Mileage Adjustment</div>
@@ -2926,12 +3477,21 @@ function displaySmartOffer(data) {
         <div class="mileage-impact-explanation">
           ${correlationBadge}
           <div class="mileage-impact-text">
-            Your vehicle has <strong>${formatMileage(Math.abs(mil.mileageDifference))} ${mileagePosition === 'below' ? 'fewer' : 'more'} miles</strong> than the market average.
-            ${mil.adjustment > 0 ?
-              `This means your vehicle is worth approximately <strong style="color: var(--success);">${formatCurrency(mil.adjustment)} more</strong> than average due to lower mileage.` :
-              mil.adjustment < 0 ?
-              `This means your vehicle is worth approximately <strong style="color: #ef4444;">${formatCurrency(Math.abs(mil.adjustment))} less</strong> than average due to higher mileage.` :
-              'Your mileage is right at the market average.'
+            Your vehicle has <strong>${formatMileage(
+              Math.abs(mil.mileageDifference)
+            )} ${
+      mileagePosition === "below" ? "fewer" : "more"
+    } miles</strong> than the market average.
+            ${
+              mil.adjustment > 0
+                ? `This means your vehicle is worth approximately <strong style="color: var(--success);">${formatCurrency(
+                    mil.adjustment
+                  )} more</strong> than average due to lower mileage.`
+                : mil.adjustment < 0
+                ? `This means your vehicle is worth approximately <strong style="color: #ef4444;">${formatCurrency(
+                    Math.abs(mil.adjustment)
+                  )} less</strong> than average due to higher mileage.`
+                : "Your mileage is right at the market average."
             }
           </div>
         </div>
@@ -2956,26 +3516,38 @@ function displaySmartOffer(data) {
       <div class="smart-offer-label">Recommended Offer Price</div>
       <div class="smart-offer-price">${formatCurrency(data.offer)}</div>
       <div class="smart-offer-description">
-        Based on <strong>${data.count}</strong> ${data.matchQuality === 'exact' ? 'exact match' : 'comparable'} ${data.vehicle.year} ${capitalizeWords(data.vehicle.make || '')} ${capitalizeWords(data.vehicle.model || '')} vehicles within 100 miles
+        Based on <strong>${data.count}</strong> ${
+    data.matchQuality === "exact" ? "exact match" : "comparable"
+  } ${data.vehicle.year} ${capitalizeWords(
+    data.vehicle.make || ""
+  )} ${capitalizeWords(data.vehicle.model || "")} vehicles within 100 miles
       </div>
     </div>
 
     <div class="smart-offer-stats">
       <div class="smart-offer-stat">
         <div class="smart-offer-stat-label">Average Price</div>
-        <div class="smart-offer-stat-value">${formatCurrency(Math.round(data.average))}</div>
+        <div class="smart-offer-stat-value">${formatCurrency(
+          Math.round(data.average)
+        )}</div>
       </div>
       <div class="smart-offer-stat">
         <div class="smart-offer-stat-label">Median Price</div>
-        <div class="smart-offer-stat-value">${formatCurrency(Math.round(data.median))}</div>
+        <div class="smart-offer-stat-value">${formatCurrency(
+          Math.round(data.median)
+        )}</div>
       </div>
       <div class="smart-offer-stat">
         <div class="smart-offer-stat-label">Price Range</div>
-        <div class="smart-offer-stat-value">${formatCurrency(Math.round(data.min))} - ${formatCurrency(Math.round(data.max))}</div>
+        <div class="smart-offer-stat-value">${formatCurrency(
+          Math.round(data.min)
+        )} - ${formatCurrency(Math.round(data.max))}</div>
       </div>
       <div class="smart-offer-stat">
         <div class="smart-offer-stat-label">Your Savings</div>
-        <div class="smart-offer-stat-value" style="color: var(--success);">${formatCurrency(Math.round(data.savings))}</div>
+        <div class="smart-offer-stat-value" style="color: var(--success);">${formatCurrency(
+          Math.round(data.savings)
+        )}</div>
       </div>
     </div>
 
@@ -2984,18 +3556,21 @@ function displaySmartOffer(data) {
     <div class="smart-offer-confidence">
       <strong>${data.savingsPercent}% below average market price.</strong>
       ${confidenceText}
-      ${data.confidence === 'high' ? 'Dealers are more likely to negotiate when your offer is backed by strong local market data.' : ''}
+      ${
+        data.confidence === "high"
+          ? "Dealers are more likely to negotiate when your offer is backed by strong local market data."
+          : ""
+      }
     </div>
   `;
 
-  display.style.display = 'block';
+  display.style.display = "block";
 
   // Also update the Sale Price field with the Smart Offer
-  const salePriceInput = document.getElementById('sale-price');
+  const salePriceInput = document.getElementById("sale-price");
   if (salePriceInput && data.offer) {
     salePriceInput.value = formatCurrency(data.offer);
     wizardData.financing.salePrice = data.offer;
-    console.log('[smart-offer] Updated Sale Price to Smart Offer:', data.offer);
   }
 }
 
@@ -3003,22 +3578,21 @@ function displaySmartOffer(data) {
  * Hide manual entry fields
  */
 function hideManualEntry() {
-  document.getElementById('manual-entry-fields').style.display = 'none';
+  document.getElementById("manual-entry-fields").style.display = "none";
 }
 
 /**
  * Populate year dropdowns based on user's location
  */
 async function populateYearDropdowns() {
-  const yearSelect = document.getElementById('year-input');
+  const yearSelect = document.getElementById("year-input");
   if (!yearSelect) return;
 
   try {
     // Get user's zip code
-    const zip = wizardData.location?.zip || '';
+    const zip = wizardData.location?.zip || "";
 
     if (!zip) {
-      console.log('[year-dropdown] No location set, cannot populate years');
       yearSelect.innerHTML = '<option value="">Enter location first</option>';
       yearSelect.disabled = true;
       return;
@@ -3031,7 +3605,7 @@ async function populateYearDropdowns() {
     const response = await fetch(`${API_BASE}/api/mc/years?zip=${zip}`);
 
     if (!response.ok) {
-      throw new Error('Failed to fetch years');
+      throw new Error("Failed to fetch years");
     }
 
     const data = await response.json();
@@ -3039,9 +3613,8 @@ async function populateYearDropdowns() {
 
     // If MarketCheck returns no years or failed, fall back to Supabase saved vehicles
     if (years.length === 0) {
-      console.log('[year-dropdown] No years from MarketCheck, falling back to Supabase vehicles');
       const yearsSet = new Set();
-      savedVehicles.forEach(vehicle => {
+      savedVehicles.forEach((vehicle) => {
         if (vehicle.year) {
           yearsSet.add(parseInt(vehicle.year));
         }
@@ -3049,29 +3622,28 @@ async function populateYearDropdowns() {
       years = Array.from(yearsSet).sort((a, b) => b - a);
 
       if (years.length > 0) {
-        console.log(`[year-dropdown] Using ${years.length} years from Supabase saved vehicles`);
       }
     }
 
     // Populate dropdown with available years
     yearSelect.innerHTML = '<option value="">Select Year</option>';
-    years.forEach(year => {
-      const option = document.createElement('option');
+    years.forEach((year) => {
+      const option = document.createElement("option");
       option.value = year;
       option.textContent = year;
       yearSelect.appendChild(option);
     });
 
     yearSelect.disabled = false;
-
-    console.log('[year-dropdown] Populated', years.length, 'available years');
   } catch (error) {
-    console.error('[year-dropdown] Error fetching years from MarketCheck:', error);
+    console.error(
+      "[year-dropdown] Error fetching years from MarketCheck:",
+      error
+    );
 
     // Fall back to Supabase saved vehicles
-    console.log('[year-dropdown] Falling back to Supabase saved vehicles');
     const yearsSet = new Set();
-    savedVehicles.forEach(vehicle => {
+    savedVehicles.forEach((vehicle) => {
       if (vehicle.year) {
         yearsSet.add(parseInt(vehicle.year));
       }
@@ -3079,8 +3651,8 @@ async function populateYearDropdowns() {
     const years = Array.from(yearsSet).sort((a, b) => b - a);
 
     yearSelect.innerHTML = '<option value="">Select Year</option>';
-    years.forEach(year => {
-      const option = document.createElement('option');
+    years.forEach((year) => {
+      const option = document.createElement("option");
       option.value = year;
       option.textContent = year;
       yearSelect.appendChild(option);
@@ -3089,20 +3661,18 @@ async function populateYearDropdowns() {
     yearSelect.disabled = false;
 
     if (years.length > 0) {
-      console.log(`[year-dropdown] Using ${years.length} years from Supabase (MarketCheck unavailable)`);
     } else {
       yearSelect.innerHTML = '<option value="">No vehicles available</option>';
-      console.log('[year-dropdown] No vehicles available from either MarketCheck or Supabase');
     }
   }
 
   // Also populate trade-in year dropdown (no location filter needed for trade-ins)
-  const tradeinYearSelect = document.getElementById('tradein-year');
+  const tradeinYearSelect = document.getElementById("tradein-year");
   if (tradeinYearSelect) {
     const currentYear = new Date().getFullYear();
     tradeinYearSelect.innerHTML = '<option value="">Select Year</option>';
     for (let year = currentYear; year >= 1990; year--) {
-      const option = document.createElement('option');
+      const option = document.createElement("option");
       option.value = year;
       option.textContent = year;
       tradeinYearSelect.appendChild(option);
@@ -3123,9 +3693,10 @@ function setupFormValidation() {
 function focusNextField(current) {
   if (!(current instanceof HTMLElement)) return;
 
-  const scope = current instanceof HTMLInputElement && current.form
-    ? current.form
-    : document;
+  const scope =
+    current instanceof HTMLInputElement && current.form
+      ? current.form
+      : document;
 
   const focusables = Array.from(
     scope.querySelectorAll(
@@ -3145,8 +3716,6 @@ function focusNextField(current) {
   if (next instanceof HTMLInputElement || next instanceof HTMLTextAreaElement) {
     next.select?.();
   }
-
-  console.log('[enter-nav] Moved focus from', current.id || 'field', 'to', next.id || 'field');
 }
 
 /**
@@ -3154,14 +3723,14 @@ function focusNextField(current) {
  */
 function setupEnterKeyNavigation() {
   // Get all form fields
-  const allFields = document.querySelectorAll('input, select, textarea');
+  const allFields = document.querySelectorAll("input, select, textarea");
 
-  allFields.forEach(field => {
-    field.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter') return;
+  allFields.forEach((field) => {
+    field.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
 
       // Don't handle Enter on buttons
-      if (field.tagName === 'BUTTON') return;
+      if (field.tagName === "BUTTON") return;
 
       e.preventDefault();
 
@@ -3176,13 +3745,9 @@ function setupEnterKeyNavigation() {
  */
 function setupInputFormatting() {
   // Currency fields (vehicle-price handled separately for formula support)
-  const currencyFields = [
-    'down-payment',
-    'tradein-value',
-    'tradein-payoff'
-  ];
+  const currencyFields = ["down-payment", "tradein-value", "tradein-payoff"];
 
-  currencyFields.forEach(fieldId => {
+  currencyFields.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
     if (field) {
       setupCurrencyInput(field);
@@ -3190,11 +3755,9 @@ function setupInputFormatting() {
   });
 
   // Mileage fields (only trade-in mileage remains)
-  const mileageFields = [
-    'tradein-mileage'
-  ];
+  const mileageFields = ["tradein-mileage"];
 
-  mileageFields.forEach(fieldId => {
+  mileageFields.forEach((fieldId) => {
     const field = document.getElementById(fieldId);
     if (field) {
       setupMileageInput(field);
@@ -3207,17 +3770,15 @@ function setupInputFormatting() {
  * Allows users to enter formulas like "-6%" or "-$500" to calculate discounts
  */
 function setupVehiclePriceFormulas() {
-  const vehiclePriceInput = document.getElementById('vehicle-price');
+  const vehiclePriceInput = document.getElementById("vehicle-price");
   if (!vehiclePriceInput) return;
 
-  vehiclePriceInput.addEventListener('blur', function() {
+  vehiclePriceInput.addEventListener("blur", function () {
     const value = this.value.trim();
     if (!value) return;
 
     // Get base price (asking price stored when vehicle was selected)
     const basePrice = parseFloat(this.dataset.basePrice) || 0;
-
-    console.log('[formula] Processing:', value, 'Base price:', basePrice);
 
     let calculatedPrice = null;
     let isFormula = false;
@@ -3226,27 +3787,24 @@ function setupVehiclePriceFormulas() {
     const percentMatch = value.match(/^(-?\d+(?:\.\d+)?)\s*%$/);
     if (percentMatch && basePrice > 0) {
       const percent = parseFloat(percentMatch[1]);
-      calculatedPrice = basePrice * (1 + (percent / 100));
+      calculatedPrice = basePrice * (1 + percent / 100);
       isFormula = true;
-      console.log('[formula] Percentage discount:', percent + '%', '→', calculatedPrice);
     }
 
     // Handle dollar discount: -$500 or -500
     const dollarMatch = value.match(/^-\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
     if (dollarMatch && basePrice > 0) {
-      const discount = parseFloat(dollarMatch[1].replace(/,/g, ''));
+      const discount = parseFloat(dollarMatch[1].replace(/,/g, ""));
       calculatedPrice = basePrice - discount;
       isFormula = true;
-      console.log('[formula] Dollar discount:', discount, '→', calculatedPrice);
     }
 
     // Handle dollar addition: +$500 or +500
     const addMatch = value.match(/^\+\$?(\d+(?:,\d{3})*(?:\.\d{2})?)$/);
     if (addMatch && basePrice > 0) {
-      const addition = parseFloat(addMatch[1].replace(/,/g, ''));
+      const addition = parseFloat(addMatch[1].replace(/,/g, ""));
       calculatedPrice = basePrice + addition;
       isFormula = true;
-      console.log('[formula] Dollar addition:', addition, '→', calculatedPrice);
     }
 
     // If formula was calculated, apply the result
@@ -3254,36 +3812,37 @@ function setupVehiclePriceFormulas() {
       const finalPrice = Math.round(calculatedPrice);
       this.value = formatCurrency(finalPrice);
       wizardData.financing.salePrice = finalPrice;
-      console.log('[formula] Final price:', finalPrice);
 
       // Show a subtle hint about what was calculated
       const hint = this.nextElementSibling;
-      if (hint && hint.classList.contains('form-hint')) {
-        hint.textContent = `Calculated from asking price: ${formatCurrency(basePrice)}`;
-        hint.style.color = 'var(--success)';
+      if (hint && hint.classList.contains("form-hint")) {
+        hint.textContent = `Calculated from asking price: ${formatCurrency(
+          basePrice
+        )}`;
+        hint.style.color = "var(--success)";
         setTimeout(() => {
-          hint.textContent = 'Enter price or formula: -6% for discount, +$500 for addition';
-          hint.style.color = '';
+          hint.textContent =
+            "Enter price or formula: -6% for discount, +$500 for addition";
+          hint.style.color = "";
         }, 3000);
       }
     }
     // Not a formula - format as currency
     else if (!isFormula) {
-      const numValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
+      const numValue = parseFloat(value.replace(/[^0-9.-]/g, ""));
       if (!isNaN(numValue) && numValue > 0) {
         this.value = formatCurrency(numValue);
         wizardData.financing.salePrice = numValue;
-        console.log('[vehicle-price] Formatted as currency:', numValue);
       }
     }
   });
 
   // Handle input to strip non-numeric characters (except formula symbols)
-  vehiclePriceInput.addEventListener('input', function() {
+  vehiclePriceInput.addEventListener("input", function () {
     const value = this.value;
 
     // Allow formulas (%, +, -, $) and numbers
-    const cleaned = value.replace(/[^0-9.%+\-$,]/g, '');
+    const cleaned = value.replace(/[^0-9.%+\-$,]/g, "");
     if (cleaned !== value) {
       const cursorPos = this.selectionStart;
       this.value = cleaned;
@@ -3291,7 +3850,7 @@ function setupVehiclePriceFormulas() {
     }
 
     // If it's a plain number, update wizardData
-    const numValue = parseFloat(value.replace(/[^0-9.-]/g, ''));
+    const numValue = parseFloat(value.replace(/[^0-9.-]/g, ""));
     if (!isNaN(numValue) && numValue > 0 && !/[%+\-]/.test(value)) {
       wizardData.financing.salePrice = numValue;
     }
@@ -3328,27 +3887,31 @@ function wizardPrev() {
  * Update wizard UI for current step
  */
 function updateWizardUI() {
-  document.querySelectorAll('.progress-step').forEach((step, index) => {
+  document.querySelectorAll(".progress-step").forEach((step, index) => {
     const stepNumber = index + 1;
-    step.classList.remove('active', 'completed');
+    step.classList.remove("active", "completed");
 
     if (stepNumber < currentStep) {
-      step.classList.add('completed');
+      step.classList.add("completed");
     } else if (stepNumber === currentStep) {
-      step.classList.add('active');
+      step.classList.add("active");
     }
   });
 
   const progressPercent = ((currentStep - 1) / (totalSteps - 1)) * 100;
-  document.querySelector('.progress-bar__line-fill').style.width = `${progressPercent}%`;
+  document.querySelector(
+    ".progress-bar__line-fill"
+  ).style.width = `${progressPercent}%`;
 
-  document.querySelectorAll('.wizard-step').forEach(step => {
-    step.classList.remove('active');
+  document.querySelectorAll(".wizard-step").forEach((step) => {
+    step.classList.remove("active");
   });
 
-  const activeStep = document.querySelector(`.wizard-step[data-step="${currentStep}"]`);
+  const activeStep = document.querySelector(
+    `.wizard-step[data-step="${currentStep}"]`
+  );
   if (activeStep) {
-    activeStep.classList.add('active');
+    activeStep.classList.add("active");
   }
 
   if (currentStep === 4) {
@@ -3361,13 +3924,13 @@ function updateWizardUI() {
     }
 
     refreshReview().catch((error) => {
-      console.error('[review] Unable to populate review section:', error);
+      console.error("[review] Unable to populate review section:", error);
     });
   }
 
-  document.querySelector('.wizard-card').scrollIntoView({
-    behavior: 'smooth',
-    block: 'start'
+  document.querySelector(".wizard-card").scrollIntoView({
+    behavior: "smooth",
+    block: "start",
   });
 }
 
@@ -3376,36 +3939,38 @@ function updateWizardUI() {
  */
 function validateStep(step) {
   let isValid = true;
-  let errorMessage = '';
+  let errorMessage = "";
 
   switch (step) {
     case 1: // Vehicle
       if (!selectedVehicle) {
-        const year = document.getElementById('year-input').value;
-        const make = document.getElementById('make-input').value;
-        const model = document.getElementById('model-input').value;
+        const year = document.getElementById("year-input").value;
+        const make = document.getElementById("make-input").value;
+        const model = document.getElementById("model-input").value;
 
         if (!year || !make || !model) {
           isValid = false;
-          errorMessage = 'Please select a vehicle or enter year, make, and model manually';
+          errorMessage =
+            "Please select a vehicle or enter year, make, and model manually";
         }
       }
 
       // Check location (required for distance calculations and Smart Offer)
       if (!wizardData.location?.zip) {
         isValid = false;
-        errorMessage = 'Please enter your location to calculate distance from dealer';
+        errorMessage =
+          "Please enter your location to calculate distance from dealer";
       }
       break;
 
     case 2: // Financing
-      const price = document.getElementById('vehicle-price').value;
-      const term = document.getElementById('loan-term').value;
-      const creditScore = document.getElementById('credit-score').value;
+      const price = document.getElementById("vehicle-price").value;
+      const term = document.getElementById("loan-term").value;
+      const creditScore = document.getElementById("credit-score").value;
 
       if (!price || !term || !creditScore) {
         isValid = false;
-        errorMessage = 'Please fill in all financing details';
+        errorMessage = "Please fill in all financing details";
       }
       break;
 
@@ -3414,14 +3979,14 @@ function validateStep(step) {
       break;
 
     case 4: // Review
-      const name = document.getElementById('customer-name').value;
-      const email = document.getElementById('customer-email').value;
-      const phone = document.getElementById('customer-phone').value;
-      const zip = document.getElementById('customer-zip').value;
+      const name = document.getElementById("customer-name").value;
+      const email = document.getElementById("customer-email").value;
+      const phone = document.getElementById("customer-phone").value;
+      const zip = document.getElementById("customer-zip").value;
 
       if (!name || !email || !phone || !zip) {
         isValid = false;
-        errorMessage = 'Please fill in all contact information';
+        errorMessage = "Please fill in all contact information";
       }
       break;
   }
@@ -3443,44 +4008,45 @@ function saveStepData(step) {
         wizardData.vehicle = selectedVehicle;
       } else {
         wizardData.vehicle = {
-          year: document.getElementById('year-input').value,
-          make: document.getElementById('make-input').value,
-          model: document.getElementById('model-input').value,
-          trim: document.getElementById('trim-input').value || null,
-          condition: document.getElementById('condition-input').value || 'Used'
+          year: document.getElementById("year-input").value,
+          make: document.getElementById("make-input").value,
+          model: document.getElementById("model-input").value,
+          trim: document.getElementById("trim-input").value || null,
+          condition: document.getElementById("condition-input").value || "Used",
         };
       }
       break;
 
     case 2: // Financing
       // Parse currency values properly
-      const vehiclePriceRaw = document.getElementById('vehicle-price').value;
-      const downPaymentRaw = document.getElementById('down-payment').value;
+      const vehiclePriceRaw = document.getElementById("vehicle-price").value;
+      const downPaymentRaw = document.getElementById("down-payment").value;
 
       wizardData.financing = {
-        salePrice: parseFloat(vehiclePriceRaw.replace(/[^0-9.-]/g, '')) || 0,
-        downPayment: parseFloat(downPaymentRaw.replace(/[^0-9.-]/g, '')) || 0,
-        loanTerm: document.getElementById('loan-term').value,
-        creditScore: document.getElementById('credit-score').value
+        salePrice: parseFloat(vehiclePriceRaw.replace(/[^0-9.-]/g, "")) || 0,
+        downPayment: parseFloat(downPaymentRaw.replace(/[^0-9.-]/g, "")) || 0,
+        loanTerm: document.getElementById("loan-term").value,
+        creditScore: document.getElementById("credit-score").value,
       };
 
-      console.log('[saveStepData] Financing saved:', wizardData.financing);
       break;
 
     case 3: // Trade-in
-      const hasTradeIn = document.querySelector('input[name="has-tradein"]:checked')?.value === 'yes';
+      const hasTradeIn =
+        document.querySelector('input[name="has-tradein"]:checked')?.value ===
+        "yes";
       if (hasTradeIn) {
-        const tradeValueRaw = document.getElementById('tradein-value').value;
-        const tradePayoffRaw = document.getElementById('tradein-payoff').value;
+        const tradeValueRaw = document.getElementById("tradein-value").value;
+        const tradePayoffRaw = document.getElementById("tradein-payoff").value;
 
         wizardData.tradein = {
           hasTradeIn: true,
-          year: document.getElementById('tradein-year').value,
-          make: document.getElementById('tradein-make').value,
-          model: document.getElementById('tradein-model').value,
-          mileage: document.getElementById('tradein-mileage').value,
-          value: parseFloat(tradeValueRaw.replace(/[^0-9.-]/g, '')) || 0,
-          payoff: parseFloat(tradePayoffRaw.replace(/[^0-9.-]/g, '')) || 0
+          year: document.getElementById("tradein-year").value,
+          make: document.getElementById("tradein-make").value,
+          model: document.getElementById("tradein-model").value,
+          mileage: document.getElementById("tradein-mileage").value,
+          value: parseFloat(tradeValueRaw.replace(/[^0-9.-]/g, "")) || 0,
+          payoff: parseFloat(tradePayoffRaw.replace(/[^0-9.-]/g, "")) || 0,
         };
       } else {
         wizardData.tradein = { hasTradeIn: false };
@@ -3489,10 +4055,10 @@ function saveStepData(step) {
 
     case 4: // Customer info
       wizardData.customer = {
-        name: document.getElementById('customer-name').value,
-        email: document.getElementById('customer-email').value,
-        phone: document.getElementById('customer-phone').value,
-        zip: document.getElementById('customer-zip').value
+        name: document.getElementById("customer-name").value,
+        email: document.getElementById("customer-email").value,
+        phone: document.getElementById("customer-phone").value,
+        zip: document.getElementById("customer-zip").value,
       };
       break;
   }
@@ -3502,9 +4068,9 @@ function saveStepData(step) {
  * Toggle trade-in fields visibility
  */
 function toggleTradeIn(show) {
-  const tradeinFields = document.getElementById('tradein-fields');
+  const tradeinFields = document.getElementById("tradein-fields");
   if (tradeinFields) {
-    tradeinFields.style.display = show ? 'block' : 'none';
+    tradeinFields.style.display = show ? "block" : "none";
   }
 }
 
@@ -3516,12 +4082,19 @@ async function computeReviewData() {
   const tradein = wizardData.tradein || {};
 
   const salePrice = parseCurrencyToNumber(financing.salePrice);
-  const cashDown = Math.max(parseCurrencyToNumber(financing.cashDown || financing.downPayment), 0);
+  const cashDown = Math.max(
+    parseCurrencyToNumber(financing.cashDown || financing.downPayment),
+    0
+  );
   const term = parseInt(financing.term || financing.loanTerm, 10) || 72;
 
   const hasTrade = !!tradein.hasTradeIn;
-  const tradeOffer = hasTrade ? parseCurrencyToNumber(tradein.tradeValue || tradein.value) : 0;
-  const tradePayoff = hasTrade ? parseCurrencyToNumber(tradein.tradePayoff || tradein.payoff) : 0;
+  const tradeOffer = hasTrade
+    ? parseCurrencyToNumber(tradein.tradeValue || tradein.value)
+    : 0;
+  const tradePayoff = hasTrade
+    ? parseCurrencyToNumber(tradein.tradePayoff || tradein.payoff)
+    : 0;
   const netTrade = tradeOffer - tradePayoff;
   const positiveEquity = Math.max(netTrade, 0);
   const negativeEquity = Math.max(tradePayoff - tradeOffer, 0);
@@ -3532,7 +4105,7 @@ async function computeReviewData() {
       customerAddons: 0,
       govtFees: 150,
       stateTaxRate: 6.0,
-      countyTaxRate: 1.0
+      countyTaxRate: 1.0,
     };
   }
 
@@ -3555,7 +4128,7 @@ async function computeReviewData() {
     customerAddons: totalCustomerAddons,
     tradeOffer,
     stateTaxRate,
-    countyTaxRate
+    countyTaxRate,
   });
 
   const stateTaxTotal = taxTotals.stateTaxAmount;
@@ -3572,13 +4145,11 @@ async function computeReviewData() {
 
   let selectedApr;
   try {
-    if (selectedLenderId === 'lowest') {
+    if (selectedLenderId === "lowest") {
       selectedApr = await calculateLowestApr();
     } else {
-      console.log('[review] Manual lender selected:', selectedLenderId);
       let rateInfo = currentRates.get(selectedLenderId);
       if (!rateInfo) {
-        console.log('[review] Rate info not found, calculating all rates first');
         await calculateLowestApr();
         rateInfo = currentRates.get(selectedLenderId);
       }
@@ -3590,24 +4161,25 @@ async function computeReviewData() {
           lenderName: lender?.longName || lender?.shortName || selectedLenderId,
           apr: rateInfo.aprDecimal,
           note: rateInfo.note,
-          effectiveDate: rateInfo.effectiveDate
+          effectiveDate: rateInfo.effectiveDate,
         };
-        console.log('[review] Using manual lender:', selectedApr.lenderName, '@', (selectedApr.apr * 100).toFixed(2) + '%');
       } else {
-        console.warn('[review] Rate info still not found, falling back to lowest');
+        console.warn(
+          "[review] Rate info still not found, falling back to lowest"
+        );
         selectedApr = await calculateLowestApr();
       }
     }
   } catch (error) {
-    console.warn('[review] Falling back to default APR:', error);
+    console.warn("[review] Falling back to default APR:", error);
   }
 
   if (!selectedApr || !Number.isFinite(selectedApr.apr)) {
     selectedApr = {
-      lenderId: 'default',
-      lenderName: 'Standard Rate',
+      lenderId: "default",
+      lenderName: "Standard Rate",
       apr: 0.0699,
-      note: 'Default rate - no lenders matched'
+      note: "Default rate - no lenders matched",
     };
   }
 
@@ -3615,7 +4187,6 @@ async function computeReviewData() {
   let apr;
   if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
     apr = customAprOverride;
-    console.log('[review] Using custom APR override:', (apr * 100).toFixed(2) + '%');
   } else {
     apr = Number.isFinite(selectedApr.apr) ? selectedApr.apr : 0.0699;
   }
@@ -3652,10 +4223,10 @@ async function computeReviewData() {
     totalSalePrice,
     cashDue,
     cashToBuyer,
-    lenderId: selectedApr.lenderId || 'default',
-    lenderName: selectedApr.lenderName || 'Standard Rate',
-    lenderNote: selectedApr.note || '',
-    lenderEffectiveDate: selectedApr.effectiveDate || null
+    lenderId: selectedApr.lenderId || "default",
+    lenderName: selectedApr.lenderName || "Standard Rate",
+    lenderNote: selectedApr.note || "",
+    lenderEffectiveDate: selectedApr.effectiveDate || null,
   };
 }
 
@@ -3666,7 +4237,7 @@ async function computeReviewData() {
 // Store lenders and rates
 let lendersConfig = [];
 let currentRates = new Map(); // Map<lenderId, {apr, note}>
-let selectedLenderId = 'lowest';
+let selectedLenderId = "lowest";
 let customAprOverride = null; // Store custom APR when user manually adjusts it (decimal form, e.g., 0.0549 for 5.49%)
 
 /**
@@ -3674,14 +4245,13 @@ let customAprOverride = null; // Store custom APR when user manually adjusts it 
  */
 async function loadLenders() {
   try {
-    const response = await fetch('/config/lenders.json');
+    const response = await fetch("/config/lenders.json");
     const lenders = await response.json();
     lendersConfig = lenders.filter((l) => l.enabled !== false);
 
-    console.log('[lenders] Loaded', lendersConfig.length, 'lenders');
     populateLenderDropdown();
   } catch (error) {
-    console.error('[lenders] Error loading lenders:', error);
+    console.error("[lenders] Error loading lenders:", error);
     lendersConfig = [];
   }
 }
@@ -3690,33 +4260,34 @@ async function loadLenders() {
  * Populate lender dropdown
  */
 function populateLenderDropdown() {
-  const select = document.getElementById('lender-select');
+  const select = document.getElementById("lender-select");
   if (!select) return;
 
   // Keep "Lowest APR" option
-  select.innerHTML = '<option value=\"lowest\">Lowest APR (Recommended)</option>';
+  select.innerHTML = '<option value="lowest">Lowest APR (Recommended)</option>';
 
   // Add enabled lenders
   lendersConfig.forEach((lender) => {
-    const option = document.createElement('option');
+    const option = document.createElement("option");
     option.value = lender.id;
     option.textContent = lender.longName || lender.shortName;
     select.appendChild(option);
   });
 
   // Listen for changes
-  select.addEventListener('change', (e) => {
+  select.addEventListener("change", (e) => {
     selectedLenderId = e.target.value;
     // Reset custom APR override when lender changes
     customAprOverride = null;
-    console.log('[lender-change] Reset custom APR override');
     // Reset tooltip original values
     if (window.resetAprTooltipOriginal) window.resetAprTooltipOriginal();
     if (window.resetTermTooltipOriginal) window.resetTermTooltipOriginal();
-    if (window.resetMonthlyFCTooltipOriginal) window.resetMonthlyFCTooltipOriginal();
+    if (window.resetMonthlyFCTooltipOriginal)
+      window.resetMonthlyFCTooltipOriginal();
+    if (window.resetTilBaselines) window.resetTilBaselines();
     // Use autoCalculateQuick for quick entry mode
     autoCalculateQuick().catch((error) => {
-      console.error('[rates] Unable to refresh after lender change:', error);
+      console.error("[rates] Unable to refresh after lender change:", error);
     });
   });
 }
@@ -3724,20 +4295,20 @@ function populateLenderDropdown() {
 /**
  * Show toast notification
  */
-function showToast(message, type = 'info') {
-  const toast = document.createElement('div');
+function showToast(message, type = "info") {
+  const toast = document.createElement("div");
   toast.className = `toast toast--${type}`;
   toast.textContent = message;
   document.body.appendChild(toast);
 
   // Trigger animation
   requestAnimationFrame(() => {
-    toast.classList.add('toast--show');
+    toast.classList.add("toast--show");
   });
 
   // Auto-dismiss after 4 seconds
   setTimeout(() => {
-    toast.classList.remove('toast--show');
+    toast.classList.remove("toast--show");
     setTimeout(() => toast.remove(), 300);
   }, 4000);
 }
@@ -3770,8 +4341,14 @@ async function fetchLenderRates(lenderId) {
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       const lenderName = errorData.lenderName || lenderId;
-      console.error(`[rates] No rates available for ${lenderId}:`, errorData.message);
-      showToast(`No rates available for ${lenderName}. Please check Supabase.`, 'error');
+      console.error(
+        `[rates] No rates available for ${lenderId}:`,
+        errorData.message
+      );
+      showToast(
+        `No rates available for ${lenderName}. Please check Supabase.`,
+        "error"
+      );
       return null;
     }
 
@@ -3781,13 +4358,16 @@ async function fetchLenderRates(lenderId) {
     // Store in cache
     rateCache.set(cacheKey, {
       data: rates,
-      timestamp: now
+      timestamp: now,
     });
 
     return rates;
   } catch (error) {
     console.error(`[rates] Error fetching rates for ${lenderId}:`, error);
-    showToast(`Failed to fetch rates for ${lenderId}: ${error.message}`, 'error');
+    showToast(
+      `Failed to fetch rates for ${lenderId}: ${error.message}`,
+      "error"
+    );
     return null;
   }
 }
@@ -3805,7 +4385,12 @@ function matchRate(rates, criteria) {
     const termMax = rate.term_max || rate.termMax;
 
     // Case-insensitive condition comparison
-    if (condition && vehicleCondition && vehicleCondition.toLowerCase() !== condition.toLowerCase()) return false;
+    if (
+      condition &&
+      vehicleCondition &&
+      vehicleCondition.toLowerCase() !== condition.toLowerCase()
+    )
+      return false;
     if (term < termMin || term > termMax) return false;
 
     return true;
@@ -3828,16 +4413,24 @@ function matchRate(rates, criteria) {
   if (eligible.length === 0) return null;
 
   const best = eligible.reduce((bestRate, rate) => {
-    const aprPercent = rate.base_apr || rate.baseApr || rate.apr_percent || rate.aprPercent;
-    const bestApr = bestRate.base_apr || bestRate.baseApr || bestRate.apr_percent || bestRate.aprPercent;
+    const aprPercent =
+      rate.base_apr || rate.baseApr || rate.apr_percent || rate.aprPercent;
+    const bestApr =
+      bestRate.base_apr ||
+      bestRate.baseApr ||
+      bestRate.apr_percent ||
+      bestRate.aprPercent;
     return aprPercent < bestApr ? rate : bestRate;
   });
 
   return {
-    aprDecimal: (best.base_apr || best.baseApr || best.apr_percent || best.aprPercent) / 100,
-    aprPercent: best.base_apr || best.baseApr || best.apr_percent || best.aprPercent,
-    note: best.note || '',
-    effectiveDate: best.effective_date || best.effectiveDate || null
+    aprDecimal:
+      (best.base_apr || best.baseApr || best.apr_percent || best.aprPercent) /
+      100,
+    aprPercent:
+      best.base_apr || best.baseApr || best.apr_percent || best.aprPercent,
+    note: best.note || "",
+    effectiveDate: best.effective_date || best.effectiveDate || null,
   };
 }
 
@@ -3846,7 +4439,10 @@ function matchRate(rates, criteria) {
  */
 async function calculateLowestApr() {
   const term = parseInt(wizardData.financing.loanTerm, 10) || 72;
-  const condition = (wizardData.vehicle.condition || '').toLowerCase() === 'new' ? 'new' : 'used';
+  const condition =
+    (wizardData.vehicle.condition || "").toLowerCase() === "new"
+      ? "new"
+      : "used";
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
 
   const candidates = [];
@@ -3870,7 +4466,7 @@ async function calculateLowestApr() {
           lenderName: lender.longName || lender.shortName,
           apr: match.aprDecimal,
           note: match.note,
-          effectiveDate: match.effectiveDate
+          effectiveDate: match.effectiveDate,
         };
 
         candidates.push(candidate);
@@ -3887,10 +4483,10 @@ async function calculateLowestApr() {
   if (candidates.length === 0) {
     // Default fallback rate
     return {
-      lenderId: 'default',
-      lenderName: 'Standard Rate',
+      lenderId: "default",
+      lenderName: "Standard Rate",
       apr: 0.0699, // 6.99%
-      note: 'Default rate - no lenders matched'
+      note: "Default rate - no lenders matched",
     };
   }
 
@@ -3909,7 +4505,7 @@ function mapCreditScoreRange(creditScoreRange) {
     excellent: 780,
     good: 725,
     fair: 675,
-    poor: 600
+    poor: 600,
   };
   return map[creditScoreRange] || 700;
 }
@@ -3937,12 +4533,19 @@ function calculateMonthlyPayment(principal, apr, term) {
 /**
  * Calculate taxes using app.js logic
  */
-function recomputeTaxes({ salePrice, dealerFees, customerAddons, tradeOffer, stateTaxRate = 6.0, countyTaxRate = 1.0 }) {
+function recomputeTaxes({
+  salePrice,
+  dealerFees,
+  customerAddons,
+  tradeOffer,
+  stateTaxRate = 6.0,
+  countyTaxRate = 1.0,
+}) {
   const result = {
     taxableBase: 0,
     stateTaxAmount: 0,
     countyTaxAmount: 0,
-    totalTaxes: 0
+    totalTaxes: 0,
   };
 
   const sale = Number.isFinite(salePrice) ? salePrice : 0;
@@ -3980,24 +4583,26 @@ function populateReviewSummary(reviewData) {
   const data = reviewData || latestReviewData;
   if (!data) return;
 
-  setText('summaryMonthlyPayment', formatCurrency(data.monthlyPayment));
-  setText('summaryTerm', `${data.term} months`);
-  setText('summaryAPR', formatPercent(data.apr));
-  setText('summaryAmountFinanced', formatCurrency(data.amountFinanced));
-  setText('summaryTotalPayments', formatCurrency(data.totalPayments));
-  setText('summaryFinanceCharge', formatCurrency(data.financeCharge));
-  setText('summaryTotalSalePrice', formatCurrency(data.totalSalePrice));
-  setText('summaryOtherCharges', formatCurrency(data.sumOtherCharges));
-  setText('summaryCashDue', formatCurrency(data.cashDue));
+  setText("summaryMonthlyPayment", formatCurrency(data.monthlyPayment));
+  setText("summaryTerm", `${data.term} months`);
+  setText("summaryAPR", formatPercent(data.apr));
+  setText("summaryAmountFinanced", formatCurrency(data.amountFinanced));
+  setText("summaryTotalPayments", formatCurrency(data.totalPayments));
+  setText("summaryFinanceCharge", formatCurrency(data.financeCharge));
+  setText("summaryTotalSalePrice", formatCurrency(data.totalSalePrice));
+  setText("summaryOtherCharges", formatCurrency(data.sumOtherCharges));
+  setText("summaryCashDue", formatCurrency(data.cashDue));
 
-  const summaryCashToBuyer = document.getElementById('summaryCashToBuyer');
+  const summaryCashToBuyer = document.getElementById("summaryCashToBuyer");
   if (summaryCashToBuyer) {
     if (data.cashToBuyer > 0) {
-      summaryCashToBuyer.textContent = `Cash to buyer: ${formatCurrency(data.cashToBuyer)}`;
-      summaryCashToBuyer.style.display = '';
+      summaryCashToBuyer.textContent = `Cash to buyer: ${formatCurrency(
+        data.cashToBuyer
+      )}`;
+      summaryCashToBuyer.style.display = "";
     } else {
-      summaryCashToBuyer.textContent = '';
-      summaryCashToBuyer.style.display = 'none';
+      summaryCashToBuyer.textContent = "";
+      summaryCashToBuyer.style.display = "none";
     }
   }
 }
@@ -4042,90 +4647,94 @@ function populateReviewSection(reviewData) {
     totalSalePrice,
     cashDue,
     cashToBuyer,
-    lenderName
+    lenderName,
   } = data;
 
-  setText('reviewHeroYear', wizardData.vehicle.year);
-  setText('reviewHeroMake', wizardData.vehicle.make);
-  setText('reviewHeroModel', wizardData.vehicle.model);
-  setText('reviewHeroTrim', wizardData.vehicle.trim);
-  setText('reviewHeroVin', wizardData.vehicle.vin ? `VIN: ${wizardData.vehicle.vin}` : '');
-  setText('reviewHeroPrice', formatCurrency(cashPrice));
+  setText("reviewHeroYear", wizardData.vehicle.year);
+  setText("reviewHeroMake", wizardData.vehicle.make);
+  setText("reviewHeroModel", wizardData.vehicle.model);
+  setText("reviewHeroTrim", wizardData.vehicle.trim);
+  setText(
+    "reviewHeroVin",
+    wizardData.vehicle.vin ? `VIN: ${wizardData.vehicle.vin}` : ""
+  );
+  setText("reviewHeroPrice", formatCurrency(cashPrice));
 
-  const lenderNameEl = document.getElementById('reviewLenderName');
+  const lenderNameEl = document.getElementById("reviewLenderName");
   if (lenderNameEl) {
     lenderNameEl.textContent = lenderName;
-    lenderNameEl.title = data.lenderNote || '';
+    lenderNameEl.title = data.lenderNote || "";
   }
 
-  setText('reviewAPR', formatPercent(apr));
-  setText('reviewFinanceCharge', formatCurrency(financeCharge));
-  setText('reviewAmountFinanced', formatCurrency(amountFinanced));
-  setText('reviewTotalPayments', formatCurrency(totalPayments));
-  setText('reviewTotalSalePrice', formatCurrency(totalSalePrice));
+  setText("reviewAPR", formatPercent(apr));
+  setText("reviewFinanceCharge", formatCurrency(financeCharge));
+  setText("reviewAmountFinanced", formatCurrency(amountFinanced));
+  setText("reviewTotalPayments", formatCurrency(totalPayments));
+  setText("reviewTotalSalePrice", formatCurrency(totalSalePrice));
 
-  setText('reviewMonthlyPayment', formatCurrency(monthlyPayment));
-  setText('reviewNumPayments', term);
+  setText("reviewMonthlyPayment", formatCurrency(monthlyPayment));
+  setText("reviewNumPayments", term);
 
-  setText('reviewSalePrice', formatCurrency(cashPrice));
-  setText('reviewCashDown', formatCurrency(cashDown));
-  setText('reviewNetTrade', formatCurrencyAccounting(netTrade));
-  setText('reviewTradeAllowance', formatCurrency(tradeOffer));
-  setText('reviewTradePayoff', formatCurrency(tradePayoff));
-  setText('reviewUnpaidBalance', formatCurrency(unpaidBalance));
-  setText('reviewOtherCharges', formatCurrency(sumOtherCharges));
-  setText('reviewDealerFees', formatCurrency(totalDealerFees));
-  setText('reviewCustomerAddons', formatCurrency(totalCustomerAddons));
-  setText('reviewGovtFees', formatCurrency(totalGovtFees));
-  setText('reviewStateTax', formatCurrency(stateTaxTotal));
-  setText('reviewCountyTax', formatCurrency(countyTaxTotal));
-  setText('reviewAmountFinanced2', formatCurrency(amountFinanced));
+  setText("reviewSalePrice", formatCurrency(cashPrice));
+  setText("reviewCashDown", formatCurrency(cashDown));
+  setText("reviewNetTrade", formatCurrencyAccounting(netTrade));
+  setText("reviewTradeAllowance", formatCurrency(tradeOffer));
+  setText("reviewTradePayoff", formatCurrency(tradePayoff));
+  setText("reviewUnpaidBalance", formatCurrency(unpaidBalance));
+  setText("reviewOtherCharges", formatCurrency(sumOtherCharges));
+  setText("reviewDealerFees", formatCurrency(totalDealerFees));
+  setText("reviewCustomerAddons", formatCurrency(totalCustomerAddons));
+  setText("reviewGovtFees", formatCurrency(totalGovtFees));
+  setText("reviewStateTax", formatCurrency(stateTaxTotal));
+  setText("reviewCountyTax", formatCurrency(countyTaxTotal));
+  setText("reviewAmountFinanced2", formatCurrency(amountFinanced));
 
-  setText('reviewCashDue', formatCurrency(cashDue));
-  setText('reviewCashToBuyer', formatCurrency(cashToBuyer));
+  setText("reviewCashDue", formatCurrency(cashDue));
+  setText("reviewCashToBuyer", formatCurrency(cashToBuyer));
 
-  const cashToBuyerRow = document.getElementById('reviewCashToBuyerRow');
+  const cashToBuyerRow = document.getElementById("reviewCashToBuyerRow");
   if (cashToBuyerRow) {
-    cashToBuyerRow.style.display = cashToBuyer > 0 ? 'flex' : 'none';
+    cashToBuyerRow.style.display = cashToBuyer > 0 ? "flex" : "none";
   }
 
-  const netNote = document.getElementById('reviewNetNote');
-  const netAmountEl = document.getElementById('reviewNetAmount');
-  const netExplanationEl = document.getElementById('reviewNetExplanation');
+  const netNote = document.getElementById("reviewNetNote");
+  const netAmountEl = document.getElementById("reviewNetAmount");
+  const netExplanationEl = document.getElementById("reviewNetExplanation");
   if (netNote && netAmountEl && netExplanationEl) {
     if (cashToBuyer > 0 && cashDue > 0) {
       const netAmount = cashToBuyer - cashDue;
-      netNote.style.display = 'block';
+      netNote.style.display = "block";
 
       if (netAmount > 0) {
         netAmountEl.textContent = formatCurrency(netAmount);
-        netAmountEl.style.color = 'var(--success, #22c55e)';
-        netExplanationEl.textContent = 'You will receive this amount at signing after equity is applied to amounts due.';
+        netAmountEl.style.color = "var(--success, #22c55e)";
+        netExplanationEl.textContent =
+          "You will receive this amount at signing after equity is applied to amounts due.";
       } else if (netAmount < 0) {
         netAmountEl.textContent = formatCurrency(Math.abs(netAmount));
-        netAmountEl.style.color = 'var(--danger, #ef4444)';
-        netExplanationEl.textContent = 'You need to bring this amount at signing after equity is applied to amounts due.';
+        netAmountEl.style.color = "var(--danger, #ef4444)";
+        netExplanationEl.textContent =
+          "You need to bring this amount at signing after equity is applied to amounts due.";
       } else {
         netAmountEl.textContent = formatCurrency(0);
-        netAmountEl.style.color = 'var(--text-secondary, #64748b)';
-        netExplanationEl.textContent = 'Equity exactly covers all amounts due at signing.';
+        netAmountEl.style.color = "var(--text-secondary, #64748b)";
+        netExplanationEl.textContent =
+          "Equity exactly covers all amounts due at signing.";
       }
     } else {
-      netNote.style.display = 'none';
-      netAmountEl.textContent = '';
-      netExplanationEl.textContent = '';
+      netNote.style.display = "none";
+      netAmountEl.textContent = "";
+      netExplanationEl.textContent = "";
     }
   }
 
   // Populate collapsible header values
-  setText('collapsibleMonthlyPayment', formatCurrency(monthlyPayment));
-  setText('collapsibleLenderName', lenderName);
-  setText('collapsibleCashDue', formatCurrency(cashDue));
+  setText("collapsibleMonthlyPayment", formatCurrency(monthlyPayment));
+  setText("collapsibleLenderName", lenderName);
+  setText("collapsibleCashDue", formatCurrency(cashDue));
 
   // Populate review vehicle card (Step 1 style)
   populateReviewVehicleCard(data);
-
-  console.log('[review] Review populated - Amount Financed:', formatCurrency(amountFinanced), 'Monthly:', formatCurrency(monthlyPayment));
 }
 
 /**
@@ -4137,16 +4746,16 @@ function toggleReviewSection(sectionId) {
 
   if (!content || !header) return;
 
-  const isActive = content.classList.contains('active');
+  const isActive = content.classList.contains("active");
 
   if (isActive) {
-    content.classList.remove('active');
-    header.classList.remove('active');
-    content.style.display = 'none';
+    content.classList.remove("active");
+    header.classList.remove("active");
+    content.style.display = "none";
   } else {
-    content.classList.add('active');
-    header.classList.add('active');
-    content.style.display = 'block';
+    content.classList.add("active");
+    header.classList.add("active");
+    content.style.display = "block";
   }
 }
 
@@ -4154,7 +4763,7 @@ function toggleReviewSection(sectionId) {
  * Populate review vehicle card with Step 1 styling
  */
 function populateReviewVehicleCard(reviewData) {
-  const card = document.getElementById('review-vehicle-card');
+  const card = document.getElementById("review-vehicle-card");
   if (!card) return;
 
   const vehicle = wizardData.vehicle;
@@ -4164,7 +4773,11 @@ function populateReviewVehicleCard(reviewData) {
   const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
 
   // Build vehicle details text
-  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(
+    vehicle.make || ""
+  )} ${capitalizeWords(cleanedModel || "")}${
+    vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ""
+  }`;
 
   // Image HTML
   const imageHtml = vehicle.photo_url
@@ -4185,12 +4798,28 @@ function populateReviewVehicleCard(reviewData) {
     <div class="your-vehicle-card__content">
       <div class="your-vehicle-card__badge">YOUR VEHICLE</div>
       <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
-      ${vehicle.vin ? `<div class="your-vehicle-card__meta">VIN: ${formatVIN(vehicle.vin)}</div>` : ''}
-      ${vehicle.mileage ? `<div class="your-vehicle-card__meta">${formatMileage(vehicle.mileage)} miles</div>` : ''}
+      ${
+        vehicle.vin
+          ? `<div class="your-vehicle-card__meta">VIN: ${formatVIN(
+              vehicle.vin
+            )}</div>`
+          : ""
+      }
+      ${
+        vehicle.mileage
+          ? `<div class="your-vehicle-card__meta">${formatMileage(
+              vehicle.mileage
+            )} miles</div>`
+          : ""
+      }
       <div class="your-vehicle-card__price">
         <div class="your-vehicle-card__price-label">Est. Monthly Payment</div>
-        <div class="your-vehicle-card__price-value">${formatCurrency(monthlyPayment)}</div>
-        <div class="your-vehicle-card__price-meta">${term} months • ${formatPercent(apr)} APR</div>
+        <div class="your-vehicle-card__price-value">${formatCurrency(
+          monthlyPayment
+        )}</div>
+        <div class="your-vehicle-card__price-meta">${term} months • ${formatPercent(
+    apr
+  )} APR</div>
       </div>
     </div>
   `;
@@ -4205,59 +4834,62 @@ function populateReviewVehicleCard(reviewData) {
 function initializeReviewSliders(reviewData) {
   const sliderConfigs = [
     {
-      sliderId: 'reviewSalePriceSlider',
-      inputId: 'reviewSalePriceInput',
+      sliderId: "reviewSalePriceSlider",
+      inputId: "reviewSalePriceInput",
       getValue: () => wizardData.financing.salePrice || 0,
       setValue: (val) => {
         wizardData.financing.salePrice = val;
         // Update vehicle price in step 2
-        const vehiclePriceInput = document.getElementById('vehicle-price');
+        const vehiclePriceInput = document.getElementById("vehicle-price");
         if (vehiclePriceInput) {
           vehiclePriceInput.value = formatCurrency(val);
           vehiclePriceInput.dataset.basePrice = val;
         }
       },
       max: 150000,
-      step: 500
+      step: 500,
     },
     {
-      sliderId: 'reviewCashDownSlider',
-      inputId: 'reviewCashDownInput',
+      sliderId: "reviewCashDownSlider",
+      inputId: "reviewCashDownInput",
       getValue: () => wizardData.financing.cashDown || 0,
       setValue: (val) => {
         wizardData.financing.cashDown = val;
         // Update down payment in step 2
-        const downPaymentInput = document.getElementById('down-payment');
+        const downPaymentInput = document.getElementById("down-payment");
         if (downPaymentInput) {
           downPaymentInput.value = formatCurrency(val);
         }
       },
       max: 50000,
-      step: 100
+      step: 100,
     },
     {
-      sliderId: 'reviewTradeAllowanceSlider',
-      inputId: 'reviewTradeAllowanceInput',
+      sliderId: "reviewTradeAllowanceSlider",
+      inputId: "reviewTradeAllowanceInput",
       getValue: () => wizardData.tradein?.tradeValue || 0,
       setValue: (val) => {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.tradeValue = val;
         // Update trade-in value in step 3
-        const tradeValueInput = document.getElementById('tradein-value');
+        const tradeValueInput = document.getElementById("tradein-value");
         if (tradeValueInput) {
           tradeValueInput.value = formatCurrency(val);
         }
       },
       max: 75000,
-      step: 100
+      step: 100,
     },
     {
-      sliderId: 'reviewDealerFeesSlider',
-      inputId: 'reviewDealerFeesInput',
+      sliderId: "reviewDealerFeesSlider",
+      inputId: "reviewDealerFeesInput",
       getValue: () => {
         ensureWizardFeeDefaults();
         const fees = wizardData.fees.dealerFees || [];
-        return fees.reduce((sum, fee) => sum + (parseFloat(fee.amount) || 0), 0);
+        return fees.reduce(
+          (sum, fee) => sum + (parseFloat(fee.amount) || 0),
+          0
+        );
       },
       setValue: (val) => {
         ensureWizardFeeDefaults();
@@ -4265,30 +4897,33 @@ function initializeReviewSliders(reviewData) {
         const fees = wizardData.fees.dealerFees || [];
         if (fees.length === 0) {
           // Create a default dealer fee if none exist
-          fees.push({ name: 'Dealer Fee', amount: val });
+          fees.push({ name: "Dealer Fee", amount: val });
           wizardData.fees.dealerFees = fees;
         } else {
-          const currentTotal = fees.reduce((sum, fee) => sum + (parseFloat(fee.amount) || 0), 0);
+          const currentTotal = fees.reduce(
+            (sum, fee) => sum + (parseFloat(fee.amount) || 0),
+            0
+          );
           if (currentTotal > 0) {
             // Proportional distribution
-            fees.forEach(fee => {
+            fees.forEach((fee) => {
               const proportion = (parseFloat(fee.amount) || 0) / currentTotal;
               fee.amount = val * proportion;
             });
           } else {
             // Equal distribution
             const perFee = val / fees.length;
-            fees.forEach(fee => fee.amount = perFee);
+            fees.forEach((fee) => (fee.amount = perFee));
           }
         }
         wizardData.fees.userCustomized = true;
       },
       max: 10000,
-      step: 100
-    }
+      step: 100,
+    },
   ];
 
-  sliderConfigs.forEach(config => {
+  sliderConfigs.forEach((config) => {
     const slider = document.getElementById(config.sliderId);
     const input = document.getElementById(config.inputId);
 
@@ -4298,15 +4933,26 @@ function initializeReviewSliders(reviewData) {
     const currentValue = config.getValue();
     slider.value = currentValue;
     slider.max = config.max;
-    slider.step = config.step;
+    slider.step = 0.01; // Allow penny precision for exact values
     input.value = formatCurrency(currentValue);
+
+    // Store the drag increment for snapping behavior
+    slider.dataset.dragIncrement = config.step;
 
     // Update slider progress bar
     updateSliderProgress(slider);
 
-    // Slider to input sync
-    slider.addEventListener('input', async (e) => {
-      const value = parseFloat(e.target.value);
+    // Slider to input sync - snap to increment when dragging
+    slider.addEventListener("input", async (e) => {
+      let value = parseFloat(e.target.value);
+
+      // Snap to drag increment during user interaction
+      const dragIncrement =
+        parseFloat(slider.dataset.dragIncrement) || config.step;
+      value = Math.round(value / dragIncrement) * dragIncrement;
+
+      // Update slider to snapped value
+      slider.value = value;
       input.value = formatCurrency(value);
       updateSliderProgress(slider);
       config.setValue(value);
@@ -4315,9 +4961,9 @@ function initializeReviewSliders(reviewData) {
       await refreshReviewDebounced();
     });
 
-    // Input to slider sync
-    input.addEventListener('blur', async (e) => {
-      const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+    // Input to slider sync - preserve exact penny values
+    input.addEventListener("blur", async (e) => {
+      const rawValue = e.target.value.replace(/[^0-9.-]/g, "");
       let value = parseFloat(rawValue);
 
       if (isNaN(value) || value < 0) {
@@ -4326,8 +4972,8 @@ function initializeReviewSliders(reviewData) {
         value = config.max;
       }
 
-      // Round to step
-      value = Math.round(value / config.step) * config.step;
+      // Don't round - preserve exact penny value from input
+      value = Math.round(value * 100) / 100; // Only round to cents
 
       slider.value = value;
       input.value = formatCurrency(value);
@@ -4338,8 +4984,8 @@ function initializeReviewSliders(reviewData) {
     });
 
     // Enter key support
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
         e.preventDefault();
         input.blur();
       }
@@ -4348,14 +4994,48 @@ function initializeReviewSliders(reviewData) {
 }
 
 /**
- * Update slider visual progress
+ * Update slider visual progress - centered at original/baseline value
  */
 function updateSliderProgress(slider) {
   const min = parseFloat(slider.min) || 0;
   const max = parseFloat(slider.max) || 100;
   const value = parseFloat(slider.value) || 0;
-  const progress = ((value - min) / (max - min)) * 100;
-  slider.style.setProperty('--slider-progress', `${progress}%`);
+
+  // Get original/baseline value for this slider (defaults to current value if not set)
+  const originalValue = window.sliderOriginalValues?.[slider.id] ?? value;
+
+  // Center the slider at the original value (50% position)
+  // Map the value range so original is at 50%, min at 0%, max at 100%
+  let progress;
+  if (value <= originalValue) {
+    // Left side: map from min (0%) to original (50%)
+    if (originalValue === min) {
+      progress = 50;
+    } else {
+      progress = ((value - min) / (originalValue - min)) * 50;
+    }
+  } else {
+    // Right side: map from original (50%) to max (100%)
+    if (max === originalValue) {
+      progress = 50;
+    } else {
+      progress = 50 + ((value - originalValue) / (max - originalValue)) * 50;
+    }
+  }
+
+  slider.style.setProperty("--slider-progress", `${progress}%`);
+  slider.style.setProperty("--slider-center", "50%"); // Mark the center position
+
+  // Set fill range from center to current position
+  if (progress < 50) {
+    // Moving left from center: fill from current position to center
+    slider.style.setProperty("--fill-start", `${progress}%`);
+    slider.style.setProperty("--fill-end", "50%");
+  } else {
+    // Moving right from center: fill from center to current position
+    slider.style.setProperty("--fill-start", "50%");
+    slider.style.setProperty("--fill-end", `${progress}%`);
+  }
 }
 
 /**
@@ -4382,7 +5062,7 @@ function formatCurrencyAccounting(value) {
  * Format percentage
  */
 function formatPercent(decimal) {
-  return (decimal * 100).toFixed(2) + '%';
+  return (decimal * 100).toFixed(2) + "%";
 }
 
 /**
@@ -4407,14 +5087,14 @@ function ensureWizardFeeDefaults() {
       items: {
         dealer: [],
         customer: [],
-        gov: []
-      }
+        gov: [],
+      },
     };
   } else if (!wizardData.fees.items) {
     wizardData.fees.items = {
       dealer: [],
       customer: [],
-      gov: []
+      gov: [],
     };
   }
 }
@@ -4433,34 +5113,34 @@ function initializeFeeModal() {
       container,
       totalEl,
       suggestionStore,
-      rows: []
+      rows: [],
     };
   });
 
-  const editFeeForm = document.getElementById('edit-fee-form');
+  const editFeeForm = document.getElementById("edit-fee-form");
   if (editFeeForm) {
-    editFeeForm.addEventListener('submit', handleEditFeeSubmit);
+    editFeeForm.addEventListener("submit", handleEditFeeSubmit);
   }
 
-  const typeSelect = document.getElementById('edit-fee-type');
+  const typeSelect = document.getElementById("edit-fee-type");
   if (typeSelect) {
-    typeSelect.addEventListener('change', (event) => {
+    typeSelect.addEventListener("change", (event) => {
       const value = event.target.value;
       updateEditFeeNameList(value);
       editFeeModalState.activeCategory = value;
     });
   }
 
-  const nameInput = document.getElementById('edit-fee-name');
-  const amountInput = document.getElementById('edit-fee-amount');
+  const nameInput = document.getElementById("edit-fee-name");
+  const amountInput = document.getElementById("edit-fee-amount");
   if (nameInput && amountInput) {
-    nameInput.addEventListener('input', () => {
+    nameInput.addEventListener("input", () => {
       const currentType =
-        typeSelect?.value === 'gov'
-          ? 'gov'
-          : typeSelect?.value === 'customer'
-          ? 'customer'
-          : 'dealer';
+        typeSelect?.value === "gov"
+          ? "gov"
+          : typeSelect?.value === "customer"
+          ? "customer"
+          : "dealer";
       const store = getFeeSuggestionStore(currentType);
       const amount = store?.getAmount(nameInput.value) ?? null;
       if (amount != null) {
@@ -4469,28 +5149,31 @@ function initializeFeeModal() {
     });
   }
 
-  const manageBtn = document.getElementById('modal-edit-fee-button');
-  manageBtn?.addEventListener('click', () => {
-    openEditFeeModal(editFeeModalState.activeCategory || 'dealer');
+  const manageBtn = document.getElementById("modal-edit-fee-button");
+  manageBtn?.addEventListener("click", () => {
+    openEditFeeModal(editFeeModalState.activeCategory || "dealer");
   });
 }
 
 function openFeesModal() {
   initializeFeeModal();
-  const modal = document.getElementById('fees-modal');
+  const modal = document.getElementById("fees-modal");
   if (!modal) return;
 
   ensureWizardFeeDefaults();
 
+  // Update tax labels to show current state/county from location
+  updateTaxLabels();
+
   renderFeeModalFromWizardData();
-  modal.style.display = 'flex';
+  modal.style.display = "flex";
 }
 window.openFeesModal = openFeesModal;
 
 function closeFeesModal() {
-  const modal = document.getElementById('fees-modal');
+  const modal = document.getElementById("fees-modal");
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.display = "none";
   }
 }
 window.closeFeesModal = closeFeesModal;
@@ -4513,48 +5196,52 @@ async function openReviewContractModal() {
  * Show APR confirmation modal when custom APR is detected
  */
 function showAprConfirmationModal() {
-  const modal = document.getElementById('apr-confirmation-modal');
+  const modal = document.getElementById("apr-confirmation-modal");
   if (!modal) return;
 
   // Get lender rate and custom rate
   const selectedApr = wizardData.selectedApr || {};
-  const lenderRate = Number.isFinite(selectedApr.apr) ? selectedApr.apr : 0.0699;
+  const lenderRate = Number.isFinite(selectedApr.apr)
+    ? selectedApr.apr
+    : 0.0699;
 
   // Update modal with rates
-  const lenderRateEl = document.getElementById('aprConfirmLenderRate');
-  const customRateEl = document.getElementById('aprConfirmCustomRate');
+  const lenderRateEl = document.getElementById("aprConfirmLenderRate");
+  const customRateEl = document.getElementById("aprConfirmCustomRate");
 
   if (lenderRateEl) {
-    lenderRateEl.textContent = (lenderRate * 100).toFixed(2) + '%';
+    lenderRateEl.textContent = (lenderRate * 100).toFixed(2) + "%";
   }
 
   if (customRateEl) {
-    customRateEl.textContent = (customAprOverride * 100).toFixed(2) + '%';
+    customRateEl.textContent = (customAprOverride * 100).toFixed(2) + "%";
   }
 
   // Show the modal
-  modal.style.display = 'flex';
+  modal.style.display = "flex";
 }
 
 /**
  * Handle user's choice from APR confirmation modal
  */
 async function confirmAprChoice(choice) {
-  const modal = document.getElementById('apr-confirmation-modal');
+  const modal = document.getElementById("apr-confirmation-modal");
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.display = "none";
   }
 
-  if (choice === 'reset') {
+  if (choice === "reset") {
     // Reset to lender rate
     customAprOverride = null;
 
     // Update the APR display
-    const aprValue = document.getElementById('quickTilAPR');
+    const aprValue = document.getElementById("quickTilAPR");
     if (aprValue) {
       const selectedApr = wizardData.selectedApr || {};
-      const lenderRate = Number.isFinite(selectedApr.apr) ? selectedApr.apr : 0.0699;
-      aprValue.textContent = (lenderRate * 100).toFixed(2) + '%';
+      const lenderRate = Number.isFinite(selectedApr.apr)
+        ? selectedApr.apr
+        : 0.0699;
+      aprValue.textContent = (lenderRate * 100).toFixed(2) + "%";
     }
 
     // Recalculate with lender rate
@@ -4571,7 +5258,7 @@ window.confirmAprChoice = confirmAprChoice;
  * Actually open the review contract modal (called after APR confirmation or directly)
  */
 async function proceedToReviewModal() {
-  const modal = document.getElementById('review-contract-modal');
+  const modal = document.getElementById("review-contract-modal");
   if (!modal) return;
 
   try {
@@ -4579,55 +5266,185 @@ async function proceedToReviewModal() {
     const reviewData = await computeReviewData();
 
     // Populate TIL disclosures
-    setText('contractAPR', formatPercent(reviewData.apr));
-    setText('contractFinanceCharge', formatCurrency(reviewData.financeCharge));
-    setText('contractAmountFinanced', formatCurrency(reviewData.amountFinanced));
-    setText('contractTotalPayments', formatCurrency(reviewData.totalPayments));
+    setText("contractAPR", formatPercent(reviewData.apr));
+    setText("contractTerm", reviewData.term || "--");
+    setText("contractFinanceCharge", formatCurrency(reviewData.financeCharge));
+    setText(
+      "contractAmountFinanced",
+      formatCurrency(reviewData.amountFinanced)
+    );
+    setText("contractTotalPayments", formatCurrency(reviewData.totalPayments));
+
+    // Calculate monthly finance charge (interest portion per month)
+    const monthlyFinanceCharge =
+      reviewData.financeCharge && reviewData.term
+        ? reviewData.financeCharge / reviewData.term
+        : 0;
+    setText(
+      "contractMonthlyFinanceCharge",
+      formatCurrency(monthlyFinanceCharge)
+    );
 
     // Populate payment schedule
-    setText('contractNumPayments', reviewData.term);
-    setText('contractMonthlyPayment', formatCurrency(reviewData.monthlyPayment));
+    setText("contractNumPayments", reviewData.term);
+    setText(
+      "contractMonthlyPayment",
+      formatCurrency(reviewData.monthlyPayment)
+    );
 
     // Populate vehicle information
     const vehicle = wizardData.vehicle;
     if (vehicle) {
-      const vehicleText = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'Not specified';
-      setText('contractVehicle', vehicleText);
-      setText('contractVIN', vehicle.vin ? formatVIN(vehicle.vin) : 'Not specified');
-      setText('contractMileage', vehicle.mileage ? `${formatMileage(vehicle.mileage)} miles` : 'Not specified');
-      setText('contractCondition', vehicle.isNew ? 'New' : 'Used');
+      const vehicleText =
+        `${vehicle.year || ""} ${vehicle.make || ""} ${
+          vehicle.model || ""
+        }`.trim() || "Not specified";
+      setText("contractVehicle", vehicleText);
+      setText(
+        "contractVIN",
+        vehicle.vin ? formatVIN(vehicle.vin) : "Not specified"
+      );
+      setText(
+        "contractMileage",
+        vehicle.mileage
+          ? `${formatMileage(vehicle.mileage)} miles`
+          : "Not specified"
+      );
+      setText("contractCondition", vehicle.isNew ? "New" : "Used");
     } else {
-      setText('contractVehicle', 'Not specified');
-      setText('contractVIN', 'Not specified');
-      setText('contractMileage', 'Not specified');
-      setText('contractCondition', 'Not specified');
+      setText("contractVehicle", "Not specified");
+      setText("contractVIN", "Not specified");
+      setText("contractMileage", "Not specified");
+      setText("contractCondition", "Not specified");
+    }
+
+    // Populate trade-in details
+    const tradeInSection = document.getElementById("contractTradeInSection");
+    const tradeInDetails = document.getElementById("contractTradeInDetails");
+    const trade = wizardData.trade;
+
+    if (trade && trade.vehicles && trade.vehicles.length > 0) {
+      // Show trade-in section
+      if (tradeInSection) tradeInSection.style.display = "block";
+
+      // Build trade-in cards HTML
+      let tradeInHTML = "";
+      trade.vehicles.forEach((vehicle, index) => {
+        const vehicleText = `${vehicle.year || ""} ${vehicle.make || ""} ${
+          vehicle.model || ""
+        }${vehicle.trim ? " " + vehicle.trim : ""}`.trim();
+        const netValue =
+          (vehicle.estimated_value || 0) - (vehicle.payoff_amount || 0);
+
+        tradeInHTML += `
+          <div class="contract-tradein-card">
+            <div class="contract-tradein-header">
+              <h4 class="contract-tradein-title">Trade-In Vehicle ${
+                trade.vehicles.length > 1 ? "#" + (index + 1) : ""
+              }</h4>
+              ${
+                vehicle.nickname
+                  ? `<span class="contract-tradein-nickname">"${vehicle.nickname}"</span>`
+                  : ""
+              }
+            </div>
+            <div class="contract-vehicle-grid">
+              <div class="contract-row">
+                <span class="contract-label">Year Make Model:</span>
+                <span class="contract-value">${
+                  vehicleText || "Not specified"
+                }</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">VIN:</span>
+                <span class="contract-value contract-vin">${
+                  vehicle.vin ? formatVIN(vehicle.vin) : "Not specified"
+                }</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Mileage:</span>
+                <span class="contract-value">${
+                  vehicle.mileage
+                    ? formatMileage(vehicle.mileage) + " miles"
+                    : "Not specified"
+                }</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Condition:</span>
+                <span class="contract-value">${
+                  vehicle.condition
+                    ? vehicle.condition.charAt(0).toUpperCase() +
+                      vehicle.condition.slice(1)
+                    : "Not specified"
+                }</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Your Trade Allowance:</span>
+                <span class="contract-value">${formatCurrency(
+                  vehicle.estimated_value || 0
+                )}</span>
+              </div>
+              <div class="contract-row">
+                <span class="contract-label">Your Payoff Amount:</span>
+                <span class="contract-value">${formatCurrency(
+                  vehicle.payoff_amount || 0
+                )}</span>
+              </div>
+              <div class="contract-row contract-highlight">
+                <span class="contract-label">Net Trade Value:</span>
+                <span class="contract-value">${formatCurrencyAccounting(
+                  netValue
+                )}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      if (tradeInDetails) tradeInDetails.innerHTML = tradeInHTML;
+    } else {
+      // Hide trade-in section if no vehicles
+      if (tradeInSection) tradeInSection.style.display = "none";
     }
 
     // Populate itemization
-    setText('contractSalePrice', formatCurrency(reviewData.salePrice));
-    setText('contractDownPayment', formatCurrency(reviewData.downPayment));
-    setText('contractNetTrade', formatCurrencyAccounting(reviewData.netTrade));
-    setText('contractTradeAllowance', formatCurrency(reviewData.tradeValue));
-    setText('contractTradePayoff', formatCurrency(reviewData.tradePayoff));
-    setText('contractUnpaidBalance', formatCurrency(reviewData.unpaidBalance));
-    setText('contractOtherCharges', formatCurrency(reviewData.sumOtherCharges));
-    setText('contractDealerFees', formatCurrency(reviewData.totalDealerFees));
-    setText('contractCustomerAddons', formatCurrency(reviewData.totalCustomerAddons));
-    setText('contractGovtFees', formatCurrency(reviewData.totalGovtFees));
-    setText('contractSaleTaxTotal', formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal));
-    setText('contractStateTax', formatCurrency(reviewData.stateTaxTotal));
-    setText('contractCountyTax', formatCurrency(reviewData.countyTaxTotal));
-    setText('contractCashDue', formatCurrency(reviewData.cashDue));
-    setText('contractAmountFinancedTotal', formatCurrency(reviewData.amountFinanced));
+    setText("contractSalePrice", formatCurrency(reviewData.salePrice));
+    setText("contractDownPayment", formatCurrency(reviewData.cashDown));
+    setText("contractNetTrade", formatCurrencyAccounting(reviewData.netTrade));
+    setText("contractTradeAllowance", formatCurrency(reviewData.tradeOffer));
+    setText("contractTradePayoff", formatCurrency(reviewData.tradePayoff));
+    setText("contractUnpaidBalance", formatCurrency(reviewData.unpaidBalance));
+    setText("contractOtherCharges", formatCurrency(reviewData.sumOtherCharges));
+    setText("contractDealerFees", formatCurrency(reviewData.totalDealerFees));
+    setText(
+      "contractCustomerAddons",
+      formatCurrency(reviewData.totalCustomerAddons)
+    );
+    setText("contractGovtFees", formatCurrency(reviewData.totalGovtFees));
+    setText(
+      "contractSaleTaxTotal",
+      formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal)
+    );
+    setText("contractStateTax", formatCurrency(reviewData.stateTaxTotal));
+    setText("contractCountyTax", formatCurrency(reviewData.countyTaxTotal));
+    setText("contractCashDue", formatCurrency(reviewData.cashDue));
+    setText(
+      "contractAmountFinancedTotal",
+      formatCurrency(reviewData.amountFinanced)
+    );
 
     // Update tax labels with state/county info
-    const stateCode = wizardData.location?.stateCode || '';
-    const countyName = wizardData.location?.countyName || '';
+    const stateCode = wizardData.location?.stateCode || "";
+    const countyName = wizardData.location?.countyName || "";
     const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
     const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
 
-    const contractStateTaxLabel = document.getElementById('contractStateTaxLabel');
-    const contractCountyTaxLabel = document.getElementById('contractCountyTaxLabel');
+    const contractStateTaxLabel = document.getElementById(
+      "contractStateTaxLabel"
+    );
+    const contractCountyTaxLabel = document.getElementById(
+      "contractCountyTaxLabel"
+    );
 
     if (contractStateTaxLabel) {
       contractStateTaxLabel.textContent = stateCode
@@ -4642,10 +5459,10 @@ async function proceedToReviewModal() {
     }
 
     // Show the modal
-    modal.style.display = 'flex';
+    modal.style.display = "flex";
   } catch (error) {
-    console.error('[review-contract] Error opening modal:', error);
-    alert('Error loading contract data. Please try again.');
+    console.error("[review-contract] Error opening modal:", error);
+    alert("Error loading contract data. Please try again.");
   }
 }
 window.openReviewContractModal = openReviewContractModal;
@@ -4654,9 +5471,9 @@ window.openReviewContractModal = openReviewContractModal;
  * Close the Review Contract modal
  */
 function closeReviewContractModal() {
-  const modal = document.getElementById('review-contract-modal');
+  const modal = document.getElementById("review-contract-modal");
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.display = "none";
   }
 }
 window.closeReviewContractModal = closeReviewContractModal;
@@ -4677,25 +5494,31 @@ window.printContract = printContract;
  * Open the Customer Profile modal and load existing profile
  */
 async function openCustomerProfileModal() {
-  const modal = document.getElementById('customer-profile-modal');
-  if (!modal) return;
+  console.log("👤 [My Profile] Opening modal...");
+  const modal = document.getElementById("customer-profile-modal");
+  if (!modal) {
+    console.error("❌ [My Profile] Modal element not found!");
+    return;
+  }
 
+  console.log("✅ [My Profile] Modal element found, loading profile data...");
   // Load existing profile
   await loadCustomerProfileData();
 
   // Set up Google Places autocomplete for address field
   setupProfileAddressAutocomplete();
 
-  modal.style.display = 'flex';
+  modal.style.display = "flex";
+  console.log("✅ [My Profile] Modal opened");
 }
 
 /**
  * Close the Customer Profile modal
  */
 function closeCustomerProfileModal() {
-  const modal = document.getElementById('customer-profile-modal');
+  const modal = document.getElementById("customer-profile-modal");
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.display = "none";
   }
 }
 
@@ -4704,48 +5527,52 @@ function closeCustomerProfileModal() {
  */
 async function loadCustomerProfileData() {
   try {
-    const profileId = localStorage.getItem('customerProfileId');
-    if (!profileId) return null;
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) {
+      console.log('No user authenticated');
+      return null;
+    }
 
     const { data: profile, error } = await supabase
-      .from('customer_profiles')
-      .select('*')
-      .eq('id', profileId)
+      .from("customer_profiles")
+      .select("*")
+      .eq("user_id", authStore.user.id)
       .single();
 
     if (error) {
-      console.error('Error loading customer profile:', error);
+      console.error("Error loading customer profile:", error);
       return null;
     }
 
     if (profile) {
       // Populate form fields if modal is open
-      const profileFullName = document.getElementById('profileFullName');
+      const profileFullName = document.getElementById("profileFullName");
       if (profileFullName) {
-        profileFullName.value = profile.full_name || '';
-        document.getElementById('profileEmail').value = profile.email || '';
-        document.getElementById('profilePhone').value = profile.phone || '';
-        document.getElementById('profileAddress').value = profile.street_address || '';
-        document.getElementById('profileCity').value = profile.city || '';
-        document.getElementById('profileState').value = profile.state_code || '';
-        document.getElementById('profileZip').value = profile.zip_code || '';
-        document.getElementById('profileCreditScore').value = profile.credit_score_range || '';
+        profileFullName.value = profile.full_name || "";
+        document.getElementById("profileEmail").value = profile.email || "";
+        document.getElementById("profilePhone").value = profile.phone || "";
+        document.getElementById("profileAddress").value =
+          profile.street_address || "";
+        document.getElementById("profileCity").value = profile.city || "";
+        document.getElementById("profileState").value =
+          profile.state_code || "";
+        document.getElementById("profileZip").value = profile.zip_code || "";
+        document.getElementById("profileCreditScore").value =
+          profile.credit_score_range || "";
 
         // Populate preference fields
-        document.getElementById('profileDownPayment').value = profile.preferred_down_payment
-          ? formatCurrency(profile.preferred_down_payment)
-          : '';
-        document.getElementById('profileTradeValue').value = profile.preferred_trade_value
-          ? formatCurrency(profile.preferred_trade_value)
-          : '';
-        document.getElementById('profileTradePayoff').value = profile.preferred_trade_payoff
-          ? formatCurrency(profile.preferred_trade_payoff)
-          : '';
+        document.getElementById("profileDownPayment").value =
+          profile.preferred_down_payment
+            ? formatCurrency(profile.preferred_down_payment)
+            : "";
+        // Trade-in preferences removed - now managed through My Garage
       }
 
       // Update header label with user's first name
-      const firstName = profile.full_name ? profile.full_name.split(' ')[0] : 'Profile';
-      const profileLabel = document.getElementById('customerProfileLabel');
+      const firstName = profile.full_name
+        ? profile.full_name.split(" ")[0]
+        : "Profile";
+      const profileLabel = document.getElementById("customerProfileLabel");
       if (profileLabel) {
         profileLabel.textContent = firstName;
       }
@@ -4755,7 +5582,7 @@ async function loadCustomerProfileData() {
 
     return null;
   } catch (error) {
-    console.error('Error loading customer profile:', error);
+    console.error("Error loading customer profile:", error);
     return null;
   }
 }
@@ -4764,65 +5591,73 @@ async function loadCustomerProfileData() {
  * Setup Google Places autocomplete for profile address field
  */
 function setupProfileAddressAutocomplete() {
-  const addressInput = document.getElementById('profileAddress');
+  const addressInput = document.getElementById("profileAddress");
   if (!addressInput || !google || !google.maps || !google.maps.places) return;
 
   // Create autocomplete instance
   const autocomplete = new google.maps.places.Autocomplete(addressInput, {
-    types: ['address'],
-    componentRestrictions: { country: 'us' },
-    fields: ['address_components', 'formatted_address', 'place_id']
+    types: ["address"],
+    componentRestrictions: { country: "us" },
+    fields: ["address_components", "formatted_address", "place_id"],
   });
 
   // Listen for place selection
-  autocomplete.addListener('place_changed', () => {
+  autocomplete.addListener("place_changed", () => {
     const place = autocomplete.getPlace();
     if (!place || !place.address_components) return;
 
     // Extract address components
-    let streetNumber = '';
-    let route = '';
-    let city = '';
-    let state = '';
-    let stateCode = '';
-    let zip = '';
-    let county = '';
+    let streetNumber = "";
+    let route = "";
+    let city = "";
+    let state = "";
+    let stateCode = "";
+    let zip = "";
+    let county = "";
 
-    place.address_components.forEach(component => {
+    place.address_components.forEach((component) => {
       const types = component.types;
 
-      if (types.includes('street_number')) {
+      if (types.includes("street_number")) {
         streetNumber = component.long_name;
       }
-      if (types.includes('route')) {
+      if (types.includes("route")) {
         route = component.long_name;
       }
-      if (types.includes('locality')) {
+      if (types.includes("locality")) {
         city = component.long_name;
       }
-      if (types.includes('administrative_area_level_1')) {
+      if (types.includes("administrative_area_level_1")) {
         state = component.long_name;
         stateCode = component.short_name;
       }
-      if (types.includes('postal_code')) {
+      if (types.includes("postal_code")) {
         zip = component.long_name;
       }
-      if (types.includes('administrative_area_level_2')) {
-        county = component.long_name.replace(' County', '');
+      if (types.includes("administrative_area_level_2")) {
+        county = component.long_name.replace(" County", "");
       }
     });
 
     // Populate fields
     const streetAddress = `${streetNumber} ${route}`.trim();
-    document.getElementById('profileAddress').value = streetAddress;
-    document.getElementById('profileCity').value = city;
-    document.getElementById('profileState').value = stateCode;
-    document.getElementById('profileZip').value = zip;
+    document.getElementById("profileAddress").value = streetAddress;
+    document.getElementById("profileCity").value = city;
+    document.getElementById("profileState").value = stateCode;
+    document.getElementById("profileZip").value = zip;
 
     // Store county for later use when saving
     addressInput.dataset.county = county;
     addressInput.dataset.countyName = county;
     addressInput.dataset.placeId = place.place_id;
+
+    // Apply locale to update tax rates in fees modal
+    if (stateCode) {
+      applyLocaleToFees({
+        stateCode: stateCode,
+        countyName: county,
+      });
+    }
   });
 }
 
@@ -4836,16 +5671,18 @@ async function autoPopulateLocationFromProfile() {
 
     // If profile has address information, populate the main location field
     if (profile.city && profile.state_code) {
-      const quickLocation = document.getElementById('quick-location');
+      const quickLocation = document.getElementById("quick-location");
       if (quickLocation && !quickLocation.value) {
         // Format location string with FULL street address for Google Maps distance calculations
         const locationString = profile.street_address
-          ? `${profile.street_address}, ${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`
-          : `${profile.city}, ${profile.state_code}${profile.zip_code ? ' ' + profile.zip_code : ''}`;
+          ? `${profile.street_address}, ${profile.city}, ${profile.state_code}${
+              profile.zip_code ? " " + profile.zip_code : ""
+            }`
+          : `${profile.city}, ${profile.state_code}${
+              profile.zip_code ? " " + profile.zip_code : ""
+            }`;
 
         quickLocation.value = locationString;
-
-        console.log('Auto-populated location from profile:', locationString);
 
         // Geocode the address to get lat/lng coordinates for distance calculations
         if (google?.maps?.Geocoder) {
@@ -4853,26 +5690,33 @@ async function autoPopulateLocationFromProfile() {
 
           try {
             const results = await new Promise((resolve, reject) => {
-              geocoder.geocode({ address: locationString }, (results, status) => {
-                if (status === 'OK' && results?.length) {
-                  resolve(results);
-                } else {
-                  reject(new Error(`Geocoding failed: ${status}`));
+              geocoder.geocode(
+                { address: locationString },
+                (results, status) => {
+                  if (status === "OK" && results?.length) {
+                    resolve(results);
+                  } else {
+                    reject(new Error(`Geocoding failed: ${status}`));
+                  }
                 }
-              });
+              );
             });
 
             if (results && results[0]) {
               const place = results[0];
-              const locale = extractLocaleFromComponents(place.address_components ?? []);
-              const zip = extractZipFromPlace(place) || profile.zip_code || '';
+              const locale = extractLocaleFromComponents(
+                place.address_components ?? []
+              );
+              const zip = extractZipFromPlace(place) || profile.zip_code || "";
 
-              const lat = typeof place.geometry.location?.lat === 'function'
-                ? place.geometry.location.lat()
-                : place.geometry.location?.lat ?? null;
-              const lng = typeof place.geometry.location?.lng === 'function'
-                ? place.geometry.location.lng()
-                : place.geometry.location?.lng ?? null;
+              const lat =
+                typeof place.geometry.location?.lat === "function"
+                  ? place.geometry.location.lat()
+                  : place.geometry.location?.lat ?? null;
+              const lng =
+                typeof place.geometry.location?.lng === "function"
+                  ? place.geometry.location.lng()
+                  : place.geometry.location?.lng ?? null;
 
               // Update wizardData with geocoded location data (including lat/lng for distance calculations)
               wizardData.location = {
@@ -4886,17 +5730,19 @@ async function autoPopulateLocationFromProfile() {
                 stateCode: profile.state_code,
                 state: profile.state,
                 county: profile.county,
-                countyName: locale.countyName || profile.county_name
+                countyName: locale.countyName || profile.county_name,
               };
 
               // Update user-location field in wizard
-              const wizardLocationInput = document.getElementById('user-location');
+              const wizardLocationInput =
+                document.getElementById("user-location");
               if (wizardLocationInput) {
-                wizardLocationInput.value = place.formatted_address ?? locationString;
+                wizardLocationInput.value =
+                  place.formatted_address ?? locationString;
                 const hint = wizardLocationInput.nextElementSibling;
                 if (hint) {
-                  hint.textContent = `✓ Using: ${zip || 'your location'}`;
-                  hint.style.color = 'var(--success)';
+                  hint.textContent = `✓ Using: ${zip || "your location"}`;
+                  hint.style.color = "var(--success)";
                 }
               }
 
@@ -4907,24 +5753,27 @@ async function autoPopulateLocationFromProfile() {
               try {
                 await populateYearDropdowns();
               } catch (error) {
-                console.error('[auto-populate] Unable to refresh year dropdowns after location population', error);
+                console.error(
+                  "[auto-populate] Unable to refresh year dropdowns after location population",
+                  error
+                );
               }
-
-              console.log('[auto-populate] Location geocoded with coordinates:', { lat, lng });
 
               // If a vehicle is already selected, refresh the card to show map with distance
               if (selectedVehicle) {
-                console.log('[auto-populate] Re-displaying vehicle card with coordinates');
                 displayQuickVehicleCard(selectedVehicle);
               }
 
               // Trigger auto-calculation
               autoCalculateQuick().catch((error) => {
-                console.error('[auto-populate] Unable to recalculate after location population', error);
+                console.error(
+                  "[auto-populate] Unable to recalculate after location population",
+                  error
+                );
               });
             }
           } catch (geocodeError) {
-            console.error('Geocoding error:', geocodeError);
+            console.error("Geocoding error:", geocodeError);
 
             // Fallback: Update wizardData without coordinates
             wizardData.location = {
@@ -4936,13 +5785,13 @@ async function autoPopulateLocationFromProfile() {
               stateCode: profile.state_code,
               state: profile.state,
               county: profile.county,
-              countyName: profile.county_name
+              countyName: profile.county_name,
             };
 
             // Apply locale-based fees even without geocoding
             applyLocaleToFees({
               stateCode: profile.state_code,
-              countyName: profile.county_name
+              countyName: profile.county_name,
             });
           }
         } else {
@@ -4956,13 +5805,13 @@ async function autoPopulateLocationFromProfile() {
             stateCode: profile.state_code,
             state: profile.state,
             county: profile.county,
-            countyName: profile.county_name
+            countyName: profile.county_name,
           };
         }
       }
     }
   } catch (error) {
-    console.error('Error auto-populating location:', error);
+    console.error("Error auto-populating location:", error);
   }
 }
 
@@ -4978,7 +5827,7 @@ async function autoPopulateCalculatorFromProfile() {
 
     // Auto-populate down payment
     if (profile.preferred_down_payment && profile.preferred_down_payment > 0) {
-      const cashDownSlider = document.getElementById('quickSliderCashDown');
+      const cashDownSlider = document.getElementById("quickSliderCashDown");
       if (cashDownSlider && !wizardData.financing?.cashDown) {
         // Set slider value
         cashDownSlider.value = profile.preferred_down_payment;
@@ -4988,110 +5837,74 @@ async function autoPopulateCalculatorFromProfile() {
         wizardData.financing.cashDown = profile.preferred_down_payment;
 
         // Update display input
-        const cashDownInput = document.getElementById('quickValueCashDown');
+        const cashDownInput = document.getElementById("quickValueCashDown");
         if (cashDownInput) {
           cashDownInput.value = formatCurrency(profile.preferred_down_payment);
         }
 
         // Dispatch input event to trigger UI updates
-        cashDownSlider.dispatchEvent(new Event('input', { bubbles: true }));
-        cashDownSlider.dispatchEvent(new Event('change', { bubbles: true }));
+        cashDownSlider.dispatchEvent(new Event("input", { bubbles: true }));
+        cashDownSlider.dispatchEvent(new Event("change", { bubbles: true }));
 
-        console.log('[auto-populate] Set down payment to:', formatCurrency(profile.preferred_down_payment));
         valuesChanged = true;
       }
     }
 
-    // Auto-populate trade-in values
-    if ((profile.preferred_trade_value && profile.preferred_trade_value > 0) ||
-        (profile.preferred_trade_payoff && profile.preferred_trade_payoff > 0)) {
-
-      // Enable trade-in checkbox
-      const hasTradeCheckbox = document.getElementById('quick-has-tradein');
-      if (hasTradeCheckbox && !wizardData.tradein?.hasTradeIn) {
-        hasTradeCheckbox.checked = true;
-
-        if (!wizardData.tradein) wizardData.tradein = {};
-        wizardData.tradein.hasTradeIn = true;
-
-        // Show trade-in sliders
-        const tradeInControls = document.querySelector('.trade-in-controls');
-        if (tradeInControls) {
-          tradeInControls.style.display = 'block';
-        }
-
-        // Don't dispatch change event - just silently check the box and show controls
-        // The slider events will handle all necessary UI updates
-      }
-
-      // Set trade-in value
-      if (profile.preferred_trade_value && profile.preferred_trade_value > 0) {
-        const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
-        if (tradeValueSlider && !wizardData.tradein?.value) {
-          // Set slider value
-          tradeValueSlider.value = profile.preferred_trade_value;
-
-          wizardData.tradein.value = profile.preferred_trade_value;
-
-          // Update display input
-          const tradeValueInput = document.getElementById('quickValueTradeAllowance');
-          if (tradeValueInput) {
-            tradeValueInput.value = formatCurrency(profile.preferred_trade_value);
-          }
-
-          // Also populate the trade-in modal field
-          const tradeValueModalInput = document.getElementById('tradein-value-modal');
-          if (tradeValueModalInput) {
-            tradeValueModalInput.value = formatCurrency(profile.preferred_trade_value);
-          }
-
-          // Dispatch input event to trigger UI updates
-          tradeValueSlider.dispatchEvent(new Event('input', { bubbles: true }));
-          tradeValueSlider.dispatchEvent(new Event('change', { bubbles: true }));
-
-          console.log('[auto-populate] Set trade-in value to:', formatCurrency(profile.preferred_trade_value));
-          valuesChanged = true;
-        }
-      }
-
-      // Set trade-in payoff
-      if (profile.preferred_trade_payoff && profile.preferred_trade_payoff > 0) {
-        const tradePayoffSlider = document.getElementById('quickSliderTradePayoff');
-        if (tradePayoffSlider && !wizardData.tradein?.payoff) {
-          // Set slider value
-          tradePayoffSlider.value = profile.preferred_trade_payoff;
-
-          wizardData.tradein.payoff = profile.preferred_trade_payoff;
-
-          // Update display input
-          const tradePayoffInput = document.getElementById('quickValueTradePayoff');
-          if (tradePayoffInput) {
-            tradePayoffInput.value = formatCurrency(profile.preferred_trade_payoff);
-          }
-
-          // Also populate the trade-in modal field
-          const tradePayoffModalInput = document.getElementById('tradein-payoff-modal');
-          if (tradePayoffModalInput) {
-            tradePayoffModalInput.value = formatCurrency(profile.preferred_trade_payoff);
-          }
-
-          // Dispatch input event to trigger UI updates
-          tradePayoffSlider.dispatchEvent(new Event('input', { bubbles: true }));
-          tradePayoffSlider.dispatchEvent(new Event('change', { bubbles: true }));
-
-          console.log('[auto-populate] Set trade-in payoff to:', formatCurrency(profile.preferred_trade_payoff));
-          valuesChanged = true;
-        }
-      }
-    }
+    // Trade-in auto-populate removed - now managed through My Garage
 
     // Trigger recalculation if any values were set
     if (valuesChanged) {
-      console.log('[auto-populate] Triggering recalculation...');
       await autoCalculateQuick();
     }
   } catch (error) {
-    console.error('Error auto-populating calculator from profile:', error);
+    console.error("Error auto-populating calculator from profile:", error);
+  }
+}
+
+/**
+ * Auto-populate trade-in from most recently used garage vehicle
+ */
+async function autoPopulateFromGarage() {
+  try {
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) {
+      return;
+    }
+
+    // Check if trade-in already has values (don't override user's work)
+    if (wizardData.trade && wizardData.trade.value > 0) {
+      return;
+    }
+
+    // Load most recently used vehicle from garage (owned vehicles)
+    const { data: vehicles, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .eq("user_id", authStore.user.id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error(
+        "[auto-populate-garage] Error loading garage vehicles:",
+        error
+      );
+      return;
+    }
+
+    if (!vehicles || vehicles.length === 0) {
+      return;
+    }
+
+    const vehicle = vehicles[0];
+
+    // Auto-select this vehicle for trade-in
+    selectedTradeIns = [vehicle.id];
+
+    // Update calculations with this vehicle
+    await updateTradeInCalculations();
+  } catch (error) {
+    console.error("[auto-populate-garage] Error:", error);
   }
 }
 
@@ -5101,35 +5914,39 @@ async function autoPopulateCalculatorFromProfile() {
 async function saveCustomerProfile() {
   try {
     // Get form values
-    const fullName = document.getElementById('profileFullName').value.trim();
-    const email = document.getElementById('profileEmail').value.trim();
-    const phone = document.getElementById('profilePhone').value.trim();
-    const address = document.getElementById('profileAddress').value.trim();
-    const city = document.getElementById('profileCity').value.trim();
-    const state = document.getElementById('profileState').value.trim().toUpperCase();
-    const zip = document.getElementById('profileZip').value.trim();
-    const creditScore = document.getElementById('profileCreditScore').value;
+    const fullName = document.getElementById("profileFullName").value.trim();
+    const email = document.getElementById("profileEmail").value.trim();
+    const phone = document.getElementById("profilePhone").value.trim();
+    const address = document.getElementById("profileAddress").value.trim();
+    const city = document.getElementById("profileCity").value.trim();
+    const state = document
+      .getElementById("profileState")
+      .value.trim()
+      .toUpperCase();
+    const zip = document.getElementById("profileZip").value.trim();
+    const creditScore = document.getElementById("profileCreditScore").value;
 
     // Get preference values
-    const downPayment = parseCurrency(document.getElementById('profileDownPayment').value) || null;
-    const tradeValue = parseCurrency(document.getElementById('profileTradeValue').value) || null;
-    const tradePayoff = parseCurrency(document.getElementById('profileTradePayoff').value) || null;
+    const downPayment =
+      parseCurrency(document.getElementById("profileDownPayment").value) ||
+      null;
+    // Trade-in preferences removed - now managed through My Garage
 
     // Validate required fields
     if (!fullName || !email || !phone) {
-      alert('Please fill in all required fields: Full Name, Email, and Phone');
+      alert("Please fill in all required fields: Full Name, Email, and Phone");
       return;
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      alert('Please enter a valid email address');
+      alert("Please enter a valid email address");
       return;
     }
 
     // Get county data from Google Places if available
-    const addressInput = document.getElementById('profileAddress');
+    const addressInput = document.getElementById("profileAddress");
     const county = addressInput?.dataset?.county || null;
     const countyName = addressInput?.dataset?.countyName || null;
     const googlePlaceId = addressInput?.dataset?.placeId || null;
@@ -5149,39 +5966,36 @@ async function saveCustomerProfile() {
       google_place_id: googlePlaceId,
       credit_score_range: creditScore || null,
       preferred_down_payment: downPayment,
-      preferred_trade_value: tradeValue,
-      preferred_trade_payoff: tradePayoff,
+      // Trade-in preferences removed - now managed through My Garage
       updated_at: new Date().toISOString(),
-      last_used_at: new Date().toISOString()
+      last_used_at: new Date().toISOString(),
     };
 
     // Upsert profile (insert or update)
     const { data: profile, error } = await supabase
-      .from('customer_profiles')
+      .from("customer_profiles")
       .upsert(profileData, {
-        onConflict: 'email'
+        onConflict: "email",
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error saving customer profile:', error);
-      alert('Error saving profile. Please try again.');
+      console.error("Error saving customer profile:", error);
+      alert("Error saving profile. Please try again.");
       return;
     }
 
     // Save profile ID to localStorage
-    localStorage.setItem('customerProfileId', profile.id);
+    localStorage.setItem("customerProfileId", profile.id);
 
-    // Update header label with user's first name
-    const firstName = fullName.split(' ')[0];
-    document.getElementById('customerProfileLabel').textContent = firstName;
+    // Update profile dropdown label with user's first name
+    await updateProfileDropdownLabel();
 
     // Close modal
     closeCustomerProfileModal();
 
     // Show success message
-    console.log('Customer profile saved successfully:', profile);
 
     // Auto-populate main location from saved profile
     await autoPopulateLocationFromProfile();
@@ -5190,10 +6004,12 @@ async function saveCustomerProfile() {
     await autoPopulateCalculatorFromProfile();
 
     // TODO: Show toast notification
-    alert('Profile saved successfully! Your location and preferences have been auto-populated.');
+    alert(
+      "Profile saved successfully! Your location and preferences have been auto-populated."
+    );
   } catch (error) {
-    console.error('Error saving customer profile:', error);
-    alert('Error saving profile. Please try again.');
+    console.error("Error saving customer profile:", error);
+    alert("Error saving profile. Please try again.");
   }
 }
 
@@ -5203,16 +6019,1516 @@ window.closeCustomerProfileModal = closeCustomerProfileModal;
 window.saveCustomerProfile = saveCustomerProfile;
 
 /* ============================================================================
+   Profile Dropdown Functions
+   ============================================================================ */
+
+/**
+ * Toggle the profile dropdown menu
+ */
+function toggleProfileDropdown() {
+  const menu = document.getElementById("profileDropdownMenu");
+  const trigger = document.getElementById("profileDropdownBtn");
+
+  if (!menu || !trigger) {
+    console.error("Menu or trigger not found!", { menu, trigger });
+    return;
+  }
+
+  const currentDisplay = menu.style.display;
+
+  if (currentDisplay === "none" || !currentDisplay) {
+    menu.style.display = "block";
+    trigger.classList.add("active");
+  } else {
+    menu.style.display = "none";
+    trigger.classList.remove("active");
+  }
+}
+
+/**
+ * Close the profile dropdown menu
+ */
+function closeProfileDropdown() {
+  const menu = document.getElementById("profileDropdownMenu");
+  const trigger = document.getElementById("profileDropdownBtn");
+
+  if (menu) menu.style.display = "none";
+  if (trigger) trigger.classList.remove("active");
+}
+
+/**
+ * Handle user sign out
+ */
+function handleSignOut() {
+  if (confirm("Are you sure you want to sign out?")) {
+    // Clear customer profile ID
+    localStorage.removeItem("customerProfileId");
+
+    // Show message
+    alert("You have been signed out successfully.");
+
+    // Reload page to reset state
+    window.location.reload();
+  }
+}
+
+/**
+ * Update auth UI - show Sign In button or Profile dropdown
+ * NOTE: This is legacy code. Auth UI is now handled by auth-manager.ts
+ */
+async function updateAuthUI() {
+  const authStore = useAuthStore.getState();
+  const signInBtn = document.getElementById("signInBtn");
+  const profileDropdownContainer = document.getElementById(
+    "profileDropdownContainer"
+  );
+  const labelElement = document.getElementById("profileDropdownLabel");
+
+  // Check if user is logged in
+  if (!authStore.user) {
+    // Not logged in - show Sign In button
+    if (signInBtn) signInBtn.style.display = "flex";
+    if (profileDropdownContainer)
+      profileDropdownContainer.style.display = "none";
+    return;
+  }
+
+  // Logged in - show profile dropdown
+  if (signInBtn) signInBtn.style.display = "none";
+  if (profileDropdownContainer)
+    profileDropdownContainer.style.display = "block";
+
+  // Update label with user's first name
+  if (!labelElement) return;
+
+  try {
+    const { data: profile, error } = await supabase
+      .from("customer_profiles")
+      .select("full_name")
+      .eq("user_id", authStore.user.id)
+      .single();
+
+    if (error) throw error;
+
+    if (profile && profile.full_name) {
+      const firstName = profile.full_name.split(' ')[0];
+      labelElement.textContent = firstName;
+    } else {
+      labelElement.textContent = "Profile";
+    }
+  } catch (error) {
+    console.error("Error fetching profile name:", error);
+    labelElement.textContent = "Profile";
+  }
+}
+
+// Keep the old function name for backward compatibility
+async function updateProfileDropdownLabel() {
+  await updateAuthUI();
+}
+
+/**
+ * Sync Supabase Auth session with customer profile
+ * If user is logged in via Supabase Auth, fetch or create their customer profile
+ */
+/**
+ * Sync auth with profile
+ * NOTE: This is legacy code. Auth is now handled by auth-manager.ts
+ */
+async function syncAuthWithProfile() {
+  try {
+    // Get current Supabase Auth session
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      console.error("[auth-sync] Error getting session:", sessionError);
+      return;
+    }
+
+    if (!session || !session.user) {
+      // No active session - user is not logged in
+      return;
+    }
+
+    // Auth is now handled by auth-manager.ts and Zustand store
+    // This function is kept for backward compatibility but does minimal work
+    console.log("[auth-sync] Auth handled by auth-manager.ts");
+    return;
+
+    // Try to fetch profile by user_id OR email (in case profile exists but user_id not set yet)
+    const { data: profiles, error: fetchError } = await supabase
+      .from("customer_profiles")
+      .select("*")
+      .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
+      .limit(1);
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      console.error("[auth-sync] Error fetching profile:", fetchError);
+      // Continue anyway - might just be RLS issue
+    }
+
+    let profile = profiles && profiles.length > 0 ? profiles[0] : null;
+
+    if (profile) {
+      // Profile exists - update user_id if not set
+
+      if (!profile.user_id) {
+        await supabase
+          .from("customer_profiles")
+          .update({ user_id: session.user.id })
+          .eq("id", profile.id);
+      }
+
+      localStorage.setItem("customerProfileId", profile.id);
+    } else {
+      // No profile exists - create one
+
+      const newProfile = {
+        user_id: session.user.id,
+        email: session.user.email || "",
+        first_name:
+          session.user.user_metadata?.first_name ||
+          session.user.email?.split("@")[0] ||
+          "",
+        last_name: session.user.user_metadata?.last_name || "",
+        phone: session.user.user_metadata?.phone || session.user.phone || "",
+      };
+
+      const { data: createdProfile, error: createError } = await supabase
+        .from("customer_profiles")
+        .insert([newProfile])
+        .select()
+        .single();
+
+      if (createError) {
+        // If 409 conflict, profile might exist - try fetching again
+        if (
+          createError.code === "23505" ||
+          createError.message?.includes("duplicate")
+        ) {
+          const { data: existingProfile } = await supabase
+            .from("customer_profiles")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single();
+
+          if (existingProfile) {
+            localStorage.setItem("customerProfileId", existingProfile.id);
+            return;
+          }
+        }
+
+        console.error("[auth-sync] Error creating profile:", createError);
+        return;
+      }
+
+      localStorage.setItem("customerProfileId", createdProfile.id);
+    }
+  } catch (error) {
+    console.error("[auth-sync] Unexpected error:", error);
+  }
+}
+
+// Make functions globally available
+window.toggleProfileDropdown = toggleProfileDropdown;
+window.closeProfileDropdown = closeProfileDropdown;
+window.handleSignOut = handleSignOut;
+window.updateProfileDropdownLabel = updateProfileDropdownLabel;
+window.syncAuthWithProfile = syncAuthWithProfile;
+
+/* ============================================================================
+   My Garage Functions
+   ============================================================================ */
+
+// Track selected trade-in vehicles (unlimited)
+let selectedTradeIns = [];
+
+/**
+ * Open My Garage modal and load vehicles
+ */
+async function openMyGarageModal() {
+  console.log("🚗 [My Garage] Opening modal...");
+  const modal = document.getElementById("my-garage-modal");
+  if (!modal) {
+    console.error("❌ [My Garage] Modal element not found!");
+    return;
+  }
+  modal.style.display = "flex";
+  console.log("✅ [My Garage] Modal opened, loading vehicles...");
+  await loadGarageVehicles();
+}
+
+/**
+ * Close My Garage modal
+ */
+function closeMyGarageModal() {
+  const modal = document.getElementById("my-garage-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  hideGarageForm();
+}
+
+/**
+ * Load garage vehicles from database
+ */
+async function loadGarageVehicles() {
+  const authStore = useAuthStore.getState();
+
+  if (!authStore.user) {
+    showGarageEmptyState();
+    return;
+  }
+
+  try {
+    console.log("🔍 Querying garage_vehicles table...");
+    const { data: vehicles, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .eq("user_id", authStore.user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    const vehicleList = document.getElementById("garage-vehicle-list");
+    const emptyState = document.getElementById("garage-empty-state");
+
+    if (!vehicles || vehicles.length === 0) {
+      showGarageEmptyState();
+      return;
+    }
+
+    // Hide empty state
+    if (emptyState) emptyState.style.display = "none";
+
+    // Render vehicles
+    vehicleList.innerHTML = vehicles
+      .map((vehicle) => renderGarageVehicleCard(vehicle))
+      .join("");
+
+    // Restore trade-in selections
+    selectedTradeIns.forEach((vehicleId) => {
+      const checkbox = document.getElementById(`tradein-checkbox-${vehicleId}`);
+      if (checkbox) checkbox.checked = true;
+    });
+  } catch (error) {
+    console.error("Error loading garage vehicles:", error);
+    showGarageEmptyState();
+  }
+}
+
+/**
+ * Show empty state
+ */
+function showGarageEmptyState() {
+  const vehicleList = document.getElementById("garage-vehicle-list");
+  const emptyState = document.getElementById("garage-empty-state");
+
+  if (vehicleList) {
+    // Remove all vehicle cards
+    const cards = vehicleList.querySelectorAll(".garage-vehicle-card");
+    cards.forEach((card) => card.remove());
+  }
+
+  if (emptyState) {
+    emptyState.style.display = "block";
+  }
+}
+
+/**
+ * Render a single garage vehicle card with trade-in checkbox
+ */
+function renderGarageVehicleCard(vehicle) {
+  const nickname =
+    vehicle.nickname || `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+  const trim = vehicle.trim ? ` ${vehicle.trim}` : "";
+  const mileage = vehicle.mileage || 0;
+  const value = vehicle.estimated_value || 0;
+  const payoff = vehicle.payoff_amount || 0;
+  const condition = vehicle.condition
+    ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
+    : "";
+
+  return `
+    <div class="garage-vehicle-card" data-vehicle-id="${vehicle.id}">
+      <div class="garage-vehicle-header">
+        <div class="garage-vehicle-checkbox">
+          <input
+            type="checkbox"
+            id="tradein-checkbox-${vehicle.id}"
+            onchange="handleTradeInSelection('${vehicle.id}', this.checked)"
+            ${selectedTradeIns.includes(vehicle.id) ? "checked" : ""}
+          />
+          <label for="tradein-checkbox-${vehicle.id}">Trade-In</label>
+        </div>
+        <div class="garage-vehicle-actions">
+          <button type="button" class="garage-action-btn" onclick="openEditVehicleModal('${
+            vehicle.id
+          }')" title="Edit">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+            </svg>
+          </button>
+          <button type="button" class="garage-action-btn garage-action-btn--danger" onclick="deleteGarageVehicle('${
+            vehicle.id
+          }')" title="Delete">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="garage-vehicle-info">
+        <h4 class="garage-vehicle-title">${nickname}</h4>
+        <p class="garage-vehicle-details">${vehicle.year} ${vehicle.make} ${
+    vehicle.model
+  }${trim}</p>
+        ${
+          vehicle.vin
+            ? `<p class="garage-vehicle-vin">VIN: ${vehicle.vin}</p>`
+            : ""
+        }
+        <div class="garage-vehicle-meta">
+          ${condition ? `<span class="garage-badge">${condition}</span>` : ""}
+          <span class="garage-badge">${mileage.toLocaleString()} mi</span>
+        </div>
+        <div class="garage-vehicle-financial">
+          <div class="garage-financial-item">
+            <span class="garage-financial-label">Value</span>
+            <span class="garage-financial-value">${formatCurrency(value)}</span>
+          </div>
+          <div class="garage-financial-item">
+            <span class="garage-financial-label">Payoff</span>
+            <span class="garage-financial-value">${formatCurrency(
+              payoff
+            )}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Handle trade-in checkbox selection (unlimited)
+ */
+function handleTradeInSelection(vehicleId, isChecked) {
+  if (isChecked) {
+    // Add to selected
+    if (!selectedTradeIns.includes(vehicleId)) {
+      selectedTradeIns.push(vehicleId);
+    }
+  } else {
+    // Remove from selected
+    selectedTradeIns = selectedTradeIns.filter((id) => id !== vehicleId);
+  }
+
+  // Update calculations with new trade-in values
+  updateTradeInCalculations();
+}
+
+/**
+ * Update calculations based on selected trade-ins
+ */
+async function updateTradeInCalculations() {
+  if (selectedTradeIns.length === 0) {
+    // No trade-ins selected - reset to 0
+    wizardData.trade = null;
+
+    // Clear trade-in sliders and inputs
+    const tradeAllowanceSlider = document.getElementById(
+      "quickSliderTradeAllowance"
+    );
+    const tradeAllowanceInput = document.getElementById(
+      "quickInputTradeAllowance"
+    );
+    const tradePayoffSlider = document.getElementById("quickSliderTradePayoff");
+    const tradePayoffInput = document.getElementById("quickInputTradePayoff");
+
+    if (tradeAllowanceSlider) tradeAllowanceSlider.value = 0;
+    if (tradeAllowanceInput) tradeAllowanceInput.value = formatCurrency(0);
+    if (tradePayoffSlider) tradePayoffSlider.value = 0;
+    if (tradePayoffInput) tradePayoffInput.value = formatCurrency(0);
+
+    await autoCalculateQuick();
+    return;
+  }
+
+  try {
+    // Fetch selected vehicles from garage (owned vehicles)
+    const { data: vehicles, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .in("id", selectedTradeIns);
+
+    if (error) throw error;
+
+    // Calculate totals
+    let totalValue = 0;
+    let totalPayoff = 0;
+
+    vehicles.forEach((vehicle) => {
+      totalValue += parseFloat(vehicle.estimated_value || 0);
+      totalPayoff += parseFloat(vehicle.payoff_amount || 0);
+    });
+
+    // Update wizardData (use 'tradein' to match what sliders and computeReviewData use)
+    wizardData.tradein = {
+      hasTradeIn: true,
+      tradeValue: totalValue,
+      tradePayoff: totalPayoff,
+      vehicles: vehicles,
+    };
+
+    // Also set the old 'trade' property for backwards compatibility
+    wizardData.trade = {
+      hasTradeIn: true,
+      value: totalValue,
+      payoff: totalPayoff,
+      vehicles: vehicles,
+    };
+
+    // Update trade-in sliders and inputs
+    const tradeAllowanceSlider = document.getElementById(
+      "quickSliderTradeAllowance"
+    );
+    const tradeAllowanceInput = document.getElementById(
+      "quickInputTradeAllowance"
+    );
+    const tradePayoffSlider = document.getElementById("quickSliderTradePayoff");
+    const tradePayoffInput = document.getElementById("quickInputTradePayoff");
+
+    if (tradeAllowanceSlider) {
+      // Get the original value to maintain centering
+      const originalValue =
+        window.sliderOriginalValues?.["quickSliderTradeAllowance"] ||
+        totalValue;
+
+      // Calculate new centered range if value exceeds current bounds
+      const currentMin = parseFloat(tradeAllowanceSlider.min);
+      const currentMax = parseFloat(tradeAllowanceSlider.max);
+
+      if (totalValue > currentMax || totalValue < currentMin) {
+        // Recalculate centered range
+        const range = Math.max(totalValue * 0.5, 15000); // At least $15k range
+        tradeAllowanceSlider.min = Math.max(0, totalValue - range);
+        tradeAllowanceSlider.max = totalValue + range;
+      }
+
+      tradeAllowanceSlider.value = totalValue;
+      updateSliderProgress(tradeAllowanceSlider);
+
+      // Dispatch input event to trigger all connected UI updates
+      tradeAllowanceSlider.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      console.error(
+        "[updateTradeInCalculations] Trade allowance slider not found!"
+      );
+    }
+
+    if (tradeAllowanceInput) {
+      tradeAllowanceInput.value = formatCurrency(totalValue);
+    }
+
+    if (tradePayoffSlider) {
+      // Get the original value to maintain centering
+      const originalValue =
+        window.sliderOriginalValues?.["quickSliderTradePayoff"] || totalPayoff;
+
+      // Calculate new centered range if value exceeds current bounds
+      const currentMin = parseFloat(tradePayoffSlider.min);
+      const currentMax = parseFloat(tradePayoffSlider.max);
+
+      if (totalPayoff > currentMax || totalPayoff < currentMin) {
+        // Recalculate centered range
+        const range = Math.max(totalPayoff * 0.5, 15000); // At least $15k range
+        tradePayoffSlider.min = Math.max(0, totalPayoff - range);
+        tradePayoffSlider.max = totalPayoff + range;
+      }
+
+      tradePayoffSlider.value = totalPayoff;
+      updateSliderProgress(tradePayoffSlider);
+
+      // Dispatch input event to trigger all connected UI updates
+      tradePayoffSlider.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      console.error(
+        "[updateTradeInCalculations] Trade payoff slider not found!"
+      );
+    }
+
+    if (tradePayoffInput) {
+      tradePayoffInput.value = formatCurrency(totalPayoff);
+    }
+
+    // Update the original values so diff indicators don't show these as "changed"
+    if (window.originalValues) {
+      window.originalValues["quickSliderTradeAllowance"] = totalValue;
+      window.originalValues["quickSliderTradePayoff"] = totalPayoff;
+    }
+
+    // Trigger recalculation
+    await autoCalculateQuick();
+  } catch (error) {
+    console.error("Error updating trade-in calculations:", error);
+  }
+}
+
+/**
+ * Show garage form for adding/editing
+ */
+async function showGarageForm(vehicleId = null) {
+  const form = document.getElementById("garage-vehicle-form");
+  const title = document.getElementById("garage-form-title");
+
+  if (form) {
+    form.style.display = "block";
+    title.textContent = vehicleId ? "Edit Vehicle" : "Add Vehicle";
+
+    // Store the vehicle ID in the form for later use
+    form.dataset.editingVehicleId = vehicleId || "";
+
+    // If editing, load vehicle data into form
+    if (vehicleId) {
+      try {
+        const { data: vehicle, error } = await supabase
+          .from("garage_vehicles")
+          .select("*")
+          .eq("id", vehicleId)
+          .single();
+
+        if (error) throw error;
+
+        if (vehicle) {
+          // Populate form fields
+          document.getElementById("garageNickname").value =
+            vehicle.nickname || "";
+          document.getElementById("garageYear").value = vehicle.year || "";
+          document.getElementById("garageMake").value = vehicle.make || "";
+          document.getElementById("garageModel").value = vehicle.model || "";
+          document.getElementById("garageTrim").value = vehicle.trim || "";
+          document.getElementById("garageMileage").value =
+            vehicle.mileage || "";
+          document.getElementById("garageVin").value = vehicle.vin || "";
+          document.getElementById("garageCondition").value =
+            vehicle.condition || "used";
+          document.getElementById("garageEstimatedValue").value =
+            vehicle.estimated_value
+              ? formatCurrency(vehicle.estimated_value)
+              : "";
+          document.getElementById("garagePayoffAmount").value =
+            vehicle.payoff_amount ? formatCurrency(vehicle.payoff_amount) : "";
+          document.getElementById("garageNotes").value = vehicle.notes || "";
+        }
+      } catch (error) {
+        console.error("Error loading vehicle for editing:", error);
+        showToast("Error loading vehicle data", "error");
+      }
+    }
+  }
+}
+
+/**
+ * Hide garage form
+ */
+function hideGarageForm() {
+  const form = document.getElementById("garage-vehicle-form");
+  if (form) {
+    form.style.display = "none";
+    // Clear editing state
+    form.dataset.editingVehicleId = "";
+    // Clear form fields
+    form.querySelectorAll("input, select, textarea").forEach((field) => {
+      if (field.type === "checkbox") {
+        field.checked = false;
+      } else {
+        field.value = "";
+      }
+    });
+  }
+}
+
+/**
+ * Open edit vehicle modal
+ */
+async function openEditVehicleModal(vehicleId) {
+  const modal = document.getElementById("edit-vehicle-modal");
+  if (!modal) return;
+
+  try {
+    // Fetch vehicle data from garage
+    const { data: vehicle, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .eq("id", vehicleId)
+      .single();
+
+    if (error) throw error;
+
+    if (vehicle) {
+      // Store the vehicle ID in the modal
+      modal.dataset.editingVehicleId = vehicleId;
+
+      // Populate form fields
+      document.getElementById("editNickname").value = vehicle.nickname || "";
+      document.getElementById("editYear").value = vehicle.year || "";
+      document.getElementById("editMake").value = vehicle.make || "";
+      document.getElementById("editModel").value = vehicle.model || "";
+      document.getElementById("editTrim").value = vehicle.trim || "";
+      document.getElementById("editMileage").value = vehicle.mileage || "";
+      document.getElementById("editVin").value = vehicle.vin || "";
+      document.getElementById("editCondition").value = vehicle.condition || "";
+      document.getElementById("editEstimatedValue").value =
+        vehicle.estimated_value ? formatCurrency(vehicle.estimated_value) : "";
+      document.getElementById("editPayoffAmount").value = vehicle.payoff_amount
+        ? formatCurrency(vehicle.payoff_amount)
+        : "";
+      document.getElementById("editNotes").value = vehicle.notes || "";
+
+      // Show modal
+      modal.style.display = "flex";
+    }
+  } catch (error) {
+    console.error("Error loading vehicle for editing:", error);
+    showToast("Error loading vehicle data", "error");
+  }
+}
+window.openEditVehicleModal = openEditVehicleModal;
+
+/**
+ * Close edit vehicle modal
+ */
+function closeEditVehicleModal() {
+  const modal = document.getElementById("edit-vehicle-modal");
+  if (modal) {
+    modal.style.display = "none";
+    modal.dataset.editingVehicleId = "";
+
+    // Clear form fields
+    document.getElementById("editNickname").value = "";
+    document.getElementById("editYear").value = "";
+    document.getElementById("editMake").value = "";
+    document.getElementById("editModel").value = "";
+    document.getElementById("editTrim").value = "";
+    document.getElementById("editMileage").value = "";
+    document.getElementById("editVin").value = "";
+    document.getElementById("editCondition").value = "";
+    document.getElementById("editEstimatedValue").value = "";
+    document.getElementById("editPayoffAmount").value = "";
+    document.getElementById("editNotes").value = "";
+  }
+}
+window.closeEditVehicleModal = closeEditVehicleModal;
+
+/**
+ * Save edited vehicle
+ */
+async function saveEditedVehicle() {
+  const modal = document.getElementById("edit-vehicle-modal");
+  const vehicleId = modal?.dataset.editingVehicleId;
+
+  if (!vehicleId) {
+    showToast("Error: Vehicle ID not found", "error");
+    return;
+  }
+
+  try {
+    // Collect form values
+    const nickname =
+      document.getElementById("editNickname").value?.trim() || null;
+    const year = parseInt(document.getElementById("editYear").value);
+    const make = document.getElementById("editMake").value?.trim();
+    const model = document.getElementById("editModel").value?.trim();
+    const trim = document.getElementById("editTrim").value?.trim() || null;
+    const mileage = parseInt(document.getElementById("editMileage").value) || 0;
+    const condition = document.getElementById("editCondition").value || null;
+    const estimatedValue =
+      parseFloat(
+        document
+          .getElementById("editEstimatedValue")
+          .value?.replace(/[$,]/g, "")
+      ) || 0;
+    const payoffAmount =
+      parseFloat(
+        document.getElementById("editPayoffAmount").value?.replace(/[$,]/g, "")
+      ) || 0;
+    const notes = document.getElementById("editNotes").value?.trim() || null;
+
+    // Validate required fields
+    if (!year || !make || !model) {
+      showToast("Please fill in all required fields", "error");
+      return;
+    }
+
+    // Update in garage_vehicles database
+    const { error } = await supabase
+      .from("garage_vehicles")
+      .update({
+        nickname,
+        year,
+        make,
+        model,
+        trim,
+        mileage,
+        condition,
+        estimated_value: estimatedValue,
+        payoff_amount: payoffAmount,
+        notes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", vehicleId);
+
+    if (error) throw error;
+
+    showToast("Vehicle updated successfully", "success");
+
+    // Close modal
+    closeEditVehicleModal();
+
+    // Reload vehicles to reflect changes
+    await loadGarageVehicles();
+
+    // Update trade-in calculations if this vehicle is selected
+    if (selectedTradeIns.includes(vehicleId)) {
+      await updateTradeInCalculations();
+    }
+  } catch (error) {
+    console.error("Error saving vehicle:", error);
+    showToast("Error saving changes", "error");
+  }
+}
+window.saveEditedVehicle = saveEditedVehicle;
+
+/**
+ * Edit garage vehicle (legacy function - now opens modal)
+ */
+function editGarageVehicle(vehicleId) {
+  openEditVehicleModal(vehicleId);
+}
+
+/**
+ * Delete garage vehicle
+ */
+async function deleteGarageVehicle(vehicleId) {
+  if (!confirm("Are you sure you want to delete this vehicle?")) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("garage_vehicles")
+      .delete()
+      .eq("id", vehicleId);
+
+    if (error) throw error;
+
+    // Remove from selected trade-ins if present
+    selectedTradeIns = selectedTradeIns.filter((id) => id !== vehicleId);
+
+    // Reload vehicles
+    await loadGarageVehicles();
+
+    // Update calculations
+    await updateTradeInCalculations();
+  } catch (error) {
+    console.error("Error deleting vehicle:", error);
+    alert("Error deleting vehicle. Please try again.");
+  }
+}
+
+/**
+ * Save garage vehicle with duplicate checking
+ */
+let pendingVehicleData = null;
+let duplicateVehicleId = null;
+
+async function saveGarageVehicle() {
+  const authStore = useAuthStore.getState();
+
+  if (!authStore.user) {
+    showToast("Please sign in first", "error");
+    return;
+  }
+
+  // Check if we're editing an existing vehicle
+  const form = document.getElementById("garage-vehicle-form");
+  const editingVehicleId = form?.dataset.editingVehicleId || null;
+  const isEditing = !!editingVehicleId;
+
+  // Get form values
+  const nickname = document.getElementById("garageNickname").value.trim();
+  const year = parseInt(document.getElementById("garageYear").value);
+  const make = document.getElementById("garageMake").value.trim();
+  const model = document.getElementById("garageModel").value.trim();
+  const trim = document.getElementById("garageTrim").value.trim();
+  const mileage =
+    parseInt(document.getElementById("garageMileage").value) || null;
+  const vin = document.getElementById("garageVin").value.trim().toUpperCase();
+  const condition = document.getElementById("garageCondition").value;
+  const estimatedValueStr = document.getElementById(
+    "garageEstimatedValue"
+  ).value;
+  const payoffAmountStr = document.getElementById("garagePayoffAmount").value;
+  const notes = document.getElementById("garageNotes").value.trim();
+
+  // Validation
+  if (!year || !make || !model) {
+    showToast(
+      "Please fill in all required fields (Year, Make, Model)",
+      "error"
+    );
+    return;
+  }
+
+  if (!vin) {
+    showToast("VIN is required to prevent duplicate vehicles", "error");
+    return;
+  }
+
+  if (vin.length !== 17) {
+    showToast("VIN must be exactly 17 characters", "error");
+    return;
+  }
+
+  // Parse currency values
+  const estimatedValue =
+    parseFloat(estimatedValueStr.replace(/[$,]/g, "")) || null;
+  const payoffAmount = parseFloat(payoffAmountStr.replace(/[$,]/g, "")) || null;
+
+  // Prepare vehicle data
+  const vehicleData = {
+    user_id: authStore.user.id,
+    nickname: nickname || null,
+    year,
+    make,
+    model,
+    trim: trim || null,
+    mileage,
+    vin,
+    condition: condition || null,
+    estimated_value: estimatedValue,
+    payoff_amount: payoffAmount,
+    notes: notes || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  try {
+    if (isEditing) {
+      // UPDATE existing vehicle in garage
+      const { error: updateError } = await supabase
+        .from("garage_vehicles")
+        .update(vehicleData)
+        .eq("id", editingVehicleId);
+
+      if (updateError) throw updateError;
+
+      showToast("Vehicle updated successfully", "success");
+      hideGarageForm();
+      await loadGarageVehicles();
+    } else {
+      // INSERT new vehicle to garage - check for duplicate VIN first
+      const { data: existing, error: checkError } = await supabase
+        .from("garage_vehicles")
+        .select("*")
+        .eq("user_id", authStore.user.id)
+        .eq("vin", vin)
+        .single();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        // PGRST116 means no rows found, which is fine
+        throw checkError;
+      }
+
+      if (existing) {
+        // Duplicate found - show comparison modal
+        pendingVehicleData = vehicleData;
+        duplicateVehicleId = existing.id;
+        showDuplicateVehicleModal(existing, vehicleData);
+        return;
+      }
+
+      // No duplicate - proceed with insert to garage
+      const { data: newVehicle, error: insertError } = await supabase
+        .from("garage_vehicles")
+        .insert([vehicleData])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      showToast("Vehicle added successfully", "success");
+      hideGarageForm();
+      await loadGarageVehicles();
+    }
+  } catch (error) {
+    console.error("Error saving vehicle:", error);
+    showToast("Error saving vehicle. Please try again.", "error");
+  }
+}
+
+/**
+ * Show duplicate vehicle comparison modal
+ */
+function showDuplicateVehicleModal(existingVehicle, newVehicle) {
+  const modal = document.getElementById("duplicate-vehicle-modal");
+  if (!modal) return;
+
+  // Render comparison
+  renderVehicleComparison(existingVehicle, newVehicle);
+
+  // Show modal
+  modal.style.display = "flex";
+}
+
+/**
+ * Close duplicate vehicle modal
+ */
+function closeDuplicateVehicleModal() {
+  const modal = document.getElementById("duplicate-vehicle-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  pendingVehicleData = null;
+  duplicateVehicleId = null;
+}
+
+/**
+ * Keep existing vehicle (discard changes)
+ */
+function keepExistingVehicle() {
+  closeDuplicateVehicleModal();
+  hideGarageForm();
+  showToast("Kept existing vehicle", "success");
+}
+
+/**
+ * Update existing vehicle with new changes
+ */
+async function updateExistingVehicle() {
+  if (!pendingVehicleData || !duplicateVehicleId) {
+    showToast("Error: No pending changes", "error");
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("garage_vehicles")
+      .update(pendingVehicleData)
+      .eq("id", duplicateVehicleId);
+
+    if (error) throw error;
+
+    showToast("Vehicle updated successfully", "success");
+    closeDuplicateVehicleModal();
+    hideGarageForm();
+    await loadGarageVehicles();
+  } catch (error) {
+    console.error("Error updating vehicle:", error);
+    showToast("Error updating vehicle. Please try again.", "error");
+  }
+}
+
+/**
+ * Render vehicle comparison side-by-side
+ */
+function renderVehicleComparison(existingVehicle, newVehicle) {
+  const savedContainer = document.getElementById("duplicate-saved-vehicle");
+  const newContainer = document.getElementById("duplicate-new-vehicle");
+
+  if (!savedContainer || !newContainer) return;
+
+  const fields = [
+    { key: "nickname", label: "Nickname" },
+    { key: "year", label: "Year" },
+    { key: "make", label: "Make" },
+    { key: "model", label: "Model" },
+    { key: "trim", label: "Trim" },
+    { key: "mileage", label: "Mileage" },
+    { key: "vin", label: "VIN" },
+    { key: "condition", label: "Condition" },
+    { key: "estimated_value", label: "Estimated Value", isCurrency: true },
+    { key: "payoff_amount", label: "Payoff Amount", isCurrency: true },
+    { key: "notes", label: "Notes" },
+  ];
+
+  savedContainer.innerHTML = fields
+    .map((field) => {
+      const value = existingVehicle[field.key];
+      const displayValue =
+        field.isCurrency && value ? formatCurrency(value) : value || "N/A";
+
+      const isChanged = existingVehicle[field.key] !== newVehicle[field.key];
+
+      return `
+      <div class="duplicate-detail-row ${isChanged ? "changed" : ""}">
+        <span class="duplicate-detail-label">${field.label}</span>
+        <span class="duplicate-detail-value">${displayValue}</span>
+      </div>
+    `;
+    })
+    .join("");
+
+  newContainer.innerHTML = fields
+    .map((field) => {
+      const value = newVehicle[field.key];
+      const displayValue =
+        field.isCurrency && value ? formatCurrency(value) : value || "N/A";
+
+      const isChanged = existingVehicle[field.key] !== newVehicle[field.key];
+
+      return `
+      <div class="duplicate-detail-row ${isChanged ? "changed" : ""}">
+        <span class="duplicate-detail-label">${field.label}</span>
+        <span class="duplicate-detail-value">${displayValue}</span>
+      </div>
+    `;
+    })
+    .join("");
+}
+
+// Make functions globally available
+window.openMyGarageModal = openMyGarageModal;
+window.closeMyGarageModal = closeMyGarageModal;
+window.loadGarageVehicles = loadGarageVehicles;
+window.handleTradeInSelection = handleTradeInSelection;
+window.showGarageForm = showGarageForm;
+window.hideGarageForm = hideGarageForm;
+window.editGarageVehicle = editGarageVehicle;
+window.deleteGarageVehicle = deleteGarageVehicle;
+window.saveGarageVehicle = saveGarageVehicle;
+window.closeDuplicateVehicleModal = closeDuplicateVehicleModal;
+window.keepExistingVehicle = keepExistingVehicle;
+window.updateExistingVehicle = updateExistingVehicle;
+
+/* ============================================================================
+   My Offers Functions
+   ============================================================================ */
+
+/**
+ * Open My Offers modal and load offers
+ */
+async function openMyOffersModal() {
+  console.log("📋 [My Offers] Opening modal...");
+  const modal = document.getElementById("my-offers-modal");
+  if (!modal) {
+    console.error("❌ [My Offers] Modal element not found!");
+    return;
+  }
+
+  modal.style.display = "flex";
+  console.log("✅ [My Offers] Modal opened, loading offers...");
+
+  // Load and display offers
+  await loadMyOffers();
+}
+
+/**
+ * Close My Offers modal
+ */
+function closeMyOffersModal() {
+  const modal = document.getElementById("my-offers-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+/**
+ * Load user's offers from database
+ */
+async function loadMyOffers() {
+  try {
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) {
+      console.warn("[my-offers] No user logged in");
+      return;
+    }
+
+    console.log("[my-offers] Loading offers for user:", authStore.user.id);
+
+    // Load all offers
+    const { data: offers, error } = await supabase
+      .from("customer_offers")
+      .select("*")
+      .eq("user_id", authStore.user.id)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[my-offers] Error loading offers:", error);
+      showToast("Failed to load offers", "error");
+      return;
+    }
+
+    // Separate active and closed offers
+    const activeOffers = offers.filter((o) => o.status === "active");
+    const closedOffers = offers.filter((o) => o.status === "closed");
+
+    // Update badge counts
+    document.getElementById("activeOffersCount").textContent =
+      activeOffers.length;
+    document.getElementById("closedOffersCount").textContent =
+      closedOffers.length;
+
+    // Display offers
+    displayOffersList(activeOffers, "activeOffersList");
+    displayOffersList(closedOffers, "closedOffersList");
+  } catch (error) {
+    console.error("[my-offers] Error:", error);
+    showToast("Failed to load offers", "error");
+  }
+}
+
+/**
+ * Display list of offers in the specified container
+ */
+function displayOffersList(offers, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  if (offers.length === 0) {
+    // Show empty state (already in HTML)
+    const emptyState = container.querySelector(".offers-empty");
+    if (emptyState) emptyState.style.display = "block";
+
+    // Hide any existing cards
+    const existingCards = container.querySelectorAll(".offer-card");
+    existingCards.forEach((card) => card.remove());
+    return;
+  }
+
+  // Hide empty state
+  const emptyState = container.querySelector(".offers-empty");
+  if (emptyState) emptyState.style.display = "none";
+
+  // Build offer cards HTML
+  const offersHTML = offers
+    .map((offer) => {
+      const vehicleInfo =
+        `${offer.vehicle_year || ""} ${offer.vehicle_make || ""} ${
+          offer.vehicle_model || ""
+        }`.trim() || "Vehicle";
+      const dealerInfo = offer.dealer_name || "Private Seller";
+      const submittedDate = new Date(offer.submitted_at).toLocaleDateString(
+        "en-US",
+        {
+          month: "2-digit",
+          day: "2-digit",
+          year: "numeric",
+        }
+      );
+
+      const offerName = `${vehicleInfo} - ${dealerInfo} - ${submittedDate}`;
+      const isClosed = offer.status === "closed";
+
+      return `
+      <div class="offer-card ${isClosed ? "closed" : ""}" data-offer-id="${
+        offer.id
+      }">
+        <div class="offer-card-header">
+          <div>
+            <h3 class="offer-card-title">${offerName}</h3>
+            <p class="offer-card-subtitle">Submitted ${submittedDate}</p>
+          </div>
+          <span class="offer-card-status ${offer.status}">${
+        offer.status === "active" ? "Active" : "Closed"
+      }</span>
+        </div>
+
+        <div class="offer-card-details">
+          <div class="offer-card-detail">
+            <span class="offer-card-detail-label">Offer Price</span>
+            <span class="offer-card-detail-value">${formatCurrency(
+              offer.offer_price || 0
+            )}</span>
+          </div>
+          <div class="offer-card-detail">
+            <span class="offer-card-detail-label">Monthly Payment</span>
+            <span class="offer-card-detail-value">${formatCurrency(
+              offer.monthly_payment || 0
+            )}/mo</span>
+          </div>
+          <div class="offer-card-detail">
+            <span class="offer-card-detail-label">APR</span>
+            <span class="offer-card-detail-value">${(
+              (offer.apr || 0) * 100
+            ).toFixed(2)}%</span>
+          </div>
+          <div class="offer-card-detail">
+            <span class="offer-card-detail-label">Term</span>
+            <span class="offer-card-detail-value">${
+              offer.term_months || 0
+            } months</span>
+          </div>
+        </div>
+
+        <div class="offer-card-actions">
+          <button class="offer-card-btn" onclick="viewOfferDetails('${
+            offer.id
+          }')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+            </svg>
+            View Details
+          </button>
+          ${
+            !isClosed
+              ? `
+            <button class="offer-card-btn danger" onclick="closeOffer('${offer.id}')">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+              Close Offer
+            </button>
+          `
+              : ""
+          }
+        </div>
+      </div>
+    `;
+    })
+    .join("");
+
+  // Replace content (keep empty state, add cards)
+  container.innerHTML = `
+    <div class="offers-empty" style="display: none;">
+      ${container.querySelector(".offers-empty").innerHTML}
+    </div>
+    ${offersHTML}
+  `;
+}
+
+/**
+ * Switch between active and closed offers tabs
+ */
+function switchOffersTab(tabName) {
+  // Update tab buttons
+  const tabs = document.querySelectorAll(".offers-tab");
+  tabs.forEach((tab) => {
+    if (tab.dataset.tab === tabName) {
+      tab.classList.add("active");
+    } else {
+      tab.classList.remove("active");
+    }
+  });
+
+  // Update tab content
+  const contents = document.querySelectorAll("[data-tab-content]");
+  contents.forEach((content) => {
+    if (content.dataset.tabContent === tabName) {
+      content.style.display = "block";
+    } else {
+      content.style.display = "none";
+    }
+  });
+}
+
+/**
+ * View offer details in a modal
+ */
+async function viewOfferDetails(offerId) {
+  try {
+    const { data: offer, error } = await supabase
+      .from("customer_offers")
+      .select("*")
+      .eq("id", offerId)
+      .single();
+
+    if (error || !offer) {
+      showToast("Failed to load offer details", "error");
+      return;
+    }
+
+    // Show offer text in an alert/modal
+    alert(offer.offer_text || "No offer details available");
+  } catch (error) {
+    console.error("[view-offer] Error:", error);
+    showToast("Failed to view offer", "error");
+  }
+}
+
+/**
+ * Close an offer and email it to user
+ */
+async function closeOffer(offerId) {
+  if (
+    !confirm(
+      "Close this offer? It will be emailed to you and then removed from your active offers."
+    )
+  ) {
+    return;
+  }
+
+  try {
+    // Get the offer
+    const { data: offer, error: fetchError } = await supabase
+      .from("customer_offers")
+      .select("*")
+      .eq("id", offerId)
+      .single();
+
+    if (fetchError || !offer) {
+      showToast("Failed to close offer", "error");
+      return;
+    }
+
+    // TODO: Send email with offer details
+    // For now, we'll just update the status and delete after a delay
+
+    // Update offer status to closed
+    const { error: updateError } = await supabase
+      .from("customer_offers")
+      .update({
+        status: "closed",
+        closed_at: new Date().toISOString(),
+      })
+      .eq("id", offerId);
+
+    if (updateError) {
+      showToast("Failed to close offer", "error");
+      return;
+    }
+
+    showToast("Offer closed successfully", "success");
+
+    // Delete the offer after a short delay (simulating email send)
+    setTimeout(async () => {
+      const { error: deleteError } = await supabase
+        .from("customer_offers")
+        .delete()
+        .eq("id", offerId);
+
+      if (!deleteError) {
+      }
+    }, 2000);
+
+    // Reload offers to update UI
+    await loadMyOffers();
+  } catch (error) {
+    console.error("[close-offer] Error:", error);
+    showToast("Failed to close offer", "error");
+  }
+}
+
+/**
+ * Save a new offer to the database
+ */
+async function saveOffer(offerData) {
+  try {
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) {
+      console.error("[save-offer] No user logged in");
+      return null;
+    }
+
+    const reviewData = await computeReviewData();
+    if (!reviewData) {
+      console.error("[save-offer] No review data");
+      return null;
+    }
+
+    const vehicle = wizardData.vehicle || {};
+    const dealer = wizardData.dealer || {};
+    const trade = wizardData.trade || {};
+
+    // Generate offer name
+    const vehicleInfo =
+      `${vehicle.year || ""} ${vehicle.make || ""} ${
+        vehicle.model || ""
+      }`.trim() || "Vehicle";
+    const dealerInfo = dealer.name || "Private Seller";
+    const submittedDate = new Date().toLocaleDateString("en-US", {
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    });
+    const offerName = `${vehicleInfo} - ${dealerInfo} - ${submittedDate}`;
+
+    console.log("[save-offer] Saving offer for user:", authStore.user.id);
+
+    // Prepare offer data
+    const offer = {
+      user_id: authStore.user.id,
+      offer_name: offerName,
+      status: "active",
+
+      // Vehicle details
+      vehicle_year: vehicle.year,
+      vehicle_make: vehicle.make,
+      vehicle_model: vehicle.model,
+      vehicle_trim: vehicle.trim,
+      vehicle_vin: vehicle.vin,
+      vehicle_mileage: vehicle.mileage,
+      vehicle_condition: vehicle.condition,
+
+      // Dealer details
+      dealer_name: dealer.name,
+      dealer_address: dealer.address,
+      dealer_phone: dealer.phone,
+
+      // Offer pricing
+      offer_price: reviewData.salePrice,
+      down_payment: reviewData.cashDown,
+
+      // Trade-in details (if any)
+      trade_in_details:
+        trade.vehicles && trade.vehicles.length > 0 ? trade.vehicles : null,
+
+      // Financing details
+      apr: reviewData.apr,
+      term_months: reviewData.term,
+      monthly_payment: reviewData.monthlyPayment,
+
+      // Full offer text
+      offer_text: offerData.offerText,
+
+      // Customer contact
+      customer_name: offerData.customerName,
+      customer_email: offerData.customerEmail,
+      customer_phone: offerData.customerPhone,
+      customer_address: wizardData.location?.fullAddress || "",
+    };
+
+    // Save to database
+    const { data, error } = await supabase
+      .from("customer_offers")
+      .insert([offer])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("[save-offer] Error saving offer:", error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error("[save-offer] Error:", error);
+    return null;
+  }
+}
+
+// Make functions globally available
+window.openMyOffersModal = openMyOffersModal;
+window.closeMyOffersModal = closeMyOffersModal;
+window.switchOffersTab = switchOffersTab;
+window.viewOfferDetails = viewOfferDetails;
+window.closeOffer = closeOffer;
+window.saveOffer = saveOffer;
+
+/* ============================================================================
    Submit Offer Functions
    ============================================================================ */
 
 /**
  * Format offer data into fancy unicode text with emoji
  */
-function formatOfferText(customerNotes = '') {
-  const reviewData = computeReviewData();
+async function formatOfferText(customerNotes = "") {
+  const reviewData = await computeReviewData();
   if (!reviewData) {
-    return 'Error: Unable to generate offer. Please ensure all fields are filled.';
+    return "Error: Unable to generate offer. Please ensure all fields are filled.";
   }
 
   const vehicle = wizardData.vehicle || {};
@@ -5223,17 +7539,17 @@ function formatOfferText(customerNotes = '') {
 
   // Format currency helper
   const fmt = (num) => {
-    if (typeof num !== 'number' || !Number.isFinite(num)) return '$0.00';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
+    if (typeof num !== "number" || !Number.isFinite(num)) return "$0.00";
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }).format(num);
   };
 
   // Format number helper
   const fmtNum = (num) => {
-    if (typeof num !== 'number' || !Number.isFinite(num)) return '0';
-    return new Intl.NumberFormat('en-US').format(num);
+    if (typeof num !== "number" || !Number.isFinite(num)) return "0";
+    return new Intl.NumberFormat("en-US").format(num);
   };
 
   // Build the formatted offer text
@@ -5244,46 +7560,57 @@ function formatOfferText(customerNotes = '') {
 
 🚗 VEHICLE DETAILS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}${vehicle.trim ? ' ' + vehicle.trim : ''}
-Condition: ${vehicle.condition === 'new' ? 'New' : 'Used'}  |  Mileage: ${fmtNum(vehicle.mileage || 0)} mi
-${vehicle.vin ? 'VIN: ' + vehicle.vin : ''}
+${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}${
+    vehicle.trim ? " " + vehicle.trim : ""
+  }
+Condition: ${
+    vehicle.condition === "new" ? "New" : "Used"
+  }  |  Mileage: ${fmtNum(vehicle.mileage || 0)} mi
+${vehicle.vin ? "VIN: " + vehicle.vin : ""}
 
-💰 PRICING
+💵 CUSTOMER OFFER PRICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Sale Price:              ${fmt(reviewData.salePrice || 0)}
-Down Payment:            ${fmt(reviewData.downPayment || 0)}`;
+${fmt(financing.salePrice || reviewData.salePrice || 0)}`;
 
   // Add trade-in if present
-  if (trade && (trade.offer > 0 || trade.payoff > 0)) {
-    offerText += `
-Trade-In Allowance:      ${fmt(trade.offer || 0)}
-Trade-In Payoff:         ${fmt(trade.payoff || 0)}
-                        ─────────────
-Net Trade Value:         ${fmt((trade.offer || 0) - (trade.payoff || 0))}`;
+  if (trade && trade.vehicles && trade.vehicles.length > 0) {
+    offerText += `\n`;
+
+    trade.vehicles.forEach((vehicle, index) => {
+      const vehicleText = `${vehicle.year || ""} ${vehicle.make || ""} ${
+        vehicle.model || ""
+      }${vehicle.trim ? " " + vehicle.trim : ""}`.trim();
+
+      offerText += `
+Trade-In Vehicle ${trade.vehicles.length > 1 ? "#" + (index + 1) : ""}${
+        vehicle.nickname ? " (" + vehicle.nickname + ")" : ""
+      }:
+  Vehicle:               ${vehicleText || "Not specified"}
+  VIN:                   ${vehicle.vin || "Not specified"}
+  Mileage:               ${fmtNum(vehicle.mileage || 0)} mi
+  Condition:             ${
+    vehicle.condition
+      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
+      : "Not specified"
+  }
+`;
+    });
   }
 
   offerText += `
 
 📊 FINANCING
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
-
-  // Add lender info if available
-  const selectedApr = wizardData.selectedApr || {};
-  if (selectedApr.lender_name) {
-    offerText += `
-Lender: ${selectedApr.lender_name}`;
-  }
-
-  offerText += `
-APR: ${((reviewData.apr || 0) * 100).toFixed(2)}%  |  Term: ${reviewData.term || 0} months
-Monthly Payment:         ${fmt(reviewData.monthlyPayment || 0)}
-Total Finance Charge:    ${fmt(reviewData.financeCharge || 0)}
-Amount Financed:         ${fmt(reviewData.amountFinanced || 0)}
-Total of Payments:       ${fmt(reviewData.totalOfPayments || 0)}`;
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+APR: ${((reviewData.apr || 0) * 100).toFixed(2)}%
+Term: ${reviewData.term || 0} months`;
 
   // Add fees breakdown if present
   const fees = reviewData.fees || {};
-  if (fees.totalDealerFees > 0 || fees.totalCustomerAddons > 0 || fees.totalGovtFees > 0) {
+  if (
+    fees.totalDealerFees > 0 ||
+    fees.totalCustomerAddons > 0 ||
+    fees.totalGovtFees > 0
+  ) {
     offerText += `
 
 💵 FEES & COSTS
@@ -5303,20 +7630,35 @@ Govt Fees:               ${fmt(fees.totalGovtFees)}`;
     }
   }
 
-  // Add tax information
+  // Add customer contact information
+  const customerName =
+    document.getElementById("submitCustomerName")?.value || "";
+  const customerEmail =
+    document.getElementById("submitCustomerEmail")?.value || "";
+  const customerPhone =
+    document.getElementById("submitCustomerPhone")?.value || "";
+  const customerAddress = wizardData.location?.fullAddress || "";
+
   offerText += `
 
-📍 LOCATION & TAX
+👤 CUSTOMER CONTACT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
 
-  if (location.countyName || location.stateCode) {
+  if (customerName) {
     offerText += `
-Location: ${location.countyName ? location.countyName + ', ' : ''}${location.stateCode || ''}`;
+Name: ${customerName}`;
   }
-
-  if (fees.salesTax > 0) {
+  if (customerAddress) {
     offerText += `
-Sales Tax:               ${fmt(fees.salesTax)} (${((fees.taxRate || 0) * 100).toFixed(2)}%)`;
+Address: ${customerAddress}`;
+  }
+  if (customerEmail) {
+    offerText += `
+Email: ${customerEmail}`;
+  }
+  if (customerPhone) {
+    offerText += `
+Phone: ${customerPhone}`;
   }
 
   // Add dealer information if available
@@ -5350,10 +7692,10 @@ ${customerNotes.trim()}`;
   }
 
   // Add footer
-  const currentDate = new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
   });
 
   offerText += `
@@ -5371,12 +7713,26 @@ https://excelcalc.com
  * Open Submit Offer modal
  */
 async function openSubmitOfferModal() {
-  const modal = document.getElementById('submit-offer-modal');
+  // Close the review contract modal first if it's open
+  const reviewModal = document.getElementById("review-contract-modal");
+  if (reviewModal) {
+    reviewModal.style.display = "none";
+  }
+
+  const modal = document.getElementById("submit-offer-modal");
   if (!modal) return;
 
-  // Generate and display offer preview
-  const offerText = formatOfferText();
-  const previewElement = document.getElementById('offerPreviewText');
+  // Populate Customer Offer Price from sale price
+  const customerOfferPriceEl = document.getElementById("customerOfferPrice");
+  if (customerOfferPriceEl && wizardData.financing?.salePrice) {
+    customerOfferPriceEl.textContent = formatCurrency(
+      wizardData.financing.salePrice
+    );
+  }
+
+  // Generate and display offer preview (must await since formatOfferText is now async)
+  const offerText = await formatOfferText();
+  const previewElement = document.getElementById("offerPreviewText");
   if (previewElement) {
     previewElement.textContent = offerText;
   }
@@ -5387,16 +7743,16 @@ async function openSubmitOfferModal() {
   // Auto-populate dealer information from wizardData
   await loadDealerDataForSubmission();
 
-  modal.style.display = 'flex';
+  modal.style.display = "flex";
 }
 
 /**
  * Close Submit Offer modal
  */
 function closeSubmitOfferModal() {
-  const modal = document.getElementById('submit-offer-modal');
+  const modal = document.getElementById("submit-offer-modal");
   if (modal) {
-    modal.style.display = 'none';
+    modal.style.display = "none";
   }
 }
 
@@ -5405,23 +7761,24 @@ function closeSubmitOfferModal() {
  */
 async function loadCustomerDataForSubmission() {
   try {
-    const profileId = localStorage.getItem('customerProfileId');
-    if (!profileId) return;
+    const authStore = useAuthStore.getState();
+    if (!authStore.user) return;
 
     const { data: profile, error } = await supabase
-      .from('customer_profiles')
-      .select('*')
-      .eq('id', profileId)
+      .from("customer_profiles")
+      .select("*")
+      .eq("user_id", authStore.user.id)
       .single();
 
     if (error || !profile) return;
 
     // Populate customer fields
-    document.getElementById('submitCustomerName').value = profile.full_name || '';
-    document.getElementById('submitCustomerEmail').value = profile.email || '';
-    document.getElementById('submitCustomerPhone').value = profile.phone || '';
+    document.getElementById("submitCustomerName").value =
+      profile.full_name || "";
+    document.getElementById("submitCustomerEmail").value = profile.email || "";
+    document.getElementById("submitCustomerPhone").value = profile.phone || "";
   } catch (error) {
-    console.error('Error loading customer data:', error);
+    console.error("Error loading customer data:", error);
   }
 }
 
@@ -5433,10 +7790,10 @@ async function loadDealerDataForSubmission() {
 
   // Populate dealer fields if available
   if (dealer.name) {
-    document.getElementById('submitDealershipName').value = dealer.name;
+    document.getElementById("submitDealershipName").value = dealer.name;
   }
   if (dealer.phone) {
-    document.getElementById('submitSalespersonPhone').value = dealer.phone;
+    document.getElementById("submitSalespersonPhone").value = dealer.phone;
   }
 
   // Set up salesperson auto-complete
@@ -5447,12 +7804,12 @@ async function loadDealerDataForSubmission() {
  * Setup salesperson auto-complete functionality
  */
 function setupSalespersonAutoComplete() {
-  const salespersonNameInput = document.getElementById('submitSalespersonName');
+  const salespersonNameInput = document.getElementById("submitSalespersonName");
   if (!salespersonNameInput) return;
 
   let debounceTimer;
 
-  salespersonNameInput.addEventListener('input', async (e) => {
+  salespersonNameInput.addEventListener("input", async (e) => {
     clearTimeout(debounceTimer);
 
     const query = e.target.value.trim();
@@ -5464,16 +7821,16 @@ function setupSalespersonAutoComplete() {
   });
 
   // When user selects a suggestion, auto-fill other fields
-  salespersonNameInput.addEventListener('change', async (e) => {
+  salespersonNameInput.addEventListener("change", async (e) => {
     const selectedName = e.target.value.trim();
     if (!selectedName) return;
 
     // Find matching salesperson in database
     const { data: salespeople, error } = await supabase
-      .from('salesperson_contacts')
-      .select('*')
-      .eq('full_name', selectedName)
-      .order('last_used_at', { ascending: false })
+      .from("salesperson_contacts")
+      .select("*")
+      .eq("full_name", selectedName)
+      .order("last_used_at", { ascending: false })
       .limit(1);
 
     if (error || !salespeople || salespeople.length === 0) return;
@@ -5482,13 +7839,16 @@ function setupSalespersonAutoComplete() {
 
     // Auto-fill fields
     if (salesperson.dealership_name) {
-      document.getElementById('submitDealershipName').value = salesperson.dealership_name;
+      document.getElementById("submitDealershipName").value =
+        salesperson.dealership_name;
     }
     if (salesperson.phone) {
-      document.getElementById('submitSalespersonPhone').value = salesperson.phone;
+      document.getElementById("submitSalespersonPhone").value =
+        salesperson.phone;
     }
     if (salesperson.email) {
-      document.getElementById('submitSalespersonEmail').value = salesperson.email;
+      document.getElementById("submitSalespersonEmail").value =
+        salesperson.email;
     }
   });
 }
@@ -5496,27 +7856,27 @@ function setupSalespersonAutoComplete() {
 /**
  * Load salesperson suggestions from Supabase
  */
-async function loadSalespersonSuggestions(query = '') {
+async function loadSalespersonSuggestions(query = "") {
   try {
-    const datalist = document.getElementById('salespersonSuggestions');
+    const datalist = document.getElementById("salespersonSuggestions");
     if (!datalist) return;
 
     // Clear existing options
-    datalist.innerHTML = '';
+    datalist.innerHTML = "";
 
     if (!query || query.length < 2) return;
 
     // Query database for matching salespeople
     const { data: salespeople, error } = await supabase
-      .from('salesperson_contacts')
-      .select('*')
+      .from("salesperson_contacts")
+      .select("*")
       .or(`full_name.ilike.%${query}%,dealership_name.ilike.%${query}%`)
-      .order('times_used', { ascending: false })
-      .order('last_used_at', { ascending: false })
+      .order("times_used", { ascending: false })
+      .order("last_used_at", { ascending: false })
       .limit(10);
 
     if (error) {
-      console.error('Error loading salesperson suggestions:', error);
+      console.error("Error loading salesperson suggestions:", error);
       return;
     }
 
@@ -5524,13 +7884,15 @@ async function loadSalespersonSuggestions(query = '') {
 
     // Populate datalist with suggestions
     salespeople.forEach((person) => {
-      const option = document.createElement('option');
+      const option = document.createElement("option");
       option.value = person.full_name;
-      option.textContent = `${person.full_name} - ${person.dealership_name || 'Unknown Dealership'}`;
+      option.textContent = `${person.full_name} - ${
+        person.dealership_name || "Unknown Dealership"
+      }`;
       datalist.appendChild(option);
     });
   } catch (error) {
-    console.error('Error loading salesperson suggestions:', error);
+    console.error("Error loading salesperson suggestions:", error);
   }
 }
 
@@ -5547,30 +7909,48 @@ async function handleShareOffer() {
     if (!validateSubmissionForm()) return;
 
     // Get formatted offer text with notes
-    const notes = document.getElementById('submitOfferNotes').value.trim();
-    const offerText = formatOfferText(notes);
+    const notes = document.getElementById("submitOfferNotes").value.trim();
+    const offerText = await formatOfferText(notes);
 
     // Check if Web Share API is available
     if (!navigator.share) {
-      alert('Share feature is not supported on this device. Please use Copy or Email instead.');
+      alert(
+        "Share feature is not supported on this device. Please use Copy or Email instead."
+      );
       return;
     }
 
-    // Save offer to database before sharing
-    await saveOfferToDatabase('share', offerText);
+    // Get customer info for saving
+    const customerName = document
+      .getElementById("submitCustomerName")
+      .value.trim();
+    const customerEmail = document
+      .getElementById("submitCustomerEmail")
+      .value.trim();
+    const customerPhone = document
+      .getElementById("submitCustomerPhone")
+      .value.trim();
+
+    // Save offer to new customer_offers table
+    await saveOffer({
+      offerText,
+      customerName,
+      customerEmail,
+      customerPhone,
+    });
 
     // Use Web Share API
     await navigator.share({
-      title: 'Vehicle Purchase Offer',
-      text: offerText
+      title: "Vehicle Purchase Offer",
+      text: offerText,
     });
 
-    // Success - redirect to My Saved Offers
+    // Success - show toast and close modals
     await handleSubmissionSuccess();
   } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error('Error sharing offer:', error);
-      alert('Error sharing offer. Please try again.');
+    if (error.name !== "AbortError") {
+      console.error("Error sharing offer:", error);
+      alert("Error sharing offer. Please try again.");
     }
   }
 }
@@ -5583,75 +7963,137 @@ async function handleEmailOffer() {
     // Validate customer information and dealer email
     if (!validateSubmissionForm()) return;
 
-    const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+    const salespersonEmail = document
+      .getElementById("submitSalespersonEmail")
+      .value.trim();
     if (!salespersonEmail) {
-      alert('Please enter the dealer\'s email address.');
+      alert("Please enter the dealer's email address.");
       return;
     }
 
     // Get formatted offer text with notes
-    const notes = document.getElementById('submitOfferNotes').value.trim();
-    const offerText = formatOfferText(notes);
+    const notes = document.getElementById("submitOfferNotes").value.trim();
+    const offerText = await formatOfferText(notes);
 
-    // Save offer to database before emailing
-    await saveOfferToDatabase('email', offerText, salespersonEmail);
+    // Get customer info for saving
+    const customerName = document
+      .getElementById("submitCustomerName")
+      .value.trim();
+    const customerEmail = document
+      .getElementById("submitCustomerEmail")
+      .value.trim();
+    const customerPhone = document
+      .getElementById("submitCustomerPhone")
+      .value.trim();
+
+    // Save offer to new customer_offers table
+    await saveOffer({
+      offerText,
+      customerName,
+      customerEmail,
+      customerPhone,
+    });
 
     // Create mailto link
     const vehicle = wizardData.vehicle || {};
-    const subject = encodeURIComponent(`Vehicle Purchase Offer - ${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`);
+    const subject = encodeURIComponent(
+      `Vehicle Purchase Offer - ${vehicle.year || ""} ${vehicle.make || ""} ${
+        vehicle.model || ""
+      }`
+    );
     const body = encodeURIComponent(offerText);
 
     window.location.href = `mailto:${salespersonEmail}?subject=${subject}&body=${body}`;
 
-    // Success - redirect to My Saved Offers after brief delay
+    // Success - show toast and close modals after brief delay
     setTimeout(async () => {
       await handleSubmissionSuccess();
     }, 1000);
   } catch (error) {
-    console.error('Error emailing offer:', error);
-    alert('Error preparing email. Please try again.');
+    console.error("Error emailing offer:", error);
+    alert("Error preparing email. Please try again.");
   }
 }
 
 /**
- * Handle SMS button (sms: link)
+ * Handle SMS button - Send via Twilio
  */
 async function handleSmsOffer() {
   try {
     // Validate customer information and dealer phone
     if (!validateSubmissionForm()) return;
 
-    const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
+    const salespersonPhone = document
+      .getElementById("submitSalespersonPhone")
+      .value.trim();
     if (!salespersonPhone) {
-      alert('Please enter the dealer\'s phone number.');
+      alert("Please enter the dealer's phone number.");
       return;
     }
 
     // Get formatted offer text with notes
-    const notes = document.getElementById('submitOfferNotes').value.trim();
-    const offerText = formatOfferText(notes);
+    const notes = document.getElementById("submitOfferNotes").value.trim();
+    const offerText = await formatOfferText(notes);
 
-    // Save offer to database before texting
-    await saveOfferToDatabase('sms', offerText, salespersonPhone);
+    // Get customer info for saving
+    const customerName = document
+      .getElementById("submitCustomerName")
+      .value.trim();
+    const customerEmail = document
+      .getElementById("submitCustomerEmail")
+      .value.trim();
+    const customerPhone = document
+      .getElementById("submitCustomerPhone")
+      .value.trim();
 
-    // Create SMS link
-    const body = encodeURIComponent(offerText);
+    // Show loading indicator
+    showToast("Sending SMS...", "info");
 
-    // Different SMS URL schemes for different platforms
-    const isMac = /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
-    const smsUrl = isMac
-      ? `sms:${salespersonPhone}&body=${body}`
-      : `sms:${salespersonPhone}?body=${body}`;
+    // Save offer to customer_offers table and get the offer ID
+    const savedOffer = await saveOffer({
+      offerText,
+      customerName,
+      customerEmail,
+      customerPhone,
+    });
 
-    window.location.href = smsUrl;
+    if (!savedOffer || !savedOffer.id) {
+      throw new Error("Failed to save offer");
+    }
 
-    // Success - redirect to My Saved Offers after brief delay
-    setTimeout(async () => {
-      await handleSubmissionSuccess();
-    }, 1000);
+    // Get offer name for SMS
+    const vehicle = wizardData.vehicle || {};
+    const offerName = `${vehicle.year || ""} ${vehicle.make || ""} ${
+      vehicle.model || ""
+    }`.trim();
+
+    // Send SMS via Twilio endpoint
+    const response = await fetch("/api/send-sms", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        offerId: savedOffer.id,
+        offerName: offerName || "Vehicle Offer",
+        recipientPhone: salespersonPhone,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(
+        errorData.detail || errorData.error || "Failed to send SMS"
+      );
+    }
+
+    const result = await response.json();
+
+    // Success - show toast and close modals
+    await handleSubmissionSuccess();
   } catch (error) {
-    console.error('Error sending SMS:', error);
-    alert('Error preparing text message. Please try again.');
+    console.error("Error sending SMS:", error);
+    alert(`Error sending text message: ${error.message}`);
   }
 }
 
@@ -5664,22 +8106,38 @@ async function handleCopyOffer() {
     if (!validateSubmissionForm()) return;
 
     // Get formatted offer text with notes
-    const notes = document.getElementById('submitOfferNotes').value.trim();
-    const offerText = formatOfferText(notes);
+    const notes = document.getElementById("submitOfferNotes").value.trim();
+    const offerText = await formatOfferText(notes);
 
-    // Save offer to database before copying
-    await saveOfferToDatabase('copy', offerText);
+    // Get customer info for saving
+    const customerName = document
+      .getElementById("submitCustomerName")
+      .value.trim();
+    const customerEmail = document
+      .getElementById("submitCustomerEmail")
+      .value.trim();
+    const customerPhone = document
+      .getElementById("submitCustomerPhone")
+      .value.trim();
+
+    // Save offer to new customer_offers table
+    await saveOffer({
+      offerText,
+      customerName,
+      customerEmail,
+      customerPhone,
+    });
 
     // Copy to clipboard
     await navigator.clipboard.writeText(offerText);
 
-    alert('Offer copied to clipboard! You can now paste it anywhere.');
+    alert("Offer copied to clipboard! You can now paste it anywhere.");
 
-    // Success - redirect to My Saved Offers
+    // Success - show toast and close modals
     await handleSubmissionSuccess();
   } catch (error) {
-    console.error('Error copying offer:', error);
-    alert('Error copying to clipboard. Please try again.');
+    console.error("Error copying offer:", error);
+    alert("Error copying to clipboard. Please try again.");
   }
 }
 
@@ -5687,28 +8145,40 @@ async function handleCopyOffer() {
  * Validate submission form
  */
 function validateSubmissionForm() {
-  const customerName = document.getElementById('submitCustomerName').value.trim();
-  const customerEmail = document.getElementById('submitCustomerEmail').value.trim();
-  const customerPhone = document.getElementById('submitCustomerPhone').value.trim();
-  const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
-  const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+  const customerName = document
+    .getElementById("submitCustomerName")
+    .value.trim();
+  const customerEmail = document
+    .getElementById("submitCustomerEmail")
+    .value.trim();
+  const customerPhone = document
+    .getElementById("submitCustomerPhone")
+    .value.trim();
+  const salespersonPhone = document
+    .getElementById("submitSalespersonPhone")
+    .value.trim();
+  const salespersonEmail = document
+    .getElementById("submitSalespersonEmail")
+    .value.trim();
 
   // Validate required customer fields
   if (!customerName || !customerEmail || !customerPhone) {
-    alert('Please fill in all required customer fields (Name, Email, Phone).');
+    alert("Please fill in all required customer fields (Name, Email, Phone).");
     return false;
   }
 
   // Validate email format
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(customerEmail)) {
-    alert('Please enter a valid email address.');
+    alert("Please enter a valid email address.");
     return false;
   }
 
   // Validate at least one dealer contact method
   if (!salespersonPhone && !salespersonEmail) {
-    alert('Please provide at least one contact method for the dealer (phone or email).');
+    alert(
+      "Please provide at least one contact method for the dealer (phone or email)."
+    );
     return false;
   }
 
@@ -5725,71 +8195,88 @@ async function handleSubmissionSuccess() {
   // Close the review contract modal if open
   closeReviewContractModal();
 
-  // Show congratulatory message
-  alert('🎉 Offer submitted successfully!\n\nYou can view your saved offers anytime.');
+  // Show success toast with path to My Offers
+  showToast("Offer saved under your Profile > My Offers", "success");
 
-  // TODO: Redirect to My Saved Offers modal
-  // For now, just scroll to top
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 /**
  * Save offer to Supabase database
  */
-async function saveOfferToDatabase(submissionMethod, formattedText, recipientContact = null) {
+async function saveOfferToDatabase(
+  submissionMethod,
+  formattedText,
+  recipientContact = null
+) {
   try {
-    const reviewData = computeReviewData();
+    const reviewData = await computeReviewData();
     if (!reviewData) {
-      console.error('Unable to compute review data');
+      console.error("Unable to compute review data");
       return null;
     }
 
-    // Get customer profile ID
-    const profileId = localStorage.getItem('customerProfileId');
+    // Get customer user ID
+    const authStore = useAuthStore.getState();
+    const userId = authStore.user?.id || null;
 
     // Get customer data from form
-    const customerName = document.getElementById('submitCustomerName').value.trim();
-    const customerEmail = document.getElementById('submitCustomerEmail').value.trim();
-    const customerPhone = document.getElementById('submitCustomerPhone').value.trim();
+    const customerName = document
+      .getElementById("submitCustomerName")
+      .value.trim();
+    const customerEmail = document
+      .getElementById("submitCustomerEmail")
+      .value.trim();
+    const customerPhone = document
+      .getElementById("submitCustomerPhone")
+      .value.trim();
 
-    // Save/update customer profile if not exists
-    let customerId = profileId;
-    if (!customerId) {
-      const { data: profile, error: profileError } = await supabase
-        .from('customer_profiles')
-        .upsert({
-          full_name: customerName,
-          email: customerEmail,
-          phone: customerPhone,
-          last_used_at: new Date().toISOString()
-        }, { onConflict: 'email' })
-        .select()
-        .single();
-
-      if (!profileError && profile) {
-        customerId = profile.id;
-        localStorage.setItem('customerProfileId', profile.id);
-      }
+    // Save/update customer profile if user is logged in
+    if (userId && customerName) {
+      await supabase
+        .from("customer_profiles")
+        .upsert(
+          {
+            user_id: userId,
+            full_name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            last_used_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id" }
+        );
     }
 
     // Get salesperson data from form
-    const salespersonName = document.getElementById('submitSalespersonName').value.trim();
-    const dealershipName = document.getElementById('submitDealershipName').value.trim();
-    const salespersonPhone = document.getElementById('submitSalespersonPhone').value.trim();
-    const salespersonEmail = document.getElementById('submitSalespersonEmail').value.trim();
+    const salespersonName = document
+      .getElementById("submitSalespersonName")
+      .value.trim();
+    const dealershipName = document
+      .getElementById("submitDealershipName")
+      .value.trim();
+    const salespersonPhone = document
+      .getElementById("submitSalespersonPhone")
+      .value.trim();
+    const salespersonEmail = document
+      .getElementById("submitSalespersonEmail")
+      .value.trim();
 
     // Save/update salesperson if provided
     let salespersonId = null;
     if (salespersonName || dealershipName) {
       const { data: salesperson, error: salespersonError } = await supabase
-        .from('salesperson_contacts')
-        .upsert({
-          full_name: salespersonName || 'Unknown',
-          dealership_name: dealershipName || null,
-          phone: salespersonPhone || null,
-          email: salespersonEmail || null,
-          last_used_at: new Date().toISOString()
-        }, { onConflict: 'full_name,dealership_name' })
+        .from("salesperson_contacts")
+        .upsert(
+          {
+            full_name: salespersonName || "Unknown",
+            dealership_name: dealershipName || null,
+            phone: salespersonPhone || null,
+            email: salespersonEmail || null,
+            last_used_at: new Date().toISOString(),
+          },
+          { onConflict: "full_name,dealership_name" }
+        )
         .select()
         .single();
 
@@ -5797,8 +8284,8 @@ async function saveOfferToDatabase(submissionMethod, formattedText, recipientCon
         salespersonId = salesperson.id;
 
         // Increment usage count
-        await supabase.rpc('increment_salesperson_usage', {
-          salesperson_id: salesperson.id
+        await supabase.rpc("increment_salesperson_usage", {
+          salesperson_id: salesperson.id,
         });
       }
     }
@@ -5807,13 +8294,15 @@ async function saveOfferToDatabase(submissionMethod, formattedText, recipientCon
     const vehicle = wizardData.vehicle || {};
     const trade = wizardData.trade || {};
     const location = wizardData.location || {};
-    const notes = document.getElementById('submitOfferNotes').value.trim();
+    const notes = document.getElementById("submitOfferNotes").value.trim();
 
     const offerData = {
-      customer_profile_id: customerId,
+      user_id: userId,
       salesperson_id: salespersonId,
-      offer_name: `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim(),
-      status: 'submitted',
+      offer_name: `${vehicle.year || ""} ${vehicle.make || ""} ${
+        vehicle.model || ""
+      }`.trim(),
+      status: "submitted",
 
       // Vehicle data
       vehicle_year: vehicle.year || null,
@@ -5855,38 +8344,35 @@ async function saveOfferToDatabase(submissionMethod, formattedText, recipientCon
       wizard_state: wizardData,
 
       // Notes
-      customer_notes: notes || null
+      customer_notes: notes || null,
     };
 
     // Insert offer
     const { data: offer, error: offerError } = await supabase
-      .from('saved_offers')
+      .from("saved_offers")
       .insert(offerData)
       .select()
       .single();
 
     if (offerError) {
-      console.error('Error saving offer:', offerError);
+      console.error("Error saving offer:", offerError);
       return null;
     }
 
     // Record submission
     if (offer) {
-      await supabase
-        .from('offer_submissions')
-        .insert({
-          saved_offer_id: offer.id,
-          salesperson_id: salespersonId,
-          submission_method: submissionMethod,
-          formatted_text: formattedText,
-          recipient_contact: recipientContact
-        });
+      await supabase.from("offer_submissions").insert({
+        saved_offer_id: offer.id,
+        salesperson_id: salespersonId,
+        submission_method: submissionMethod,
+        formatted_text: formattedText,
+        recipient_contact: recipientContact,
+      });
     }
 
-    console.log('Offer saved successfully:', offer);
     return offer;
   } catch (error) {
-    console.error('Error saving offer to database:', error);
+    console.error("Error saving offer to database:", error);
     return null;
   }
 }
@@ -5917,20 +8403,33 @@ function renderFeeModalFromWizardData() {
   Object.keys(FEE_CATEGORY_CONFIG).forEach((key) => clearFeeCategoryRows(key));
 
   const storedItems = wizardData.fees?.items ?? {};
+  if (feeDebug.enabled) {
+    feeDebug.log("renderFeeModalFromWizardData -> storedItems", storedItems);
+  }
   Object.entries(feeModalState.categories).forEach(([key, category]) => {
     if (!category.container) return;
-    const rows = Array.isArray(storedItems[key]) && storedItems[key].length
-      ? storedItems[key]
-      : [{}];
+    const rows =
+      Array.isArray(storedItems[key]) && storedItems[key].length
+        ? storedItems[key]
+        : [{}];
 
     rows.forEach((item) => {
       addFeeRow(key, {
-        description: item.description ?? '',
-        amount: Number.isFinite(item.amount) ? item.amount : null
+        description: item.description ?? "",
+        amount: Number.isFinite(item.amount) ? item.amount : null,
       });
     });
     ensureTrailingEmptyRow(key);
     updateCategoryTotal(key);
+    if (feeDebug.enabled) {
+      feeDebug.table(
+        `rendered rows (${key})`,
+        category.rows.map((row) => ({
+          desc: row.descInput?.value ?? "",
+          amount: row.amountInput?.value ?? "",
+        }))
+      );
+    }
   });
 
   updateTaxInputs();
@@ -5939,13 +8438,15 @@ function renderFeeModalFromWizardData() {
 
 function updateTaxInputs() {
   ensureWizardFeeDefaults();
-  const stateTaxInput = document.getElementById('modal-state-tax');
-  const countyTaxInput = document.getElementById('modal-county-tax');
-  if (stateTaxInput) {
-    stateTaxInput.value = (wizardData.fees?.stateTaxRate ?? 0).toFixed(2);
+  const stateTaxDisplay = document.getElementById("modal-state-tax");
+  const countyTaxDisplay = document.getElementById("modal-county-tax");
+  if (stateTaxDisplay) {
+    stateTaxDisplay.textContent =
+      (wizardData.fees?.stateTaxRate ?? 0).toFixed(2) + "%";
   }
-  if (countyTaxInput) {
-    countyTaxInput.value = (wizardData.fees?.countyTaxRate ?? 0).toFixed(2);
+  if (countyTaxDisplay) {
+    countyTaxDisplay.textContent =
+      (wizardData.fees?.countyTaxRate ?? 0).toFixed(2) + "%";
   }
   updateFeeSummary();
 }
@@ -5954,44 +8455,44 @@ function addFeeRow(categoryKey, initialData = {}) {
   const category = getFeeCategoryState(categoryKey);
   if (!category || !category.container) return null;
 
-  const rowEl = document.createElement('div');
-  rowEl.className = 'fee-row';
+  const rowEl = document.createElement("div");
+  rowEl.className = "fee-row";
 
-  const descWrap = document.createElement('div');
-  descWrap.className = 'fee-row__desc';
-  const descInput = document.createElement('input');
-  descInput.type = 'text';
-  descInput.className = 'form-input';
-  descInput.placeholder = 'Description';
+  const descWrap = document.createElement("div");
+  descWrap.className = "fee-row__desc";
+  const descInput = document.createElement("input");
+  descInput.type = "text";
+  descInput.className = "form-input";
+  descInput.placeholder = "Description";
   const suggestionStore = category.suggestionStore;
   if (suggestionStore?.datalist) {
-    descInput.setAttribute('list', suggestionStore.datalist.id);
+    descInput.setAttribute("list", suggestionStore.datalist.id);
   }
   if (initialData.description) {
     descInput.value = initialData.description;
   }
   descWrap.appendChild(descInput);
 
-  const amountWrap = document.createElement('div');
-  amountWrap.className = 'fee-row__amount';
-  const amountInput = document.createElement('input');
-  amountInput.type = 'text';
-  amountInput.className = 'form-input';
-  amountInput.placeholder = '$0.00';
+  const amountWrap = document.createElement("div");
+  amountWrap.className = "fee-row__amount";
+  const amountInput = document.createElement("input");
+  amountInput.type = "text";
+  amountInput.className = "form-input";
+  amountInput.placeholder = "$0.00";
   amountWrap.appendChild(amountInput);
 
-  const actionsWrap = document.createElement('div');
-  actionsWrap.className = 'fee-row__actions';
-  const removeBtn = document.createElement('button');
-  removeBtn.type = 'button';
-  removeBtn.className = 'fee-row__btn';
-  removeBtn.textContent = '−';
-  removeBtn.setAttribute('aria-label', 'Remove fee');
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'fee-row__btn';
-  addBtn.textContent = '+';
-  addBtn.setAttribute('aria-label', 'Add fee');
+  const actionsWrap = document.createElement("div");
+  actionsWrap.className = "fee-row__actions";
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "fee-row__btn";
+  removeBtn.textContent = "−";
+  removeBtn.setAttribute("aria-label", "Remove fee");
+  const addBtn = document.createElement("button");
+  addBtn.type = "button";
+  addBtn.className = "fee-row__btn";
+  addBtn.textContent = "+";
+  addBtn.setAttribute("aria-label", "Add fee");
   actionsWrap.appendChild(removeBtn);
   actionsWrap.appendChild(addBtn);
 
@@ -6012,7 +8513,7 @@ function addFeeRow(categoryKey, initialData = {}) {
     descInput,
     amountInput,
     removeBtn,
-    addBtn
+    addBtn,
   };
 
   category.rows.push(rowState);
@@ -6027,16 +8528,16 @@ function addFeeRow(categoryKey, initialData = {}) {
     updateCategoryTotal(categoryKey);
   };
 
-  descInput.addEventListener('change', () => {
+  descInput.addEventListener("change", () => {
     descInput.value = toTitleCase(descInput.value);
     maybeApplySuggestion();
   });
-  descInput.addEventListener('blur', () => {
+  descInput.addEventListener("blur", () => {
     descInput.value = toTitleCase(descInput.value);
     maybeApplySuggestion();
   });
-  descInput.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter') {
+  descInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
       event.preventDefault();
       maybeApplySuggestion();
       const newRow = addFeeRow(categoryKey);
@@ -6044,14 +8545,16 @@ function addFeeRow(categoryKey, initialData = {}) {
     }
   });
 
-  amountInput.addEventListener('input', () => updateCategoryTotal(categoryKey));
-  amountInput.addEventListener('blur', () => {
+  amountInput.addEventListener("input", () => updateCategoryTotal(categoryKey));
+  amountInput.addEventListener("blur", () => {
     updateCategoryTotal(categoryKey);
     ensureTrailingEmptyRow(categoryKey);
   });
 
-  removeBtn.addEventListener('click', () => removeFeeRow(categoryKey, rowState));
-  addBtn.addEventListener('click', () => {
+  removeBtn.addEventListener("click", () =>
+    removeFeeRow(categoryKey, rowState)
+  );
+  addBtn.addEventListener("click", () => {
     const newRow = addFeeRow(categoryKey);
     newRow?.descInput.focus();
   });
@@ -6063,8 +8566,8 @@ function removeFeeRow(categoryKey, row) {
   const category = getFeeCategoryState(categoryKey);
   if (!category) return;
   if (category.rows.length <= 1) {
-    row.descInput.value = '';
-    row.amountInput.value = '';
+    row.descInput.value = "";
+    row.amountInput.value = "";
     updateCategoryTotal(categoryKey);
     return;
   }
@@ -6081,7 +8584,7 @@ function ensureTrailingEmptyRow(categoryKey) {
   if (!category || !category.rows.length) return;
   const lastRow = category.rows[category.rows.length - 1];
   const hasContent =
-    lastRow.descInput.value.trim() !== '' ||
+    lastRow.descInput.value.trim() !== "" ||
     parseCurrencyToNumber(lastRow.amountInput.value) > 0;
   if (hasContent) {
     addFeeRow(categoryKey);
@@ -6110,7 +8613,7 @@ function collectFeeModalData() {
   const totals = {
     dealerFees: 0,
     customerAddons: 0,
-    govtFees: 0
+    govtFees: 0,
   };
 
   Object.entries(feeModalState.categories).forEach(([key, category]) => {
@@ -6123,15 +8626,18 @@ function collectFeeModalData() {
         }
         return {
           description: toTitleCase(description),
-          amount: normalizeCurrencyNumber(amount) ?? 0
+          amount: normalizeCurrencyNumber(amount) ?? 0,
         };
       })
       .filter(Boolean);
     items[key] = categoryItems;
-    const sum = categoryItems.reduce((acc, item) => acc + (item.amount ?? 0), 0);
-    if (key === 'dealer') totals.dealerFees = sum;
-    if (key === 'customer') totals.customerAddons = sum;
-    if (key === 'gov') totals.govtFees = sum;
+    const sum = categoryItems.reduce(
+      (acc, item) => acc + (item.amount ?? 0),
+      0
+    );
+    if (key === "dealer") totals.dealerFees = sum;
+    if (key === "customer") totals.customerAddons = sum;
+    if (key === "gov") totals.govtFees = sum;
   });
 
   return { items, totals };
@@ -6139,14 +8645,21 @@ function collectFeeModalData() {
 
 function applyFeeModalChanges() {
   const payload = collectFeeModalData();
+  if (feeDebug.enabled) {
+    feeDebug.log("applyFeeModalChanges payload", payload);
+  }
   persistFeeModalState(payload);
   updateFeeSummary(payload.totals);
 
   // Update quick entry sliders to reflect fee changes
-  const dealerFeesSlider = document.getElementById('quickSliderDealerFees');
-  const dealerFeesInput = document.getElementById('quickInputDealerFees');
-  const customerAddonsSlider = document.getElementById('quickSliderCustomerAddons');
-  const customerAddonsInput = document.getElementById('quickInputCustomerAddons');
+  const dealerFeesSlider = document.getElementById("quickSliderDealerFees");
+  const dealerFeesInput = document.getElementById("quickInputDealerFees");
+  const customerAddonsSlider = document.getElementById(
+    "quickSliderCustomerAddons"
+  );
+  const customerAddonsInput = document.getElementById(
+    "quickInputCustomerAddons"
+  );
 
   let actualDealerFees = 0;
   let actualCustomerAddons = 0;
@@ -6169,8 +8682,9 @@ function applyFeeModalChanges() {
 
   // Update original values so diff indicators reset to new baseline (use rounded values)
   if (window.sliderOriginalValues) {
-    window.sliderOriginalValues['quickSliderDealerFees'] = actualDealerFees;
-    window.sliderOriginalValues['quickSliderCustomerAddons'] = actualCustomerAddons;
+    window.sliderOriginalValues["quickSliderDealerFees"] = actualDealerFees;
+    window.sliderOriginalValues["quickSliderCustomerAddons"] =
+      actualCustomerAddons;
   }
 
   // Trigger recalculation
@@ -6189,12 +8703,25 @@ function persistFeeModalState({ items, totals }) {
     stateTaxRate,
     countyTaxRate,
     items,
-    userCustomized: true
+    userCustomized: true,
   };
+  if (feeDebug.enabled) {
+    feeDebug.log("persistFeeModalState", {
+      items,
+      totals,
+      wizardDataFees: {
+        dealerFees: wizardData.fees.dealerFees,
+        customerAddons: wizardData.fees.customerAddons,
+        govtFees: wizardData.fees.govtFees,
+        stateTaxRate: wizardData.fees.stateTaxRate,
+        countyTaxRate: wizardData.fees.countyTaxRate,
+      },
+    });
+  }
 
   if (currentStep === 4) {
     refreshReview().catch((error) => {
-      console.error('[fees] Unable to refresh review after change:', error);
+      console.error("[fees] Unable to refresh review after change:", error);
     });
   }
 }
@@ -6219,15 +8746,15 @@ function updateFeeSummary(totalsOverride) {
     customerAddons,
     tradeOffer,
     stateTaxRate: wizardData.fees.stateTaxRate ?? 0,
-    countyTaxRate: wizardData.fees.countyTaxRate ?? 0
+    countyTaxRate: wizardData.fees.countyTaxRate ?? 0,
   });
 
   const totalTaxes = taxTotals.totalTaxes ?? 0;
   const otherCharges = totalFees + totalTaxes;
 
-  setText('modal-fees-total', formatCurrency(totalFees));
-  setText('modal-tax-total', formatCurrency(totalTaxes));
-  setText('modal-other-charges', formatCurrency(otherCharges));
+  setText("modal-fees-total", formatCurrency(totalFees));
+  setText("modal-tax-total", formatCurrency(totalTaxes));
+  setText("modal-other-charges", formatCurrency(otherCharges));
 }
 
 function goToLocationStep() {
@@ -6236,19 +8763,19 @@ function goToLocationStep() {
   updateWizardUI();
 }
 
-function setEditFeeStatus(message = '', tone = 'info') {
-  const statusEl = document.getElementById('edit-fee-status');
+function setEditFeeStatus(message = "", tone = "info") {
+  const statusEl = document.getElementById("edit-fee-status");
   if (!statusEl) return;
-  statusEl.textContent = message ?? '';
-  if (!message || tone === 'info') {
-    statusEl.removeAttribute('data-tone');
+  statusEl.textContent = message ?? "";
+  if (!message || tone === "info") {
+    statusEl.removeAttribute("data-tone");
   } else {
     statusEl.dataset.tone = tone;
   }
 }
 
 function setEditFeeFormDisabled(disabled) {
-  const form = document.getElementById('edit-fee-form');
+  const form = document.getElementById("edit-fee-form");
   if (!form) return;
   Array.from(form.elements).forEach((el) => {
     if (
@@ -6262,40 +8789,40 @@ function setEditFeeFormDisabled(disabled) {
 }
 
 function updateEditFeeNameList(type) {
-  const input = document.getElementById('edit-fee-name');
+  const input = document.getElementById("edit-fee-name");
   if (!input) return;
   const store = getFeeSuggestionStore(type);
   if (store?.datalist?.id) {
-    input.setAttribute('list', store.datalist.id);
+    input.setAttribute("list", store.datalist.id);
   } else {
-    input.removeAttribute('list');
+    input.removeAttribute("list");
   }
 }
 
-function openEditFeeModal(categoryKey = 'dealer') {
-  const modal = document.getElementById('edit-fee-modal');
-  const form = document.getElementById('edit-fee-form');
-  const typeSelect = document.getElementById('edit-fee-type');
-  const amountInput = document.getElementById('edit-fee-amount');
-  const nameInput = document.getElementById('edit-fee-name');
+function openEditFeeModal(categoryKey = "dealer") {
+  const modal = document.getElementById("edit-fee-modal");
+  const form = document.getElementById("edit-fee-form");
+  const typeSelect = document.getElementById("edit-fee-type");
+  const amountInput = document.getElementById("edit-fee-amount");
+  const nameInput = document.getElementById("edit-fee-name");
   if (!modal || !form || !typeSelect || !amountInput || !nameInput) return;
 
   const normalizedCategory =
-    categoryKey === 'gov'
-      ? 'gov'
-      : categoryKey === 'customer'
-      ? 'customer'
-      : 'dealer';
+    categoryKey === "gov"
+      ? "gov"
+      : categoryKey === "customer"
+      ? "customer"
+      : "dealer";
 
   editFeeModalState.activeCategory = normalizedCategory;
   typeSelect.value = normalizedCategory;
 
   form.reset();
-  setEditFeeStatus('');
+  setEditFeeStatus("");
   updateEditFeeNameList(normalizedCategory);
   formatCurrencyInput(amountInput);
 
-  modal.style.display = 'flex';
+  modal.style.display = "flex";
   requestAnimationFrame(() => {
     nameInput.focus();
     nameInput.select?.();
@@ -6303,13 +8830,13 @@ function openEditFeeModal(categoryKey = 'dealer') {
 }
 
 function closeEditFeeModal() {
-  const modal = document.getElementById('edit-fee-modal');
-  const form = document.getElementById('edit-fee-form');
-  const amountInput = document.getElementById('edit-fee-amount');
+  const modal = document.getElementById("edit-fee-modal");
+  const form = document.getElementById("edit-fee-form");
+  const amountInput = document.getElementById("edit-fee-amount");
   if (!modal) return;
-  modal.style.display = 'none';
+  modal.style.display = "none";
   form?.reset();
-  setEditFeeStatus('');
+  setEditFeeStatus("");
   if (amountInput) {
     formatCurrencyInput(amountInput);
   }
@@ -6322,35 +8849,35 @@ function formatCurrencyInput(input) {
   if (Number.isFinite(numeric) && numeric !== 0) {
     input.value = formatCurrency(numeric);
   } else {
-    input.value = '';
+    input.value = "";
   }
 }
 
 async function handleEditFeeSubmit(event) {
   event.preventDefault();
-  const form = document.getElementById('edit-fee-form');
-  const typeSelect = document.getElementById('edit-fee-type');
-  const nameInput = document.getElementById('edit-fee-name');
-  const amountInput = document.getElementById('edit-fee-amount');
+  const form = document.getElementById("edit-fee-form");
+  const typeSelect = document.getElementById("edit-fee-type");
+  const nameInput = document.getElementById("edit-fee-name");
+  const amountInput = document.getElementById("edit-fee-amount");
   if (!form || !typeSelect || !nameInput || !amountInput) return;
 
   const typeValue =
-    typeSelect.value === 'gov'
-      ? 'gov'
-      : typeSelect.value === 'customer'
-      ? 'customer'
-      : 'dealer';
+    typeSelect.value === "gov"
+      ? "gov"
+      : typeSelect.value === "customer"
+      ? "customer"
+      : "dealer";
 
   const rawName = nameInput.value.trim();
   if (!rawName) {
-    setEditFeeStatus('Description is required.', 'error');
+    setEditFeeStatus("Description is required.", "error");
     nameInput.focus();
     return;
   }
 
   const amountValue = parseCurrencyToNumber(amountInput.value);
   if (!Number.isFinite(amountValue)) {
-    setEditFeeStatus('Enter a valid amount.', 'error');
+    setEditFeeStatus("Enter a valid amount.", "error");
     amountInput.focus();
     return;
   }
@@ -6360,44 +8887,70 @@ async function handleEditFeeSubmit(event) {
 
   const state = getFeeSetState(typeValue);
   if (!state.id) {
-    setEditFeeStatus('No active fee set available. Please configure sets in Supabase.', 'error');
+    setEditFeeStatus(
+      "No active fee set available. Please configure sets in Supabase.",
+      "error"
+    );
     return;
   }
 
   setEditFeeFormDisabled(true);
-  setEditFeeStatus('Saving...');
+  setEditFeeStatus("Saving...");
 
   try {
     const tableName =
-      typeValue === 'gov'
-        ? 'gov_fee_sets'
-        : typeValue === 'customer'
-        ? 'customer_addon_sets'
-        : 'dealer_fee_sets';
+      typeValue === "gov"
+        ? "gov_fee_sets"
+        : typeValue === "customer"
+        ? "customer_addon_sets"
+        : "dealer_fee_sets";
 
     const items = Array.isArray(state.items)
       ? state.items.map((item) => ({ ...item }))
       : [];
 
     let found = false;
+    let existingItemIndex = -1;
     for (let i = 0; i < items.length; i += 1) {
       const item = items[i] ?? {};
-      const existing = typeof item?.name === 'string' ? item.name.trim().toLowerCase() : '';
+      const existing =
+        typeof item?.name === "string" ? item.name.trim().toLowerCase() : "";
       if (existing && existing === normalizedName.toLowerCase()) {
-        items[i] = { ...item, name: normalizedName, amount: normalizedAmount };
+        existingItemIndex = i;
         found = true;
         break;
       }
     }
-    if (!found) {
+
+    // If fee exists, confirm overwrite
+    if (found) {
+      const existingAmount = items[existingItemIndex]?.amount || 0;
+      const confirmed = confirm(
+        `"${normalizedName}" already exists with amount ${formatCurrency(
+          existingAmount
+        )}.\n\nDo you want to update it to ${formatCurrency(normalizedAmount)}?`
+      );
+
+      if (!confirmed) {
+        setEditFeeFormDisabled(false);
+        setEditFeeStatus("");
+        return;
+      }
+
+      items[existingItemIndex] = {
+        ...items[existingItemIndex],
+        name: normalizedName,
+        amount: normalizedAmount,
+      };
+    } else {
       items.push({ name: normalizedName, amount: normalizedAmount });
     }
 
     const { data: updatedRows, error } = await supabase
       .from(tableName)
       .update({ items })
-      .eq('id', state.id)
-      .select('id, items');
+      .eq("id", state.id)
+      .select("id, items");
 
     if (error) throw error;
 
@@ -6411,18 +8964,78 @@ async function handleEditFeeSubmit(event) {
     const store = getFeeSuggestionStore(typeValue);
     store?.setItems(normalizedItems);
 
-    setEditFeeStatus('Fee saved.', 'success');
-    await (typeValue === 'gov'
-      ? loadGovFeeSuggestions()
-      : typeValue === 'customer'
-      ? loadCustomerAddonSuggestions()
-      : loadDealerFeeSuggestions());
+    setEditFeeStatus("Fee saved.", "success");
+
+    // Reload ALL fee suggestions from Supabase to ensure fresh data is displayed
+    await Promise.all([
+      loadDealerFeeSuggestions(),
+      loadCustomerAddonSuggestions(),
+      loadGovFeeSuggestions(),
+    ]);
+    if (feeDebug.enabled) {
+      const storeSnapshot = getFeeSuggestionStore(typeValue);
+      feeDebug.log("post-reload suggestion store", {
+        type: typeValue,
+        count: storeSnapshot?.items?.length ?? 0,
+        matchAmount: storeSnapshot?.getAmount?.(normalizedName) ?? null,
+        matchName: normalizedName,
+      });
+    }
+
+    // Update any existing rows in the fee modal that match the edited fee
+    const category = feeModalState.categories[typeValue];
+    let rowSnapshotBefore = null;
+    if (feeDebug.enabled && category?.rows?.length) {
+      rowSnapshotBefore = category.rows.map((row) => ({
+        desc: row.descInput?.value ?? "",
+        amount: row.amountInput?.value ?? "",
+      }));
+      feeDebug.table(
+        `rows before manual patch (${typeValue})`,
+        rowSnapshotBefore
+      );
+    }
+    if (category && category.rows) {
+      category.rows.forEach((row) => {
+        const desc = row.descInput?.value?.trim();
+        if (desc && desc.toLowerCase() === normalizedName.toLowerCase()) {
+          row.amountInput.value = formatCurrency(normalizedAmount);
+        }
+      });
+      if (feeDebug.enabled) {
+        const rowSnapshotAfter = category.rows.map((row) => ({
+          desc: row.descInput?.value ?? "",
+          amount: row.amountInput?.value ?? "",
+        }));
+        feeDebug.table(
+          `rows after manual patch (${typeValue})`,
+          rowSnapshotAfter
+        );
+      }
+    }
+
+    // Collect current fee modal state and persist it with fresh values
+    const currentFeeData = collectFeeModalData();
+    if (feeDebug.enabled) {
+      feeDebug.log("collectFeeModalData result", {
+        totals: currentFeeData?.totals ?? {},
+        items: currentFeeData?.items ?? {},
+      });
+    }
+    persistFeeModalState(currentFeeData);
+
+    // Re-render the fee modal from the updated wizardData
+    renderFeeModalFromWizardData();
 
     closeEditFeeModal();
+
+    // Show success toast
+    showToast(`Fee "${normalizedName}" saved successfully`, "success");
   } catch (error) {
-    console.error('Failed to save fee', error);
-    const message = error?.message ?? 'Unable to save fee right now. Please try again.';
-    setEditFeeStatus(message, 'error');
+    console.error("Failed to save fee", error);
+    const message =
+      error?.message ?? "Unable to save fee right now. Please try again.";
+    setEditFeeStatus(message, "error");
   } finally {
     setEditFeeFormDisabled(false);
   }
@@ -6449,13 +9062,12 @@ async function submitLead() {
   `;
 
   try {
-    console.log('Submitting lead:', wizardData);
     // TODO: Send to Supabase leads table
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
     showSuccessMessage();
   } catch (error) {
-    console.error('Error submitting lead:', error);
-    alert('There was an error submitting your information. Please try again.');
+    console.error("Error submitting lead:", error);
+    alert("There was an error submitting your information. Please try again.");
     submitBtn.disabled = false;
     submitBtn.innerHTML = originalText;
   }
@@ -6465,7 +9077,7 @@ async function submitLead() {
  * Show success message
  */
 function showSuccessMessage() {
-  const wizardCard = document.querySelector('.wizard-card');
+  const wizardCard = document.querySelector(".wizard-card");
   wizardCard.innerHTML = `
     <div style="text-align: center; padding: var(--spacing-2xl);">
       <div style="width: 80px; height: 80px; margin: 0 auto var(--spacing-xl); background: linear-gradient(135deg, var(--success), #34d399); border-radius: 50%; display: flex; align-items: center; justify-content: center; animation: scaleIn 0.6s var(--transition-bounce);">
@@ -6499,24 +9111,28 @@ function showSuccessMessage() {
  * Switch between Wizard and Quick Entry modes
  */
 async function switchMode(mode) {
-  const wizardMode = document.querySelector('.wizard-card');
-  const wizardProgress = document.getElementById('wizard-progress');
-  const quickMode = document.getElementById('quick-entry-mode');
-  const wizardBtn = document.querySelector('.mode-toggle__btn[data-mode="wizard"]');
-  const quickBtn = document.querySelector('.mode-toggle__btn[data-mode="quick"]');
+  const wizardMode = document.querySelector(".wizard-card");
+  const wizardProgress = document.getElementById("wizard-progress");
+  const quickMode = document.getElementById("quick-entry-mode");
+  const wizardBtn = document.querySelector(
+    '.mode-toggle__btn[data-mode="wizard"]'
+  );
+  const quickBtn = document.querySelector(
+    '.mode-toggle__btn[data-mode="quick"]'
+  );
 
-  if (mode === 'wizard') {
-    wizardMode.style.display = 'block';
-    wizardProgress.style.display = 'block';
-    quickMode.style.display = 'none';
-    wizardBtn.classList.add('active');
-    quickBtn.classList.remove('active');
+  if (mode === "wizard") {
+    wizardMode.style.display = "block";
+    wizardProgress.style.display = "block";
+    quickMode.style.display = "none";
+    wizardBtn.classList.add("active");
+    quickBtn.classList.remove("active");
   } else {
-    wizardMode.style.display = 'none';
-    wizardProgress.style.display = 'none';
-    quickMode.style.display = 'block';
-    wizardBtn.classList.remove('active');
-    quickBtn.classList.add('active');
+    wizardMode.style.display = "none";
+    wizardProgress.style.display = "none";
+    quickMode.style.display = "block";
+    wizardBtn.classList.remove("active");
+    quickBtn.classList.add("active");
 
     // Initialize Quick Entry mode with current wizard data
     await initializeQuickEntry();
@@ -6528,104 +9144,111 @@ async function switchMode(mode) {
  */
 async function initializeQuickEntry() {
   // Populate location
-  const quickLocation = document.getElementById('quick-location');
-
-  console.log('[init] wizardData.location:', wizardData.location);
-  console.log('[init] quickLocation.value:', quickLocation?.value);
+  const quickLocation = document.getElementById("quick-location");
 
   // Check if location field has a value but wizardData doesn't have coordinates
   const locationValue = quickLocation?.value?.trim();
-  if (locationValue && (!wizardData.location?.lat || !wizardData.location?.lng)) {
-    console.log('[init] Found location in field without coordinates, geocoding:', locationValue);
-
-    if (google?.maps?.Geocoder) {
-      const geocoder = new google.maps.Geocoder();
-      try {
-        const results = await new Promise((resolve, reject) => {
-          geocoder.geocode({ address: locationValue }, (results, status) => {
-            if (status === 'OK' && results?.length) {
-              resolve(results);
-            } else {
-              reject(new Error(`Geocoding failed: ${status}`));
-            }
-          });
+  if (
+    locationValue &&
+    (!wizardData.location?.lat || !wizardData.location?.lng) &&
+    typeof google !== 'undefined' &&
+    google?.maps?.Geocoder
+  ) {
+    const geocoder = new google.maps.Geocoder();
+    try {
+      const results = await new Promise((resolve, reject) => {
+        geocoder.geocode({ address: locationValue }, (results, status) => {
+          if (status === "OK" && results?.length) {
+            resolve(results);
+          } else {
+            reject(new Error(`Geocoding failed: ${status}`));
+          }
         });
+      });
 
-        if (results && results.length > 0) {
-          const location = results[0].geometry?.location;
-          const lat = typeof location?.lat === 'function' ? location.lat() : location?.lat ?? null;
-          const lng = typeof location?.lng === 'function' ? location.lng() : location?.lng ?? null;
+      if (results && results.length > 0) {
+        const location = results[0].geometry?.location;
+        const lat =
+          typeof location?.lat === "function"
+            ? location.lat()
+            : location?.lat ?? null;
+        const lng =
+          typeof location?.lng === "function"
+            ? location.lng()
+            : location?.lng ?? null;
 
-          const components = results[0].address_components ?? [];
-          const locale = extractLocaleFromComponents(components);
+        const components = results[0].address_components ?? [];
+        const locale = extractLocaleFromComponents(components);
 
-          wizardData.location = {
-            formatted_address: locationValue,
-            address: locationValue,
-            lat,
-            lng,
-            stateCode: locale.stateCode,
-            countyName: locale.countyName
-          };
-
-          console.log('[init] Geocoded coordinates:', { lat, lng, stateCode: locale.stateCode });
-        }
-      } catch (error) {
-        console.warn('[init] Failed to geocode location from field:', error);
+        wizardData.location = {
+          formatted_address: locationValue,
+          address: locationValue,
+          lat,
+          lng,
+          stateCode: locale.stateCode,
+          countyName: locale.countyName,
+        };
       }
+    } catch (error) {
+      console.warn("[init] Failed to geocode location from field:", error);
     }
   } else if (wizardData.location?.formatted_address) {
     quickLocation.value = wizardData.location.formatted_address;
 
     // If we have an address but no coordinates, geocode it
     if (!wizardData.location.lat || !wizardData.location.lng) {
-      console.log('[init] Geocoding saved location:', wizardData.location.formatted_address);
-
-      if (google?.maps?.Geocoder) {
+      if (typeof google !== 'undefined' && google?.maps?.Geocoder) {
         const geocoder = new google.maps.Geocoder();
         try {
           const results = await new Promise((resolve, reject) => {
-            geocoder.geocode({ address: wizardData.location.formatted_address }, (results, status) => {
-              if (status === 'OK' && results?.length) {
-                resolve(results);
-              } else {
-                reject(new Error(`Geocoding failed: ${status}`));
+            geocoder.geocode(
+              { address: wizardData.location.formatted_address },
+              (results, status) => {
+                if (status === "OK" && results?.length) {
+                  resolve(results);
+                } else {
+                  reject(new Error(`Geocoding failed: ${status}`));
+                }
               }
-            });
+            );
           });
 
           if (results && results.length > 0) {
             const location = results[0].geometry?.location;
-            const lat = typeof location?.lat === 'function' ? location.lat() : location?.lat ?? null;
-            const lng = typeof location?.lng === 'function' ? location.lng() : location?.lng ?? null;
+            const lat =
+              typeof location?.lat === "function"
+                ? location.lat()
+                : location?.lat ?? null;
+            const lng =
+              typeof location?.lng === "function"
+                ? location.lng()
+                : location?.lng ?? null;
 
             wizardData.location = {
               ...wizardData.location,
               lat,
-              lng
+              lng,
             };
-
-            console.log('[init] Geocoded coordinates:', { lat, lng });
           }
         } catch (error) {
-          console.warn('[init] Failed to geocode saved location:', error);
+          console.warn("[init] Failed to geocode saved location:", error);
         }
       }
     }
   }
 
   // Populate VIN if selected vehicle exists
-  const quickVin = document.getElementById('quick-vin');
+  const quickVin = document.getElementById("quick-vin");
   if (selectedVehicle?.vin) {
     quickVin.value = selectedVehicle.vin;
     displayQuickVehicleCard(selectedVehicle);
   }
 
   // Populate financing details with defaults
-  const quickVehiclePrice = document.getElementById('quick-vehicle-price');
-  const quickDownPayment = document.getElementById('quick-down-payment');
-  const quickLoanTerm = document.getElementById('quick-loan-term');
-  const quickCreditScore = document.getElementById('quick-credit-score');
+  const quickVehiclePrice = document.getElementById("quick-vehicle-price");
+  const quickDownPayment = document.getElementById("quick-down-payment");
+  const quickLoanTerm = document.getElementById("quick-loan-term");
+  const quickCreditScore = document.getElementById("quick-credit-score");
 
   if (wizardData.financing?.salePrice) {
     quickVehiclePrice.value = formatCurrency(wizardData.financing.salePrice);
@@ -6635,24 +9258,12 @@ async function initializeQuickEntry() {
   }
 
   // Set defaults: 72 months, excellent credit (750+)
-  quickLoanTerm.value = wizardData.financing?.term || '72';
-  quickCreditScore.value = wizardData.financing?.creditScoreRange || 'excellent';
+  quickLoanTerm.value = wizardData.financing?.term || "72";
+  quickCreditScore.value =
+    wizardData.financing?.creditScoreRange || "excellent";
 
   // Populate trade-in if exists
   if (wizardData.tradein?.hasTradeIn) {
-    const quickHasTradeIn = document.getElementById('quick-has-tradein');
-    const quickTradeValue = document.getElementById('quick-tradein-value');
-    const quickTradePayoff = document.getElementById('quick-tradein-payoff');
-
-    quickHasTradeIn.checked = true;
-    toggleQuickTradeIn(true);
-
-    if (wizardData.tradein.tradeValue) {
-      quickTradeValue.value = formatCurrency(wizardData.tradein.tradeValue);
-    }
-    if (wizardData.tradein.tradePayoff) {
-      quickTradePayoff.value = formatCurrency(wizardData.tradein.tradePayoff);
-    }
   }
 
   // Setup saved vehicles dropdown for Quick mode
@@ -6672,6 +9283,11 @@ async function initializeQuickEntry() {
   // Setup sliders
   setupQuickSliders();
 
+  // ============================================
+  // PHASE 1: Initialize Centered Sliders
+  // ============================================
+  initializeCenteredSliders();
+
   // Update tax labels to show state/county info or defaults
   updateTaxLabels();
 
@@ -6687,12 +9303,36 @@ function syncSlidersFromWizardData() {
   ensureWizardFeeDefaults();
 
   const syncMap = [
-    { sliderId: 'quickSliderSalePrice', inputId: 'quickInputSalePrice', value: wizardData.financing?.salePrice || 0 },
-    { sliderId: 'quickSliderCashDown', inputId: 'quickInputCashDown', value: wizardData.financing?.cashDown || 0 },
-    { sliderId: 'quickSliderTradeAllowance', inputId: 'quickInputTradeAllowance', value: wizardData.tradein?.tradeValue || 0 },
-    { sliderId: 'quickSliderTradePayoff', inputId: 'quickInputTradePayoff', value: wizardData.tradein?.tradePayoff || 0 },
-    { sliderId: 'quickSliderDealerFees', inputId: 'quickInputDealerFees', value: wizardData.fees?.dealerFees || 0 },
-    { sliderId: 'quickSliderCustomerAddons', inputId: 'quickInputCustomerAddons', value: wizardData.fees?.customerAddons || 0 }
+    {
+      sliderId: "quickSliderSalePrice",
+      inputId: "quickInputSalePrice",
+      value: wizardData.financing?.salePrice || 0,
+    },
+    {
+      sliderId: "quickSliderCashDown",
+      inputId: "quickInputCashDown",
+      value: wizardData.financing?.cashDown || 0,
+    },
+    {
+      sliderId: "quickSliderTradeAllowance",
+      inputId: "quickInputTradeAllowance",
+      value: wizardData.tradein?.tradeValue || 0,
+    },
+    {
+      sliderId: "quickSliderTradePayoff",
+      inputId: "quickInputTradePayoff",
+      value: wizardData.tradein?.tradePayoff || 0,
+    },
+    {
+      sliderId: "quickSliderDealerFees",
+      inputId: "quickInputDealerFees",
+      value: wizardData.fees?.dealerFees || 0,
+    },
+    {
+      sliderId: "quickSliderCustomerAddons",
+      inputId: "quickInputCustomerAddons",
+      value: wizardData.fees?.customerAddons || 0,
+    },
   ];
 
   syncMap.forEach(({ sliderId, inputId, value }) => {
@@ -6704,45 +9344,36 @@ function syncSlidersFromWizardData() {
       updateSliderProgress(slider);
     }
   });
-
-  console.log('[sync-sliders] Synced sliders from wizardData:', {
-    dealerFees: wizardData.fees?.dealerFees || 0,
-    customerAddons: wizardData.fees?.customerAddons || 0
-  });
 }
 
 /**
  * Setup saved vehicles dropdown for Quick Entry mode
  */
 function setupQuickSavedVehicles() {
-  const quickVin = document.getElementById('quick-vin');
-  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+  const quickVin = document.getElementById("quick-vin");
+  const dropdown = document.getElementById("quick-saved-vehicles-dropdown");
 
   // Remove any existing listeners by cloning (prevents duplicates)
   if (quickVin._savedVehiclesSetup) {
-    console.log('[quick-saved-vehicles] Already setup, skipping duplicate setup');
     return;
   }
   quickVin._savedVehiclesSetup = true;
 
-  console.log('[quick-saved-vehicles] Setting up dropdown, saved vehicles count:', savedVehicles.length);
-
   const showDropdown = () => {
-    console.log('[quick-saved-vehicles] Show dropdown triggered, count:', savedVehicles.length);
     if (savedVehicles.length > 0) {
       displayQuickSavedVehicles();
     } else {
-      console.log('[quick-saved-vehicles] No saved vehicles to display');
       // Show "no saved vehicles" message
-      dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
-      dropdown.style.display = 'block';
+      dropdown.innerHTML =
+        '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+      dropdown.style.display = "block";
     }
   };
 
-  quickVin.addEventListener('focus', showDropdown);
-  quickVin.addEventListener('click', showDropdown);
+  quickVin.addEventListener("focus", showDropdown);
+  quickVin.addEventListener("click", showDropdown);
 
-  quickVin.addEventListener('input', (e) => {
+  quickVin.addEventListener("input", (e) => {
     const value = e.target.value.toUpperCase().trim();
     if (value.length > 0) {
       filterQuickSavedVehicles(value);
@@ -6752,11 +9383,11 @@ function setupQuickSavedVehicles() {
   });
 
   // Click outside to close dropdown (with slight delay to avoid race condition)
-  document.addEventListener('click', (e) => {
+  document.addEventListener("click", (e) => {
     // Use setTimeout to ensure this runs after any click handlers on the input
     setTimeout(() => {
       if (!quickVin.contains(e.target) && !dropdown.contains(e.target)) {
-        dropdown.style.display = 'none';
+        dropdown.style.display = "none";
       }
     }, 0);
   });
@@ -6766,83 +9397,98 @@ function setupQuickSavedVehicles() {
  * Display saved vehicles in Quick Entry dropdown
  */
 function displayQuickSavedVehicles() {
-  console.log('[quick-saved-vehicles] displayQuickSavedVehicles called, count:', savedVehicles.length);
-  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
-  dropdown.innerHTML = '';
+  const dropdown = document.getElementById("quick-saved-vehicles-dropdown");
+  dropdown.innerHTML = "";
 
   if (savedVehicles.length === 0) {
-    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
-    dropdown.style.display = 'block';
-    console.log('[quick-saved-vehicles] Showing "no saved vehicles" message');
+    dropdown.innerHTML =
+      '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No saved vehicles</div>';
+    dropdown.style.display = "block";
     return;
   }
 
-  savedVehicles.forEach(vehicle => {
-    const item = document.createElement('div');
-    item.className = 'saved-vehicle-item';
+  savedVehicles.forEach((vehicle) => {
+    const item = document.createElement("div");
+    item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(vehicle.trim || '')} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+      <div class="saved-vehicle-item__title">${
+        vehicle.year || ""
+      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+      vehicle.model || ""
+    )}</div>
+      <div class="saved-vehicle-item__details">${capitalizeWords(
+        vehicle.trim || ""
+      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+        vehicle.vin || "N/A"
+      )}</div>
     `;
-    item.addEventListener('click', () => selectQuickSavedVehicle(vehicle));
+    item.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
 
-  dropdown.style.display = 'block';
-  console.log('[quick-saved-vehicles] Dropdown displayed with', savedVehicles.length, 'vehicles');
+  dropdown.style.display = "block";
 }
 
 /**
  * Filter saved vehicles in Quick Entry mode
  */
 function filterQuickSavedVehicles(searchTerm) {
-  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
-  const filtered = savedVehicles.filter(v =>
-    (v.vin && v.vin.includes(searchTerm)) ||
-    (v.make && v.make.toUpperCase().includes(searchTerm)) ||
-    (v.model && v.model.toUpperCase().includes(searchTerm)) ||
-    (v.year && String(v.year).includes(searchTerm))
+  const dropdown = document.getElementById("quick-saved-vehicles-dropdown");
+  const filtered = savedVehicles.filter(
+    (v) =>
+      (v.vin && v.vin.includes(searchTerm)) ||
+      (v.make && v.make.toUpperCase().includes(searchTerm)) ||
+      (v.model && v.model.toUpperCase().includes(searchTerm)) ||
+      (v.year && String(v.year).includes(searchTerm))
   );
 
-  dropdown.innerHTML = '';
+  dropdown.innerHTML = "";
 
   if (filtered.length === 0) {
-    dropdown.innerHTML = '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No matches found</div>';
-    dropdown.style.display = 'block';
+    dropdown.innerHTML =
+      '<div class="saved-vehicle-item" style="text-align: center; color: #94a3b8;">No matches found</div>';
+    dropdown.style.display = "block";
     return;
   }
 
-  filtered.forEach(vehicle => {
-    const item = document.createElement('div');
-    item.className = 'saved-vehicle-item';
+  filtered.forEach((vehicle) => {
+    const item = document.createElement("div");
+    item.className = "saved-vehicle-item";
     item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year || ''} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(vehicle.model || '')}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(vehicle.trim || '')} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || 'N/A')}</div>
+      <div class="saved-vehicle-item__title">${
+        vehicle.year || ""
+      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+      vehicle.model || ""
+    )}</div>
+      <div class="saved-vehicle-item__details">${capitalizeWords(
+        vehicle.trim || ""
+      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+        vehicle.vin || "N/A"
+      )}</div>
     `;
-    item.addEventListener('click', () => selectQuickSavedVehicle(vehicle));
+    item.addEventListener("click", () => selectQuickSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
 
-  dropdown.style.display = 'block';
+  dropdown.style.display = "block";
 }
 
 /**
  * Select saved vehicle in Quick Entry mode
  */
 async function selectQuickSavedVehicle(vehicle) {
-  const quickVin = document.getElementById('quick-vin');
-  const dropdown = document.getElementById('quick-saved-vehicles-dropdown');
+  const quickVin = document.getElementById("quick-vin");
+  const dropdown = document.getElementById("quick-saved-vehicles-dropdown");
 
-  quickVin.value = vehicle.vin || '';
-  dropdown.style.display = 'none';
+  quickVin.value = vehicle.vin || "";
+  dropdown.style.display = "none";
 
   // Ensure condition is set correctly based on year
-  if (!vehicle.condition || vehicle.condition === '') {
+  if (!vehicle.condition || vehicle.condition === "") {
     const currentYear = new Date().getFullYear();
-    vehicle.condition = parseInt(vehicle.year) >= currentYear ? 'new' : 'used';
-    console.log('[quick-saved-vehicle] Auto-set condition based on year:', vehicle.condition);
+    vehicle.condition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
   }
 
   // Update selected vehicle globally
@@ -6851,17 +9497,15 @@ async function selectQuickSavedVehicle(vehicle) {
   // Also update wizardData.vehicle to ensure condition is synced
   wizardData.vehicle = {
     ...vehicle,
-    condition: vehicle.condition || 'used'
+    condition: vehicle.condition || "used",
   };
-
-  console.log('[quick-saved-vehicle] Selected vehicle condition:', vehicle.condition, 'Year:', vehicle.year);
 
   // Update vehicle card display
   displayQuickVehicleCard(vehicle);
 
   // Auto-populate vehicle price if available
   if (vehicle.asking_price) {
-    const quickVehiclePrice = document.getElementById('quick-vehicle-price');
+    const quickVehiclePrice = document.getElementById("quick-vehicle-price");
     quickVehiclePrice.value = formatCurrency(vehicle.asking_price);
 
     // Update wizard data
@@ -6877,36 +9521,39 @@ async function selectQuickSavedVehicle(vehicle) {
 
   // Reset custom APR override when vehicle changes
   customAprOverride = null;
-  console.log('[vehicle-change] Reset custom APR override');
   // Reset tooltip original values
   if (window.resetAprTooltipOriginal) window.resetAprTooltipOriginal();
   if (window.resetTermTooltipOriginal) window.resetTermTooltipOriginal();
-  if (window.resetMonthlyFCTooltipOriginal) window.resetMonthlyFCTooltipOriginal();
+  if (window.resetMonthlyFCTooltipOriginal)
+    window.resetMonthlyFCTooltipOriginal();
+  if (window.resetTilBaselines) window.resetTilBaselines();
 
   // Trigger calculation to update monthly payment
   await autoCalculateQuick();
-
-  console.log('[quick-saved-vehicle] Vehicle selected and calculations updated:', vehicle.year, vehicle.make, vehicle.model);
 }
 
 /**
  * Display vehicle card in Quick Entry mode
  */
 function displayQuickVehicleCard(vehicle) {
-  const display = document.getElementById('quick-vehicle-display');
-  const card = document.getElementById('quick-vehicle-card');
+  const display = document.getElementById("quick-vehicle-display");
+  const card = document.getElementById("quick-vehicle-card");
 
   if (!display || !card) {
-    console.warn('[quick-vehicle-card] Card container missing');
+    console.warn("[quick-vehicle-card] Card container missing");
     return;
   }
 
   if (card) {
-    card.classList.add('your-vehicle-card--quick');
+    card.classList.add("your-vehicle-card--quick");
   }
 
   const cleanedModel = cleanModelName(vehicle.make, vehicle.model);
-  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(vehicle.make || '')} ${capitalizeWords(cleanedModel || '')}${vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ''}`;
+  const vehicleDetailsText = `${vehicle.year} ${capitalizeWords(
+    vehicle.make || ""
+  )} ${capitalizeWords(cleanedModel || "")}${
+    vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ""
+  }`;
 
   const imageContent = vehicle.photo_url
     ? `<img src="${vehicle.photo_url}" alt="${vehicleDetailsText}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -6920,8 +9567,6 @@ function displayQuickVehicleCard(vehicle) {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
           </svg>
         </div>`;
-
-  const accentColor = getTrimAccentColor(vehicle.trim);
 
   // Get user location coordinates
   const userLat = wizardData.location?.lat;
@@ -6937,21 +9582,39 @@ function displayQuickVehicleCard(vehicle) {
       <div class="your-vehicle-card__body">
         <div class="your-vehicle-card__title-row">
           <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
-          ${vehicle.asking_price ? `<div class="your-vehicle-card__price">${formatCurrency(vehicle.asking_price)}</div>` : ''}
+          ${
+            vehicle.asking_price
+              ? `<div class="your-vehicle-card__price">${formatCurrency(
+                  vehicle.asking_price
+                )}</div>`
+              : ""
+          }
         </div>
         <div class="your-vehicle-card__meta-grid">
-          ${vehicle.vin ? `
+          ${
+            vehicle.vin
+              ? `
             <div class="your-vehicle-card__info-card">
               <span class="your-vehicle-card__info-label">VIN</span>
-              <span class="your-vehicle-card__info-value your-vehicle-card__info-value--mono">${formatVIN(vehicle.vin)}</span>
+              <span class="your-vehicle-card__info-value your-vehicle-card__info-value--mono">${formatVIN(
+                vehicle.vin
+              )}</span>
             </div>
-          ` : ''}
-          ${vehicle.mileage ? `
+          `
+              : ""
+          }
+          ${
+            vehicle.mileage
+              ? `
             <div class="your-vehicle-card__info-card">
               <span class="your-vehicle-card__info-label">Mileage</span>
-              <span class="your-vehicle-card__info-value">${formatMileage(vehicle.mileage)} miles</span>
+              <span class="your-vehicle-card__info-value">${formatMileage(
+                vehicle.mileage
+              )} miles</span>
             </div>
-          ` : ''}
+          `
+              : ""
+          }
           <div class="your-vehicle-card__info-card your-vehicle-card__info-card--distance" id="vehicle-distance-info">
             <span class="your-vehicle-card__info-label">Distance to Dealer</span>
             <span class="your-vehicle-card__info-value your-vehicle-card__info-value--placeholder">Add your location</span>
@@ -6961,22 +9624,30 @@ function displayQuickVehicleCard(vehicle) {
     </div>
   `;
 
-  card.style.setProperty('--vehicle-accent', accentColor);
-
-  display.style.display = 'block';
+  display.style.display = "block";
 
   // Get driving distance and display map if we have valid coordinates
-  if (userLat && userLon && vehicle.dealer_lat && vehicle.dealer_lng &&
-      typeof vehicle.dealer_lat === 'number' && typeof vehicle.dealer_lng === 'number') {
-    const dealerName = vehicle.dealer_name || 'Dealer';
+  if (
+    userLat &&
+    userLon &&
+    vehicle.dealer_lat &&
+    vehicle.dealer_lng &&
+    typeof vehicle.dealer_lat === "number" &&
+    typeof vehicle.dealer_lng === "number"
+  ) {
+    const dealerName = vehicle.dealer_name || "Dealer";
 
     // Get driving distance from Google Distance Matrix API
     getDrivingDistance(userLat, userLon, vehicle.dealer_lat, vehicle.dealer_lng)
-      .then(distanceData => {
+      .then((distanceData) => {
         if (distanceData) {
-          const distanceInfoEl = document.getElementById('vehicle-distance-info');
+          const distanceInfoEl = document.getElementById(
+            "vehicle-distance-info"
+          );
           if (distanceInfoEl) {
-            const valueEl = distanceInfoEl.querySelector('.your-vehicle-card__info-value');
+            const valueEl = distanceInfoEl.querySelector(
+              ".your-vehicle-card__info-value"
+            );
             if (valueEl) {
               valueEl.innerHTML = `
                 <span class="your-vehicle-card__distance-chip">
@@ -6986,7 +9657,9 @@ function displayQuickVehicleCard(vehicle) {
                   <span class="your-vehicle-card__distance-time">${distanceData.duration}</span>
                 </span>
               `;
-              valueEl.classList.remove('your-vehicle-card__info-value--placeholder');
+              valueEl.classList.remove(
+                "your-vehicle-card__info-value--placeholder"
+              );
             } else {
               distanceInfoEl.innerHTML = `
                 <span class="your-vehicle-card__info-label">Distance to Dealer</span>
@@ -7003,24 +9676,32 @@ function displayQuickVehicleCard(vehicle) {
           }
         }
       })
-      .catch(error => {
-        console.warn('[vehicle-card] Could not get driving distance:', error);
+      .catch((error) => {
+        console.warn("[vehicle-card] Could not get driving distance:", error);
       });
 
     // Display map with route
-    displayDealerMapWithRoute(userLat, userLon, vehicle.dealer_lat, vehicle.dealer_lng, dealerName)
-      .catch(error => {
-        console.warn('[vehicle-card] Could not display dealer map:', error);
-      });
+    displayDealerMapWithRoute(
+      userLat,
+      userLon,
+      vehicle.dealer_lat,
+      vehicle.dealer_lng,
+      dealerName
+    ).catch((error) => {
+      console.warn("[vehicle-card] Could not display dealer map:", error);
+    });
   } else {
-    const distanceInfoEl = document.getElementById('vehicle-distance-info');
+    const distanceInfoEl = document.getElementById("vehicle-distance-info");
     if (distanceInfoEl) {
-      const valueEl = distanceInfoEl.querySelector('.your-vehicle-card__info-value');
+      const valueEl = distanceInfoEl.querySelector(
+        ".your-vehicle-card__info-value"
+      );
       if (valueEl) {
-        valueEl.textContent = userLat && userLon
-          ? 'Dealer location unavailable'
-          : 'Add your location';
-        valueEl.classList.add('your-vehicle-card__info-value--placeholder');
+        valueEl.textContent =
+          userLat && userLon
+            ? "Dealer location unavailable"
+            : "Add your location";
+        valueEl.classList.add("your-vehicle-card__info-value--placeholder");
       }
     }
     hideDealerMap();
@@ -7031,13 +9712,12 @@ function displayQuickVehicleCard(vehicle) {
  * Setup location autocomplete for Quick Entry mode
  */
 function setupQuickLocationAutocomplete() {
-  const quickLocation = document.getElementById('quick-location');
+  const quickLocation = document.getElementById("quick-location");
   if (!quickLocation) {
     return false;
   }
 
   if (!googleMapsLoaded || !window.google?.maps?.places) {
-    console.log('[quick-entry] Google Maps not available, using manual input');
     return false;
   }
 
@@ -7045,45 +9725,50 @@ function setupQuickLocationAutocomplete() {
     google.maps.event.clearInstanceListeners(quickLocationAutocomplete);
   }
 
-  quickLocationAutocomplete = new google.maps.places.Autocomplete(quickLocation, {
-    types: ['geocode'],
-    componentRestrictions: { country: 'us' }
-  });
+  quickLocationAutocomplete = new google.maps.places.Autocomplete(
+    quickLocation,
+    {
+      types: ["geocode"],
+      componentRestrictions: { country: "us" },
+    }
+  );
 
-  quickLocationAutocomplete.addListener('place_changed', async () => {
+  quickLocationAutocomplete.addListener("place_changed", async () => {
     const place = quickLocationAutocomplete?.getPlace();
     if (!place?.geometry) return;
 
-    const zip = extractZipFromPlace(place) || '';
+    const zip = extractZipFromPlace(place) || "";
     const locale = extractLocaleFromComponents(place.address_components ?? []);
 
-    const lat = typeof place.geometry.location?.lat === 'function'
-      ? place.geometry.location.lat()
-      : place.geometry.location?.lat ?? null;
-    const lng = typeof place.geometry.location?.lng === 'function'
-      ? place.geometry.location.lng()
-      : place.geometry.location?.lng ?? null;
+    const lat =
+      typeof place.geometry.location?.lat === "function"
+        ? place.geometry.location.lat()
+        : place.geometry.location?.lat ?? null;
+    const lng =
+      typeof place.geometry.location?.lng === "function"
+        ? place.geometry.location.lng()
+        : place.geometry.location?.lng ?? null;
 
     wizardData.location = {
       ...wizardData.location,
-      formatted_address: place.formatted_address ?? zip ?? '',
-      address: place.formatted_address ?? zip ?? '',
+      formatted_address: place.formatted_address ?? zip ?? "",
+      address: place.formatted_address ?? zip ?? "",
       zip,
       lat,
       lng,
       stateCode: locale.stateCode,
-      countyName: locale.countyName
+      countyName: locale.countyName,
     };
 
-    quickLocation.value = place.formatted_address ?? zip ?? '';
+    quickLocation.value = place.formatted_address ?? zip ?? "";
 
-    const wizardLocationInput = document.getElementById('user-location');
+    const wizardLocationInput = document.getElementById("user-location");
     if (wizardLocationInput) {
-      wizardLocationInput.value = place.formatted_address ?? zip ?? '';
+      wizardLocationInput.value = place.formatted_address ?? zip ?? "";
       const hint = wizardLocationInput.nextElementSibling;
       if (hint) {
-        hint.textContent = `✓ Using: ${zip || 'your location'}`;
-        hint.style.color = 'var(--success)';
+        hint.textContent = `✓ Using: ${zip || "your location"}`;
+        hint.style.color = "var(--success)";
       }
     }
 
@@ -7092,19 +9777,16 @@ function setupQuickLocationAutocomplete() {
     try {
       await populateYearDropdowns();
     } catch (error) {
-      console.error('[quick-entry] Unable to refresh year dropdowns after location selection', error);
+      // Error refreshing year dropdowns
     }
-
-    console.log('[quick-location] Location selected with coordinates:', { lat, lng });
 
     // If a vehicle is already selected, refresh the card to show map
     if (selectedVehicle) {
-      console.log('[quick-location] Re-displaying vehicle card with coordinates');
       displayQuickVehicleCard(selectedVehicle);
     }
 
     autoCalculateQuick().catch((error) => {
-      console.error('[quick-entry] Unable to recalculate after quick location change', error);
+      // Error recalculating
     });
   });
 
@@ -7113,11 +9795,11 @@ function setupQuickLocationAutocomplete() {
 
 function setupQuickLocationManualFallback() {
   if (quickLocationManualHandlerAttached) return;
-  const quickLocation = document.getElementById('quick-location');
+  const quickLocation = document.getElementById("quick-location");
   if (!quickLocation) return;
 
   quickLocationManualHandlerAttached = true;
-  quickLocation.addEventListener('input', async (event) => {
+  quickLocation.addEventListener("input", async (event) => {
     const value = event.target.value.trim();
     if (!/^\d{5}$/.test(value)) return;
 
@@ -7125,45 +9807,48 @@ function setupQuickLocationManualFallback() {
       ...wizardData.location,
       zip: value,
       formatted_address: value,
-      address: value
+      address: value,
     };
 
-    const wizardLocationInput = document.getElementById('user-location');
+    const wizardLocationInput = document.getElementById("user-location");
     if (wizardLocationInput) {
       wizardLocationInput.value = value;
       const hint = wizardLocationInput.nextElementSibling;
       if (hint) {
         hint.textContent = `✓ Using ZIP: ${value}`;
-        hint.style.color = 'var(--success)';
+        hint.style.color = "var(--success)";
       }
     }
 
     if (google?.maps?.Geocoder) {
       const geocoder = new google.maps.Geocoder();
       geocoder.geocode({ address: value }, (results, status) => {
-        if (status === 'OK' && results?.length) {
+        if (status === "OK" && results?.length) {
           const components = results[0].address_components ?? [];
           const locale = extractLocaleFromComponents(components);
 
           // Extract lat/lng from geometry
           const location = results[0].geometry?.location;
-          const lat = typeof location?.lat === 'function' ? location.lat() : location?.lat ?? null;
-          const lng = typeof location?.lng === 'function' ? location.lng() : location?.lng ?? null;
+          const lat =
+            typeof location?.lat === "function"
+              ? location.lat()
+              : location?.lat ?? null;
+          const lng =
+            typeof location?.lng === "function"
+              ? location.lng()
+              : location?.lng ?? null;
 
           wizardData.location = {
             ...wizardData.location,
             lat,
             lng,
             stateCode: locale.stateCode,
-            countyName: locale.countyName
+            countyName: locale.countyName,
           };
           applyLocaleToFees(locale);
 
-          console.log('[quick-location] Geocoded ZIP to coordinates:', { lat, lng, zip: value });
-
           // If a vehicle is already selected, update the display to show map
           if (selectedVehicle) {
-            console.log('[quick-location] Re-displaying vehicle card with coordinates');
             displayQuickVehicleCard(selectedVehicle);
           }
         }
@@ -7173,11 +9858,11 @@ function setupQuickLocationManualFallback() {
     try {
       await populateYearDropdowns();
     } catch (error) {
-      console.error('[quick-entry] Unable to refresh year dropdowns after manual ZIP entry', error);
+      // Error refreshing year dropdowns
     }
 
     autoCalculateQuick().catch((error) => {
-      console.error('[quick-entry] Unable to recalculate after manual quick ZIP entry', error);
+      // Error recalculating
     });
   });
 }
@@ -7192,7 +9877,7 @@ function setupQuickLocationManualFallback() {
  */
 async function getDrivingDistance(originLat, originLon, destLat, destLon) {
   if (!window.google?.maps?.DistanceMatrixService) {
-    console.warn('[distance-api] Google Distance Matrix API not available');
+    console.warn("[distance-api] Google Distance Matrix API not available");
     return null;
   }
 
@@ -7202,26 +9887,32 @@ async function getDrivingDistance(originLat, originLon, destLat, destLon) {
       origins: [new google.maps.LatLng(originLat, originLon)],
       destinations: [new google.maps.LatLng(destLat, destLon)],
       travelMode: google.maps.TravelMode.DRIVING,
-      unitSystem: google.maps.UnitSystem.IMPERIAL
+      unitSystem: google.maps.UnitSystem.IMPERIAL,
     };
 
     return new Promise((resolve) => {
       service.getDistanceMatrix(request, (response, status) => {
-        if (status === 'OK' && response?.rows?.[0]?.elements?.[0]?.status === 'OK') {
+        if (
+          status === "OK" &&
+          response?.rows?.[0]?.elements?.[0]?.status === "OK"
+        ) {
           const element = response.rows[0].elements[0];
           resolve({
             distance: element.distance.text, // e.g., "10.5 mi"
             duration: element.duration.text, // e.g., "15 mins"
-            distanceMiles: element.distance.value / 1609.34 // Convert meters to miles
+            distanceMiles: element.distance.value / 1609.34, // Convert meters to miles
           });
         } else {
-          console.warn('[distance-api] Distance Matrix request failed:', status);
+          console.warn(
+            "[distance-api] Distance Matrix request failed:",
+            status
+          );
           resolve(null);
         }
       });
     });
   } catch (error) {
-    console.error('[distance-api] Error getting distance:', error);
+    console.error("[distance-api] Error getting distance:", error);
     return null;
   }
 }
@@ -7234,24 +9925,30 @@ async function getDrivingDistance(originLat, originLon, destLat, destLon) {
  * @param {number} destLon - Dealer's longitude
  * @param {string} dealerName - Dealer's name for marker label
  */
-async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon, dealerName = 'Dealer') {
-  const mapContainer = document.getElementById('quick-dealer-map-container');
-  const mapElement = document.getElementById('quick-dealer-map');
+async function displayDealerMapWithRoute(
+  originLat,
+  originLon,
+  destLat,
+  destLon,
+  dealerName = "Dealer"
+) {
+  const mapContainer = document.getElementById("quick-dealer-map-container");
+  const mapElement = document.getElementById("quick-dealer-map");
 
   if (!mapContainer || !mapElement) {
-    console.warn('[dealer-map] Map container elements not found');
+    console.warn("[dealer-map] Map container elements not found");
     return;
   }
 
   if (!window.google?.maps) {
-    console.warn('[dealer-map] Google Maps API not loaded');
-    mapContainer.style.display = 'none';
+    console.warn("[dealer-map] Google Maps API not loaded");
+    mapContainer.style.display = "none";
     return;
   }
 
   try {
     // Show the map container
-    mapContainer.style.display = 'block';
+    mapContainer.style.display = "block";
 
     // Initialize map centered between origin and destination
     const centerLat = (originLat + destLat) / 2;
@@ -7263,7 +9960,7 @@ async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon,
         zoom: 10,
         mapTypeControl: false,
         streetViewControl: false,
-        fullscreenControl: true
+        fullscreenControl: true,
       });
     }
 
@@ -7280,25 +9977,24 @@ async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon,
       map: dealerMap,
       suppressMarkers: false,
       polylineOptions: {
-        strokeColor: '#4F46E5',
+        strokeColor: "#4F46E5",
         strokeWeight: 5,
-        strokeOpacity: 0.8
-      }
+        strokeOpacity: 0.8,
+      },
     });
 
     // Request directions
     const request = {
       origin: new google.maps.LatLng(originLat, originLon),
       destination: new google.maps.LatLng(destLat, destLon),
-      travelMode: google.maps.TravelMode.DRIVING
+      travelMode: google.maps.TravelMode.DRIVING,
     };
 
     directionsService.route(request, (result, status) => {
-      if (status === 'OK' && result) {
+      if (status === "OK" && result) {
         directionsRenderer.setDirections(result);
-        console.log('[dealer-map] Route displayed successfully');
       } else {
-        console.error('[dealer-map] Directions request failed:', status);
+        console.error("[dealer-map] Directions request failed:", status);
 
         // Fall back to showing markers without route
         dealerMap.setCenter({ lat: centerLat, lng: centerLon });
@@ -7307,8 +10003,8 @@ async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon,
         new google.maps.Marker({
           position: { lat: originLat, lng: originLon },
           map: dealerMap,
-          title: 'Your Location',
-          label: 'A'
+          title: "Your Location",
+          label: "A",
         });
 
         // Add destination marker
@@ -7316,12 +10012,12 @@ async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon,
           position: { lat: destLat, lng: destLon },
           map: dealerMap,
           title: dealerName,
-          label: 'B'
+          label: "B",
         });
       }
     });
   } catch (error) {
-    console.error('[dealer-map] Error displaying map:', error);
+    console.error("[dealer-map] Error displaying map:", error);
   }
 }
 
@@ -7329,9 +10025,9 @@ async function displayDealerMapWithRoute(originLat, originLon, destLat, destLon,
  * Hide the dealer map
  */
 function hideDealerMap() {
-  const mapContainer = document.getElementById('quick-dealer-map-container');
+  const mapContainer = document.getElementById("quick-dealer-map-container");
   if (mapContainer) {
-    mapContainer.style.display = 'none';
+    mapContainer.style.display = "none";
   }
 
   // Clean up directions renderer
@@ -7341,125 +10037,183 @@ function hideDealerMap() {
 }
 
 /**
- * Toggle trade-in fields in Quick Entry mode
+ * Trade-in modal helpers (manual entry fallback for quick mode)
  */
-// Trade-in modal state
 let tradeInData = {
-  vin: '',
-  year: '',
-  make: '',
-  model: '',
-  trim: '',
-  mileage: '',
+  vin: "",
+  year: "",
+  make: "",
+  model: "",
+  trim: "",
+  mileage: 0,
   value: 0,
-  payoff: 0
+  payoff: 0,
 };
 
-/**
- * Open trade-in modal
- */
-function openTradeInModal(checked) {
-  const checkbox = document.getElementById('quick-has-tradein');
-  const modal = document.getElementById('tradein-modal');
+function openTradeInModal() {
+  const modal = document.getElementById("tradein-modal");
+  if (!modal) return;
 
-  if (!checked) {
-    // User unchecked - clear trade-in
-    checkbox.checked = false;
-    tradeInData = { vin: '', year: '', make: '', model: '', trim: '', mileage: '', value: 0, payoff: 0 };
-    document.getElementById('quick-tradein-summary').style.display = 'none';
-    document.getElementById('quick-tradein-value').value = '0';
-    document.getElementById('quick-tradein-payoff').value = '0';
-    autoCalculateQuick();
-    return;
+  const existingTrade = wizardData.tradein?.hasTradeIn
+    ? wizardData.tradein
+    : null;
+  const existingVehicle =
+    Array.isArray(wizardData.trade?.vehicles) &&
+    wizardData.trade.vehicles.length
+      ? wizardData.trade.vehicles[0]
+      : null;
+
+  if (existingTrade) {
+    tradeInData = {
+      ...tradeInData,
+      value: parseCurrencyToNumber(existingTrade.tradeValue),
+      payoff: parseCurrencyToNumber(existingTrade.tradePayoff),
+    };
+    if (existingTrade.manualDetails) {
+      tradeInData = {
+        ...tradeInData,
+        ...existingTrade.manualDetails,
+      };
+    }
   }
 
-  // Populate modal with existing data
-  document.getElementById('tradein-vin').value = tradeInData.vin || '';
-  document.getElementById('tradein-year').value = tradeInData.year || '';
-  document.getElementById('tradein-make').value = tradeInData.make || '';
-  document.getElementById('tradein-model').value = tradeInData.model || '';
-  document.getElementById('tradein-trim').value = tradeInData.trim || '';
-  document.getElementById('tradein-mileage').value = tradeInData.mileage ? formatMileage(tradeInData.mileage) : '';
-  document.getElementById('tradein-value-modal').value = tradeInData.value ? formatCurrency(tradeInData.value) : '';
-  document.getElementById('tradein-payoff-modal').value = tradeInData.payoff ? formatCurrency(tradeInData.payoff) : '';
+  if (!existingTrade?.manualDetails && existingVehicle) {
+    tradeInData = {
+      ...tradeInData,
+      vin: existingVehicle.vin || tradeInData.vin,
+      year: existingVehicle.year || tradeInData.year,
+      make: existingVehicle.make || tradeInData.make,
+      model: existingVehicle.model || tradeInData.model,
+      trim: existingVehicle.trim || tradeInData.trim,
+      mileage: existingVehicle.mileage || tradeInData.mileage,
+    };
+  }
 
-  modal.style.display = 'flex';
+  const populate = (id, value) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = value ?? "";
+  };
+
+  populate("tradein-vin", tradeInData.vin || "");
+  populate("tradein-year", tradeInData.year || "");
+  populate("tradein-make", tradeInData.make || "");
+  populate("tradein-model", tradeInData.model || "");
+  populate("tradein-trim", tradeInData.trim || "");
+
+  const mileageField = document.getElementById("tradein-mileage");
+  if (mileageField) {
+    mileageField.value = tradeInData.mileage
+      ? formatMileage(tradeInData.mileage)
+      : "";
+  }
+
+  const valueField = document.getElementById("tradein-value-modal");
+  if (valueField) {
+    valueField.value = tradeInData.value
+      ? formatCurrency(tradeInData.value)
+      : "";
+  }
+
+  const payoffField = document.getElementById("tradein-payoff-modal");
+  if (payoffField) {
+    payoffField.value = tradeInData.payoff
+      ? formatCurrency(tradeInData.payoff)
+      : "";
+  }
+
+  modal.style.display = "flex";
 }
 window.openTradeInModal = openTradeInModal;
 
-/**
- * Close trade-in modal
- */
 function closeTradeInModal() {
-  const modal = document.getElementById('tradein-modal');
-  const checkbox = document.getElementById('quick-has-tradein');
-
-  // If no trade-in data was saved, uncheck the box
-  if (!tradeInData.value || tradeInData.value === 0) {
-    checkbox.checked = false;
-    document.getElementById('quick-tradein-summary').style.display = 'none';
+  const modal = document.getElementById("tradein-modal");
+  if (modal) {
+    modal.style.display = "none";
   }
-
-  modal.style.display = 'none';
 }
 window.closeTradeInModal = closeTradeInModal;
 
-/**
- * Save trade-in details from modal
- */
 function saveTradeInDetails() {
-  const vin = document.getElementById('tradein-vin').value.trim();
-  const year = document.getElementById('tradein-year').value.trim();
-  const make = document.getElementById('tradein-make').value.trim();
-  const model = document.getElementById('tradein-model').value.trim();
-  const trim = document.getElementById('tradein-trim').value.trim();
-  const mileage = parseCurrency(document.getElementById('tradein-mileage').value);
-  const value = parseCurrency(document.getElementById('tradein-value-modal').value);
-  const payoff = parseCurrency(document.getElementById('tradein-payoff-modal').value);
+  const getValue = (id) => document.getElementById(id)?.value ?? "";
 
-  // Only validate that trade-in value is set if any field has data
-  const hasAnyData = vin || year || make || model || trim || mileage || value || payoff;
+  const vin = getValue("tradein-vin").trim();
+  const year = getValue("tradein-year").trim();
+  const make = getValue("tradein-make").trim();
+  const model = getValue("tradein-model").trim();
+  const trim = getValue("tradein-trim").trim();
+  const mileage = parseCurrency(getValue("tradein-mileage")) || 0;
+  const value = parseCurrency(getValue("tradein-value-modal"));
+  const payoff = parseCurrency(getValue("tradein-payoff-modal"));
 
+  const hasAnyData =
+    vin || year || make || model || trim || mileage || value || payoff;
   if (hasAnyData && (!value || value <= 0)) {
-    alert('Please enter a trade-in value greater than $0.');
+    alert("Please enter a trade-in value greater than $0.");
     return;
   }
 
-  // Save data
-  tradeInData = { vin, year, make, model, trim, mileage, value, payoff };
+  tradeInData = {
+    vin,
+    year,
+    make,
+    model,
+    trim,
+    mileage,
+    value: value || 0,
+    payoff: payoff || 0,
+  };
 
-  // Update hidden fields for sliders
-  document.getElementById('quick-tradein-value').value = value;
-  document.getElementById('quick-tradein-payoff').value = payoff;
+  const normalizedValue = Math.max(tradeInData.value || 0, 0);
+  const normalizedPayoff = Math.max(tradeInData.payoff || 0, 0);
+  const hasTrade = normalizedValue > 0 || normalizedPayoff > 0;
 
-  // Update summary display - build title from available info
-  const titleParts = [];
-  if (year) titleParts.push(year);
-  if (make) titleParts.push(capitalizeWords(make));
-  if (model) titleParts.push(capitalizeWords(model));
-  if (trim) titleParts.push(capitalizeWords(trim));
-  const summaryTitle = titleParts.length > 0 ? titleParts.join(' ') : 'Trade-In Vehicle';
+  wizardData.tradein = {
+    ...(wizardData.tradein || {}),
+    hasTradeIn: hasTrade,
+    tradeValue: normalizedValue,
+    tradePayoff: normalizedPayoff,
+    manualDetails: { vin, year, make, model, trim, mileage },
+  };
 
-  const netValue = value - payoff;
-  const summaryDetails = `${mileage ? formatMileage(mileage) + ' miles • ' : ''}Value: ${formatCurrency(value)}${payoff > 0 ? ` • Payoff: ${formatCurrency(payoff)}` : ''} • Net: ${formatCurrency(netValue)}`;
+  const existingVehicles = Array.isArray(wizardData.trade?.vehicles)
+    ? wizardData.trade.vehicles
+    : [];
+  const manualVehicle = {
+    vin,
+    year,
+    make,
+    model,
+    trim,
+    mileage,
+    estimated_value: normalizedValue,
+    payoff_amount: normalizedPayoff,
+    nickname: "Manual Trade-In",
+    condition: null,
+  };
 
-  document.getElementById('quick-tradein-summary-title').textContent = summaryTitle;
-  document.getElementById('quick-tradein-summary-details').textContent = summaryDetails;
-  document.getElementById('quick-tradein-summary').style.display = 'block';
+  wizardData.trade = {
+    hasTradeIn: hasTrade,
+    value: normalizedValue,
+    payoff: normalizedPayoff,
+    vehicles: existingVehicles.length
+      ? existingVehicles
+      : hasTrade
+      ? [manualVehicle]
+      : [],
+  };
 
-  // Close modal
+  updateQuickSliderValues();
+  autoCalculateQuick().catch((error) => {
+    console.error(
+      "[tradein-modal] Unable to recalculate after saving trade-in details:",
+      error
+    );
+  });
+
   closeTradeInModal();
-
-  // Recalculate
-  autoCalculateQuick();
 }
 window.saveTradeInDetails = saveTradeInDetails;
-
-function toggleQuickTradeIn(hasTradeIn) {
-  // Legacy function - now handled by openTradeInModal
-  openTradeInModal(hasTradeIn);
-}
-window.toggleQuickTradeIn = toggleQuickTradeIn;
 
 /**
  * Setup auto-calculation for Quick Entry mode
@@ -7467,10 +10221,8 @@ window.toggleQuickTradeIn = toggleQuickTradeIn;
 function setupQuickAutoCalculation() {
   // Currency formatting inputs with slider sync
   const inputSliderMap = [
-    { inputId: 'quick-vehicle-price', sliderId: 'quickSliderSalePrice' },
-    { inputId: 'quick-down-payment', sliderId: 'quickSliderCashDown' },
-    { inputId: 'quick-tradein-value', sliderId: 'quickSliderTradeAllowance' },
-    { inputId: 'quick-tradein-payoff', sliderId: 'quickSliderTradePayoff' }
+    { inputId: "quick-vehicle-price", sliderId: "quickSliderSalePrice" },
+    { inputId: "quick-down-payment", sliderId: "quickSliderCashDown" },
   ];
 
   inputSliderMap.forEach(({ inputId, sliderId }) => {
@@ -7478,8 +10230,8 @@ function setupQuickAutoCalculation() {
     const slider = document.getElementById(sliderId);
     if (element) {
       // Format on blur and sync to slider
-      element.addEventListener('blur', (e) => {
-        const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+      element.addEventListener("blur", (e) => {
+        const rawValue = e.target.value.replace(/[^0-9.-]/g, "");
         const numValue = parseFloat(rawValue);
         if (!isNaN(numValue) && numValue > 0) {
           e.target.value = formatCurrency(numValue);
@@ -7491,7 +10243,6 @@ function setupQuickAutoCalculation() {
             const actualSliderValue = parseFloat(slider.value);
             updateSliderProgress(slider);
             window.sliderOriginalValues[sliderId] = actualSliderValue;
-            console.log(`[input-sync] Set ${sliderId} to ${numValue}, browser rounded to ${actualSliderValue}, stored as originalValue`);
           }
         } else if (numValue === 0) {
           e.target.value = formatCurrency(0);
@@ -7505,25 +10256,20 @@ function setupQuickAutoCalculation() {
       });
 
       // Auto-calculate on change
-      element.addEventListener('change', () => autoCalculateQuick());
+      element.addEventListener("change", () => autoCalculateQuick());
     }
   });
 
   // Non-currency inputs (dropdowns)
-  const selectInputs = ['quick-loan-term', 'quick-credit-score'];
-  selectInputs.forEach(id => {
+  const selectInputs = ["quick-loan-term", "quick-credit-score"];
+  selectInputs.forEach((id) => {
     const element = document.getElementById(id);
     if (element) {
-      element.addEventListener('change', () => autoCalculateQuick());
+      element.addEventListener("change", () => autoCalculateQuick());
     }
   });
 
   // Trade-in checkbox
-  const tradeCheckbox = document.getElementById('quick-has-tradein');
-  if (tradeCheckbox) {
-    tradeCheckbox.addEventListener('change', () => autoCalculateQuick());
-  }
-
   // APR editing controls
   setupAprEditing();
 
@@ -7538,12 +10284,12 @@ function setupQuickAutoCalculation() {
  * Setup APR editing functionality in TIL section
  */
 function setupAprEditing() {
-  const aprValue = document.getElementById('quickTilAPR');
-  const aprArrowLeft = document.getElementById('aprArrowLeft');
-  const aprArrowRight = document.getElementById('aprArrowRight');
+  const aprValue = document.getElementById("quickTilAPR");
+  const aprArrowLeft = document.getElementById("aprArrowLeft");
+  const aprArrowRight = document.getElementById("aprArrowRight");
 
   if (!aprValue || !aprArrowLeft || !aprArrowRight) {
-    console.warn('[apr-editing] APR editing elements not found');
+    console.warn("[apr-editing] APR editing elements not found");
     return;
   }
 
@@ -7561,7 +10307,7 @@ function setupAprEditing() {
 
   // Format APR for display (e.g., 0.0549 -> "5.49%")
   const formatAprForDisplay = (aprDecimal) => {
-    return (aprDecimal * 100).toFixed(2) + '%';
+    return (aprDecimal * 100).toFixed(2) + "%";
   };
 
   // Get current APR value
@@ -7573,7 +10319,7 @@ function setupAprEditing() {
   // Update APR and trigger recalculation
   const updateApr = async (newAprDecimal) => {
     // Clamp to reasonable range (0.01% to 30%)
-    newAprDecimal = Math.max(0.0001, Math.min(0.30, newAprDecimal));
+    newAprDecimal = Math.max(0.0001, Math.min(0.3, newAprDecimal));
 
     // Store the custom APR override
     customAprOverride = newAprDecimal;
@@ -7588,8 +10334,6 @@ function setupAprEditing() {
     if (updateTooltip) {
       updateTooltip();
     }
-
-    console.log('[apr-editing] APR updated to:', formatAprForDisplay(newAprDecimal));
   };
 
   // Increment APR by 0.01%
@@ -7609,53 +10353,53 @@ function setupAprEditing() {
   };
 
   // Click handlers for arrow buttons
-  aprArrowLeft.addEventListener('click', async (e) => {
+  aprArrowLeft.addEventListener("click", async (e) => {
     e.preventDefault();
     await decrementApr();
   });
 
-  aprArrowRight.addEventListener('click', async (e) => {
+  aprArrowRight.addEventListener("click", async (e) => {
     e.preventDefault();
     await incrementApr();
   });
 
   // Keyboard arrow support when APR value is focused
-  aprValue.addEventListener('keydown', async (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+  aprValue.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       e.preventDefault();
       await decrementApr();
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
       await incrementApr();
     }
   });
 
   // Visual feedback on hover
-  aprValue.addEventListener('mouseenter', () => {
-    aprValue.style.cursor = 'pointer';
+  aprValue.addEventListener("mouseenter", () => {
+    aprValue.style.cursor = "pointer";
   });
 
   // APR Tooltip functionality - assign to updateTooltip for real-time updates
   updateTooltip = setupAprTooltip(aprValue);
-
-  console.log('[apr-editing] APR editing setup complete');
 }
 
 /**
  * Setup APR tooltip to show payment impact on hover
  */
 function setupAprTooltip(aprValue) {
-  const tooltip = document.getElementById('aprTooltip');
-  const tooltipPayment = document.getElementById('aprTooltipPayment');
-  const tooltipDiff = document.getElementById('aprTooltipDiff');
-  const valueWrapper = aprValue.closest('.quick-til-value-wrapper');
+  const tooltip = document.getElementById("aprTooltip");
+  const tooltipPayment = document.getElementById("aprTooltipPayment");
+  const tooltipDiff = document.getElementById("aprTooltipDiff");
+  const valueWrapper = aprValue.closest(".quick-til-value-wrapper");
 
   // Finance charge tooltip elements
-  const financeChargeTooltip = document.getElementById('financeChargeTooltip');
-  const financeChargeTooltipDiff = document.getElementById('financeChargeTooltipDiff');
+  const financeChargeTooltip = document.getElementById("financeChargeTooltip");
+  const financeChargeTooltipDiff = document.getElementById(
+    "financeChargeTooltipDiff"
+  );
 
   if (!tooltip || !tooltipPayment || !tooltipDiff || !valueWrapper) {
-    console.warn('[apr-tooltip] Tooltip elements not found');
+    console.warn("[apr-tooltip] Tooltip elements not found");
     return () => {}; // Return empty function
   }
 
@@ -7678,38 +10422,40 @@ function setupAprTooltip(aprValue) {
     }
 
     // Update payment display
-    tooltipPayment.textContent = formatCurrency(currentPayment) + '/mo';
+    tooltipPayment.textContent = formatCurrency(currentPayment) + "/mo";
 
     // Calculate difference from original
     const diff = currentPayment - originalPayment;
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = 'Same as original';
-      tooltipDiff.className = 'apr-tooltip__diff neutral';
+      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable) instead of accounting format
-      const sign = diff > 0 ? '+' : '-';
+      const sign = diff > 0 ? "+" : "-";
       const absDiff = Math.abs(diff);
-      const formattedDiff = absDiff.toLocaleString('en-US', {
+      const formattedDiff = absDiff.toLocaleString("en-US", {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: 0,
       });
       tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
       // Buyer-centric: lower payment = positive (green), higher = negative (red)
-      tooltipDiff.className = diff > 0 ? 'apr-tooltip__diff negative' : 'apr-tooltip__diff positive';
+      tooltipDiff.className =
+        diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
     }
 
-    tooltip.style.display = 'block';
+    tooltip.style.display = "block";
     isTooltipVisible = true;
 
     // Also show finance charge tooltip if available
     if (financeChargeTooltip && financeChargeTooltipDiff) {
       // Get current finance charge from the DOM (already calculated by autoCalculateQuick)
-      const financeChargeEl = document.getElementById('quickTilFinanceCharge');
+      const financeChargeEl = document.getElementById("quickTilFinanceCharge");
       if (!financeChargeEl) return;
 
-      const currentFinanceCharge = parseCurrency(financeChargeEl.textContent) || 0;
+      const currentFinanceCharge =
+        parseCurrency(financeChargeEl.textContent) || 0;
 
       // Set original finance charge if not set yet
       if (originalFinanceCharge === null) {
@@ -7719,49 +10465,49 @@ function setupAprTooltip(aprValue) {
       // Calculate difference from original
       const fcDiff = currentFinanceCharge - originalFinanceCharge;
 
-      // Format difference with buyer-centric color - same format as APR tooltip
+      // Only show finance charge tooltip if there's an actual change
       if (Math.abs(fcDiff) < 1) {
-        financeChargeTooltipDiff.textContent = 'No change';
-        financeChargeTooltipDiff.className = 'finance-charge-tooltip__diff neutral';
+        // Don't show tooltip when there's no change (to avoid blocking interactions)
+        financeChargeTooltip.style.display = "none";
       } else {
         // Format as +/- (human readable) - same as payment tooltip
-        const sign = fcDiff > 0 ? '+' : '';
-        const formattedDiff = Math.abs(fcDiff).toLocaleString('en-US', {
+        const sign = fcDiff > 0 ? "+" : "";
+        const formattedDiff = Math.abs(fcDiff).toLocaleString("en-US", {
           minimumFractionDigits: 0,
-          maximumFractionDigits: 0
+          maximumFractionDigits: 0,
         });
         financeChargeTooltipDiff.textContent = `${sign}$${formattedDiff}`;
         // Buyer-centric: lower finance charge = positive (green), higher = negative (red)
-        financeChargeTooltipDiff.className = fcDiff > 0 ? 'finance-charge-tooltip__diff negative' : 'finance-charge-tooltip__diff positive';
-      }
+        financeChargeTooltipDiff.className =
+          fcDiff > 0
+            ? "finance-charge-tooltip__diff negative"
+            : "finance-charge-tooltip__diff positive";
 
-      financeChargeTooltip.style.display = 'block';
+        financeChargeTooltip.style.display = "block";
+      }
     }
   };
 
   // Hide tooltip
   const hideTooltip = () => {
-    tooltip.style.display = 'none';
+    tooltip.style.display = "none";
     isTooltipVisible = false;
 
     // Also hide finance charge tooltip
     if (financeChargeTooltip) {
-      financeChargeTooltip.style.display = 'none';
+      financeChargeTooltip.style.display = "none";
     }
   };
 
   // Add hover listeners to the entire wrapper (includes arrows and value)
-  valueWrapper.addEventListener('mouseenter', showTooltip);
-  valueWrapper.addEventListener('mouseleave', hideTooltip);
+  valueWrapper.addEventListener("mouseenter", showTooltip);
+  valueWrapper.addEventListener("mouseleave", hideTooltip);
 
   // Reset original values when vehicle or major values change
   window.resetAprTooltipOriginal = () => {
     originalPayment = null;
     originalFinanceCharge = null;
-    console.log('[apr-tooltip] Reset original payment and finance charge baseline');
   };
-
-  console.log('[apr-tooltip] APR tooltip setup complete');
 
   // Return function to update tooltip if it's visible
   return () => {
@@ -7775,12 +10521,12 @@ function setupAprTooltip(aprValue) {
  * Setup Term editing functionality in TIL section
  */
 function setupTermEditing() {
-  const termValue = document.getElementById('quickTilTerm');
-  const termArrowLeft = document.getElementById('termArrowLeft');
-  const termArrowRight = document.getElementById('termArrowRight');
+  const termValue = document.getElementById("quickTilTerm");
+  const termArrowLeft = document.getElementById("termArrowLeft");
+  const termArrowRight = document.getElementById("termArrowRight");
 
   if (!termValue || !termArrowLeft || !termArrowRight) {
-    console.warn('[term-editing] Term editing elements not found');
+    console.warn("[term-editing] Term editing elements not found");
     return;
   }
 
@@ -7807,7 +10553,7 @@ function setupTermEditing() {
     }
 
     // Update the dropdown as well
-    const termDropdown = document.getElementById('quick-loan-term');
+    const termDropdown = document.getElementById("quick-loan-term");
     if (termDropdown) {
       termDropdown.value = newTerm.toString();
     }
@@ -7819,8 +10565,6 @@ function setupTermEditing() {
     if (updateTooltip) {
       updateTooltip();
     }
-
-    console.log('[term-editing] Term updated to:', newTerm);
   };
 
   // Increment term by 6 months
@@ -7840,49 +10584,47 @@ function setupTermEditing() {
   };
 
   // Click handlers for arrow buttons
-  termArrowLeft.addEventListener('click', async (e) => {
+  termArrowLeft.addEventListener("click", async (e) => {
     e.preventDefault();
     await decrementTerm();
   });
 
-  termArrowRight.addEventListener('click', async (e) => {
+  termArrowRight.addEventListener("click", async (e) => {
     e.preventDefault();
     await incrementTerm();
   });
 
   // Keyboard arrow support when term value is focused
-  termValue.addEventListener('keydown', async (e) => {
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+  termValue.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
       e.preventDefault();
       await decrementTerm();
-    } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
       e.preventDefault();
       await incrementTerm();
     }
   });
 
   // Visual feedback on hover
-  termValue.addEventListener('mouseenter', () => {
-    termValue.style.cursor = 'pointer';
+  termValue.addEventListener("mouseenter", () => {
+    termValue.style.cursor = "pointer";
   });
 
   // Term Tooltip functionality - assign to updateTooltip for real-time updates
   updateTooltip = setupTermTooltip(termValue);
-
-  console.log('[term-editing] Term editing setup complete');
 }
 
 /**
  * Setup Term tooltip to show payment impact on hover
  */
 function setupTermTooltip(termValue) {
-  const tooltip = document.getElementById('termTooltip');
-  const tooltipPayment = document.getElementById('termTooltipPayment');
-  const tooltipDiff = document.getElementById('termTooltipDiff');
-  const valueWrapper = termValue.closest('.quick-til-value-wrapper');
+  const tooltip = document.getElementById("termTooltip");
+  const tooltipPayment = document.getElementById("termTooltipPayment");
+  const tooltipDiff = document.getElementById("termTooltipDiff");
+  const valueWrapper = termValue.closest(".quick-til-value-wrapper");
 
   if (!tooltip || !tooltipPayment || !tooltipDiff || !valueWrapper) {
-    console.warn('[term-tooltip] Tooltip elements not found');
+    console.warn("[term-tooltip] Tooltip elements not found");
     return () => {}; // Return empty function
   }
 
@@ -7904,48 +10646,46 @@ function setupTermTooltip(termValue) {
     }
 
     // Update payment display
-    tooltipPayment.textContent = formatCurrency(currentPayment) + '/mo';
+    tooltipPayment.textContent = formatCurrency(currentPayment) + "/mo";
 
     // Calculate difference from original
     const diff = currentPayment - originalPayment;
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = 'Same as original';
-      tooltipDiff.className = 'apr-tooltip__diff neutral';
+      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable)
-      const sign = diff > 0 ? '+' : '';
-      const formattedDiff = Math.abs(diff).toLocaleString('en-US', {
+      const sign = diff > 0 ? "+" : "";
+      const formattedDiff = Math.abs(diff).toLocaleString("en-US", {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: 0,
       });
       tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
       // Buyer-centric: lower payment = positive (green), higher = negative (red)
-      tooltipDiff.className = diff > 0 ? 'apr-tooltip__diff negative' : 'apr-tooltip__diff positive';
+      tooltipDiff.className =
+        diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
     }
 
-    tooltip.style.display = 'block';
+    tooltip.style.display = "block";
     isTooltipVisible = true;
   };
 
   // Hide tooltip
   const hideTooltip = () => {
-    tooltip.style.display = 'none';
+    tooltip.style.display = "none";
     isTooltipVisible = false;
   };
 
   // Add hover listeners to the entire wrapper (includes arrows and value)
-  valueWrapper.addEventListener('mouseenter', showTooltip);
-  valueWrapper.addEventListener('mouseleave', hideTooltip);
+  valueWrapper.addEventListener("mouseenter", showTooltip);
+  valueWrapper.addEventListener("mouseleave", hideTooltip);
 
   // Reset original payment when vehicle or major values change
   window.resetTermTooltipOriginal = () => {
     originalPayment = null;
-    console.log('[term-tooltip] Reset original payment baseline');
   };
-
-  console.log('[term-tooltip] Term tooltip setup complete');
 
   // Return function to update tooltip if it's visible
   return () => {
@@ -7959,13 +10699,19 @@ function setupTermTooltip(termValue) {
  * Setup Monthly Finance Charge tooltip
  */
 function setupMonthlyFinanceChargeTooltip() {
-  const monthlyFCValue = document.getElementById('quickTilMonthlyFinanceCharge');
-  const tooltip = document.getElementById('monthlyFinanceChargeTooltip');
-  const tooltipAmount = document.getElementById('monthlyFinanceChargeTooltipAmount');
-  const tooltipDiff = document.getElementById('monthlyFinanceChargeTooltipDiff');
+  const monthlyFCValue = document.getElementById(
+    "quickTilMonthlyFinanceCharge"
+  );
+  const tooltip = document.getElementById("monthlyFinanceChargeTooltip");
+  const tooltipAmount = document.getElementById(
+    "monthlyFinanceChargeTooltipAmount"
+  );
+  const tooltipDiff = document.getElementById(
+    "monthlyFinanceChargeTooltipDiff"
+  );
 
   if (!monthlyFCValue || !tooltip || !tooltipAmount || !tooltipDiff) {
-    console.warn('[monthly-fc-tooltip] Tooltip elements not found');
+    console.warn("[monthly-fc-tooltip] Tooltip elements not found");
     return;
   }
 
@@ -7987,63 +10733,176 @@ function setupMonthlyFinanceChargeTooltip() {
     }
 
     // Update amount display
-    tooltipAmount.textContent = formatCurrency(currentMonthlyFC) + '/mo';
+    tooltipAmount.textContent = formatCurrency(currentMonthlyFC) + "/mo";
 
     // Calculate difference from original
     const diff = currentMonthlyFC - originalMonthlyFC;
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = 'Same as original';
-      tooltipDiff.className = 'apr-tooltip__diff neutral';
+      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable)
-      const sign = diff > 0 ? '+' : '';
-      const formattedDiff = Math.abs(diff).toLocaleString('en-US', {
+      const sign = diff > 0 ? "+" : "";
+      const formattedDiff = Math.abs(diff).toLocaleString("en-US", {
         minimumFractionDigits: 0,
-        maximumFractionDigits: 0
+        maximumFractionDigits: 0,
       });
       tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
       // Buyer-centric: lower interest = positive (green), higher = negative (red)
-      tooltipDiff.className = diff > 0 ? 'apr-tooltip__diff negative' : 'apr-tooltip__diff positive';
+      tooltipDiff.className =
+        diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
     }
 
-    tooltip.style.display = 'block';
+    tooltip.style.display = "block";
     isTooltipVisible = true;
   };
 
   // Hide tooltip
   const hideTooltip = () => {
-    tooltip.style.display = 'none';
+    tooltip.style.display = "none";
     isTooltipVisible = false;
   };
 
   // Add hover listeners to the monthly finance charge value
-  monthlyFCValue.addEventListener('mouseenter', showTooltip);
-  monthlyFCValue.addEventListener('mouseleave', hideTooltip);
+  monthlyFCValue.addEventListener("mouseenter", showTooltip);
+  monthlyFCValue.addEventListener("mouseleave", hideTooltip);
 
   // Reset original when vehicle or major values change
   window.resetMonthlyFCTooltipOriginal = () => {
     originalMonthlyFC = null;
-    console.log('[monthly-fc-tooltip] Reset original baseline');
   };
-
-  console.log('[monthly-fc-tooltip] Monthly Finance Charge tooltip setup complete');
 }
 
 /**
  * Auto-calculate and update Quick Entry display
  */
+/**
+ * Initialize baseline storage for TIL diffs
+ */
+if (!window.tilBaselines) {
+  window.tilBaselines = {
+    apr: null,
+    financeCharge: null,
+    amountFinanced: null,
+    totalPayments: null,
+    monthlyFinanceCharge: null,
+  };
+}
+
+/**
+ * Reset TIL diff baselines (called when vehicle changes or major reset)
+ */
+window.resetTilBaselines = () => {
+  window.tilBaselines = {
+    apr: null,
+    financeCharge: null,
+    amountFinanced: null,
+    totalPayments: null,
+    monthlyFinanceCharge: null,
+  };
+};
+
+/**
+ * Update TIL diff indicators - shows inline green/red notes with +/- amounts
+ * Buyer-centric: Green = good (lower costs), Red = bad (higher costs)
+ */
+function updateTilDiffIndicators(reviewData, monthlyFinanceCharge) {
+  const baselines = window.tilBaselines;
+
+  // Helper to update a single diff indicator
+  const updateDiff = (
+    elementId,
+    currentValue,
+    baselineKey,
+    formatFn = (v) => v
+  ) => {
+    const diffEl = document.getElementById(elementId);
+    if (!diffEl) return;
+
+    // Set baseline if not yet set
+    if (baselines[baselineKey] === null) {
+      baselines[baselineKey] = currentValue;
+    }
+
+    const baseline = baselines[baselineKey];
+    const diff = currentValue - baseline;
+
+    // Only show if there's a meaningful change (>= $1 or >= 0.01% for APR)
+    const threshold = baselineKey === "apr" ? 0.01 : 1;
+    if (Math.abs(diff) < threshold) {
+      diffEl.style.display = "none";
+      return;
+    }
+
+    // Format the diff
+    const sign = diff > 0 ? "+" : "−"; // Use proper minus sign
+    const absDiff = Math.abs(diff);
+    const formattedDiff = formatFn(absDiff);
+
+    diffEl.textContent = `${sign}${formattedDiff}`;
+
+    // Buyer-centric colors: lower costs = green (positive), higher costs = red (negative)
+    // For all TIL values, lower is better for the buyer
+    if (diff < 0) {
+      diffEl.className = "quick-til-format-note positive"; // Green - value decreased (good)
+    } else {
+      diffEl.className = "quick-til-format-note negative"; // Red - value increased (bad)
+    }
+
+    diffEl.style.display = "block";
+  };
+
+  // Update each TIL diff indicator
+  updateDiff("aprDiff", reviewData.apr, "apr", (v) => formatPercent(v));
+  updateDiff(
+    "financeChargeDiff",
+    reviewData.financeCharge,
+    "financeCharge",
+    (v) => formatCurrency(v)
+  );
+  updateDiff(
+    "amountFinancedDiff",
+    reviewData.amountFinanced,
+    "amountFinanced",
+    (v) => formatCurrency(v)
+  );
+  updateDiff(
+    "totalPaymentsDiff",
+    reviewData.totalPayments,
+    "totalPayments",
+    (v) => formatCurrency(v)
+  );
+  updateDiff(
+    "monthlyFinanceChargeDiff",
+    monthlyFinanceCharge,
+    "monthlyFinanceCharge",
+    (v) => formatCurrency(v)
+  );
+}
+
 async function autoCalculateQuick() {
   // Gather all inputs
-  const quickVehiclePrice = parseCurrency(document.getElementById('quick-vehicle-price')?.value);
-  const quickDownPayment = parseCurrency(document.getElementById('quick-down-payment')?.value);
-  const quickLoanTerm = parseInt(document.getElementById('quick-loan-term')?.value);
-  const quickCreditScore = document.getElementById('quick-credit-score')?.value;
-  const quickHasTradeIn = document.getElementById('quick-has-tradein')?.checked;
+  const quickVehiclePrice = parseCurrency(
+    document.getElementById("quick-vehicle-price")?.value
+  );
+  const quickDownPayment = parseCurrency(
+    document.getElementById("quick-down-payment")?.value
+  );
+  const quickLoanTerm = parseInt(
+    document.getElementById("quick-loan-term")?.value
+  );
+  const quickCreditScore = document.getElementById("quick-credit-score")?.value;
+  const quickHasTradeInEl = document.getElementById("quick-has-tradein");
 
   // Only calculate if we have the minimum required inputs
-  if (!quickVehiclePrice || quickVehiclePrice <= 0 || !quickLoanTerm || !quickCreditScore) {
+  if (
+    !quickVehiclePrice ||
+    quickVehiclePrice <= 0 ||
+    !quickLoanTerm ||
+    !quickCreditScore
+  ) {
     return; // Silently return, don't show alerts
   }
 
@@ -8052,28 +10911,85 @@ async function autoCalculateQuick() {
     salePrice: quickVehiclePrice,
     cashDown: quickDownPayment || 0,
     term: quickLoanTerm,
-    creditScoreRange: quickCreditScore
+    creditScoreRange: quickCreditScore,
   };
 
   // Update trade-in data
-  const quickTradeValue = parseCurrency(document.getElementById('quick-tradein-value')?.value);
-  const quickTradePayoff = parseCurrency(document.getElementById('quick-tradein-payoff')?.value);
+  const tradeAllowanceSlider = document.getElementById(
+    "quickSliderTradeAllowance"
+  );
+  const tradePayoffSlider = document.getElementById("quickSliderTradePayoff");
+
+  const existingTradein = wizardData.tradein || {};
+
+  const resolveSliderValue = (sliderEl) => {
+    if (!sliderEl) return null;
+    const parsed = parseFloat(sliderEl.value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  let quickTradeValue = resolveSliderValue(tradeAllowanceSlider);
+  if (quickTradeValue === null) {
+    quickTradeValue = parseCurrencyToNumber(existingTradein.tradeValue);
+  }
+
+  let quickTradePayoff = resolveSliderValue(tradePayoffSlider);
+  if (quickTradePayoff === null) {
+    quickTradePayoff = parseCurrencyToNumber(existingTradein.tradePayoff);
+  }
+
+  const quickHasTradeIn =
+    quickHasTradeInEl?.checked ?? !!existingTradein.hasTradeIn;
 
   // Consider trade-in active if checkbox is checked OR if any trade values are non-zero
-  const hasActiveTradeIn = quickHasTradeIn || (quickTradeValue > 0) || (quickTradePayoff > 0);
+  const hasActiveTradeIn =
+    quickHasTradeIn || quickTradeValue > 0 || quickTradePayoff > 0;
 
   if (hasActiveTradeIn) {
+    const normalizedValue = Math.max(quickTradeValue || 0, 0);
+    const normalizedPayoff = Math.max(quickTradePayoff || 0, 0);
+
     wizardData.tradein = {
+      ...existingTradein,
       hasTradeIn: true,
-      tradeValue: quickTradeValue || 0,
-      tradePayoff: quickTradePayoff || 0
+      tradeValue: normalizedValue,
+      tradePayoff: normalizedPayoff,
     };
+
+    if (
+      wizardData.trade &&
+      Array.isArray(wizardData.trade.vehicles) &&
+      wizardData.trade.vehicles.length > 0
+    ) {
+      wizardData.trade.hasTradeIn = true;
+      wizardData.trade.value = normalizedValue;
+      wizardData.trade.payoff = normalizedPayoff;
+    } else {
+      wizardData.trade = {
+        hasTradeIn: true,
+        value: normalizedValue,
+        payoff: normalizedPayoff,
+      };
+    }
   } else {
     wizardData.tradein = {
+      ...existingTradein,
       hasTradeIn: false,
       tradeValue: 0,
-      tradePayoff: 0
+      tradePayoff: 0,
     };
+
+    if (
+      wizardData.trade &&
+      Array.isArray(wizardData.trade.vehicles) &&
+      wizardData.trade.vehicles.length > 0
+    ) {
+      wizardData.trade.hasTradeIn = false;
+      wizardData.trade.value = 0;
+      wizardData.trade.payoff = 0;
+    } else {
+      wizardData.trade = null;
+    }
   }
 
   try {
@@ -8081,33 +10997,27 @@ async function autoCalculateQuick() {
     const reviewData = await computeReviewData();
 
     // Display main results
-    setText('quickMonthlyPayment', formatCurrency(reviewData.monthlyPayment));
-    setText('quickTerm', `${reviewData.term} months`);
-    setText('quickAPR', formatPercent(reviewData.apr));
+    setText("quickMonthlyPayment", formatCurrency(reviewData.monthlyPayment));
+    setText("quickTerm", `${reviewData.term} months`);
+    setText("quickAPR", formatPercent(reviewData.apr));
 
     // Display lender info in payment hero OR custom APR badge
-    const lenderInfoEl = document.getElementById('quickLenderInfo');
-    const lenderNameEl = document.getElementById('quickLenderName');
-    const lenderDateEl = document.getElementById('quickLenderDate');
-    const lenderDateSeparator = document.getElementById('quickLenderDateSeparator');
-    const customAprBadge = document.getElementById('quickCustomAprBadge');
-
-    console.log('[hero] Updating lender hero:', {
-      lenderName: reviewData.lenderName,
-      effectiveDate: reviewData.lenderEffectiveDate,
-      lenderId: reviewData.lenderId,
-      customAprOverride: customAprOverride
-    });
+    const lenderInfoEl = document.getElementById("quickLenderInfo");
+    const lenderNameEl = document.getElementById("quickLenderName");
+    const lenderDateEl = document.getElementById("quickLenderDate");
+    const lenderDateSeparator = document.getElementById(
+      "quickLenderDateSeparator"
+    );
+    const customAprBadge = document.getElementById("quickCustomAprBadge");
 
     // Check if using custom APR
     if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
       // Hide lender info, show custom APR badge
-      if (lenderInfoEl) lenderInfoEl.style.display = 'none';
-      if (customAprBadge) customAprBadge.style.display = 'flex';
-      console.log('[hero] Displaying custom APR badge');
+      if (lenderInfoEl) lenderInfoEl.style.display = "none";
+      if (customAprBadge) customAprBadge.style.display = "flex";
     } else {
       // Hide custom APR badge, show lender info
-      if (customAprBadge) customAprBadge.style.display = 'none';
+      if (customAprBadge) customAprBadge.style.display = "none";
 
       if (lenderInfoEl && lenderNameEl && reviewData.lenderName) {
         lenderNameEl.textContent = reviewData.lenderName;
@@ -8116,78 +11026,107 @@ async function autoCalculateQuick() {
           // Format date nicely (e.g., "2025-11-04" -> "Nov 4, 2025")
           try {
             const date = new Date(reviewData.lenderEffectiveDate);
-            const formatted = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const formatted = date.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
             lenderDateEl.textContent = `Rates as of ${formatted}`;
           } catch {
             lenderDateEl.textContent = `Rates as of ${reviewData.lenderEffectiveDate}`;
           }
-          if (lenderDateSeparator) lenderDateSeparator.style.display = 'inline';
+          if (lenderDateSeparator) lenderDateSeparator.style.display = "inline";
         } else {
-          if (lenderDateEl) lenderDateEl.textContent = '';
-          if (lenderDateSeparator) lenderDateSeparator.style.display = 'none';
+          if (lenderDateEl) lenderDateEl.textContent = "";
+          if (lenderDateSeparator) lenderDateSeparator.style.display = "none";
         }
 
-        lenderInfoEl.style.display = 'flex';
+        lenderInfoEl.style.display = "flex";
       } else if (lenderInfoEl) {
-        lenderInfoEl.style.display = 'none';
+        lenderInfoEl.style.display = "none";
       }
     }
 
     // Display effective date inline under lender dropdown (hide if custom APR)
-    const lenderEffectiveDateEl = document.getElementById('lender-effective-date');
-    const lenderEffectiveDateValue = document.getElementById('lender-effective-date-value');
+    const lenderEffectiveDateEl = document.getElementById(
+      "lender-effective-date"
+    );
+    const lenderEffectiveDateValue = document.getElementById(
+      "lender-effective-date-value"
+    );
 
     if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
       // Hide effective date when using custom APR
-      if (lenderEffectiveDateEl) lenderEffectiveDateEl.style.display = 'none';
-    } else if (lenderEffectiveDateEl && lenderEffectiveDateValue && reviewData.lenderEffectiveDate) {
+      if (lenderEffectiveDateEl) lenderEffectiveDateEl.style.display = "none";
+    } else if (
+      lenderEffectiveDateEl &&
+      lenderEffectiveDateValue &&
+      reviewData.lenderEffectiveDate
+    ) {
       lenderEffectiveDateValue.textContent = reviewData.lenderEffectiveDate;
-      lenderEffectiveDateEl.style.display = 'block';
+      lenderEffectiveDateEl.style.display = "block";
     } else if (lenderEffectiveDateEl) {
-      lenderEffectiveDateEl.style.display = 'none';
+      lenderEffectiveDateEl.style.display = "none";
     }
 
     // Display TIL cards
-    setText('quickTilAPR', formatPercent(reviewData.apr));
-    setText('quickTilFinanceCharge', formatCurrency(reviewData.financeCharge));
-    setText('quickTilAmountFinanced', formatCurrency(reviewData.amountFinanced));
-    setText('quickTilTotalPayments', formatCurrency(reviewData.totalPayments));
-    setText('quickTilTerm', reviewData.term.toString());
+    setText("quickTilAPR", formatPercent(reviewData.apr));
+    setText("quickTilFinanceCharge", formatCurrency(reviewData.financeCharge));
+    setText(
+      "quickTilAmountFinanced",
+      formatCurrency(reviewData.amountFinanced)
+    );
+    setText("quickTilTotalPayments", formatCurrency(reviewData.totalPayments));
+    setText("quickTilTerm", reviewData.term.toString());
 
     // Calculate and display Monthly Finance Charge (interest portion per month)
-    const monthlyFinanceCharge = reviewData.term > 0 ? reviewData.financeCharge / reviewData.term : 0;
-    setText('quickTilMonthlyFinanceCharge', formatCurrency(monthlyFinanceCharge));
+    const monthlyFinanceCharge =
+      reviewData.term > 0 ? reviewData.financeCharge / reviewData.term : 0;
+    setText(
+      "quickTilMonthlyFinanceCharge",
+      formatCurrency(monthlyFinanceCharge)
+    );
+
+    // Update TIL diff indicators
+    updateTilDiffIndicators(reviewData, monthlyFinanceCharge);
 
     // Display calculation breakdown values (read-only mirrors of slider values)
-    setText('quickCalcSalePrice', formatCurrency(reviewData.salePrice));
-    setText('quickCalcCashDown', formatCurrency(reviewData.cashDown));
-    setText('quickCalcTradeAllowance', formatCurrency(reviewData.tradeOffer));
-    setText('quickCalcTradePayoff', formatCurrency(reviewData.tradePayoff));
-    setText('quickCalcDealerFees', formatCurrency(reviewData.totalDealerFees));
-    setText('quickCalcCustomerAddons', formatCurrency(reviewData.totalCustomerAddons));
+    setText("quickCalcSalePrice", formatCurrency(reviewData.salePrice));
+    setText("quickCalcCashDown", formatCurrency(reviewData.cashDown));
+    setText("quickCalcTradeAllowance", formatCurrency(reviewData.tradeOffer));
+    setText("quickCalcTradePayoff", formatCurrency(reviewData.tradePayoff));
+    setText("quickCalcDealerFees", formatCurrency(reviewData.totalDealerFees));
+    setText(
+      "quickCalcCustomerAddons",
+      formatCurrency(reviewData.totalCustomerAddons)
+    );
 
     // Display itemization values (read-only)
-    setText('quickNetTrade', formatCurrencyAccounting(reviewData.netTrade));
-    setText('quickUnpaidBalance', formatCurrency(reviewData.unpaidBalance));
-    setText('quickOtherCharges', formatCurrency(reviewData.sumOtherCharges));
-    setText('quickGovtFees', formatCurrency(reviewData.totalGovtFees));
-    setText('quickStateTax', formatCurrency(reviewData.stateTaxTotal));
-    setText('quickCountyTax', formatCurrency(reviewData.countyTaxTotal));
-    setText('quickSaleTaxTotal', formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal));
-    setText('quickAmountFinancedTotal', formatCurrency(reviewData.amountFinanced));
+    setText("quickNetTrade", formatCurrencyAccounting(reviewData.netTrade));
+    setText("quickUnpaidBalance", formatCurrency(reviewData.unpaidBalance));
+    setText("quickOtherCharges", formatCurrency(reviewData.sumOtherCharges));
+    setText("quickGovtFees", formatCurrency(reviewData.totalGovtFees));
+    setText("quickStateTax", formatCurrency(reviewData.stateTaxTotal));
+    setText("quickCountyTax", formatCurrency(reviewData.countyTaxTotal));
+    setText(
+      "quickSaleTaxTotal",
+      formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal)
+    );
+    setText(
+      "quickAmountFinancedTotal",
+      formatCurrency(reviewData.amountFinanced)
+    );
 
     // Update tax labels with state/county info
     updateTaxLabels();
 
     // Display cash due
-    setText('quickCashDueHighlight', formatCurrency(reviewData.cashDue));
+    setText("quickCashDueHighlight", formatCurrency(reviewData.cashDue));
 
     // NOTE: Don't call updateQuickSliderValues() here - sliders are the source of truth
     // and calling it resets the original values causing diff indicators to disappear
-
-    console.log('[quick-entry] Auto-calculation complete - Monthly Payment:', formatCurrency(reviewData.monthlyPayment));
   } catch (error) {
-    console.error('[quick-entry] Calculation error:', error);
+    console.error("Calculation error:", error);
   }
 }
 
@@ -8197,27 +11136,80 @@ async function autoCalculateQuick() {
 function updateTaxLabels() {
   ensureWizardFeeDefaults();
 
-  const stateCode = wizardData.location?.stateCode || '';
-  const countyName = wizardData.location?.countyName || '';
+  const stateCode = wizardData.location?.stateCode || "";
+  const countyName = wizardData.location?.countyName || "";
   const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
   const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
 
-  const stateTaxLabel = document.getElementById('quickStateTaxLabel');
-  const countyTaxLabel = document.getElementById('quickCountyTaxLabel');
+  // Update quick entry tax labels
+  const stateTaxLabel = document.getElementById("quickStateTaxLabel");
+  const countyTaxLabel = document.getElementById("quickCountyTaxLabel");
 
   if (stateTaxLabel) {
     if (stateCode) {
-      stateTaxLabel.textContent = `${stateCode} State Tax (${stateTaxRate.toFixed(2)}%)`;
+      stateTaxLabel.textContent = `${stateCode} State Tax (${stateTaxRate.toFixed(
+        2
+      )}%)`;
     } else {
-      stateTaxLabel.innerHTML = `State Tax (${stateTaxRate.toFixed(2)}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+      stateTaxLabel.innerHTML = `State Tax (${stateTaxRate.toFixed(
+        2
+      )}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
     }
   }
 
   if (countyTaxLabel) {
     if (countyName) {
-      countyTaxLabel.textContent = `${countyName} County Tax (${countyTaxRate.toFixed(2)}%)`;
+      countyTaxLabel.textContent = `${countyName} County Tax (${countyTaxRate.toFixed(
+        2
+      )}%)`;
     } else {
-      countyTaxLabel.innerHTML = `County Tax (${countyTaxRate.toFixed(2)}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+      countyTaxLabel.innerHTML = `County Tax (${countyTaxRate.toFixed(
+        2
+      )}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+    }
+  }
+
+  // Update fees modal tax labels
+  const modalStateTaxLabel = document.getElementById("modalStateTaxLabel");
+  const modalCountyTaxLabel = document.getElementById("modalCountyTaxLabel");
+
+  if (modalStateTaxLabel) {
+    if (stateCode) {
+      modalStateTaxLabel.textContent = `State Tax Rate (${stateCode})`;
+    } else {
+      modalStateTaxLabel.textContent = "State Tax Rate";
+    }
+  }
+
+  if (modalCountyTaxLabel) {
+    if (countyName) {
+      modalCountyTaxLabel.textContent = `County Tax Rate (${countyName})`;
+    } else {
+      modalCountyTaxLabel.textContent = "County Tax Rate";
+    }
+  }
+
+  // Update contract tax labels
+  const contractStateTaxLabel = document.getElementById(
+    "contractStateTaxLabel"
+  );
+  const contractCountyTaxLabel = document.getElementById(
+    "contractCountyTaxLabel"
+  );
+
+  if (contractStateTaxLabel) {
+    if (stateCode) {
+      contractStateTaxLabel.textContent = `${stateCode} State Tax`;
+    } else {
+      contractStateTaxLabel.textContent = "State Tax";
+    }
+  }
+
+  if (contractCountyTaxLabel) {
+    if (countyName) {
+      contractCountyTaxLabel.textContent = `${countyName} County Tax`;
+    } else {
+      contractCountyTaxLabel.textContent = "County Tax";
     }
   }
 }
@@ -8260,39 +11252,40 @@ function throttle(func, delay) {
 function setupQuickSliders() {
   const sliderConfigs = [
     {
-      sliderId: 'quickSliderSalePrice',
-      inputId: 'quickInputSalePrice',
-      diffId: 'quickDiffSalePrice',
-      resetId: 'quickResetSalePrice',
-      sourceId: 'quick-vehicle-price',
+      sliderId: "quickSliderSalePrice",
+      inputId: "quickInputSalePrice",
+      diffId: "quickDiffSalePrice",
+      resetId: "quickResetSalePrice",
+      sourceId: "quick-vehicle-price",
       max: 150000,
       step: 100,
       buyerPositiveOnDecrease: true, // Lower price is better for buyer
       updateWizardData: (val) => {
         wizardData.financing.salePrice = val;
-        document.getElementById('quick-vehicle-price').value = formatCurrency(val);
-      }
+        document.getElementById("quick-vehicle-price").value =
+          formatCurrency(val);
+      },
     },
     {
-      sliderId: 'quickSliderCashDown',
-      inputId: 'quickInputCashDown',
-      diffId: 'quickDiffCashDown',
-      resetId: 'quickResetCashDown',
-      sourceId: 'quick-down-payment',
+      sliderId: "quickSliderCashDown",
+      inputId: "quickInputCashDown",
+      diffId: "quickDiffCashDown",
+      resetId: "quickResetCashDown",
+      sourceId: "quick-down-payment",
       max: 50000,
       step: 100,
       buyerPositiveOnDecrease: true, // Less cash down is better for buyer
       updateWizardData: (val) => {
         wizardData.financing.cashDown = val;
-        document.getElementById('quick-down-payment').value = formatCurrency(val);
-      }
+        document.getElementById("quick-down-payment").value =
+          formatCurrency(val);
+      },
     },
     {
-      sliderId: 'quickSliderTradeAllowance',
-      inputId: 'quickInputTradeAllowance',
-      diffId: 'quickDiffTradeAllowance',
-      resetId: 'quickResetTradeAllowance',
-      sourceId: 'quick-tradein-value',
+      sliderId: "quickSliderTradeAllowance",
+      inputId: "quickInputTradeAllowance",
+      diffId: "quickDiffTradeAllowance",
+      resetId: "quickResetTradeAllowance",
       max: 75000,
       step: 100,
       buyerPositiveOnDecrease: false, // Higher trade value is better for buyer
@@ -8300,15 +11293,13 @@ function setupQuickSliders() {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.hasTradeIn = true; // Ensure trade-in is enabled when slider is moved
         wizardData.tradein.tradeValue = val;
-        document.getElementById('quick-tradein-value').value = formatCurrency(val);
-      }
+      },
     },
     {
-      sliderId: 'quickSliderTradePayoff',
-      inputId: 'quickInputTradePayoff',
-      diffId: 'quickDiffTradePayoff',
-      resetId: 'quickResetTradePayoff',
-      sourceId: 'quick-tradein-payoff',
+      sliderId: "quickSliderTradePayoff",
+      inputId: "quickInputTradePayoff",
+      diffId: "quickDiffTradePayoff",
+      resetId: "quickResetTradePayoff",
       max: 75000,
       step: 100,
       buyerPositiveOnDecrease: true, // Less payoff is better for buyer
@@ -8316,14 +11307,13 @@ function setupQuickSliders() {
         if (!wizardData.tradein) wizardData.tradein = {};
         wizardData.tradein.hasTradeIn = true; // Ensure trade-in is enabled when slider is moved
         wizardData.tradein.tradePayoff = val;
-        document.getElementById('quick-tradein-payoff').value = formatCurrency(val);
-      }
+      },
     },
     {
-      sliderId: 'quickSliderDealerFees',
-      inputId: 'quickInputDealerFees',
-      diffId: 'quickDiffDealerFees',
-      resetId: 'quickResetDealerFees',
+      sliderId: "quickSliderDealerFees",
+      inputId: "quickInputDealerFees",
+      diffId: "quickDiffDealerFees",
+      resetId: "quickResetDealerFees",
       max: 10000,
       step: 100,
       buyerPositiveOnDecrease: true, // Lower fees are better for buyer
@@ -8331,13 +11321,13 @@ function setupQuickSliders() {
         ensureWizardFeeDefaults();
         wizardData.fees.dealerFees = val;
         wizardData.fees.userCustomized = true;
-      }
+      },
     },
     {
-      sliderId: 'quickSliderCustomerAddons',
-      inputId: 'quickInputCustomerAddons',
-      diffId: 'quickDiffCustomerAddons',
-      resetId: 'quickResetCustomerAddons',
+      sliderId: "quickSliderCustomerAddons",
+      inputId: "quickInputCustomerAddons",
+      diffId: "quickDiffCustomerAddons",
+      resetId: "quickResetCustomerAddons",
       max: 10000,
       step: 100,
       buyerPositiveOnDecrease: true, // Fewer add-ons are better for buyer
@@ -8345,8 +11335,8 @@ function setupQuickSliders() {
         ensureWizardFeeDefaults();
         wizardData.fees.customerAddons = val;
         wizardData.fees.userCustomized = true;
-      }
-    }
+      },
+    },
   ];
 
   // Use global original values object (shared with updateQuickSliderValues)
@@ -8355,28 +11345,31 @@ function setupQuickSliders() {
   }
   const originalValues = window.sliderOriginalValues;
 
+  // Initialize slider baselines Map for tooltip calculations
+  if (!window.sliderBaselines) {
+    window.sliderBaselines = new Map();
+  }
+  const sliderBaselines = window.sliderBaselines;
+
   // Create throttled version of expensive calculation (150ms delay)
   const throttledCalculate = throttle(autoCalculateQuick, 150);
 
-  sliderConfigs.forEach(config => {
+  sliderConfigs.forEach((config) => {
     const slider = document.getElementById(config.sliderId);
     const input = document.getElementById(config.inputId);
     const diffIndicator = document.getElementById(config.diffId);
     const resetBtn = document.getElementById(config.resetId);
 
     if (!slider || !input) {
-      console.warn(`[setupQuickSliders] Missing elements for ${config.sliderId}:`, {
-        slider: !!slider,
-        input: !!input
-      });
+      console.warn(
+        `[setupQuickSliders] Missing elements for ${config.sliderId}:`,
+        {
+          slider: !!slider,
+          input: !!input,
+        }
+      );
       return;
     }
-
-    console.log(`[setupQuickSliders] Setting up ${config.sliderId}`);
-
-    slider.min = config.min || 0;
-    slider.max = config.max;
-    slider.step = config.step;
 
     // Ensure slider has a valid numeric value (not empty string or NaN)
     const currentValue = parseFloat(slider.value);
@@ -8385,10 +11378,43 @@ function setupQuickSliders() {
       input.value = formatCurrency(0);
     }
 
-    // Store original value when first loaded
-    originalValues[config.sliderId] = parseFloat(slider.value) || 0;
+    // Store original value when first loaded (preserve exact amount)
+    const originalValue = parseFloat(slider.value) || 0;
+    originalValues[config.sliderId] = originalValue;
 
-    console.log(`[setupQuickSliders] ${config.sliderId} initialized: value=${slider.value}, original=${originalValues[config.sliderId]}`);
+    // Calculate min and max to truly center the original value
+    // Range = how far left/right the slider can deviate from original
+    let range;
+
+    if (originalValue === 0) {
+      // If original is 0, use 20% of max as the range to the right
+      range = config.max * 0.2;
+    } else {
+      // Use 50% of original value as range, or 20% of max, whichever is larger
+      range = Math.max(originalValue * 0.5, config.max * 0.2);
+    }
+
+    // Set min and max so original is at the exact center
+    let calculatedMin = Math.max(0, originalValue - range); // Can't go below 0
+    let calculatedMax = originalValue + range;
+
+    // Ensure max doesn't exceed reasonable bounds
+    if (calculatedMax > config.max) {
+      calculatedMax = config.max;
+      // Adjust min to keep original centered if possible
+      calculatedMin = Math.max(
+        0,
+        originalValue - (calculatedMax - originalValue)
+      );
+    }
+
+    slider.min = calculatedMin;
+    slider.max = calculatedMax;
+    slider.step = 0.01; // Allow penny precision for exact values
+    slider.dataset.dragIncrement = config.step; // Store increment for snap behavior
+
+    // Initialize visual progress at center position
+    updateSliderProgress(slider);
 
     // Move reset button inside diff indicator
     if (resetBtn && diffIndicator) {
@@ -8401,9 +11427,9 @@ function setupQuickSliders() {
       const diff = currentValue - original;
 
       if (diff === 0) {
-        diffIndicator.style.display = 'none';
+        diffIndicator.style.display = "none";
       } else {
-        diffIndicator.style.display = 'flex';
+        diffIndicator.style.display = "flex"; // Show inline diff indicator
 
         // Determine if change is positive or negative for buyer
         let isBuyerPositive;
@@ -8415,58 +11441,35 @@ function setupQuickSliders() {
           isBuyerPositive = diff > 0;
         }
 
-        const diffClass = isBuyerPositive ? 'positive' : 'negative';
+        const diffClass = isBuyerPositive ? "positive" : "negative";
         diffIndicator.className = `quick-diff-indicator ${diffClass}`;
 
         // Create diff text span if it doesn't exist
-        let diffText = diffIndicator.querySelector('.diff-text');
+        let diffText = diffIndicator.querySelector(".diff-text");
         if (!diffText) {
-          diffText = document.createElement('span');
-          diffText.className = 'diff-text';
+          diffText = document.createElement("span");
+          diffText.className = "diff-text";
           diffIndicator.insertBefore(diffText, resetBtn);
         }
 
-        // Calculate payment difference for THIS specific slider
-        // (not cumulative from all changes, just this slider's impact)
-        const currentPayment = calculateCurrentMonthlyPayment();
-
-        // Temporarily calculate what payment would be if this slider was at original value
-        const currentSliderValue = currentValue;
-        const originalSliderValue = original;
-
-        // Store current wizardData state
-        const wizardDataBackup = JSON.parse(JSON.stringify(wizardData));
-
-        // Temporarily set slider to original value and calculate
-        config.updateWizardData(originalSliderValue);
-        const reviewData = computeReviewData();
-        const paymentWithOriginalSlider = reviewData?.totalPayment || 0;
-
-        // Restore current state
-        config.updateWizardData(currentSliderValue);
-        // Restore full wizardData to ensure nothing else changed
-        Object.assign(wizardData, wizardDataBackup);
-
-        // Calculate the impact of THIS slider change only
-        const paymentDiff = currentPayment - paymentWithOriginalSlider;
-
-        // Format payment difference with buyer-centric color (always payment-centric: decrease = good, increase = bad)
-        let paymentText = '';
-        if (Math.abs(paymentDiff) >= 1) {
-          const paymentSign = paymentDiff > 0 ? '+' : '';
-          const paymentClass = paymentDiff > 0 ? 'payment-negative' : 'payment-positive';
-          paymentText = ` <span class="${paymentClass}">(${paymentSign}$${Math.abs(paymentDiff).toFixed(0)}/mo)</span>`;
-        }
-
-        diffText.innerHTML = `${diff > 0 ? '+' : ''}${formatCurrency(diff)} from original${paymentText}`;
+        // Show only the dollar amount change from original (no payment change - tooltip handles that)
+        diffText.innerHTML = `${diff > 0 ? "+" : ""}${formatCurrency(
+          diff
+        )} from original`;
       }
     };
 
     // Slider to input sync (while dragging - use throttled calculation)
-    slider.addEventListener('input', async (e) => {
-      const value = parseFloat(e.target.value);
+    slider.addEventListener("input", async (e) => {
+      let value = parseFloat(e.target.value);
 
-      console.log(`[slider-input] ${config.sliderId}: ${value}`);
+      // Snap to drag increment during user interaction
+      const dragIncrement =
+        parseFloat(slider.dataset.dragIncrement) || config.step;
+      value = Math.round(value / dragIncrement) * dragIncrement;
+
+      // Update slider to snapped value
+      slider.value = value;
 
       // Update UI immediately (fast, no lag)
       input.value = formatCurrency(value);
@@ -8485,7 +11488,7 @@ function setupQuickSliders() {
     });
 
     // When user releases slider, do final unthrottled calculation
-    slider.addEventListener('change', async (e) => {
+    slider.addEventListener("change", async (e) => {
       let value = parseFloat(e.target.value);
       const originalValue = originalValues[config.sliderId];
 
@@ -8499,8 +11502,6 @@ function setupQuickSliders() {
         config.updateWizardData(value);
       }
 
-      console.log(`[slider-change] ${config.sliderId}: ${value}`);
-
       // Final calculation without throttling
       try {
         await autoCalculateQuick();
@@ -8509,15 +11510,16 @@ function setupQuickSliders() {
       }
     });
 
-    // Input to slider sync
-    input.addEventListener('blur', async (e) => {
-      const rawValue = e.target.value.replace(/[^0-9.-]/g, '');
+    // Input to slider sync - preserve exact penny values
+    input.addEventListener("blur", async (e) => {
+      const rawValue = e.target.value.replace(/[^0-9.-]/g, "");
       let value = parseFloat(rawValue);
 
       if (isNaN(value) || value < 0) value = 0;
       else if (value > config.max) value = config.max;
 
-      value = Math.round(value / config.step) * config.step;
+      // Don't round - preserve exact penny value from input
+      value = Math.round(value * 100) / 100; // Only round to cents
 
       slider.value = value;
       input.value = formatCurrency(value);
@@ -8527,8 +11529,8 @@ function setupQuickSliders() {
       await autoCalculateQuick();
     });
 
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
         e.preventDefault();
         input.blur();
       }
@@ -8536,7 +11538,7 @@ function setupQuickSliders() {
 
     // Reset button click
     if (resetBtn) {
-      resetBtn.addEventListener('click', async () => {
+      resetBtn.addEventListener("click", async () => {
         const original = originalValues[config.sliderId];
         slider.value = original;
         input.value = formatCurrency(original);
@@ -8548,25 +11550,25 @@ function setupQuickSliders() {
     }
 
     // Get the parent adjustment container (for ribbons in "Adjust Your Numbers")
-    const adjustmentSection = slider.closest('.quick-adjustment');
+    const adjustmentSection = slider.closest(".quick-adjustment");
 
     // Get the parent slider section (for sliders in itemization/breakdown)
-    const sliderSection = slider.closest('.quick-item--with-slider');
+    const sliderSection = slider.closest(".quick-item--with-slider");
 
     // Use whichever section exists
     const hoverSection = adjustmentSection || sliderSection;
 
     if (hoverSection) {
       // Make the section focusable for keyboard navigation
-      if (!hoverSection.hasAttribute('tabindex')) {
-        hoverSection.setAttribute('tabindex', '0');
+      if (!hoverSection.hasAttribute("tabindex")) {
+        hoverSection.setAttribute("tabindex", "0");
       }
 
       // Track if mouse is over this section
       let isHovering = false;
 
       // Show tooltip when hovering over entire section
-      hoverSection.addEventListener('mouseenter', () => {
+      hoverSection.addEventListener("mouseenter", () => {
         isHovering = true;
         const value = parseFloat(slider.value);
         showSliderTooltip(slider, value);
@@ -8575,17 +11577,19 @@ function setupQuickSliders() {
         hoverSection.focus();
       });
 
-      hoverSection.addEventListener('mousemove', () => {
+      hoverSection.addEventListener("mousemove", () => {
         const value = parseFloat(slider.value);
         showSliderTooltip(slider, value);
       });
 
-      hoverSection.addEventListener('mouseleave', () => {
+      hoverSection.addEventListener("mouseleave", () => {
         isHovering = false;
         hideSliderTooltip();
 
         // Clear baseline for this slider so it gets a fresh one next time
-        sliderBaselines.delete(slider.id);
+        if (window.sliderBaselines) {
+          window.sliderBaselines.delete(slider.id);
+        }
       });
 
       // Handle arrow keys when hovering over section (with throttling)
@@ -8595,13 +11599,13 @@ function setupQuickSliders() {
         const originalValue = originalValues[config.sliderId];
 
         // Check for arrow keys
-        if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
           e.preventDefault();
 
           // If input is focused, blur it first to avoid conflicts
           if (document.activeElement === input) {
             input.blur();
-            await new Promise(resolve => setTimeout(resolve, 0));
+            await new Promise((resolve) => setTimeout(resolve, 0));
           }
 
           // Decrease value
@@ -8623,13 +11627,13 @@ function setupQuickSliders() {
           // Use throttled calculations for arrow keys too
           await throttledCalculate();
           showSliderTooltip(slider, actualValue);
-        } else if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+        } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
           e.preventDefault();
 
           // If input is focused, blur it first to avoid conflicts
           if (document.activeElement === input) {
             input.blur();
-            await new Promise(resolve => setTimeout(resolve, 0));
+            await new Promise((resolve) => setTimeout(resolve, 0));
           }
 
           // Increase value
@@ -8654,7 +11658,7 @@ function setupQuickSliders() {
       };
 
       // Add keyboard listener to document (so it works regardless of focus)
-      document.addEventListener('keydown', handleArrowKey);
+      document.addEventListener("keydown", handleArrowKey);
 
       // Store cleanup function for later if needed
       hoverSection._arrowKeyHandler = handleArrowKey;
@@ -8666,44 +11670,93 @@ function setupQuickSliders() {
 }
 
 /**
+ * PHASE 1: Initialize Centered Sliders with SliderManager
+ * This replaces the default slider behavior with centered sliders
+ */
+function initializeCenteredSliders() {
+  console.log('🎚️  initializeCenteredSliders called, wizardData:', wizardData);
+  const salePrice = wizardData.financing.salePrice || 0;
+  const cashDown = wizardData.financing.cashDown || 0;
+  const tradeValue = wizardData.tradein?.tradeValue || 0;
+  const tradePayoff = wizardData.tradein?.tradePayoff || 0;
+
+  if (!salePrice) {
+    console.log('⏭️  Skipping slider initialization - no sale price yet');
+    return;
+  }
+
+  console.log('🎚️  Initializing centered sliders:', { salePrice, cashDown, tradeValue, tradePayoff });
+
+  sliderManager.initialize([
+    { id: 'quickSliderSalePrice', originalValue: salePrice },
+    { id: 'quickSliderCashDown', originalValue: cashDown },
+    { id: 'quickSliderTradeAllowance', originalValue: tradeValue },
+    { id: 'quickSliderTradePayoff', originalValue: tradePayoff }
+  ]);
+
+  // Update calculator store with initial values
+  const calcStore = useCalculatorStore.getState();
+  calcStore.updateState({
+    salePrice,
+    cashDown,
+    tradeValue,
+    tradePayoff,
+    originalSalePrice: salePrice,
+    originalCashDown: cashDown,
+    originalTradeValue: tradeValue,
+    originalTradePayoff: tradePayoff,
+    apr: wizardData.financing.apr || 5.99,
+    term: wizardData.financing.term || 72
+  });
+}
+
+/**
  * Show slider payment tooltip
  */
 
 function showSliderTooltip(sliderElement, currentValue) {
-  const tooltip = document.getElementById('slider-payment-tooltip');
+  const tooltip = document.getElementById("slider-payment-tooltip");
   if (!tooltip) return;
 
   // Calculate current monthly payment
   const monthlyPayment = calculateCurrentMonthlyPayment();
 
-  // Get or set baseline for this specific slider
-  const sliderId = sliderElement.id;
-  if (!sliderBaselines.has(sliderId)) {
-    sliderBaselines.set(sliderId, monthlyPayment);
+  // Initialize sliderBaselines if not already done
+  if (!window.sliderBaselines) {
+    window.sliderBaselines = new Map();
   }
 
-  const baseline = sliderBaselines.get(sliderId);
+  // Get or set baseline for this specific slider
+  const sliderId = sliderElement.id;
+  if (!window.sliderBaselines.has(sliderId)) {
+    window.sliderBaselines.set(sliderId, monthlyPayment);
+  }
+
+  const baseline = window.sliderBaselines.get(sliderId);
 
   // Calculate change from this slider's baseline
   const paymentDiff = monthlyPayment - baseline;
 
   // Update tooltip content
-  const paymentEl = tooltip.querySelector('.tooltip-payment');
-  const changeEl = tooltip.querySelector('.tooltip-change');
+  const paymentEl = tooltip.querySelector(".tooltip-payment");
+  const changeEl = tooltip.querySelector(".tooltip-change");
 
   paymentEl.textContent = `${formatCurrency(monthlyPayment)}/mo`;
 
   // Update change indicator (buyer-centric: lower payment = green/good, higher payment = red/bad)
   if (Math.abs(paymentDiff) < 1) {
-    changeEl.textContent = 'No change';
-    changeEl.className = 'tooltip-change neutral';
+    changeEl.textContent = "No change";
+    changeEl.className = "tooltip-change neutral";
   } else {
-    // Use explicit +/- signs (not accounting style)
-    const sign = paymentDiff > 0 ? '+' : '-';
-    const absValue = Math.abs(paymentDiff);
-    changeEl.textContent = `${sign}$${absValue.toFixed(0)}/mo`;
-    // Payment increase is bad for buyer (red), payment decrease is good (green)
-    changeEl.className = paymentDiff > 0 ? 'tooltip-change negative' : 'tooltip-change positive';
+    // Use explicit +/- signs (not accounting/parentheses style)
+    const absValue = Math.abs(paymentDiff).toFixed(0);
+    if (paymentDiff > 0) {
+      changeEl.textContent = `+$${absValue}/mo`;
+      changeEl.className = "tooltip-change negative"; // Payment increase is bad for buyer
+    } else {
+      changeEl.textContent = `-$${absValue}/mo`;
+      changeEl.className = "tooltip-change positive"; // Payment decrease is good for buyer
+    }
   }
 
   // Position tooltip above the slider thumb
@@ -8714,20 +11767,20 @@ function showSliderTooltip(sliderElement, currentValue) {
 
   // Calculate thumb position percentage
   const percentage = (sliderValue - sliderMin) / (sliderMax - sliderMin);
-  const thumbPosition = rect.left + (rect.width * percentage);
+  const thumbPosition = rect.left + rect.width * percentage;
 
   tooltip.style.left = `${thumbPosition}px`;
   tooltip.style.top = `${rect.top}px`;
-  tooltip.style.display = 'block';
+  tooltip.style.display = "block";
 }
 
 /**
  * Hide slider payment tooltip
  */
 function hideSliderTooltip() {
-  const tooltip = document.getElementById('slider-payment-tooltip');
+  const tooltip = document.getElementById("slider-payment-tooltip");
   if (tooltip) {
-    tooltip.style.display = 'none';
+    tooltip.style.display = "none";
   }
 }
 
@@ -8736,7 +11789,7 @@ function hideSliderTooltip() {
  */
 function calculateCurrentMonthlyPayment() {
   // Get current calculation result from the page
-  const monthlyPaymentEl = document.getElementById('quickMonthlyPayment');
+  const monthlyPaymentEl = document.getElementById("quickMonthlyPayment");
   if (monthlyPaymentEl) {
     const text = monthlyPaymentEl.textContent;
     const value = parseCurrency(text);
@@ -8758,12 +11811,48 @@ function resetOriginalMonthlyPayment() {
  */
 function updateQuickSliderValues() {
   const updates = [
-    { sliderId: 'quickSliderSalePrice', inputId: 'quickInputSalePrice', diffId: 'quickDiffSalePrice', resetId: 'quickResetSalePrice', value: wizardData.financing?.salePrice || 0 },
-    { sliderId: 'quickSliderCashDown', inputId: 'quickInputCashDown', diffId: 'quickDiffCashDown', resetId: 'quickResetCashDown', value: wizardData.financing?.cashDown || 0 },
-    { sliderId: 'quickSliderTradeAllowance', inputId: 'quickInputTradeAllowance', diffId: 'quickDiffTradeAllowance', resetId: 'quickResetTradeAllowance', value: wizardData.tradein?.tradeValue || 0 },
-    { sliderId: 'quickSliderTradePayoff', inputId: 'quickInputTradePayoff', diffId: 'quickDiffTradePayoff', resetId: 'quickResetTradePayoff', value: wizardData.tradein?.tradePayoff || 0 },
-    { sliderId: 'quickSliderDealerFees', inputId: 'quickInputDealerFees', diffId: 'quickDiffDealerFees', resetId: 'quickResetDealerFees', value: wizardData.fees?.dealerFees || 0 },
-    { sliderId: 'quickSliderCustomerAddons', inputId: 'quickInputCustomerAddons', diffId: 'quickDiffCustomerAddons', resetId: 'quickResetCustomerAddons', value: wizardData.fees?.customerAddons || 0 }
+    {
+      sliderId: "quickSliderSalePrice",
+      inputId: "quickInputSalePrice",
+      diffId: "quickDiffSalePrice",
+      resetId: "quickResetSalePrice",
+      value: wizardData.financing?.salePrice || 0,
+    },
+    {
+      sliderId: "quickSliderCashDown",
+      inputId: "quickInputCashDown",
+      diffId: "quickDiffCashDown",
+      resetId: "quickResetCashDown",
+      value: wizardData.financing?.cashDown || 0,
+    },
+    {
+      sliderId: "quickSliderTradeAllowance",
+      inputId: "quickInputTradeAllowance",
+      diffId: "quickDiffTradeAllowance",
+      resetId: "quickResetTradeAllowance",
+      value: wizardData.tradein?.tradeValue || 0,
+    },
+    {
+      sliderId: "quickSliderTradePayoff",
+      inputId: "quickInputTradePayoff",
+      diffId: "quickDiffTradePayoff",
+      resetId: "quickResetTradePayoff",
+      value: wizardData.tradein?.tradePayoff || 0,
+    },
+    {
+      sliderId: "quickSliderDealerFees",
+      inputId: "quickInputDealerFees",
+      diffId: "quickDiffDealerFees",
+      resetId: "quickResetDealerFees",
+      value: wizardData.fees?.dealerFees || 0,
+    },
+    {
+      sliderId: "quickSliderCustomerAddons",
+      inputId: "quickInputCustomerAddons",
+      diffId: "quickDiffCustomerAddons",
+      resetId: "quickResetCustomerAddons",
+      value: wizardData.fees?.customerAddons || 0,
+    },
   ];
 
   updates.forEach(({ sliderId, inputId, diffId, resetId, value }) => {
@@ -8773,21 +11862,19 @@ function updateQuickSliderValues() {
     const resetBtn = document.getElementById(resetId);
 
     if (slider && input) {
+      // Set exact penny value (step=0.01 allows precise values without browser rounding)
       slider.value = value;
-      // IMPORTANT: Read back the slider value after setting it
-      // The browser will round it to the nearest valid step value
-      const actualSliderValue = parseFloat(slider.value);
-      input.value = formatCurrency(actualSliderValue);
+      input.value = formatCurrency(value);
       updateSliderProgress(slider);
 
-      // Reset original value to current value (use the rounded value from slider)
+      // Reset original value to current value (preserve exact amount)
       if (window.sliderOriginalValues) {
-        window.sliderOriginalValues[sliderId] = actualSliderValue;
+        window.sliderOriginalValues[sliderId] = value;
       }
 
       // Hide diff indicator and reset button since we're at the new "original" value
-      if (diffIndicator) diffIndicator.style.display = 'none';
-      if (resetBtn) resetBtn.style.display = 'none';
+      if (diffIndicator) diffIndicator.style.display = "none";
+      if (resetBtn) resetBtn.style.display = "none";
     }
   });
 
@@ -8800,7 +11887,7 @@ function updateQuickSliderValues() {
  */
 function parseCurrency(str) {
   if (!str) return 0;
-  const cleaned = str.replace(/[^0-9.-]/g, '');
+  const cleaned = str.replace(/[^0-9.-]/g, "");
   return parseFloat(cleaned) || 0;
 }
 
@@ -8808,16 +11895,14 @@ function parseCurrency(str) {
  * Register service worker for production only
  * Skip during development (Vite dev server)
  */
-const isProd = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
-if ('serviceWorker' in navigator && isProd) {
-  window.addEventListener('load', () => {
+const isProd =
+  window.location.hostname !== "localhost" &&
+  window.location.hostname !== "127.0.0.1";
+if ("serviceWorker" in navigator && isProd) {
+  window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register('/service-worker.js')
-      .then((registration) => {
-        console.log('[SW] Registered:', registration);
-      })
-      .catch((error) => {
-        console.log('[SW] Registration failed:', error);
-      });
+      .register("/service-worker.js")
+      .then((registration) => {})
+      .catch((error) => {});
   });
 }
