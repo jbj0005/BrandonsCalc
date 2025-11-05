@@ -22,7 +22,8 @@
       "@/core/*": ["./src/core/*"],
       "@/features/*": ["./src/features/*"],
       "@/lib/*": ["./src/lib/*"]
-    }
+    },
+    "types": ["vite/client"]
   },
   "include": [
     "src/**/*.ts",

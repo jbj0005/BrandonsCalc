@@ -354,16 +354,15 @@ export const resetAllStores = () => {
 };
 
 // Subscribe to auth changes and reset other stores
-useAuthStore.subscribe(
-  (state) => state.isAuthenticated,
-  (isAuthenticated) => {
-    if (!isAuthenticated) {
-      // Clear user-specific data when logging out
-      useGarageStore.getState().reset();
-      useOfferStore.getState().reset();
-    }
+let previousAuthState = useAuthStore.getState().isAuthenticated;
+useAuthStore.subscribe((state) => {
+  if (previousAuthState && !state.isAuthenticated) {
+    // Clear user-specific data when logging out
+    useGarageStore.getState().reset();
+    useOfferStore.getState().reset();
   }
-);
+  previousAuthState = state.isAuthenticated;
+});
 
 // Export type helpers
 export type AuthStore = ReturnType<typeof useAuthStore.getState>;

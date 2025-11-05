@@ -3,6 +3,15 @@
 import { supabase, getUserProfile, updateUserProfile } from '@/lib/supabase';
 import { useAuthStore } from '@/core/state';
 import type { User, UserProfile, SignUpData, SignInData } from '@/types';
+import type { User as SupabaseAuthUser } from '@supabase/supabase-js';
+
+const normalizeSupabaseUser = (user: SupabaseAuthUser): User => ({
+  id: user.id,
+  email: user.email ?? '',
+  created_at: user.created_at ?? new Date().toISOString(),
+  app_metadata: user.app_metadata,
+  user_metadata: user.user_metadata
+});
 
 declare global {
   interface Window {
@@ -64,7 +73,7 @@ export class AuthManager {
       } else if (event === 'SIGNED_OUT') {
         this.handleSignOut();
       } else if (event === 'TOKEN_REFRESHED' && session) {
-        useAuthStore.getState().setUser(session.user as User);
+        useAuthStore.getState().setUser(normalizeSupabaseUser(session.user));
       }
     });
 
@@ -80,19 +89,20 @@ export class AuthManager {
   /**
    * Handle user session
    */
-  private async handleUserSession(user: User): Promise<void> {
+  private async handleUserSession(user: SupabaseAuthUser): Promise<void> {
+    const normalizedUser = normalizeSupabaseUser(user);
     const authStore = useAuthStore.getState();
     
-    authStore.setUser(user);
+    authStore.setUser(normalizedUser);
     authStore.setIsAuthenticated(true);
     
     // Load user profile
-    const profile = await getUserProfile(user.id);
+    const profile = await getUserProfile(normalizedUser.id);
     
     if (profile) {
       authStore.setProfile(profile);
       this.autoPopulateFields(profile);
-      this.subscribeToProfileChanges(user.id);
+      this.subscribeToProfileChanges(normalizedUser.id);
       
       // Dispatch event for other modules
       window.dispatchEvent(new CustomEvent('profile-loaded', {
@@ -100,7 +110,7 @@ export class AuthManager {
       }));
     } else {
       // Create profile if it doesn't exist
-      await this.createUserProfile(user);
+      await this.createUserProfile(normalizedUser);
     }
     
     authStore.setIsLoading(false);
@@ -114,7 +124,7 @@ export class AuthManager {
       .from('customer_profiles')
       .insert({
         user_id: user.id,
-        email: user.email!,
+        email: user.email ?? '',
         full_name: user.user_metadata?.full_name || '',
         phone: user.user_metadata?.phone || '',
       })

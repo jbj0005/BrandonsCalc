@@ -1,6 +1,7 @@
 // src/lib/supabase.ts
 
 import { createClient } from '@supabase/supabase-js';
+import type { User as SupabaseAuthUser } from '@supabase/supabase-js';
 import type { 
   User,
   UserProfile,
@@ -44,6 +45,17 @@ export const supabase = createClient(finalUrl, finalKey, {
     }
   }
 });
+
+const normalizeSupabaseUser = (user: SupabaseAuthUser | null): User | null => {
+  if (!user) return null;
+  return {
+    id: user.id,
+    email: user.email ?? '',
+    created_at: user.created_at ?? new Date().toISOString(),
+    app_metadata: user.app_metadata,
+    user_metadata: user.user_metadata
+  };
+};
 
 // ========================================
 // Database Types (for TypeScript)
@@ -104,7 +116,7 @@ export interface Database {
  */
 export async function getCurrentUser(): Promise<User | null> {
   const { data: { user } } = await supabase.auth.getUser();
-  return user;
+  return normalizeSupabaseUser(user);
 }
 
 /**
