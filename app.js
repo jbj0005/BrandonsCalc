@@ -4243,7 +4243,7 @@ async function computeReviewData() {
 
   if (!wizardData.fees) {
     wizardData.fees = {
-      dealerFees: 799,
+      dealerFees: 0,
       customerAddons: 0,
       govtFees: 150,
       stateTaxRate: 6.0,
@@ -7219,6 +7219,7 @@ const sliderPolarityMap = {
     format: "currency",
     step: 10,
     snapZone: 5,
+    minFloor: 0,
     getBaseline: () => {
       ensureWizardFeeDefaults();
       return wizardData.fees?.dealerFees ?? 0;
