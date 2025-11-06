@@ -579,7 +579,9 @@ function capitalizeWords(text) {
  */
 function formatVIN(vin) {
   if (!vin) return "";
-  return vin.toUpperCase();
+  const upper = String(vin).toUpperCase();
+  // Wrap in standardized class so CSS can enforce monospace + spacing
+  return `<span class="vin-display">${upper}</span>`;
 }
 
 // Initialize on page load
@@ -850,7 +852,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         model: vehicle.model,
         trim: vehicle.trim || '',
         vin: vehicle.vin || '',
-        condition: vehicle.condition || 'good',
+        // Distinguish condition grade (garage) vs sale condition (buying)
+        conditionGrade: (vehicle.condition || 'good'),
+        saleCondition: deriveSaleCondition({ year: vehicle.year, condition: vehicle.saleCondition || vehicle.condition }),
         mileage: vehicle.mileage || 0
       };
 
@@ -1403,20 +1407,29 @@ async function loadSavedVehicles() {
           ? Number.parseFloat(vehicle.dealer_lng)
           : null;
 
-      // Normalize condition: auto-detect based on year if missing or incorrect
+      // Normalize saleCondition: auto-detect based on year if missing or incorrect
       const currentYear = new Date().getFullYear();
-      let condition = vehicle.condition ? vehicle.condition.toLowerCase() : "";
-
-      // If condition is missing or invalid, auto-detect from year
-      if (!condition || (condition !== "new" && condition !== "used")) {
-        condition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
+      let saleCondition = vehicle.condition ? String(vehicle.condition).toLowerCase() : "";
+      if (
+        !saleCondition ||
+        !(
+          saleCondition === "new" ||
+          saleCondition === "used" ||
+          saleCondition === "cpo" ||
+          saleCondition.startsWith("certified")
+        )
+      ) {
+        saleCondition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
+      } else if (saleCondition.startsWith("certified") || saleCondition === "cpo") {
+        saleCondition = "cpo";
       }
 
       return {
         ...vehicle,
         dealer_lat: Number.isFinite(parsedLat) ? parsedLat : null,
         dealer_lng: Number.isFinite(parsedLng) ? parsedLng : null,
-        condition: condition, // Normalized to lowercase 'new' or 'used'
+        condition: saleCondition, // Back-compat: legacy field
+        saleCondition: saleCondition,
       };
     });
 
@@ -1727,11 +1740,11 @@ function displayManualVehiclePreview(vehicle) {
 
       <div class="manual-preview__details">
         ${
-          vehicle.condition
+          (deriveSaleCondition(vehicle) || "")
             ? `
-          <div class="manual-preview__info">
-            <span class="label">Condition:</span>
-            <span class="value">${vehicle.condition}</span>
+          <div class=\"manual-preview__info\">
+            <span class=\"label\">Sale Condition:</span>
+            <span class=\"value\">${getVehicleSaleConditionText(deriveSaleCondition(vehicle))}</span>
           </div>
         `
             : ""
@@ -1786,7 +1799,8 @@ function displayManualVehiclePreview(vehicle) {
   // Store the selection for use in next step
   selectedVehicle = {
     ...vehicle,
-    condition: vehicle.condition || "Used",
+    condition: vehicle.condition || "Used", // back-compat
+    saleCondition: (vehicle.condition || "Used"),
   };
 }
 
@@ -2175,7 +2189,7 @@ function filterSavedVehicles(searchTerm) {
       <div class="saved-vehicle-item__details">${vehicle.trim || ""} • ${
       vehicle.mileage?.toLocaleString() || "N/A"
     } miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${vehicle.vin || "N/A"}</div>
+      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || "N/A")}</div>
     `;
     item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
@@ -2943,7 +2957,8 @@ async function selectVehicleFromSearch(vehicle) {
       model: vehicle.model,
       trim: vehicle.trim || "",
       mileage: vehicle.mileage || 0,
-      condition: vehicle.condition || "Used",
+      condition: vehicle.condition || "Used", // back-compat
+      saleCondition: vehicle.saleCondition || vehicle.condition || "Used",
       heading:
         vehicle.heading || `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
       asking_price: vehicle.asking_price || null,
@@ -4122,7 +4137,8 @@ function saveStepData(step) {
           make: document.getElementById("make-input").value,
           model: document.getElementById("model-input").value,
           trim: document.getElementById("trim-input").value || null,
-          condition: document.getElementById("condition-input").value || "Used",
+          // Treat form "condition" as sale condition (New/Used/CPO)
+          saleCondition: document.getElementById("condition-input").value || "Used",
         };
       }
       break;
@@ -5065,10 +5081,7 @@ function matchRate(rates, criteria) {
  */
 async function calculateLowestApr() {
   const term = parseInt(wizardData.financing.loanTerm, 10) || 72;
-  const condition =
-    (wizardData.vehicle.condition || "").toLowerCase() === "new"
-      ? "new"
-      : "used";
+  const condition = deriveSaleCondition(wizardData.vehicle) || "used";
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
 
   console.log('🔍 [calculateLowestApr] Comparing lenders at term:', term, 'months');
@@ -5977,17 +5990,19 @@ async function proceedToReviewModal() {
           vehicle.model || ""
         }`.trim() || "Not specified";
       setText("contractVehicle", vehicleText);
-      setText(
-        "contractVIN",
-        vehicle.vin ? formatVIN(vehicle.vin) : "Not specified"
-      );
+      {
+        const vinEl = document.getElementById("contractVIN");
+        if (vinEl) {
+          vinEl.innerHTML = vehicle.vin ? formatVIN(vehicle.vin) : "Not specified";
+        }
+      }
       setText(
         "contractMileage",
         vehicle.mileage
           ? `${formatMileage(vehicle.mileage)} miles`
           : "Not specified"
       );
-      setText("contractCondition", vehicle.isNew ? "New" : "Used");
+      setText("contractCondition", getVehicleSaleConditionText(deriveSaleCondition(vehicle)) || "Not specified");
     } else {
       setText("contractVehicle", "Not specified");
       setText("contractVIN", "Not specified");
@@ -6049,10 +6064,7 @@ async function proceedToReviewModal() {
               <div class="contract-row">
                 <span class="contract-label">Condition:</span>
                 <span class="contract-value">${
-                  vehicle.condition
-                    ? vehicle.condition.charAt(0).toUpperCase() +
-                      vehicle.condition.slice(1)
-                    : "Not specified"
+                  getVehicleGradeText(deriveVehicleGrade(vehicle)) || "Not specified"
                 }</span>
               </div>
               <div class="contract-row">
@@ -6956,16 +6968,74 @@ function getVehiclePriceText(vehicle) {
   return `$${Math.round(priceValue).toLocaleString()}`;
 }
 
-function getVehicleConditionText(condition) {
-  if (!condition) return "";
-  const normalized = String(condition).trim();
-  if (!normalized) return "";
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+const VEHICLE_GRADE_VALUES = new Set(["excellent", "good", "fair", "poor"]);
+const VEHICLE_SALE_VALUES = new Set(["new", "used", "cpo", "certified", "certified pre-owned", "certified preowned", "certified_pre_owned"]);
+
+function titleCase(s) {
+  if (!s) return "";
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function getVehicleGradeText(grade) {
+  if (!grade) return "";
+  const g = String(grade).toLowerCase();
+  if (!VEHICLE_GRADE_VALUES.has(g)) return "";
+  if (g === "poor") return "Poor";
+  if (g === "fair") return "Fair";
+  if (g === "good") return "Good";
+  if (g === "excellent") return "Excellent";
+  return titleCase(g);
+}
+
+function getVehicleSaleConditionText(sc) {
+  if (!sc) return "";
+  const v = String(sc).toLowerCase();
+  if (v === "cpo" || v.startsWith("certified")) return "Certified Pre-Owned";
+  if (v === "new") return "New";
+  if (v === "used") return "Used";
+  return titleCase(v);
+}
+
+function deriveVehicleGrade(vehicle) {
+  if (!vehicle) return "";
+  const fromField = vehicle.conditionGrade || vehicle.condition_grade;
+  if (fromField && VEHICLE_GRADE_VALUES.has(String(fromField).toLowerCase())) {
+    return String(fromField).toLowerCase();
+  }
+  const legacy = vehicle.condition;
+  if (legacy && VEHICLE_GRADE_VALUES.has(String(legacy).toLowerCase())) {
+    return String(legacy).toLowerCase();
+  }
+  return "";
+}
+
+function deriveSaleCondition(vehicle) {
+  if (!vehicle) return "";
+  const fromField = vehicle.saleCondition || vehicle.sale_condition;
+  if (fromField && VEHICLE_SALE_VALUES.has(String(fromField).toLowerCase())) {
+    const v = String(fromField).toLowerCase();
+    if (v.startsWith("certified") || v === "cpo") return "cpo";
+    return v;
+  }
+  const legacy = vehicle.condition;
+  if (legacy && VEHICLE_SALE_VALUES.has(String(legacy).toLowerCase())) {
+    const v = String(legacy).toLowerCase();
+    if (v.startsWith("certified") || v === "cpo") return "cpo";
+    return v;
+  }
+  // Fallback: infer from year
+  const currentYear = new Date().getFullYear();
+  const yearNum = parseInt(vehicle.year, 10);
+  if (Number.isFinite(yearNum)) {
+    return yearNum >= currentYear ? "new" : "used";
+  }
+  return "";
 }
 
 function buildVehicleSummaryMarkup(vehicle) {
   const priceText = getVehiclePriceText(vehicle);
-  const conditionText = getVehicleConditionText(vehicle.condition);
+  const gradeText = getVehicleGradeText(deriveVehicleGrade(vehicle));
+  const saleText = getVehicleSaleConditionText(deriveSaleCondition(vehicle));
   const trimText = vehicle.trim ? capitalizeWords(vehicle.trim) : "";
   const mileageText = Number.isFinite(Number(vehicle.mileage))
     ? formatMileage(Number(vehicle.mileage))
@@ -6979,7 +7049,7 @@ function buildVehicleSummaryMarkup(vehicle) {
       </div>
       <div class="vehicle-subinfo">
         ${trimText ? `<span class="vehicle-trim">${trimText}</span>` : ""}
-        ${conditionText ? `<span class="vehicle-condition">${conditionText}</span>` : ""}
+        ${gradeText ? `<span class="vehicle-condition">${gradeText}</span>` : saleText ? `<span class="vehicle-condition">${saleText}</span>` : ""}
       </div>
       <div class="vehicle-metadata">
         ${mileageText ? `<span>${mileageText} miles</span>` : ""}
@@ -7931,7 +8001,7 @@ async function showGarageForm(vehicleId = null) {
             vehicle.mileage || "";
           document.getElementById("garageVin").value = vehicle.vin || "";
           document.getElementById("garageCondition").value =
-            vehicle.condition || "used";
+            vehicle.condition || "good";
           document.getElementById("garageEstimatedValue").value =
             vehicle.estimated_value
               ? formatCurrency(vehicle.estimated_value)
@@ -8872,7 +8942,7 @@ async function saveOffer(offerData) {
       vehicle_trim: vehicle.trim,
       vehicle_vin: vehicle.vin,
       vehicle_mileage: vehicle.mileage,
-      vehicle_condition: vehicle.condition,
+      vehicle_condition: deriveSaleCondition(vehicle) || null,
 
       // Dealer details
       dealer_name: dealer.name,
@@ -9011,7 +9081,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
       : null;
 
   const conditionText =
-    getVehicleConditionText(vehicle.condition) || "—";
+    getVehicleSaleConditionText(deriveSaleCondition(vehicle)) || "—";
   const yearText = vehicle.year ? vehicle.year.toString() : "—";
   const makeText = vehicle.make ? capitalizeWords(vehicle.make) : "—";
   const modelText = vehicle.model ? capitalizeWords(vehicle.model) : "—";
@@ -9029,7 +9099,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
   const mileageText = vehicle.mileage
     ? `${formatMileage(vehicle.mileage)} mi`
     : "—";
-  const vinText = vehicle.vin ? formatVIN(vehicle.vin) : "—";
+  const vinText = vehicle.vin ? String(vehicle.vin).toUpperCase() : "—";
 
   const gridItem = (label, value) => {
     const display =
@@ -9193,9 +9263,9 @@ ${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}${
     vehicle.trim ? " " + vehicle.trim : ""
   }
 Condition: ${
-    vehicle.condition === "new" ? "New" : "Used"
+    getVehicleSaleConditionText(deriveSaleCondition(vehicle)) || "—"
   }  |  Mileage: ${fmtNum(vehicle.mileage || 0)} mi
-${vehicle.vin ? "VIN: " + vehicle.vin : ""}
+${vehicle.vin ? "VIN: " + String(vehicle.vin).toUpperCase() : ""}
 
 💵 CUSTOMER OFFER PRICE
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -9215,12 +9285,10 @@ Trade-In Vehicle ${trade.vehicles.length > 1 ? "#" + (index + 1) : ""}${
         vehicle.nickname ? " (" + vehicle.nickname + ")" : ""
       }:
   Vehicle:               ${vehicleText || "Not specified"}
-  VIN:                   ${vehicle.vin || "Not specified"}
+  VIN:                   ${String(vehicle.vin || "Not specified").toUpperCase()}
   Mileage:               ${fmtNum(vehicle.mileage || 0)} mi
   Condition:             ${
-    vehicle.condition
-      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
-      : "Not specified"
+    getVehicleGradeText(deriveVehicleGrade(vehicle)) || "Not specified"
   }
 `;
     });
@@ -9972,7 +10040,7 @@ async function saveOfferToDatabase(
       vehicle_model: vehicle.model || null,
       vehicle_trim: vehicle.trim || null,
       vehicle_vin: vehicle.vin || null,
-      vehicle_condition: vehicle.condition || null,
+      vehicle_condition: deriveSaleCondition(vehicle) || null,
       vehicle_mileage: vehicle.mileage || null,
 
       // Pricing
@@ -11146,19 +11214,22 @@ async function selectQuickSavedVehicle(vehicle) {
   quickVin.value = vehicle.vin || "";
   dropdown.style.display = "none";
 
-  // Ensure condition is set correctly based on year
-  if (!vehicle.condition || vehicle.condition === "") {
+  // Ensure sale condition is set correctly based on year (back-compat: also set legacy condition)
+  if (!vehicle.saleCondition && (!vehicle.condition || vehicle.condition === "")) {
     const currentYear = new Date().getFullYear();
-    vehicle.condition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
+    const inferred = parseInt(vehicle.year) >= currentYear ? "new" : "used";
+    vehicle.saleCondition = inferred;
+    vehicle.condition = vehicle.condition || inferred;
   }
 
   // Update selected vehicle globally
   selectedVehicle = vehicle;
 
-  // Also update wizardData.vehicle to ensure condition is synced
+  // Also update wizardData.vehicle to ensure sale condition + grade are synced
   wizardData.vehicle = {
     ...vehicle,
-    condition: vehicle.condition || "used",
+    saleCondition: vehicle.saleCondition || vehicle.condition || "used",
+    conditionGrade: vehicle.conditionGrade || vehicle.condition_grade || (VEHICLE_GRADE_VALUES.has(String(vehicle.condition).toLowerCase()) ? vehicle.condition : undefined),
   };
 
   // Update vehicle card display
