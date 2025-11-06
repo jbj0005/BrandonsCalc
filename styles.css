@@ -7237,11 +7237,24 @@ body {
   visibility: hidden !important;
 }
 
+/* Show modals when active */
+.modal.active {
+  display: flex !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  visibility: visible !important;
+}
+
 /* Override any conflicting CSS */
 #customer-profile-modal:not(.active),
 #my-garage-modal:not(.active),
 #auth-modal:not(.active) {
   display: none !important;
+}
+
+#customer-profile-modal.active,
+#my-garage-modal.active {
+  display: flex !important;
 }
 
 /* ============================================
