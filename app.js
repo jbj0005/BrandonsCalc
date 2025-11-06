@@ -3876,8 +3876,8 @@ function setupEnterKeyNavigation() {
     field.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
 
-      // Don't handle Enter on buttons
-      if (field.tagName === "BUTTON") return;
+      // Don't handle Enter on buttons or textareas (let users add newlines)
+      if (field.tagName === "BUTTON" || field.tagName === "TEXTAREA") return;
 
       e.preventDefault();
 
@@ -7588,6 +7588,19 @@ async function openMyGarageModal() {
   }
   modal.classList.add("active");
   modal.style.display = "flex";
+
+  // ESC key to close
+  if (!window.__myGarageEscHandler) {
+    window.__myGarageEscHandler = (e) => {
+      const key = e.key || e.code;
+      if (key === "Escape" || key === "Esc") {
+        e.preventDefault();
+        closeMyGarageModal();
+      }
+    };
+    document.addEventListener("keydown", window.__myGarageEscHandler);
+  }
+
   console.log("✅ [My Garage] Modal opened, loading vehicles...");
   await loadGarageVehicles();
 }
@@ -8639,6 +8652,19 @@ async function openMyOffersModal() {
 
   modal.classList.add("active");
   modal.style.display = "flex";
+
+  // ESC key to close
+  if (!window.__myOffersEscHandler) {
+    window.__myOffersEscHandler = (e) => {
+      const key = e.key || e.code;
+      if (key === "Escape" || key === "Esc") {
+        e.preventDefault();
+        closeMyOffersModal();
+      }
+    };
+    document.addEventListener("keydown", window.__myOffersEscHandler);
+  }
+
   console.log("✅ [My Offers] Modal opened, loading offers...");
 
   // Load and display offers
