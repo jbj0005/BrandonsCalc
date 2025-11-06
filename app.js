@@ -935,11 +935,13 @@ document.addEventListener("DOMContentLoaded", async () => {
       console.log('🔍 Triggering VIN decode for:', vehicle.vin);
     }
 
-    // Initialize centered sliders if we have a sale price
-    if (salePrice) {
-      console.log('🎯 About to initialize sliders, wizardData.financing.salePrice:', wizardData.financing.salePrice);
-      initializeCenteredSliders();
-    }
+      // Initialize centered sliders if we have a sale price
+      if (salePrice) {
+        console.log('🎯 About to initialize sliders, wizardData.financing.salePrice:', wizardData.financing.salePrice);
+        // Apply preferred down payment once a vehicle is active
+        await setPreferredDownPayment();
+        initializeCenteredSliders();
+      }
 
     // Log wizardData state before calculation
     console.log('📊 wizardData before calculation:', {
@@ -2954,6 +2956,8 @@ function selectVehicleFromVIN(vehicleDetails) {
 
   showSelectedVehicle();
   hideManualEntry();
+  // Attempt to apply preferred down payment after vehicle selection
+  try { setPreferredDownPayment(); } catch {}
 }
 
 /**
@@ -3032,6 +3036,9 @@ async function selectVehicleFromSearch(vehicle) {
         wizardData.financing.salePrice = selectedVehicle.asking_price;
       }
     }
+
+    // Apply preferred down payment once a vehicle is selected
+    await setPreferredDownPayment();
 
     // Reset custom APR override when vehicle changes
     customAprOverride = null;
@@ -6375,6 +6382,71 @@ async function loadCustomerProfileData() {
   } catch (error) {
     console.error("Error loading customer profile:", error);
     return null;
+  }
+}
+
+/**
+ * Set Cash Down slider/input from user's preferred_down_payment when a vehicle is selected
+ * Preserves $0 defaults when no vehicle is active.
+ */
+async function setPreferredDownPayment() {
+  try {
+    const vehicleSelected =
+      Boolean(selectedVehicle?.vin) ||
+      Boolean(wizardData?.vehicle?.vin) ||
+      Boolean(document.querySelector('.your-vehicle-card, .selected-vehicle-card'));
+    if (!vehicleSelected) return; // Keep $0 defaults until a vehicle exists
+
+    if (!supabase) return;
+
+    // Resolve user id
+    let userId = null;
+    try {
+      const authStore = useAuthStore.getState();
+      userId = authStore?.user?.id || null;
+      if (!userId) {
+        const { data } = await supabase.auth.getUser();
+        userId = data?.user?.id || null;
+      }
+    } catch {}
+    if (!userId) return;
+
+    const { data: profile, error } = await supabase
+      .from('customer_profiles')
+      .select('preferred_down_payment')
+      .eq('user_id', userId)
+      .single();
+
+    let preferredDown = 2000; // fallback only if field missing
+    if (!error && profile && profile.preferred_down_payment != null) {
+      const raw = profile.preferred_down_payment;
+      const num = typeof raw === 'string'
+        ? parseFloat(raw.replace(/[^0-9.]/g, ''))
+        : Number(raw);
+      if (Number.isFinite(num)) preferredDown = num;
+    }
+
+    const slider = document.getElementById('quickSliderCashDown');
+    const input = document.getElementById('quickInputCashDown');
+    if (!slider || !input) return;
+
+    // Apply to UI
+    slider.value = String(preferredDown);
+    input.value = formatCurrency(preferredDown);
+
+    // Update state and notify listeners
+    wizardData.financing = wizardData.financing || {};
+    wizardData.financing.cashDown = preferredDown;
+    try {
+      slider.dispatchEvent(new Event('input', { bubbles: true }));
+      slider.dispatchEvent(new Event('change', { bubbles: true }));
+    } catch {}
+
+    // Optional hint for downstream consumers
+    window.cashDownBaseline = preferredDown;
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[cashdown] unable to set preferred down payment', e);
   }
 }
 
@@ -11361,6 +11433,9 @@ async function selectQuickSavedVehicle(vehicle) {
     wizardData.financing = wizardData.financing || {};
     wizardData.financing.salePrice = vehicle.asking_price;
   }
+
+  // Set preferred down payment now that a vehicle is active
+  await setPreferredDownPayment();
 
   // Update sliders to match the new vehicle price
   updateQuickSliderValues();
