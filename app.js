@@ -621,19 +621,28 @@ document.addEventListener("DOMContentLoaded", async () => {
   console.log('🚀 Initializing ExcelCalc v2.0 Phase 1...');
 
   // Initialize base slider defaults even when no vehicle is selected
-  ;['quickSliderSalePrice', 'quickSliderCashDown', 'quickSliderTradeAllowance', 'quickSliderTradePayoff']
-    .forEach((id) => {
-      const slider = document.getElementById(id);
-      if (slider) {
-        slider.min = 0;
-        slider.max = 150000;
-        slider.value = 0;
-        slider.step = 500;
-        if (!slider.dataset.defaultMin) slider.dataset.defaultMin = slider.min;
-        if (!slider.dataset.defaultMax) slider.dataset.defaultMax = slider.max;
-        if (!slider.dataset.defaultStep) slider.dataset.defaultStep = slider.step;
-      }
-    });
+  const sliderDefaults = [
+    { id: 'quickSliderSalePrice', max: 150000, step: 100 },
+    { id: 'quickSliderCashDown', max: 150000, step: 100 },
+    { id: 'quickSliderTradeAllowance', max: 150000, step: 100 },
+    { id: 'quickSliderTradePayoff', max: 150000, step: 100 },
+    { id: 'quickSliderDealerFees', max: 10000, step: 10 },
+    { id: 'quickSliderCustomerAddons', max: 10000, step: 10 },
+  ];
+
+  sliderDefaults.forEach(({ id, max, step }) => {
+    const slider = document.getElementById(id);
+    if (!slider) return;
+
+    slider.min = 0;
+    slider.max = max;
+    slider.value = 0;
+    slider.step = step;
+
+    if (!slider.dataset.defaultMin) slider.dataset.defaultMin = slider.min;
+    if (!slider.dataset.defaultMax) slider.dataset.defaultMax = slider.max;
+    if (!slider.dataset.defaultStep) slider.dataset.defaultStep = slider.step;
+  });
 
   // Listen for profile loaded event (MUST be set up BEFORE AuthManager initializes)
   window.addEventListener('profile-loaded', async (e) => {
@@ -13395,14 +13404,18 @@ function initializeCenteredSliders() {
 
   // Update dynamic slider ceilings based on current sale price
   const salePriceForCeil = Number(financing.salePrice) || 0;
-  try {
-    const dpMax = calculateDownPaymentSliderMax(salePriceForCeil);
-    if (Number.isFinite(dpMax) && dpMax > 0) {
-      sliderPolarityMap.cashDown.maxCeil = dpMax;
+  if (salePriceForCeil > 0) {
+    try {
+      const dpMax = calculateDownPaymentSliderMax(salePriceForCeil);
+      if (Number.isFinite(dpMax) && dpMax > 0) {
+        sliderPolarityMap.cashDown.maxCeil = dpMax;
+      }
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.warn('[sliders] Unable to set cashDown maxCeil:', e);
     }
-  } catch (e) {
-    // eslint-disable-next-line no-console
-    console.warn('[sliders] Unable to set cashDown maxCeil:', e);
+  } else {
+    delete sliderPolarityMap.cashDown.maxCeil;
   }
 
   const baselineValues = {
