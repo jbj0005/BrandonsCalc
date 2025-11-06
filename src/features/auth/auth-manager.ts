@@ -201,8 +201,6 @@ export class AuthManager {
       'customer-email': 'email',
       'customer-phone': 'phone',
       'quickSliderCashDown': 'preferred_down_payment',
-      'quickSliderTradeAllowance': 'preferred_trade_value',
-      'quickSliderTradePayoff': 'preferred_trade_payoff',
       'credit-score': 'preferred_credit_score',
     };
     
@@ -274,14 +272,6 @@ export class AuthManager {
 
       if (profile.preferred_down_payment) {
         window.wizardData.financing.cashDown = profile.preferred_down_payment;
-      }
-
-      if (profile.preferred_trade_value) {
-        window.wizardData.tradein.tradeValue = profile.preferred_trade_value;
-      }
-
-      if (profile.preferred_trade_payoff) {
-        window.wizardData.tradein.tradePayoff = profile.preferred_trade_payoff;
       }
     }
   }

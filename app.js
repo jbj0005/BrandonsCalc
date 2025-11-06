@@ -643,13 +643,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (cashDownInput) cashDownInput.value = profile.preferred_down_payment;
     }
 
-    if (profile.preferred_trade_value) {
-      wizardData.tradein.tradeValue = profile.preferred_trade_value;
-    }
-
-    if (profile.preferred_trade_payoff) {
-      wizardData.tradein.tradePayoff = profile.preferred_trade_payoff;
-    }
+    // Trade-in preferences removed from profile; handled via My Garage
 
     // Set financing preferences with defaults
     wizardData.financing.term = profile.preferred_term || 72;
