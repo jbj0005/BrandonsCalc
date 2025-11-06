@@ -1881,12 +1881,14 @@
           </svg>
         </button>
 
-        <h3 class="modal-title">Edit Vehicle</h3>
-        <p class="modal-description">
-          Update your vehicle information
-        </p>
+        <div class="garage-header">
+          <h3 class="modal-title">Edit Vehicle</h3>
+          <p class="modal-description">
+            Update your vehicle information
+          </p>
+        </div>
 
-        <form id="edit-vehicle-form" class="edit-vehicle-form" onsubmit="event.preventDefault(); saveEditedVehicle();">
+        <form id="edit-vehicle-form" class="edit-vehicle-form garage-body" onsubmit="event.preventDefault(); saveEditedVehicle();">
           <div class="form-group">
             <label class="form-label" for="editNickname">Nickname (Optional)</label>
             <input
