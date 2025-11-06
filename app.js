@@ -6417,7 +6417,7 @@ async function setPreferredDownPayment() {
       .eq('user_id', userId)
       .single();
 
-    let preferredDown = 2000; // fallback only if field missing
+    let preferredDown = 0; // default to $0 if no user preference
     if (!error && profile && profile.preferred_down_payment != null) {
       const raw = profile.preferred_down_payment;
       const num = typeof raw === 'string'
@@ -7015,77 +7015,6 @@ async function syncAuthWithProfile() {
     // Auth is now handled by auth-manager.ts and Zustand store
     // This function is kept for backward compatibility but does minimal work
     console.log("[auth-sync] Auth handled by auth-manager.ts");
-    return;
-
-    // Try to fetch profile by user_id OR email (in case profile exists but user_id not set yet)
-    const { data: profiles, error: fetchError } = await supabase
-      .from("customer_profiles")
-      .select("*")
-      .or(`user_id.eq.${session.user.id},email.eq.${session.user.email}`)
-      .limit(1);
-
-    if (fetchError && fetchError.code !== "PGRST116") {
-      console.error("[auth-sync] Error fetching profile:", fetchError);
-      // Continue anyway - might just be RLS issue
-    }
-
-    let profile = profiles && profiles.length > 0 ? profiles[0] : null;
-
-    if (profile) {
-      // Profile exists - update user_id if not set
-
-      if (!profile.user_id) {
-        await supabase
-          .from("customer_profiles")
-          .update({ user_id: session.user.id })
-          .eq("id", profile.id);
-      }
-
-      localStorage.setItem("customerProfileId", profile.id);
-    } else {
-      // No profile exists - create one
-
-      const newProfile = {
-        user_id: session.user.id,
-        email: session.user.email || "",
-        first_name:
-          session.user.user_metadata?.first_name ||
-          session.user.email?.split("@")[0] ||
-          "",
-        last_name: session.user.user_metadata?.last_name || "",
-        phone: session.user.user_metadata?.phone || session.user.phone || "",
-      };
-
-      const { data: createdProfile, error: createError } = await supabase
-        .from("customer_profiles")
-        .insert([newProfile])
-        .select()
-        .single();
-
-      if (createError) {
-        // If 409 conflict, profile might exist - try fetching again
-        if (
-          createError.code === "23505" ||
-          createError.message?.includes("duplicate")
-        ) {
-          const { data: existingProfile } = await supabase
-            .from("customer_profiles")
-            .select("*")
-            .eq("user_id", session.user.id)
-            .single();
-
-          if (existingProfile) {
-            localStorage.setItem("customerProfileId", existingProfile.id);
-            return;
-          }
-        }
-
-        console.error("[auth-sync] Error creating profile:", createError);
-        return;
-      }
-
-      localStorage.setItem("customerProfileId", createdProfile.id);
-    }
   } catch (error) {
     console.error("[auth-sync] Unexpected error:", error);
   }
