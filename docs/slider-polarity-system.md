@@ -24,6 +24,7 @@ As the user adjusts sliders:
 - Movement toward the **buyer-negative** direction is displayed using a **red accounting gradient**.
 - Crossing near the baseline auto-snaps the thumb back to center.
 - The visual center is rounded to the nearest configuration step (e.g., $100), while real baseline values are preserved for diff calculations.
+- Slider fills now render using CSS palette tokens (`--neutral`, `--primary-start`, `--primary-end`, `--error`, `--error-dark`) so the color stories stay on-brand while reflecting buyer benefit.
 
 ---
 

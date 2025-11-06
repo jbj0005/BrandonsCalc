@@ -6947,7 +6947,7 @@ function buildVehicleSummaryMarkup(vehicle) {
 }
 
 const SLIDER_GRADIENT_POSITIVE =
-  "linear-gradient(135deg, var(--primary) 0%, #0052a3 100%)";
+  "linear-gradient(135deg, var(--primary-start) 0%, #0052a3 100%)";
 const SLIDER_GRADIENT_NEGATIVE =
   "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)";
 
@@ -7174,47 +7174,71 @@ function computeBuyerPositive(meta, diff) {
   return isRightPositive ? diff > 0 : diff < 0;
 }
 
-function updateSliderVisual(slider, visualValue, origin, meta) {
+function updateSliderVisual(slider, visualValue, originActual, meta) {
   if (!slider || !meta) return;
 
   const min = Number(slider.min) || 0;
   const max = Number(slider.max) || 0;
-  const visualOrigin = getSliderVisualOrigin(slider);
-  const safeVisual = Number.isFinite(visualValue) ? visualValue : visualOrigin;
+  const range = max - min || 1;
+
+  const visualOrigin = convertActualToVisual(slider, originActual);
+  const safeVisual = Number.isFinite(visualValue)
+    ? visualValue
+    : visualOrigin;
+
+  const clampPercent = (value) =>
+    Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+
+  const pct = clampPercent(((safeVisual - min) / range) * 100);
+  const originPct = clampPercent(((visualOrigin - min) / range) * 100);
+
   const actualValue = convertVisualToActual(slider, safeVisual);
-  const diff = actualValue - origin;
-  const buyerPositive =
-    Math.abs(diff) < 0.001 ? null : computeBuyerPositive(meta, diff);
+  const diff = actualValue - originActual;
+  const buyerPositiveRight = meta.positiveDirection === "right";
+  const isBuyerPositive =
+    Math.abs(diff) > 0.0001
+      ? buyerPositiveRight
+        ? diff > 0
+        : diff < 0
+      : false;
+  const isBuyerNegative =
+    Math.abs(diff) > 0.0001
+      ? buyerPositiveRight
+        ? diff < 0
+        : diff > 0
+      : false;
 
-  const range = max - min;
-  const baseColor = "#e5e7eb";
-  const valuePercent =
-    range === 0 ? 50 : ((safeVisual - min) / range) * 100;
-  const centerPercent =
-    range === 0 ? 50 : ((visualOrigin - min) / range) * 100;
+  const neutral = "var(--neutral, #e5e7eb)";
+  const positiveStart = "var(--primary-start, #1e40af)";
+  const positiveEnd = "var(--primary-end, #3b82f6)";
+  const negativeStart = "var(--error, #ef4444)";
+  const negativeEnd = "var(--error-dark, #b91c1c)";
 
-  if (
-    buyerPositive == null ||
-    !Number.isFinite(valuePercent) ||
-    !Number.isFinite(centerPercent) ||
-    Math.abs(valuePercent - centerPercent) < 0.1
-  ) {
-    slider.style.backgroundImage = `linear-gradient(${baseColor}, ${baseColor})`;
-    slider.style.backgroundSize = "100% 100%";
-    slider.style.backgroundPosition = "0 0";
-    slider.style.backgroundRepeat = "no-repeat";
-    return;
+  let gradient;
+
+  if (!isBuyerPositive && !isBuyerNegative) {
+    gradient = `linear-gradient(to right, ${neutral} 0%, ${neutral} 100%)`;
+  } else {
+    const start = clampPercent(Math.min(pct, originPct));
+    const end = clampPercent(Math.max(pct, originPct));
+
+    if (Math.abs(end - start) < 0.1) {
+      gradient = `linear-gradient(to right, ${neutral} 0%, ${neutral} 100%)`;
+    } else {
+      const fillStart = isBuyerPositive ? positiveStart : negativeStart;
+      const fillEnd = isBuyerPositive ? positiveEnd : negativeEnd;
+
+      gradient = `linear-gradient(to right,
+        ${neutral} 0%,
+        ${neutral} ${start}%,
+        ${fillStart} ${start}%,
+        ${fillEnd} ${end}%,
+        ${neutral} ${end}%,
+        ${neutral} 100%)`;
+    }
   }
 
-  const fillGradient = buyerPositive ? meta.colorPositive : meta.colorNegative;
-  const fillStart =
-    valuePercent < centerPercent ? valuePercent : centerPercent;
-  const fillSize = Math.abs(valuePercent - centerPercent);
-
-  slider.style.backgroundImage = `${fillGradient}, linear-gradient(${baseColor}, ${baseColor})`;
-  slider.style.backgroundSize = `${fillSize}% 100%, 100% 100%`;
-  slider.style.backgroundPosition = `${fillStart}% 0, 0 0`;
-  slider.style.backgroundRepeat = "no-repeat";
+  slider.style.background = gradient;
 }
 
 function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) {
