@@ -319,6 +319,7 @@
                     <div class="quick-til-note">
                       Cost of credit as yearly rate
                     </div>
+                    <div class="quick-til-diff" id="aprDiff"></div>
                     <!-- APR Tooltip -->
                     <div
                       class="apr-tooltip"
@@ -389,6 +390,7 @@
                       </button>
                     </div>
                     <div class="quick-til-note">Length of loan</div>
+                    <div class="quick-til-diff" id="termDiff"></div>
                     <!-- Term Tooltip -->
                     <div
                       class="apr-tooltip"
@@ -409,19 +411,7 @@
                       $0.00
                     </div>
                     <div class="quick-til-note">Dollar cost of credit</div>
-                    <!-- Finance Charge Tooltip (shown when APR is being adjusted) -->
-                    <div
-                      class="finance-charge-tooltip"
-                      id="financeChargeTooltip"
-                      style="display: none"
-                    >
-                      <div
-                        class="finance-charge-tooltip__diff"
-                        id="financeChargeTooltipDiff"
-                      >
-                        +$0
-                      </div>
-                    </div>
+                    <div class="quick-til-diff" id="financeChargeDiff"></div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Amount Financed</div>
@@ -429,6 +419,7 @@
                       $0.00
                     </div>
                     <div class="quick-til-note">Credit provided to you</div>
+                    <div class="quick-til-diff" id="amountFinancedDiff"></div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Total of Payments</div>
@@ -436,6 +427,7 @@
                       $0.00
                     </div>
                     <div class="quick-til-note">Total after all payments</div>
+                    <div class="quick-til-diff" id="totalPaymentsDiff"></div>
                   </div>
                   <div class="quick-til-card">
                     <div class="quick-til-label">Monthly Finance Charge</div>
@@ -446,6 +438,10 @@
                       $0.00
                     </div>
                     <div class="quick-til-note">Interest portion per month</div>
+                    <div
+                      class="quick-til-diff"
+                      id="monthlyFinanceChargeDiff"
+                    ></div>
                     <!-- Monthly Finance Charge Tooltip -->
                     <div
                       class="apr-tooltip"

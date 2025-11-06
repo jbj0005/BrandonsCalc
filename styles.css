@@ -3902,6 +3902,23 @@ body {
   color: var(--error); /* Red - bad for buyer */
 }
 
+.quick-til-diff {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.quick-til-diff.positive {
+  color: var(--success);
+}
+
+.quick-til-diff.negative {
+  color: var(--error);
+}
+
 /* Editable APR with arrow controls */
 .quick-til-value-wrapper {
   display: flex;
@@ -4031,75 +4048,6 @@ body {
 }
 
 .apr-tooltip__diff.neutral {
-  background: rgba(255, 255, 255, 0.2);
-  color: rgba(255, 255, 255, 0.9);
-}
-
-/* Finance Charge Tooltip (shown when APR is being adjusted) */
-.finance-charge-tooltip {
-  position: absolute;
-  top: -8px;
-  left: 0;
-  transform: translateY(-100%);
-  z-index: 9999;
-  background: linear-gradient(
-    135deg,
-    rgba(30, 64, 175, 0.95),
-    rgba(59, 130, 246, 0.95)
-  );
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-xs) var(--spacing-md);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-  min-width: 120px;
-  text-align: center;
-  animation: financeChargeTooltipFadeIn 0.2s ease;
-}
-
-.finance-charge-tooltip::after {
-  content: "";
-  position: absolute;
-  bottom: -6px;
-  left: 24px;
-  width: 0;
-  height: 0;
-  border-left: 6px solid transparent;
-  border-right: 6px solid transparent;
-  border-top: 6px solid rgba(59, 130, 246, 0.95);
-}
-
-@keyframes financeChargeTooltipFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-90%);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(-100%);
-  }
-}
-
-.finance-charge-tooltip__diff {
-  font-size: 14px;
-  font-weight: 700;
-  font-family: "IBM Plex Mono", monospace;
-  padding: 4px 8px;
-  border-radius: 4px;
-  display: inline-block;
-  color: #ffffff;
-}
-
-.finance-charge-tooltip__diff.positive {
-  background: #10b981;
-}
-
-.finance-charge-tooltip__diff.negative {
-  background: #ef4444;
-}
-
-.finance-charge-tooltip__diff.neutral {
   background: rgba(255, 255, 255, 0.2);
   color: rgba(255, 255, 255, 0.9);
 }

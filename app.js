@@ -12145,6 +12145,71 @@ function setupAprEditing() {
     }
   });
 
+  // Enable keyboard control on hover/focus without click
+  const valueWrapper = aprValue.closest(".quick-til-value-wrapper");
+  let hoverKeyboardActive = false;
+
+  const handleHoverKey = async (e) => {
+    if (
+      !hoverKeyboardActive ||
+      !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
+    ) {
+      return;
+    }
+
+    // Only respond when the user is interacting with the APR controls
+    const wrapperHovered = valueWrapper?.matches(":hover");
+    const wrapperFocused =
+      valueWrapper && valueWrapper.contains(document.activeElement);
+    if (!wrapperHovered && !wrapperFocused) return;
+
+    // Arrow buttons already handle their own keyboard events
+    if (e.target === aprArrowLeft || e.target === aprArrowRight) return;
+
+    e.preventDefault();
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      await decrementApr();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      await incrementApr();
+    }
+  };
+
+  const activateHoverKeyboard = () => {
+    if (hoverKeyboardActive) return;
+    hoverKeyboardActive = true;
+    document.addEventListener("keydown", handleHoverKey);
+  };
+
+  const deactivateHoverKeyboard = () => {
+    if (!hoverKeyboardActive) return;
+    hoverKeyboardActive = false;
+    document.removeEventListener("keydown", handleHoverKey);
+  };
+
+  if (valueWrapper) {
+    valueWrapper.addEventListener("mouseenter", activateHoverKeyboard);
+    valueWrapper.addEventListener("mouseleave", () => {
+      if (!valueWrapper.contains(document.activeElement)) {
+        deactivateHoverKeyboard();
+      }
+    });
+  }
+
+  [aprValue, aprArrowLeft, aprArrowRight].forEach((el) => {
+    el.addEventListener("focus", activateHoverKeyboard);
+    el.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (
+          valueWrapper &&
+          !valueWrapper.matches(":hover") &&
+          !valueWrapper.contains(document.activeElement)
+        ) {
+          deactivateHoverKeyboard();
+        }
+      }, 0);
+    });
+  });
+
   // Visual feedback on hover
   aprValue.addEventListener("mouseenter", () => {
     aprValue.style.cursor = "pointer";
@@ -12163,20 +12228,13 @@ function setupAprTooltip(aprValue) {
   const tooltipDiff = document.getElementById("aprTooltipDiff");
   const valueWrapper = aprValue.closest(".quick-til-value-wrapper");
 
-  // Finance charge tooltip elements
-  const financeChargeTooltip = document.getElementById("financeChargeTooltip");
-  const financeChargeTooltipDiff = document.getElementById(
-    "financeChargeTooltipDiff"
-  );
-
   if (!tooltip || !tooltipPayment || !tooltipDiff || !valueWrapper) {
     console.warn("[apr-tooltip] Tooltip elements not found");
     return () => {}; // Return empty function
   }
 
-  // Store original values for comparison (set when first calculated)
+  // Store original payment for comparison (set when first calculated)
   let originalPayment = null;
-  let originalFinanceCharge = null;
   let isTooltipVisible = false;
 
   // Show tooltip on hover
@@ -12219,44 +12277,6 @@ function setupAprTooltip(aprValue) {
     tooltip.style.display = "block";
     isTooltipVisible = true;
 
-    // Also show finance charge tooltip if available
-    if (financeChargeTooltip && financeChargeTooltipDiff) {
-      // Get current finance charge from the DOM (already calculated by autoCalculateQuick)
-      const financeChargeEl = document.getElementById("quickTilFinanceCharge");
-      if (!financeChargeEl) return;
-
-      const currentFinanceCharge =
-        parseCurrency(financeChargeEl.textContent) || 0;
-
-      // Set original finance charge if not set yet
-      if (originalFinanceCharge === null) {
-        originalFinanceCharge = currentFinanceCharge;
-      }
-
-      // Calculate difference from original
-      const fcDiff = currentFinanceCharge - originalFinanceCharge;
-
-      // Only show finance charge tooltip if there's an actual change
-      if (Math.abs(fcDiff) < 1) {
-        // Don't show tooltip when there's no change (to avoid blocking interactions)
-        financeChargeTooltip.style.display = "none";
-      } else {
-        // Format as +/- (human readable) - same as payment tooltip
-        const sign = fcDiff > 0 ? "+" : "";
-        const formattedDiff = Math.abs(fcDiff).toLocaleString("en-US", {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-        });
-        financeChargeTooltipDiff.textContent = `${sign}$${formattedDiff}`;
-        // Buyer-centric: lower finance charge = positive (green), higher = negative (red)
-        financeChargeTooltipDiff.className =
-          fcDiff > 0
-            ? "finance-charge-tooltip__diff negative"
-            : "finance-charge-tooltip__diff positive";
-
-        financeChargeTooltip.style.display = "block";
-      }
-    }
   };
 
   // Hide tooltip
@@ -12264,10 +12284,6 @@ function setupAprTooltip(aprValue) {
     tooltip.style.display = "none";
     isTooltipVisible = false;
 
-    // Also hide finance charge tooltip
-    if (financeChargeTooltip) {
-      financeChargeTooltip.style.display = "none";
-    }
   };
 
   // Add hover listeners to the entire wrapper (includes arrows and value)
@@ -12277,7 +12293,6 @@ function setupAprTooltip(aprValue) {
   // Reset original values when vehicle or major values change
   window.resetAprTooltipOriginal = () => {
     originalPayment = null;
-    originalFinanceCharge = null;
   };
 
   // Return function to update tooltip if it's visible
@@ -12415,6 +12430,69 @@ function setupTermEditing() {
       e.preventDefault();
       await incrementTerm();
     }
+  });
+
+  // Enable keyboard control on hover/focus without click
+  const termWrapper = termValue.closest(".quick-til-value-wrapper");
+  let termHoverKeyboardActive = false;
+
+  const handleTermHoverKey = async (e) => {
+    if (
+      !termHoverKeyboardActive ||
+      !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)
+    ) {
+      return;
+    }
+
+    const wrapperHovered = termWrapper?.matches(":hover");
+    const wrapperFocused =
+      termWrapper && termWrapper.contains(document.activeElement);
+    if (!wrapperHovered && !wrapperFocused) return;
+
+    if (e.target === termArrowLeft || e.target === termArrowRight) return;
+
+    e.preventDefault();
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      await decrementTerm();
+    } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      await incrementTerm();
+    }
+  };
+
+  const activateTermHoverKeyboard = () => {
+    if (termHoverKeyboardActive) return;
+    termHoverKeyboardActive = true;
+    document.addEventListener("keydown", handleTermHoverKey);
+  };
+
+  const deactivateTermHoverKeyboard = () => {
+    if (!termHoverKeyboardActive) return;
+    termHoverKeyboardActive = false;
+    document.removeEventListener("keydown", handleTermHoverKey);
+  };
+
+  if (termWrapper) {
+    termWrapper.addEventListener("mouseenter", activateTermHoverKeyboard);
+    termWrapper.addEventListener("mouseleave", () => {
+      if (!termWrapper.contains(document.activeElement)) {
+        deactivateTermHoverKeyboard();
+      }
+    });
+  }
+
+  [termValue, termArrowLeft, termArrowRight].forEach((el) => {
+    el.addEventListener("focus", activateTermHoverKeyboard);
+    el.addEventListener("blur", () => {
+      setTimeout(() => {
+        if (
+          termWrapper &&
+          !termWrapper.matches(":hover") &&
+          !termWrapper.contains(document.activeElement)
+        ) {
+          deactivateTermHoverKeyboard();
+        }
+      }, 0);
+    });
   });
 
   // Visual feedback on hover
@@ -12596,6 +12674,7 @@ function setupMonthlyFinanceChargeTooltip() {
 if (!window.tilBaselines) {
   window.tilBaselines = {
     apr: null,
+    term: null,
     financeCharge: null,
     amountFinanced: null,
     totalPayments: null,
@@ -12609,6 +12688,7 @@ if (!window.tilBaselines) {
 window.resetTilBaselines = () => {
   window.tilBaselines = {
     apr: null,
+    term: null,
     financeCharge: null,
     amountFinanced: null,
     totalPayments: null,
@@ -12641,33 +12721,35 @@ function updateTilDiffIndicators(reviewData, monthlyFinanceCharge) {
     const baseline = baselines[baselineKey];
     const diff = currentValue - baseline;
 
-    // Only show if there's a meaningful change (>= $1 or >= 0.01% for APR)
-    const threshold = baselineKey === "apr" ? 0.01 : 1;
+    // Only show if there's a meaningful change (>= $1 or >= 0.01% for APR/term)
+    const threshold =
+      baselineKey === "apr" ? 0.01 : baselineKey === "term" ? 1 : 1;
     if (Math.abs(diff) < threshold) {
       diffEl.style.display = "none";
+      diffEl.textContent = "";
+      diffEl.className = "quick-til-diff";
       return;
     }
 
     // Format the diff
-    const sign = diff > 0 ? "+" : "−"; // Use proper minus sign
     const absDiff = Math.abs(diff);
     const formattedDiff = formatFn(absDiff);
+    const signSymbol = diff < 0 ? "-" : "+";
+    diffEl.textContent = `${signSymbol}${formattedDiff}`;
 
-    diffEl.textContent = `${sign}${formattedDiff}`;
-
-    // Buyer-centric colors: lower costs = green (positive), higher costs = red (negative)
-    // For all TIL values, lower is better for the buyer
-    if (diff < 0) {
-      diffEl.className = "quick-til-format-note positive"; // Green - value decreased (good)
-    } else {
-      diffEl.className = "quick-til-format-note negative"; // Red - value increased (bad)
-    }
-
+    // Buyer-centric colors: lower costs/terms = green (positive), higher = red
+    diffEl.className = `quick-til-diff ${diff < 0 ? "positive" : "negative"}`;
     diffEl.style.display = "block";
   };
 
   // Update each TIL diff indicator
   updateDiff("aprDiff", reviewData.apr, "apr", (v) => formatPercent(v));
+  updateDiff(
+    "termDiff",
+    reviewData.term,
+    "term",
+    (v) => `${v} mo`
+  );
   updateDiff(
     "financeChargeDiff",
     reviewData.financeCharge,
