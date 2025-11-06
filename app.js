@@ -6209,6 +6209,9 @@ async function openCustomerProfileModal() {
 
   modal.classList.add("active");
   modal.style.display = "flex";
+  try {
+    document.body.style.overflow = "hidden"; // prevent background scroll
+  } catch {}
   console.log("✅ [My Profile] Modal opened");
 }
 
@@ -6221,7 +6224,64 @@ function closeCustomerProfileModal() {
     modal.classList.remove("active");
     modal.style.display = "none";
   }
+  try {
+    document.body.style.overflow = "";
+  } catch {}
 }
+
+// Ensure modal close works via overlay background and explicit close button
+function bindCustomerProfileModalClosers() {
+  const modal = document.getElementById("customer-profile-modal");
+  if (!modal) return;
+  // Close when clicking overlay or empty modal area
+  modal.addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof Element)) return;
+    if (target.classList.contains("modal") || target.classList.contains("modal-overlay")) {
+      closeCustomerProfileModal();
+    }
+  });
+  // Close button
+  const closeBtn = modal.querySelector('[aria-label="Close"]');
+  if (closeBtn && !closeBtn.dataset.bound) {
+    closeBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeCustomerProfileModal();
+    });
+    closeBtn.dataset.bound = "true";
+  }
+}
+
+// Hook profile dropdown item to open modal (redundant safety; AuthManager also handles this)
+function attachProfileMenuHook() {
+  const profileMenu = document.getElementById("profile-menu");
+  if (!profileMenu || profileMenu.dataset.profileHooked === "true") {
+    return;
+  }
+  profileMenu.dataset.profileHooked = "true";
+  profileMenu.addEventListener("click", (event) => {
+    const link = event.target?.closest?.('[data-action="profile"]');
+    if (!link) return;
+    event.preventDefault();
+    const modal = document.getElementById("customer-profile-modal");
+    if (modal && modal.classList.contains("active")) return; // avoid duplicate opens
+    openCustomerProfileModal();
+  });
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  bindCustomerProfileModalClosers();
+  attachProfileMenuHook();
+});
+
+// Re-attach if dropdown is injected later
+let profileMenuObserver = null;
+try {
+  profileMenuObserver = new MutationObserver(() => attachProfileMenuHook());
+  if (typeof document !== "undefined" && document.body) {
+    profileMenuObserver.observe(document.body, { childList: true, subtree: true });
+  }
+} catch {}
 
 /**
  * Load customer profile from Supabase
