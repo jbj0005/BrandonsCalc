@@ -6998,6 +6998,12 @@ function renderGarageVehicleCard(vehicle) {
     ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
     : "";
 
+  // Format price with green gradient or show "Not Listed"
+  const priceText = value > 0
+    ? formatCurrency(value)
+    : "Not Listed";
+  const priceClass = value > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
+
   return `
     <div class="garage-vehicle-card" data-vehicle-id="${vehicle.id}">
       <div class="garage-vehicle-header">
@@ -7028,7 +7034,10 @@ function renderGarageVehicleCard(vehicle) {
         </div>
       </div>
       <div class="garage-vehicle-info">
-        <h4 class="garage-vehicle-title">${nickname}</h4>
+        <div class="garage-vehicle-title-row">
+          <h4 class="garage-vehicle-title">${nickname}</h4>
+          <span class="${priceClass}">${priceText}</span>
+        </div>
         <p class="garage-vehicle-details">${vehicle.year} ${vehicle.make} ${
     vehicle.model
   }${trim}</p>
@@ -7038,14 +7047,10 @@ function renderGarageVehicleCard(vehicle) {
             : ""
         }
         <div class="garage-vehicle-meta">
-          ${condition ? `<span class="garage-badge">${condition}</span>` : ""}
+          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
           <span class="garage-badge">${mileage.toLocaleString()} mi</span>
         </div>
         <div class="garage-vehicle-financial">
-          <div class="garage-financial-item">
-            <span class="garage-financial-label">Value</span>
-            <span class="garage-financial-value">${formatCurrency(value)}</span>
-          </div>
           <div class="garage-financial-item">
             <span class="garage-financial-label">Payoff</span>
             <span class="garage-financial-value">${formatCurrency(
@@ -10248,16 +10253,31 @@ function displayQuickSavedVehicles() {
   savedVehicles.forEach((vehicle) => {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
+
+    // Get price from asking_price or estimated_value
+    const price = vehicle.asking_price || vehicle.estimated_value || 0;
+    const priceText = price > 0 ? formatCurrency(price) : "Not Listed";
+    const priceClass = price > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
+
+    // Get condition
+    const condition = vehicle.condition
+      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
+      : "";
+
     item.innerHTML = `
       <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
-        <div class="saved-vehicle-item__title">${
-          vehicle.year || ""
-        } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+        <div class="saved-vehicle-item__header">
+          <div class="saved-vehicle-item__title">${
+            vehicle.year || ""
+          } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
       vehicle.model || ""
     )}</div>
-        <div class="saved-vehicle-item__details">${capitalizeWords(
-          vehicle.trim || ""
-        )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+          <span class="${priceClass}">${priceText}</span>
+        </div>
+        <div class="saved-vehicle-item__details">
+          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
+          ${capitalizeWords(vehicle.trim || "")} • ${formatMileage(vehicle.mileage || 0)} miles
+        </div>
         <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
           vehicle.vin || "N/A"
         )}</div>
@@ -10307,16 +10327,31 @@ function filterQuickSavedVehicles(searchTerm) {
   filtered.forEach((vehicle) => {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
+
+    // Get price from asking_price or estimated_value
+    const price = vehicle.asking_price || vehicle.estimated_value || 0;
+    const priceText = price > 0 ? formatCurrency(price) : "Not Listed";
+    const priceClass = price > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
+
+    // Get condition
+    const condition = vehicle.condition
+      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
+      : "";
+
     item.innerHTML = `
       <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
-        <div class="saved-vehicle-item__title">${
-          vehicle.year || ""
-        } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
+        <div class="saved-vehicle-item__header">
+          <div class="saved-vehicle-item__title">${
+            vehicle.year || ""
+          } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
       vehicle.model || ""
     )}</div>
-        <div class="saved-vehicle-item__details">${capitalizeWords(
-          vehicle.trim || ""
-        )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
+          <span class="${priceClass}">${priceText}</span>
+        </div>
+        <div class="saved-vehicle-item__details">
+          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
+          ${capitalizeWords(vehicle.trim || "")} • ${formatMileage(vehicle.mileage || 0)} miles
+        </div>
         <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
           vehicle.vin || "N/A"
         )}</div>

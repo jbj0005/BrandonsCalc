@@ -786,10 +786,18 @@ body {
   cursor: pointer;
 }
 
+.saved-vehicle-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 0.5rem;
+}
+
 .saved-vehicle-item__title {
   font-weight: 600;
   color: #1e293b;
-  margin-bottom: 0.25rem;
+  flex: 1;
 }
 
 .saved-vehicle-item__details {
@@ -6080,6 +6088,15 @@ body {
   margin: 0;
 }
 
+/* Title row for garage vehicles with price */
+.garage-vehicle-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
 .garage-vehicle-details {
   font-size: 14px;
   color: var(--text-secondary);
@@ -6106,6 +6123,40 @@ body {
   padding: 4px 10px;
   background: rgba(59, 130, 246, 0.1);
   color: var(--primary);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* === Vehicle Price Styling === */
+.vehicle-price {
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--success), var(--secondary-start));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 1rem;
+  display: inline-block;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.vehicle-price--empty {
+  background: none;
+  -webkit-background-clip: unset;
+  -webkit-text-fill-color: unset;
+  background-clip: unset;
+  color: #94a3b8;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+/* Reset condition color to neutral gray */
+.vehicle-condition {
+  display: inline-block;
+  padding: 4px 10px;
+  background: rgba(148, 163, 184, 0.1);
+  color: #64748b;
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
