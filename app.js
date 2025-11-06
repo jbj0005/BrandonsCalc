@@ -5453,7 +5453,7 @@ function initializeReviewSliders(reviewData) {
           vehiclePriceInput.dataset.basePrice = val;
         }
       },
-      step: 500,
+      step: 100,
     },
     {
       sliderId: "reviewCashDownSlider",
@@ -5542,6 +5542,11 @@ function initializeReviewSliders(reviewData) {
 
     if (!slider || !input) return;
 
+    const wrapper = slider.parentElement;
+    if (wrapper && !wrapper.classList.contains("slider-row")) {
+      wrapper.classList.add("slider-row");
+    }
+
     const field = fieldMap[config.sliderId];
     const baseMeta = sliderPolarityMap[field] || {
       positiveDirection: "left",
@@ -5564,47 +5569,58 @@ function initializeReviewSliders(reviewData) {
     slider.dataset.field = field || config.sliderId;
     slider.dataset.origin = origin;
     slider.dataset.snapZone = meta.snapZone ?? meta.step;
-    slider.dataset.stepSize = meta.step || 1;
-    configureSliderRange(slider, origin, meta);
-
-    slider.value = origin;
-    input.value = formatSliderInputValue(origin, meta);
-
+    slider.dataset.stepSize = step;
     window.sliderOriginalValues = window.sliderOriginalValues || {};
     window.sliderOriginalValues[config.sliderId] = origin;
 
-    updateSliderVisual(slider, origin, origin, meta, null);
+    const step = getSliderStep(meta);
+    const visualOrigin = Math.round(origin / step) * step;
+    setSliderVisualOrigin(slider, visualOrigin);
+    configureSliderRange(slider, origin, meta, visualOrigin);
+    slider.value = visualOrigin;
+    input.value = formatSliderInputValue(origin, meta);
+    updateSliderVisual(slider, visualOrigin, origin, meta);
 
-    const applyValue = (rawValue) => {
-      let numeric = Number(rawValue);
-      if (!Number.isFinite(numeric)) numeric = origin;
-      numeric = clampSliderValueToRange(numeric, slider);
+    const applyVisualValue = (rawVisual) => {
+      const baseline = Number(slider.dataset.origin) || 0;
+      const visualBase = getSliderVisualOrigin(slider);
+      let visualValue = Number(rawVisual);
+      if (!Number.isFinite(visualValue)) visualValue = visualBase;
 
-      const snapZone = Number(slider.dataset.snapZone);
-      if (Number.isFinite(snapZone) && snapZone > 0 && Math.abs(numeric - origin) < snapZone) {
-        numeric = origin;
-      }
+      visualValue = clampSliderValueToRange(visualValue, slider);
 
-      slider.value = numeric;
-      input.value = formatSliderInputValue(numeric, meta);
-      updateSliderVisual(slider, numeric, origin, meta, null);
-      config.setValue(numeric);
-      return numeric;
+      const delta = visualValue - visualBase;
+      const snapped = Math.round(delta / step) * step;
+      visualValue = clampSliderValueToRange(visualBase + snapped, slider);
+
+      const actualValue = convertVisualToActual(slider, visualValue);
+      slider.value = visualValue;
+      input.value = formatSliderInputValue(actualValue, meta);
+      updateSliderVisual(slider, visualValue, baseline, meta);
+      config.setValue(actualValue);
+      return actualValue;
+    };
+
+    const applyActualValue = (actualRaw) => {
+      const baseline = Number(slider.dataset.origin) || 0;
+      const actualValue = Number.isFinite(actualRaw) ? actualRaw : baseline;
+      const visualValue = convertActualToVisual(slider, actualValue);
+      return applyVisualValue(visualValue);
     };
 
     slider.addEventListener("input", () => {
-      applyValue(slider.value);
+      applyVisualValue(slider.value);
       refreshReviewDebounced();
     });
 
     slider.addEventListener("change", () => {
-      applyValue(slider.value);
+      applyVisualValue(slider.value);
       refreshReviewDebounced();
     });
 
     input.addEventListener("blur", (event) => {
       const parsed = parseSliderInputValue(event.target.value, meta);
-      applyValue(parsed);
+      applyActualValue(parsed);
       refreshReviewDebounced();
     });
 
@@ -5616,6 +5632,7 @@ function initializeReviewSliders(reviewData) {
     });
   });
 }
+
 
 
 /**
@@ -5647,8 +5664,7 @@ function updateSliderProgress(slider) {
     slider,
     Number.isFinite(value) ? value : origin,
     origin,
-    meta,
-    null
+    meta
   );
 }
 
@@ -7100,6 +7116,40 @@ const sliderIdLookup = Object.entries(sliderPolarityMap).reduce(
   {}
 );
 
+function getSliderStep(meta) {
+  return Number(meta.step) || 1;
+}
+
+function getSliderVisualOrigin(slider) {
+  const stored = Number(slider?.dataset?.visualOrigin);
+  if (Number.isFinite(stored)) return stored;
+  const origin = Number(slider?.dataset?.origin);
+  return Number.isFinite(origin) ? origin : 0;
+}
+
+function setSliderVisualOrigin(slider, visualOrigin) {
+  if (!slider) return;
+  if (Number.isFinite(visualOrigin)) {
+    slider.dataset.visualOrigin = String(visualOrigin);
+  } else {
+    delete slider.dataset.visualOrigin;
+  }
+}
+
+function convertVisualToActual(slider, visualValue) {
+  const origin = Number(slider?.dataset?.origin) || 0;
+  const visualOrigin = getSliderVisualOrigin(slider);
+  const delta = Number(visualValue) - visualOrigin;
+  return origin + (Number.isFinite(delta) ? delta : 0);
+}
+
+function convertActualToVisual(slider, actualValue) {
+  const origin = Number(slider?.dataset?.origin) || 0;
+  const visualOrigin = getSliderVisualOrigin(slider);
+  const delta = Number(actualValue) - origin;
+  return visualOrigin + (Number.isFinite(delta) ? delta : 0);
+}
+
 function formatSliderValue(value, meta, { includeSign = false } = {}) {
   const numeric = Number(value) || 0;
   let base;
@@ -7124,26 +7174,46 @@ function computeBuyerPositive(meta, diff) {
   return isRightPositive ? diff > 0 : diff < 0;
 }
 
-function updateSliderVisual(slider, value, origin, meta, isBuyerPositive) {
-  const min = parseFloat(slider.min) || 0;
-  const max = parseFloat(slider.max) || 0;
-  const safeValue = Number.isFinite(value) ? value : origin;
-  const percent =
-    max === min ? 50 : ((safeValue - min) / (max - min)) * 100;
-  const constrainedPercent = Math.min(Math.max(percent, 0), 100);
+function updateSliderVisual(slider, visualValue, origin, meta) {
+  if (!slider || !meta) return;
 
-  const buyerPositive = isBuyerPositive ?? computeBuyerPositive(meta, safeValue - origin);
+  const min = Number(slider.min) || 0;
+  const max = Number(slider.max) || 0;
+  const visualOrigin = getSliderVisualOrigin(slider);
+  const safeVisual = Number.isFinite(visualValue) ? visualValue : visualOrigin;
+  const actualValue = convertVisualToActual(slider, safeVisual);
+  const diff = actualValue - origin;
+  const buyerPositive =
+    Math.abs(diff) < 0.001 ? null : computeBuyerPositive(meta, diff);
 
-  let fillGradient;
-  if (buyerPositive == null || safeValue === origin) {
-    fillGradient = "linear-gradient(135deg, rgba(203,213,225,0.6), rgba(203,213,225,0.6))";
-  } else {
-    fillGradient = buyerPositive ? meta.colorPositive : meta.colorNegative;
+  const range = max - min;
+  const baseColor = "#e5e7eb";
+  const valuePercent =
+    range === 0 ? 50 : ((safeVisual - min) / range) * 100;
+  const centerPercent =
+    range === 0 ? 50 : ((visualOrigin - min) / range) * 100;
+
+  if (
+    buyerPositive == null ||
+    !Number.isFinite(valuePercent) ||
+    !Number.isFinite(centerPercent) ||
+    Math.abs(valuePercent - centerPercent) < 0.1
+  ) {
+    slider.style.backgroundImage = `linear-gradient(${baseColor}, ${baseColor})`;
+    slider.style.backgroundSize = "100% 100%";
+    slider.style.backgroundPosition = "0 0";
+    slider.style.backgroundRepeat = "no-repeat";
+    return;
   }
 
-  slider.style.backgroundImage = `${fillGradient}, linear-gradient(#e5e7eb, #e5e7eb)`;
-  slider.style.backgroundSize = `${constrainedPercent}% 100%, 100% 100%`;
-  slider.style.backgroundPosition = "left center, left center";
+  const fillGradient = buyerPositive ? meta.colorPositive : meta.colorNegative;
+  const fillStart =
+    valuePercent < centerPercent ? valuePercent : centerPercent;
+  const fillSize = Math.abs(valuePercent - centerPercent);
+
+  slider.style.backgroundImage = `${fillGradient}, linear-gradient(${baseColor}, ${baseColor})`;
+  slider.style.backgroundSize = `${fillSize}% 100%, 100% 100%`;
+  slider.style.backgroundPosition = `${fillStart}% 0, 0 0`;
   slider.style.backgroundRepeat = "no-repeat";
 }
 
@@ -7183,10 +7253,14 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) 
   }
 }
 
-function configureSliderRange(slider, origin, meta) {
+function configureSliderRange(slider, origin, meta, visualOriginOverride) {
   if (!slider || !meta) return;
-  const step = Number(meta.step) || 1;
-  const paddingCandidate = Math.abs(Number(origin) || 0) * 0.5;
+  const step = getSliderStep(meta);
+  const originValue = Number(origin) || 0;
+  const visualOrigin = Number.isFinite(visualOriginOverride)
+    ? visualOriginOverride
+    : getSliderVisualOrigin(slider);
+  const paddingCandidate = Math.abs(visualOrigin) * 0.5;
   const fallbackPadding = step * 20;
   const padding = Math.max(paddingCandidate, fallbackPadding, 1000);
   const minFloor = Number.isFinite(meta.minFloor)
@@ -7196,8 +7270,8 @@ function configureSliderRange(slider, origin, meta) {
     ? Number(meta.maxCeil)
     : Infinity;
 
-  slider.min = Math.max(minFloor, (Number(origin) || 0) - padding);
-  slider.max = Math.min(maxCeil, (Number(origin) || 0) + padding);
+  slider.min = Math.max(minFloor, visualOrigin - padding);
+  slider.max = Math.min(maxCeil, visualOrigin + padding);
   slider.step = step;
 }
 
@@ -7258,16 +7332,19 @@ function initSlidersFromBaseline(baselines) {
     if (!slider) return;
 
     const origin = Number(baselines[field]) || 0;
-    configureSliderRange(slider, origin, meta);
-    slider.value = origin;
     slider.dataset.origin = origin;
     slider.dataset.field = field;
+    const step = getSliderStep(meta);
     slider.dataset.snapZone = Number.isFinite(meta.snapZone)
       ? meta.snapZone
-      : meta.step || 0;
-    slider.dataset.stepSize = meta.step || 1;
+      : step;
+    slider.dataset.stepSize = step;
+    const visualOrigin = Math.round(origin / step) * step;
+    setSliderVisualOrigin(slider, visualOrigin);
+    configureSliderRange(slider, origin, meta, visualOrigin);
+    slider.value = visualOrigin;
 
-    updateSliderVisual(slider, origin, origin, meta, null);
+    updateSliderVisual(slider, visualOrigin, origin, meta);
   });
 }
 
@@ -11241,18 +11318,45 @@ function setupQuickAutoCalculation() {
           e.target.value = formatCurrency(numValue);
           // Sync to slider and update original values
           if (slider && window.sliderOriginalValues) {
-            slider.value = numValue;
-            // IMPORTANT: Read back the slider value after setting it
-            // The browser will round it to the nearest valid step value
-            const actualSliderValue = parseFloat(slider.value);
-            updateSliderProgress(slider);
-            window.sliderOriginalValues[sliderId] = actualSliderValue;
+            const bindingField =
+              slider.dataset.field || sliderIdLookup[sliderId] || null;
+            const binding =
+              bindingField && window.quickSliderBindings
+                ? window.quickSliderBindings[bindingField]
+                : null;
+
+            if (binding) {
+              binding.setValue(numValue, {
+                triggerThrottle: false,
+                updateWizard: true,
+              });
+            } else {
+              const visualValue = convertActualToVisual(slider, numValue);
+              slider.value = visualValue;
+              updateSliderProgress(slider);
+            }
+            window.sliderOriginalValues[sliderId] = numValue;
           }
         } else if (numValue === 0) {
           e.target.value = formatCurrency(0);
           if (slider && window.sliderOriginalValues) {
-            slider.value = 0;
-            updateSliderProgress(slider);
+            const bindingField =
+              slider.dataset.field || sliderIdLookup[sliderId] || null;
+            const binding =
+              bindingField && window.quickSliderBindings
+                ? window.quickSliderBindings[bindingField]
+                : null;
+
+            if (binding) {
+              binding.setValue(0, {
+                triggerThrottle: false,
+                updateWizard: true,
+              });
+            } else {
+              const visualValue = convertActualToVisual(slider, 0);
+              slider.value = visualValue;
+              updateSliderProgress(slider);
+            }
             window.sliderOriginalValues[sliderId] = 0;
           }
         }
@@ -11960,8 +12064,9 @@ async function autoCalculateQuick() {
 
   const resolveSliderValue = (sliderEl) => {
     if (!sliderEl) return null;
-    const parsed = parseFloat(sliderEl.value);
-    return Number.isFinite(parsed) ? parsed : null;
+    const visual = parseFloat(sliderEl.value);
+    if (!Number.isFinite(visual)) return null;
+    return convertVisualToActual(sliderEl, visual);
   };
 
   let quickTradeValue = resolveSliderValue(tradeAllowanceSlider);
@@ -12327,17 +12432,22 @@ function setupQuickSliders() {
       diffIndicator.appendChild(resetBtn);
     }
 
-    let origin = Number(slider.dataset.origin) || 0;
     slider.dataset.field = field;
-    slider.dataset.stepSize = meta.step || 1;
+    const step = getSliderStep(meta);
+    slider.dataset.stepSize = step;
 
-    window.sliderOriginalValues[meta.sliderId] = origin;
+    slider.dataset.snapZone = Number.isFinite(meta.snapZone)
+      ? meta.snapZone
+      : step;
 
-    input.value = formatSliderInputValue(origin, meta);
-    updateSliderVisual(slider, origin, origin, meta, null);
-    updateDiffIndicatorState(diffIndicator, resetBtn, origin, origin, meta);
+    const snapSetting = Number(slider.dataset.snapZone);
+    const snapZone =
+      Number.isFinite(snapSetting) && snapSetting > 0 ? snapSetting : step;
 
-    const applyValue = (rawValue, options = {}) => {
+    window.sliderOriginalValues[meta.sliderId] =
+      Number(slider.dataset.origin) || 0;
+
+    const applyVisualValue = (rawVisualValue, options = {}) => {
       const {
         triggerThrottle = true,
         commit = false,
@@ -12345,29 +12455,45 @@ function setupQuickSliders() {
         skipFormatting = false,
       } = options;
 
-      let numeric = Number(rawValue);
-      if (!Number.isFinite(numeric)) numeric = origin;
+      const baseline = Number(slider.dataset.origin) || 0;
+      const visualOrigin = getSliderVisualOrigin(slider);
 
-      numeric = clampSliderValueToRange(numeric, slider);
+      let visualValue = Number(rawVisualValue);
+      if (!Number.isFinite(visualValue)) visualValue = visualOrigin;
 
-      const snapZone = Number(slider.dataset.snapZone);
-      if (Number.isFinite(snapZone) && snapZone > 0) {
-        if (Math.abs(numeric - origin) < snapZone) {
-          numeric = origin;
-        }
+      visualValue = clampSliderValueToRange(visualValue, slider);
+
+      const delta = visualValue - visualOrigin;
+      let snappedDelta = Math.round(delta / step) * step;
+
+      if (snapZone > 0 && Math.abs(delta) < snapZone) {
+        snappedDelta = 0;
       }
 
-      slider.value = numeric;
+      visualValue = clampSliderValueToRange(
+        visualOrigin + snappedDelta,
+        slider
+      );
+
+      slider.value = visualValue;
+
+      const actualValue = convertVisualToActual(slider, visualValue);
 
       if (!skipFormatting) {
-        input.value = formatSliderInputValue(numeric, meta);
+        input.value = formatSliderInputValue(actualValue, meta);
       }
 
-      updateSliderVisual(slider, numeric, origin, meta, null);
-      updateDiffIndicatorState(diffIndicator, resetBtn, numeric, origin, meta);
+      updateSliderVisual(slider, visualValue, baseline, meta);
+      updateDiffIndicatorState(
+        diffIndicator,
+        resetBtn,
+        actualValue,
+        baseline,
+        meta
+      );
 
       if (updateWizard && typeof meta.setValue === 'function') {
-        meta.setValue(numeric);
+        meta.setValue(actualValue);
       }
 
       if (triggerThrottle) {
@@ -12378,45 +12504,39 @@ function setupQuickSliders() {
         autoCalculateQuick();
       }
 
-      return numeric;
+      return { visualValue, actualValue };
     };
 
-    const setBaseline = (newBaseline, { apply = true } = {}) => {
-      const nextBaseline = Number(newBaseline);
-      origin = Number.isFinite(nextBaseline) ? nextBaseline : 0;
-      slider.dataset.origin = origin;
-      configureSliderRange(slider, origin, meta);
-      slider.dataset.snapZone = Number.isFinite(meta.snapZone)
-        ? meta.snapZone
-        : meta.step || 0;
-      window.sliderOriginalValues[meta.sliderId] = origin;
-
-      if (apply) {
-        applyValue(origin, {
-          triggerThrottle: false,
-          commit: false,
-          updateWizard: false,
-        });
-      } else {
-        slider.value = origin;
-        input.value = formatSliderInputValue(origin, meta);
-        updateSliderVisual(slider, origin, origin, meta, null);
-        updateDiffIndicatorState(diffIndicator, resetBtn, origin, origin, meta);
-      }
+    const applyActualValue = (rawActualValue, options = {}) => {
+      const baseline = Number(slider.dataset.origin) || 0;
+      const actualValue = Number.isFinite(rawActualValue)
+        ? rawActualValue
+        : baseline;
+      const visualValue = convertActualToVisual(slider, actualValue);
+      return applyVisualValue(visualValue, options);
     };
 
-    // Ensure range metadata reflects current baseline before attaching events
-    setBaseline(origin, { apply: true });
+    const baseline = Number(slider.dataset.origin) || 0;
+    const visualOrigin = getSliderVisualOrigin(slider);
+    input.value = formatSliderInputValue(baseline, meta);
+    updateSliderVisual(slider, visualOrigin, baseline, meta);
+    updateDiffIndicatorState(diffIndicator, resetBtn, baseline, baseline, meta);
+
+    applyActualValue(baseline, {
+      triggerThrottle: false,
+      updateWizard: false,
+      skipFormatting: true,
+    });
 
     slider.addEventListener('input', () => {
-      applyValue(slider.value, {
+      applyVisualValue(slider.value, {
         commit: false,
         updateWizard: true,
       });
     });
 
     slider.addEventListener('change', async () => {
-      applyValue(slider.value, {
+      applyVisualValue(slider.value, {
         triggerThrottle: false,
         updateWizard: true,
       });
@@ -12425,7 +12545,7 @@ function setupQuickSliders() {
 
     input.addEventListener('blur', async (event) => {
       const parsed = parseSliderInputValue(event.target.value, meta);
-      applyValue(parsed, {
+      applyActualValue(parsed, {
         triggerThrottle: false,
         updateWizard: true,
       });
@@ -12441,7 +12561,7 @@ function setupQuickSliders() {
 
     if (resetBtn) {
       resetBtn.addEventListener('click', async () => {
-        applyValue(origin, {
+        applyActualValue(Number(slider.dataset.origin) || 0, {
           triggerThrottle: false,
           updateWizard: true,
         });
@@ -12468,12 +12588,18 @@ function setupQuickSliders() {
       hoverSection.addEventListener('mouseenter', () => {
         isHovering = true;
         hoverSection.focus();
-        showSliderTooltip(slider, parseFloat(slider.value) || origin);
+        showSliderTooltip(
+          slider,
+          convertVisualToActual(slider, parseFloat(slider.value))
+        );
       });
 
       hoverSection.addEventListener('mousemove', () => {
         if (!isHovering) return;
-        showSliderTooltip(slider, parseFloat(slider.value) || origin);
+        showSliderTooltip(
+          slider,
+          convertVisualToActual(slider, parseFloat(slider.value))
+        );
       });
 
       hoverSection.addEventListener('mouseleave', () => {
@@ -12503,17 +12629,20 @@ function setupQuickSliders() {
 
         const direction =
           event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
-        const stepSize = Number(meta.step) || 1;
-        const currentValue = parseFloat(slider.value) || origin;
+        const stepSize = step;
+        const currentValue = parseFloat(slider.value) || visualOrigin;
         let targetValue = currentValue + direction * stepSize;
         targetValue = clampSliderValueToRange(targetValue, slider);
 
-        applyValue(targetValue, {
+        applyVisualValue(targetValue, {
           triggerThrottle: false,
           updateWizard: true,
         });
         await throttledQuickCalc();
-        showSliderTooltip(slider, parseFloat(slider.value) || origin);
+        showSliderTooltip(
+          slider,
+          convertVisualToActual(slider, parseFloat(slider.value))
+        );
       };
 
       document.addEventListener('keydown', handleArrowKey);
@@ -12528,15 +12657,46 @@ function setupQuickSliders() {
       diffIndicator,
       resetBtn,
       get origin() {
-        return origin;
+        return Number(slider.dataset.origin) || 0;
       },
-      setBaseline,
+      setBaseline: (actualBaseline, options = {}) => {
+        const baselineValue = Number.isFinite(actualBaseline)
+          ? actualBaseline
+          : 0;
+        slider.dataset.origin = baselineValue;
+        slider.dataset.snapZone = Number.isFinite(meta.snapZone)
+          ? meta.snapZone
+          : step;
+        slider.dataset.stepSize = step;
+        window.sliderOriginalValues[meta.sliderId] = baselineValue;
+
+        const visualOriginNext = Math.round(baselineValue / step) * step;
+        setSliderVisualOrigin(slider, visualOriginNext);
+        configureSliderRange(slider, baselineValue, meta, visualOriginNext);
+
+        if (options.apply === false) {
+          slider.value = visualOriginNext;
+          input.value = formatSliderInputValue(baselineValue, meta);
+          updateSliderVisual(slider, visualOriginNext, baselineValue, meta);
+          updateDiffIndicatorState(
+            diffIndicator,
+            resetBtn,
+            baselineValue,
+            baselineValue,
+            meta
+          );
+        } else {
+          applyActualValue(baselineValue, {
+            triggerThrottle: false,
+            updateWizard: options.updateWizard ?? false,
+          });
+        }
+      },
       setValue: (value, options = {}) =>
-        applyValue(value, {
+        applyActualValue(value, {
           triggerThrottle: options.triggerThrottle ?? false,
           commit: options.commit ?? false,
           updateWizard: options.updateWizard ?? true,
-          skipFormatting: options.skipFormatting ?? false,
         }),
     };
   });
