@@ -5873,6 +5873,18 @@ function openFeesModal() {
   renderFeeModalFromWizardData();
   modal.classList.add("active");
   modal.style.display = "flex";
+
+  // ESC key to close
+  if (!window.__feesModalEscHandler) {
+    window.__feesModalEscHandler = (e) => {
+      const key = e.key || e.code;
+      if (key === "Escape" || key === "Esc") {
+        e.preventDefault();
+        closeFeesModal();
+      }
+    };
+    document.addEventListener("keydown", window.__feesModalEscHandler);
+  }
 }
 window.openFeesModal = openFeesModal;
 
@@ -10635,7 +10647,21 @@ function openEditFeeModal(categoryKey = "dealer") {
   updateEditFeeNameList(normalizedCategory);
   formatCurrencyInput(amountInput);
 
+  modal.classList.add("active");
   modal.style.display = "flex";
+
+  // ESC key to close
+  if (!window.__editFeeEscHandler) {
+    window.__editFeeEscHandler = (e) => {
+      const key = e.key || e.code;
+      if (key === "Escape" || key === "Esc") {
+        e.preventDefault();
+        closeEditFeeModal();
+      }
+    };
+    document.addEventListener("keydown", window.__editFeeEscHandler);
+  }
+
   requestAnimationFrame(() => {
     nameInput.focus();
     nameInput.select?.();
@@ -10647,6 +10673,7 @@ function closeEditFeeModal() {
   const form = document.getElementById("edit-fee-form");
   const amountInput = document.getElementById("edit-fee-amount");
   if (!modal) return;
+  modal.classList.remove("active");
   modal.style.display = "none";
   form?.reset();
   setEditFeeStatus("");
@@ -10654,6 +10681,7 @@ function closeEditFeeModal() {
     formatCurrencyInput(amountInput);
   }
 }
+window.openEditFeeModal = openEditFeeModal;
 window.closeEditFeeModal = closeEditFeeModal;
 
 function formatCurrencyInput(input) {
