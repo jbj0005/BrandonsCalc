@@ -688,6 +688,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     refreshReview();
   });
 
+  // Export modal functions to window (must be before AuthManager.initialize)
+  window.openCustomerProfileModal = openCustomerProfileModal;
+  window.closeCustomerProfileModal = closeCustomerProfileModal;
+  window.saveCustomerProfile = saveCustomerProfile;
+  window.openMyGarageModal = openMyGarageModal;
+  window.openMyOffersModal = openMyOffersModal;
+  console.log('✅ [app.js] Modal functions exported to window');
+
   // Initialize Authentication Manager (after event listeners are set up)
   await AuthManager.initialize();
 
@@ -6706,12 +6714,6 @@ async function saveCustomerProfile() {
   }
 }
 
-// Make functions globally available
-window.openCustomerProfileModal = openCustomerProfileModal;
-window.closeCustomerProfileModal = closeCustomerProfileModal;
-window.saveCustomerProfile = saveCustomerProfile;
-console.log('✅ [app.js] Customer Profile modal functions exported to window');
-
 /* ============================================================================
    Profile Dropdown Functions
    ============================================================================ */
@@ -8506,7 +8508,6 @@ function renderVehicleComparison(existingVehicle, newVehicle) {
 }
 
 // Make functions globally available
-window.openMyGarageModal = openMyGarageModal;
 window.closeMyGarageModal = closeMyGarageModal;
 window.loadGarageVehicles = loadGarageVehicles;
 window.handleTradeInSelection = handleTradeInSelection;
@@ -8992,7 +8993,6 @@ async function saveOffer(offerData) {
 }
 
 // Make functions globally available
-window.openMyOffersModal = openMyOffersModal;
 window.closeMyOffersModal = closeMyOffersModal;
 window.switchOffersTab = switchOffersTab;
 window.viewOfferDetails = viewOfferDetails;
