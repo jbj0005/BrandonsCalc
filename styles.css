@@ -4189,6 +4189,31 @@ body {
 }
 
 /* Itemization Section (Calculation Breakdown) */
+/* === Itemization Card === */
+.itemization-card {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.itemization-card h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.itemization-content {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+/* Legacy quick-itemization styles (for backward compatibility) */
 .quick-itemization {
   margin-top: var(--spacing-md);
   background: white;
