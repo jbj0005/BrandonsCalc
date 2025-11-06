@@ -738,6 +738,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ${vehicle.trim ? `<span class="vehicle-trim">${capitalizeWords(vehicle.trim)}</span>` : ''}
               </div>
               <div class="vehicle-detail-line">
+                <span class="vehicle-price"><strong>${formatCurrency(vehicle.estimated_value || vehicle.asking_price || 0)}</strong></span>
                 ${vehicle.mileage ? `<span>${formatMileage(vehicle.mileage)} miles</span>` : '<span>—</span>'}
                 ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : '<span>No VIN</span>'}
               </div>
