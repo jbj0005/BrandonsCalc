@@ -1168,10 +1168,11 @@ async function loadGoogleMaps() {
  */
 function setupPlacesAutocomplete() {
   const locationInput = document.getElementById("user-location");
-  if (!locationInput || !google || !google.maps || !google.maps.places) return;
+  const g = typeof window !== "undefined" ? window.google : undefined;
+  if (!locationInput || !g || !g.maps || !g.maps.places) return;
 
   try {
-    placesAutocomplete = new google.maps.places.Autocomplete(locationInput, {
+    placesAutocomplete = new g.maps.places.Autocomplete(locationInput, {
       types: ["address"],
       componentRestrictions: { country: "us" },
     });
@@ -6283,9 +6284,12 @@ function attachProfileMenuHook() {
     const link = event.target?.closest?.('[data-action="profile"]');
     if (!link) return;
     event.preventDefault();
-    const modal = document.getElementById("customer-profile-modal");
-    if (modal && modal.classList.contains("active")) return; // avoid duplicate opens
-    openCustomerProfileModal();
+    // Defer to allow AuthManager's handler first; only open if still closed
+    setTimeout(() => {
+      const modal = document.getElementById("customer-profile-modal");
+      if (!modal || modal.classList.contains("active")) return;
+      openCustomerProfileModal();
+    }, 0);
   });
 }
 
@@ -6373,10 +6377,11 @@ async function loadCustomerProfileData() {
  */
 function setupProfileAddressAutocomplete() {
   const addressInput = document.getElementById("profileAddress");
-  if (!addressInput || !google || !google.maps || !google.maps.places) return;
+  const g = typeof window !== "undefined" ? window.google : undefined;
+  if (!addressInput || !g || !g.maps || !g.maps.places) return;
 
   // Create autocomplete instance
-  const autocomplete = new google.maps.places.Autocomplete(addressInput, {
+  const autocomplete = new g.maps.places.Autocomplete(addressInput, {
     types: ["address"],
     componentRestrictions: { country: "us" },
     fields: ["address_components", "formatted_address", "place_id"],
