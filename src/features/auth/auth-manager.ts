@@ -200,7 +200,6 @@ export class AuthManager {
       'customer-name': 'full_name',
       'customer-email': 'email',
       'customer-phone': 'phone',
-      'quickSliderCashDown': 'preferred_down_payment',
       'credit-score': 'preferred_credit_score',
     };
     
@@ -270,7 +269,7 @@ export class AuthManager {
       window.wizardData.customer.email = profile.email || '';
       window.wizardData.customer.phone = profile.phone || '';
 
-      if (profile.preferred_down_payment) {
+      if (profile.preferred_down_payment && window.wizardData.vehicle?.vin) {
         window.wizardData.financing.cashDown = profile.preferred_down_payment;
       }
     }

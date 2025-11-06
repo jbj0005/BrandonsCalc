@@ -6417,14 +6417,15 @@ async function setPreferredDownPayment() {
       .eq('user_id', userId)
       .single();
 
-    let preferredDown = 0; // default to $0 if no user preference
-    if (!error && profile && profile.preferred_down_payment != null) {
-      const raw = profile.preferred_down_payment;
-      const num = typeof raw === 'string'
-        ? parseFloat(raw.replace(/[^0-9.]/g, ''))
-        : Number(raw);
-      if (Number.isFinite(num)) preferredDown = num;
-    }
+    if (error) return;
+    if (!profile || profile.preferred_down_payment == null) return;
+
+    const raw = profile.preferred_down_payment;
+    const preferredDown = typeof raw === 'string'
+      ? parseFloat(raw.replace(/[^0-9.]/g, ''))
+      : Number(raw);
+
+    if (!Number.isFinite(preferredDown)) return;
 
     const slider = document.getElementById('quickSliderCashDown');
     const input = document.getElementById('quickInputCashDown');
