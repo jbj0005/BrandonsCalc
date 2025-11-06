@@ -2,7 +2,6 @@
 // TYPESCRIPT MODULE IMPORTS (Phase 1)
 // ============================================
 import { AuthManager } from './src/features/auth/auth-manager';
-import { sliderManager } from './src/features/calculator/slider-manager';
 import { SMSSender } from './src/features/offers/sms-sender';
 import { useAuthStore, useCalculatorStore, useGarageStore, useOfferStore } from './src/core/state';
 import {
@@ -731,18 +730,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="vehicle-section-header">In My Garage</div>
         ${garageVehicles.map(vehicle => `
           <div class="vehicle-selector-item garage-vehicle" data-vehicle-id="${vehicle.id}" data-source="garage">
-            <div class="vehicle-info">
-              <div class="vehicle-main-line">
-                ${vehicle.condition ? `<span class="vehicle-condition">${capitalizeWords(vehicle.condition)}</span>` : ''}
-                <strong>${vehicle.year} ${capitalizeWords(vehicle.make)} ${capitalizeWords(vehicle.model)}</strong>
-                ${vehicle.trim ? `<span class="vehicle-trim">${capitalizeWords(vehicle.trim)}</span>` : ''}
-              </div>
-              <div class="vehicle-detail-line">
-                <span class="vehicle-price"><strong>${formatCurrency(vehicle.estimated_value || vehicle.asking_price || 0)}</strong></span>
-                ${vehicle.mileage ? `<span>${formatMileage(vehicle.mileage)} miles</span>` : '<span>—</span>'}
-                ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : '<span>No VIN</span>'}
-              </div>
-            </div>
+            ${buildVehicleSummaryMarkup(vehicle)}
           </div>
         `).join('')}
       `;
@@ -755,15 +743,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         ${savedVehiclesData.map(vehicle => `
           <div class="vehicle-selector-item saved-vehicle-row" data-vehicle-id="${vehicle.id}" data-source="saved">
             <div class="vehicle-info" data-vehicle-id="${vehicle.id}">
-              <div class="vehicle-main-line">
-                ${vehicle.condition ? `<span class="vehicle-condition">${capitalizeWords(vehicle.condition)}</span>` : ''}
-                <strong>${vehicle.year} ${capitalizeWords(vehicle.make)} ${capitalizeWords(vehicle.model)}</strong>
-                ${vehicle.trim ? `<span class="vehicle-trim">${capitalizeWords(vehicle.trim)}</span>` : ''}
-              </div>
-              <div class="vehicle-detail-line">
-                ${vehicle.mileage ? `<span>${formatMileage(vehicle.mileage)} miles</span>` : '<span>—</span>'}
-                ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : '<span>No VIN</span>'}
-              </div>
+              ${buildVehicleSummaryMarkup(vehicle)}
             </div>
             <button
               class="btn-add-to-garage"
@@ -5458,6 +5438,7 @@ function populateReviewVehicleCard(reviewData) {
 /**
  * Initialize and sync review sliders with their inputs
  */
+
 function initializeReviewSliders(reviewData) {
   const sliderConfigs = [
     {
@@ -5466,14 +5447,12 @@ function initializeReviewSliders(reviewData) {
       getValue: () => wizardData.financing.salePrice || 0,
       setValue: (val) => {
         wizardData.financing.salePrice = val;
-        // Update vehicle price in step 2
         const vehiclePriceInput = document.getElementById("vehicle-price");
         if (vehiclePriceInput) {
           vehiclePriceInput.value = formatCurrency(val);
           vehiclePriceInput.dataset.basePrice = val;
         }
       },
-      max: 150000,
       step: 500,
     },
     {
@@ -5482,13 +5461,11 @@ function initializeReviewSliders(reviewData) {
       getValue: () => wizardData.financing.cashDown || 0,
       setValue: (val) => {
         wizardData.financing.cashDown = val;
-        // Update down payment in step 2
         const downPaymentInput = document.getElementById("down-payment");
         if (downPaymentInput) {
           downPaymentInput.value = formatCurrency(val);
         }
       },
-      max: 50000,
       step: 100,
     },
     {
@@ -5505,14 +5482,13 @@ function initializeReviewSliders(reviewData) {
             hasTradeIn: wizardData.tradein.hasTradeIn,
             value: val,
             payoff: wizardData.tradein?.tradePayoff || 0,
-            vehicles: wizardData.trade?.vehicles || []
+            vehicles: wizardData.trade?.vehicles || [],
           };
         } else {
           wizardData.trade.value = val;
           wizardData.trade.hasTradeIn = wizardData.tradein.hasTradeIn;
         }
       },
-      max: 75000,
       step: 100,
     },
     {
@@ -5528,10 +5504,8 @@ function initializeReviewSliders(reviewData) {
       },
       setValue: (val) => {
         ensureWizardFeeDefaults();
-        // Distribute the value proportionally across existing dealer fees
         const fees = wizardData.fees.dealerFees || [];
         if (fees.length === 0) {
-          // Create a default dealer fee if none exist
           fees.push({ name: "Dealer Fee", amount: val });
           wizardData.fees.dealerFees = fees;
         } else {
@@ -5540,23 +5514,27 @@ function initializeReviewSliders(reviewData) {
             0
           );
           if (currentTotal > 0) {
-            // Proportional distribution
             fees.forEach((fee) => {
               const proportion = (parseFloat(fee.amount) || 0) / currentTotal;
               fee.amount = val * proportion;
             });
           } else {
-            // Equal distribution
             const perFee = val / fees.length;
             fees.forEach((fee) => (fee.amount = perFee));
           }
         }
         wizardData.fees.userCustomized = true;
       },
-      max: 10000,
       step: 100,
     },
   ];
+
+  const fieldMap = {
+    reviewSalePriceSlider: "salePrice",
+    reviewCashDownSlider: "cashDown",
+    reviewTradeAllowanceSlider: "tradeAllowance",
+    reviewDealerFeesSlider: "dealerFees",
+  };
 
   sliderConfigs.forEach((config) => {
     const slider = document.getElementById(config.sliderId);
@@ -5564,113 +5542,114 @@ function initializeReviewSliders(reviewData) {
 
     if (!slider || !input) return;
 
-    // Set initial values
-    const currentValue = config.getValue();
-    slider.value = currentValue;
-    slider.max = config.max;
-    slider.step = 0.01; // Allow penny precision for exact values
-    input.value = formatCurrency(currentValue);
+    const field = fieldMap[config.sliderId];
+    const baseMeta = sliderPolarityMap[field] || {
+      positiveDirection: "left",
+      colorPositive: SLIDER_GRADIENT_POSITIVE,
+      colorNegative: SLIDER_GRADIENT_NEGATIVE,
+      format: "currency",
+    };
 
-    // Store the drag increment for snapping behavior
-    slider.dataset.dragIncrement = config.step;
+    const meta = {
+      ...baseMeta,
+      step: config.step,
+      snapZone: baseMeta.snapZone ?? config.step,
+    };
 
-    // Update slider progress bar
-    updateSliderProgress(slider);
+    let origin = config.getValue();
+    if (!Number.isFinite(origin)) {
+      origin = 0;
+    }
 
-    // Slider to input sync - snap to increment when dragging
-    slider.addEventListener("input", async (e) => {
-      let value = parseFloat(e.target.value);
+    slider.dataset.field = field || config.sliderId;
+    slider.dataset.origin = origin;
+    slider.dataset.snapZone = meta.snapZone ?? meta.step;
+    slider.dataset.stepSize = meta.step || 1;
+    configureSliderRange(slider, origin, meta);
 
-      // Snap to drag increment during user interaction
-      const dragIncrement =
-        parseFloat(slider.dataset.dragIncrement) || config.step;
-      value = Math.round(value / dragIncrement) * dragIncrement;
+    slider.value = origin;
+    input.value = formatSliderInputValue(origin, meta);
 
-      // Update slider to snapped value
-      slider.value = value;
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-      config.setValue(value);
+    window.sliderOriginalValues = window.sliderOriginalValues || {};
+    window.sliderOriginalValues[config.sliderId] = origin;
 
-      // Debounced refresh
-      await refreshReviewDebounced();
-    });
+    updateSliderVisual(slider, origin, origin, meta, null);
 
-    // Input to slider sync - preserve exact penny values
-    input.addEventListener("blur", async (e) => {
-      const rawValue = e.target.value.replace(/[^0-9.-]/g, "");
-      let value = parseFloat(rawValue);
+    const applyValue = (rawValue) => {
+      let numeric = Number(rawValue);
+      if (!Number.isFinite(numeric)) numeric = origin;
+      numeric = clampSliderValueToRange(numeric, slider);
 
-      if (isNaN(value) || value < 0) {
-        value = 0;
-      } else if (value > config.max) {
-        value = config.max;
+      const snapZone = Number(slider.dataset.snapZone);
+      if (Number.isFinite(snapZone) && snapZone > 0 && Math.abs(numeric - origin) < snapZone) {
+        numeric = origin;
       }
 
-      // Don't round - preserve exact penny value from input
-      value = Math.round(value * 100) / 100; // Only round to cents
+      slider.value = numeric;
+      input.value = formatSliderInputValue(numeric, meta);
+      updateSliderVisual(slider, numeric, origin, meta, null);
+      config.setValue(numeric);
+      return numeric;
+    };
 
-      slider.value = value;
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-      config.setValue(value);
-
-      await refreshReview();
+    slider.addEventListener("input", () => {
+      applyValue(slider.value);
+      refreshReviewDebounced();
     });
 
-    // Enter key support
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
+    slider.addEventListener("change", () => {
+      applyValue(slider.value);
+      refreshReviewDebounced();
+    });
+
+    input.addEventListener("blur", (event) => {
+      const parsed = parseSliderInputValue(event.target.value, meta);
+      applyValue(parsed);
+      refreshReviewDebounced();
+    });
+
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
         input.blur();
       }
     });
   });
 }
 
+
 /**
- * Update slider visual progress - centered at original/baseline value
+ * Update slider visual using polarity metadata (legacy bridge for non-refactored contexts)
  */
 function updateSliderProgress(slider) {
-  const min = parseFloat(slider.min) || 0;
-  const max = parseFloat(slider.max) || 100;
-  const value = parseFloat(slider.value) || 0;
+  if (!slider) return;
 
-  // Get original/baseline value for this slider (defaults to current value if not set)
-  const originalValue = window.sliderOriginalValues?.[slider.id] ?? value;
+  const field =
+    slider.dataset.field ||
+    sliderIdLookup[slider.id] ||
+    Object.entries(sliderPolarityMap).find(
+      ([, meta]) => meta.sliderId === slider.id
+    )?.[0];
 
-  // Center the slider at the original value (50% position)
-  // Map the value range so original is at 50%, min at 0%, max at 100%
-  let progress;
-  if (value <= originalValue) {
-    // Left side: map from min (0%) to original (50%)
-    if (originalValue === min) {
-      progress = 50;
-    } else {
-      progress = ((value - min) / (originalValue - min)) * 50;
-    }
-  } else {
-    // Right side: map from original (50%) to max (100%)
-    if (max === originalValue) {
-      progress = 50;
-    } else {
-      progress = 50 + ((value - originalValue) / (max - originalValue)) * 50;
-    }
-  }
+  if (!field) return;
 
-  slider.style.setProperty("--slider-progress", `${progress}%`);
-  slider.style.setProperty("--slider-center", "50%"); // Mark the center position
+  const meta = sliderPolarityMap[field];
+  if (!meta) return;
 
-  // Set fill range from center to current position
-  if (progress < 50) {
-    // Moving left from center: fill from current position to center
-    slider.style.setProperty("--fill-start", `${progress}%`);
-    slider.style.setProperty("--fill-end", "50%");
-  } else {
-    // Moving right from center: fill from center to current position
-    slider.style.setProperty("--fill-start", "50%");
-    slider.style.setProperty("--fill-end", `${progress}%`);
-  }
+  const value = Number(slider.value);
+  const origin =
+    Number(slider.dataset.origin) ||
+    window.sliderOriginalValues?.[slider.id] ||
+    value ||
+    0;
+
+  updateSliderVisual(
+    slider,
+    Number.isFinite(value) ? value : origin,
+    origin,
+    meta,
+    null
+  );
 }
 
 /**
@@ -6890,6 +6869,408 @@ window.syncAuthWithProfile = syncAuthWithProfile;
 // Track selected trade-in vehicles (unlimited)
 let selectedTradeIns = [];
 
+function deriveVehiclePriceValue(vehicle) {
+  const candidates = [
+    vehicle.price,
+    vehicle.asking_price,
+    vehicle.list_price,
+    vehicle.sale_price,
+    vehicle.vehicle_price,
+    vehicle.estimated_value,
+    vehicle.msrp,
+    vehicle.base_price
+  ];
+  for (const candidate of candidates) {
+    const numeric = Number(candidate);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric;
+    }
+  }
+  return null;
+}
+
+function getVehiclePriceText(vehicle) {
+  const priceValue = deriveVehiclePriceValue(vehicle);
+  if (priceValue == null) {
+    return "Not Listed";
+  }
+  return `$${Math.round(priceValue).toLocaleString()}`;
+}
+
+function getVehicleConditionText(condition) {
+  if (!condition) return "";
+  const normalized = String(condition).trim();
+  if (!normalized) return "";
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function buildVehicleSummaryMarkup(vehicle) {
+  const priceText = getVehiclePriceText(vehicle);
+  const conditionText = getVehicleConditionText(vehicle.condition);
+  const trimText = vehicle.trim ? capitalizeWords(vehicle.trim) : "";
+  const mileageText = Number.isFinite(Number(vehicle.mileage))
+    ? formatMileage(Number(vehicle.mileage))
+    : null;
+
+  return `
+    <div class="vehicle-card">
+      <div class="vehicle-header">
+        <h3>${vehicle.year || ""} ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(vehicle.model || "")}</h3>
+        <span class="vehicle-price">${priceText}</span>
+      </div>
+      <div class="vehicle-subinfo">
+        ${trimText ? `<span class="vehicle-trim">${trimText}</span>` : ""}
+        ${conditionText ? `<span class="vehicle-condition">${conditionText}</span>` : ""}
+      </div>
+      <div class="vehicle-metadata">
+        ${mileageText ? `<span>${mileageText} miles</span>` : ""}
+        ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+const SLIDER_GRADIENT_POSITIVE =
+  "linear-gradient(135deg, var(--primary) 0%, #0052a3 100%)";
+const SLIDER_GRADIENT_NEGATIVE =
+  "linear-gradient(135deg, #ef4444 0%, #b91c1c 100%)";
+
+const sliderPolarityMap = {
+  salePrice: {
+    sliderId: "quickSliderSalePrice",
+    inputId: "quickInputSalePrice",
+    diffId: "quickDiffSalePrice",
+    resetId: "quickResetSalePrice",
+    positiveDirection: "left",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 100,
+    snapZone: 50,
+    minFloor: 0,
+    getBaseline: () => {
+      const explicit = wizardData.financing?.salePrice;
+      if (Number.isFinite(explicit)) return explicit;
+      const hiddenInput = document.getElementById("quick-vehicle-price");
+      if (hiddenInput) {
+        const parsed = parseCurrency(hiddenInput.value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      const slider = document.getElementById("quickSliderSalePrice");
+      return Number(slider?.value) || 0;
+    },
+    setValue: (val) => {
+      wizardData.financing = wizardData.financing || {};
+      wizardData.financing.salePrice = val;
+      const hidden = document.getElementById("quick-vehicle-price");
+      if (hidden) hidden.value = formatCurrency(val);
+    },
+  },
+  cashDown: {
+    sliderId: "quickSliderCashDown",
+    inputId: "quickInputCashDown",
+    diffId: "quickDiffCashDown",
+    resetId: "quickResetCashDown",
+    positiveDirection: "right",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 100,
+    snapZone: 50,
+    minFloor: 0,
+    getBaseline: () => {
+      const explicit = wizardData.financing?.cashDown;
+      if (Number.isFinite(explicit)) return explicit;
+      const hidden = document.getElementById("quick-down-payment");
+      if (hidden) {
+        const parsed = parseCurrency(hidden.value);
+        if (Number.isFinite(parsed)) return parsed;
+      }
+      const slider = document.getElementById("quickSliderCashDown");
+      return Number(slider?.value) || 0;
+    },
+    setValue: (val) => {
+      wizardData.financing = wizardData.financing || {};
+      wizardData.financing.cashDown = val;
+      const hidden = document.getElementById("quick-down-payment");
+      if (hidden) hidden.value = formatCurrency(val);
+    },
+  },
+  dealerFees: {
+    sliderId: "quickSliderDealerFees",
+    inputId: "quickInputDealerFees",
+    diffId: "quickDiffDealerFees",
+    resetId: "quickResetDealerFees",
+    positiveDirection: "left",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 10,
+    snapZone: 5,
+    minFloor: 0,
+    getBaseline: () => {
+      ensureWizardFeeDefaults();
+      return wizardData.fees?.dealerFees ?? 0;
+    },
+    setValue: (val) => {
+      ensureWizardFeeDefaults();
+      wizardData.fees.dealerFees = val;
+      wizardData.fees.userCustomized = true;
+    },
+  },
+  tradeAllowance: {
+    sliderId: "quickSliderTradeAllowance",
+    inputId: "quickInputTradeAllowance",
+    diffId: "quickDiffTradeAllowance",
+    resetId: "quickResetTradeAllowance",
+    positiveDirection: "right",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 100,
+    snapZone: 50,
+    minFloor: 0,
+    getBaseline: () => wizardData.tradein?.tradeValue ?? 0,
+    setValue: (val) => {
+      wizardData.tradein = wizardData.tradein || {};
+      wizardData.tradein.hasTradeIn = true;
+      wizardData.tradein.tradeValue = val;
+
+      wizardData.trade = wizardData.trade || {};
+      wizardData.trade.hasTradeIn = true;
+      wizardData.trade.value = val;
+      wizardData.trade.payoff =
+        wizardData.trade.payoff ?? wizardData.tradein?.tradePayoff ?? 0;
+    },
+  },
+  tradePayoff: {
+    sliderId: "quickSliderTradePayoff",
+    inputId: "quickInputTradePayoff",
+    diffId: "quickDiffTradePayoff",
+    resetId: "quickResetTradePayoff",
+    positiveDirection: "left",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 100,
+    snapZone: 50,
+    minFloor: 0,
+    getBaseline: () => wizardData.tradein?.tradePayoff ?? 0,
+    setValue: (val) => {
+      wizardData.tradein = wizardData.tradein || {};
+      wizardData.tradein.hasTradeIn = true;
+      wizardData.tradein.tradePayoff = val;
+
+      wizardData.trade = wizardData.trade || {};
+      wizardData.trade.hasTradeIn = true;
+      wizardData.trade.payoff = val;
+      wizardData.trade.value =
+        wizardData.trade.value ?? wizardData.tradein?.tradeValue ?? 0;
+    },
+  },
+  addons: {
+    sliderId: "quickSliderCustomerAddons",
+    inputId: "quickInputCustomerAddons",
+    diffId: "quickDiffCustomerAddons",
+    resetId: "quickResetCustomerAddons",
+    positiveDirection: "left",
+    colorPositive: SLIDER_GRADIENT_POSITIVE,
+    colorNegative: SLIDER_GRADIENT_NEGATIVE,
+    format: "currency",
+    step: 10,
+    snapZone: 5,
+    minFloor: 0,
+    getBaseline: () => {
+      ensureWizardFeeDefaults();
+      return wizardData.fees?.customerAddons ?? 0;
+    },
+    setValue: (val) => {
+      ensureWizardFeeDefaults();
+      wizardData.fees.customerAddons = val;
+      wizardData.fees.userCustomized = true;
+    },
+  },
+};
+
+const sliderIdLookup = Object.entries(sliderPolarityMap).reduce(
+  (acc, [field, meta]) => {
+    acc[meta.sliderId] = field;
+    return acc;
+  },
+  {}
+);
+
+function formatSliderValue(value, meta, { includeSign = false } = {}) {
+  const numeric = Number(value) || 0;
+  let base;
+  if (meta.format === "currency") {
+    base = formatCurrency(Math.abs(numeric));
+  } else {
+    base = Math.abs(numeric).toLocaleString();
+  }
+
+  if (!includeSign) {
+    return numeric < 0 ? `-${base}` : base;
+  }
+
+  if (numeric > 0) return `+${base}`;
+  if (numeric < 0) return `-${base}`;
+  return base;
+}
+
+function computeBuyerPositive(meta, diff) {
+  if (diff === 0) return null;
+  const isRightPositive = meta.positiveDirection === "right";
+  return isRightPositive ? diff > 0 : diff < 0;
+}
+
+function updateSliderVisual(slider, value, origin, meta, isBuyerPositive) {
+  const min = parseFloat(slider.min) || 0;
+  const max = parseFloat(slider.max) || 0;
+  const safeValue = Number.isFinite(value) ? value : origin;
+  const percent =
+    max === min ? 50 : ((safeValue - min) / (max - min)) * 100;
+  const constrainedPercent = Math.min(Math.max(percent, 0), 100);
+
+  const buyerPositive = isBuyerPositive ?? computeBuyerPositive(meta, safeValue - origin);
+
+  let fillGradient;
+  if (buyerPositive == null || safeValue === origin) {
+    fillGradient = "linear-gradient(135deg, rgba(203,213,225,0.6), rgba(203,213,225,0.6))";
+  } else {
+    fillGradient = buyerPositive ? meta.colorPositive : meta.colorNegative;
+  }
+
+  slider.style.backgroundImage = `${fillGradient}, linear-gradient(#e5e7eb, #e5e7eb)`;
+  slider.style.backgroundSize = `${constrainedPercent}% 100%, 100% 100%`;
+  slider.style.backgroundPosition = "left center, left center";
+  slider.style.backgroundRepeat = "no-repeat";
+}
+
+function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) {
+  if (!diffIndicator) return;
+  const diff = value - origin;
+  const buyerPositive = computeBuyerPositive(meta, diff);
+
+  if (diff === 0) {
+    diffIndicator.style.display = "none";
+    if (resetBtn) resetBtn.style.display = "none";
+    return;
+  }
+
+  diffIndicator.style.display = "flex";
+  diffIndicator.className = `quick-diff-indicator ${
+    buyerPositive ? "positive" : "negative"
+  }`;
+
+  let diffText = diffIndicator.querySelector(".diff-text");
+  if (!diffText) {
+    diffText = document.createElement("span");
+    diffText.className = "diff-text";
+    if (resetBtn) {
+      diffIndicator.insertBefore(diffText, resetBtn);
+    } else {
+      diffIndicator.appendChild(diffText);
+    }
+  }
+
+  diffText.textContent = `${formatSliderValue(diff, meta, {
+    includeSign: true,
+  })} from baseline`;
+
+  if (resetBtn) {
+    resetBtn.style.display = "inline-flex";
+  }
+}
+
+function configureSliderRange(slider, origin, meta) {
+  if (!slider || !meta) return;
+  const step = Number(meta.step) || 1;
+  const paddingCandidate = Math.abs(Number(origin) || 0) * 0.5;
+  const fallbackPadding = step * 20;
+  const padding = Math.max(paddingCandidate, fallbackPadding, 1000);
+  const minFloor = Number.isFinite(meta.minFloor)
+    ? Number(meta.minFloor)
+    : -Infinity;
+  const maxCeil = Number.isFinite(meta.maxCeil)
+    ? Number(meta.maxCeil)
+    : Infinity;
+
+  slider.min = Math.max(minFloor, (Number(origin) || 0) - padding);
+  slider.max = Math.min(maxCeil, (Number(origin) || 0) + padding);
+  slider.step = step;
+}
+
+function formatSliderInputValue(value, meta) {
+  const numeric = Number(value) || 0;
+  if (meta.format === "currency") {
+    return formatCurrency(numeric);
+  }
+  if (meta.format === "percent") {
+    return formatPercent(numeric);
+  }
+  return numeric.toLocaleString();
+}
+
+function parseSliderInputValue(rawValue, meta) {
+  if (meta.format === "currency") {
+    return parseCurrency(rawValue);
+  }
+
+  const normalized =
+    typeof rawValue === "string"
+      ? rawValue.replace(/[^0-9.-]/g, "")
+      : String(rawValue ?? "");
+  const parsed = parseFloat(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function clampSliderValueToRange(value, slider) {
+  const numeric = Number.isFinite(value) ? value : 0;
+  const min = Number(slider.min);
+  const max = Number(slider.max);
+  let clamped = numeric;
+  if (Number.isFinite(min)) {
+    clamped = Math.max(min, clamped);
+  }
+  if (Number.isFinite(max)) {
+    clamped = Math.min(max, clamped);
+  }
+  return clamped;
+}
+
+function gatherSliderBaselines() {
+  return Object.entries(sliderPolarityMap).reduce((acc, [field, meta]) => {
+    try {
+      const baseline = meta.getBaseline ? meta.getBaseline() : 0;
+      acc[field] = Number.isFinite(baseline) ? baseline : 0;
+    } catch (error) {
+      console.warn(`[slider] Unable to compute baseline for ${field}`, error);
+      acc[field] = 0;
+    }
+    return acc;
+  }, {});
+}
+
+function initSlidersFromBaseline(baselines) {
+  Object.entries(sliderPolarityMap).forEach(([field, meta]) => {
+    const slider = document.getElementById(meta.sliderId);
+    if (!slider) return;
+
+    const origin = Number(baselines[field]) || 0;
+    configureSliderRange(slider, origin, meta);
+    slider.value = origin;
+    slider.dataset.origin = origin;
+    slider.dataset.field = field;
+    slider.dataset.snapZone = Number.isFinite(meta.snapZone)
+      ? meta.snapZone
+      : meta.step || 0;
+    slider.dataset.stepSize = meta.step || 1;
+
+    updateSliderVisual(slider, origin, origin, meta, null);
+  });
+}
+
 /**
  * Open My Garage modal and load vehicles
  */
@@ -6998,11 +7379,7 @@ function renderGarageVehicleCard(vehicle) {
     ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
     : "";
 
-  // Format price with green gradient or show "Not Listed"
-  const priceText = value > 0
-    ? formatCurrency(value)
-    : "Not Listed";
-  const priceClass = value > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
+  const vehicleSummaryMarkup = buildVehicleSummaryMarkup(vehicle);
 
   return `
     <div class="garage-vehicle-card" data-vehicle-id="${vehicle.id}">
@@ -7034,23 +7411,12 @@ function renderGarageVehicleCard(vehicle) {
         </div>
       </div>
       <div class="garage-vehicle-info">
-        <div class="garage-vehicle-title-row">
-          <h4 class="garage-vehicle-title">${nickname}</h4>
-          <span class="${priceClass}">${priceText}</span>
-        </div>
-        <p class="garage-vehicle-details">${vehicle.year} ${vehicle.make} ${
-    vehicle.model
-  }${trim}</p>
-        ${
-          vehicle.vin
-            ? `<p class="garage-vehicle-vin">VIN: ${vehicle.vin}</p>`
-            : ""
-        }
-        <div class="garage-vehicle-meta">
-          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
-          <span class="garage-badge">${mileage.toLocaleString()} mi</span>
-        </div>
+        ${vehicleSummaryMarkup}
         <div class="garage-vehicle-financial">
+          <div class="garage-financial-item">
+            <span class="garage-financial-label">Estimated Value</span>
+            <span class="garage-financial-value">${formatCurrency(value)}</span>
+          </div>
           <div class="garage-financial-item">
             <span class="garage-financial-label">Payoff</span>
             <span class="garage-financial-value">${formatCurrency(
@@ -10144,49 +10510,6 @@ async function initializeQuickEntry() {
  */
 function syncSlidersFromWizardData() {
   ensureWizardFeeDefaults();
-
-  const syncMap = [
-    {
-      sliderId: "quickSliderSalePrice",
-      inputId: "quickInputSalePrice",
-      value: wizardData.financing?.salePrice || 0,
-    },
-    {
-      sliderId: "quickSliderCashDown",
-      inputId: "quickInputCashDown",
-      value: wizardData.financing?.cashDown || 0,
-    },
-    {
-      sliderId: "quickSliderTradeAllowance",
-      inputId: "quickInputTradeAllowance",
-      value: wizardData.tradein?.tradeValue || 0,
-    },
-    {
-      sliderId: "quickSliderTradePayoff",
-      inputId: "quickInputTradePayoff",
-      value: wizardData.tradein?.tradePayoff || 0,
-    },
-    {
-      sliderId: "quickSliderDealerFees",
-      inputId: "quickInputDealerFees",
-      value: wizardData.fees?.dealerFees || 0,
-    },
-    {
-      sliderId: "quickSliderCustomerAddons",
-      inputId: "quickInputCustomerAddons",
-      value: wizardData.fees?.customerAddons || 0,
-    },
-  ];
-
-  syncMap.forEach(({ sliderId, inputId, value }) => {
-    const slider = document.getElementById(sliderId);
-    const input = document.getElementById(inputId);
-    if (slider && input) {
-      slider.value = value;
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-    }
-  });
 }
 
 /**
@@ -10254,33 +10577,9 @@ function displayQuickSavedVehicles() {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
 
-    // Get price from asking_price or estimated_value
-    const price = vehicle.asking_price || vehicle.estimated_value || 0;
-    const priceText = price > 0 ? formatCurrency(price) : "Not Listed";
-    const priceClass = price > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
-
-    // Get condition
-    const condition = vehicle.condition
-      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
-      : "";
-
     item.innerHTML = `
       <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
-        <div class="saved-vehicle-item__header">
-          <div class="saved-vehicle-item__title">${
-            vehicle.year || ""
-          } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
-      vehicle.model || ""
-    )}</div>
-          <span class="${priceClass}">${priceText}</span>
-        </div>
-        <div class="saved-vehicle-item__details">
-          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
-          ${capitalizeWords(vehicle.trim || "")} • ${formatMileage(vehicle.mileage || 0)} miles
-        </div>
-        <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
-          vehicle.vin || "N/A"
-        )}</div>
+        ${buildVehicleSummaryMarkup(vehicle)}
       </div>
       <button
         class="btn-add-to-garage"
@@ -10328,33 +10627,9 @@ function filterQuickSavedVehicles(searchTerm) {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
 
-    // Get price from asking_price or estimated_value
-    const price = vehicle.asking_price || vehicle.estimated_value || 0;
-    const priceText = price > 0 ? formatCurrency(price) : "Not Listed";
-    const priceClass = price > 0 ? "vehicle-price" : "vehicle-price vehicle-price--empty";
-
-    // Get condition
-    const condition = vehicle.condition
-      ? vehicle.condition.charAt(0).toUpperCase() + vehicle.condition.slice(1)
-      : "";
-
     item.innerHTML = `
       <div class="saved-vehicle-item__content" data-vehicle-id="${vehicle.id}">
-        <div class="saved-vehicle-item__header">
-          <div class="saved-vehicle-item__title">${
-            vehicle.year || ""
-          } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
-      vehicle.model || ""
-    )}</div>
-          <span class="${priceClass}">${priceText}</span>
-        </div>
-        <div class="saved-vehicle-item__details">
-          ${condition ? `<span class="vehicle-condition">${condition}</span>` : ""}
-          ${capitalizeWords(vehicle.trim || "")} • ${formatMileage(vehicle.mileage || 0)} miles
-        </div>
-        <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
-          vehicle.vin || "N/A"
-        )}</div>
+        ${buildVehicleSummaryMarkup(vehicle)}
       </div>
       <button
         class="btn-add-to-garage"
@@ -12009,430 +12284,264 @@ function throttle(func, delay) {
 /**
  * Setup sliders for Quick Entry itemization
  */
-function setupQuickSliders() {
-  const sliderConfigs = [
-    {
-      sliderId: "quickSliderSalePrice",
-      inputId: "quickInputSalePrice",
-      diffId: "quickDiffSalePrice",
-      resetId: "quickResetSalePrice",
-      sourceId: "quick-vehicle-price",
-      max: 150000,
-      step: 100,
-      buyerPositiveOnDecrease: true, // Lower price is better for buyer
-      updateWizardData: (val) => {
-        wizardData.financing.salePrice = val;
-        document.getElementById("quick-vehicle-price").value =
-          formatCurrency(val);
-      },
-    },
-    {
-      sliderId: "quickSliderCashDown",
-      inputId: "quickInputCashDown",
-      diffId: "quickDiffCashDown",
-      resetId: "quickResetCashDown",
-      sourceId: "quick-down-payment",
-      max: 50000,
-      step: 100,
-      buyerPositiveOnDecrease: true, // Less cash down is better for buyer
-      updateWizardData: (val) => {
-        wizardData.financing.cashDown = val;
-        document.getElementById("quick-down-payment").value =
-          formatCurrency(val);
-      },
-    },
-    {
-      sliderId: "quickSliderTradeAllowance",
-      inputId: "quickInputTradeAllowance",
-      diffId: "quickDiffTradeAllowance",
-      resetId: "quickResetTradeAllowance",
-      max: 75000,
-      step: 100,
-      buyerPositiveOnDecrease: false, // Higher trade value is better for buyer
-      updateWizardData: (val) => {
-        if (!wizardData.tradein) wizardData.tradein = {};
-        wizardData.tradein.hasTradeIn = true; // Ensure trade-in is enabled when slider is moved
-        wizardData.tradein.tradeValue = val;
-      },
-    },
-    {
-      sliderId: "quickSliderTradePayoff",
-      inputId: "quickInputTradePayoff",
-      diffId: "quickDiffTradePayoff",
-      resetId: "quickResetTradePayoff",
-      max: 75000,
-      step: 100,
-      buyerPositiveOnDecrease: true, // Less payoff is better for buyer
-      updateWizardData: (val) => {
-        if (!wizardData.tradein) wizardData.tradein = {};
-        wizardData.tradein.hasTradeIn = true; // Ensure trade-in is enabled when slider is moved
-        wizardData.tradein.tradePayoff = val;
-      },
-    },
-    {
-      sliderId: "quickSliderDealerFees",
-      inputId: "quickInputDealerFees",
-      diffId: "quickDiffDealerFees",
-      resetId: "quickResetDealerFees",
-      max: 10000,
-      step: 100,
-      buyerPositiveOnDecrease: true, // Lower fees are better for buyer
-      updateWizardData: (val) => {
-        ensureWizardFeeDefaults();
-        wizardData.fees.dealerFees = val;
-        wizardData.fees.userCustomized = true;
-      },
-    },
-    {
-      sliderId: "quickSliderCustomerAddons",
-      inputId: "quickInputCustomerAddons",
-      diffId: "quickDiffCustomerAddons",
-      resetId: "quickResetCustomerAddons",
-      max: 10000,
-      step: 100,
-      buyerPositiveOnDecrease: true, // Fewer add-ons are better for buyer
-      updateWizardData: (val) => {
-        ensureWizardFeeDefaults();
-        wizardData.fees.customerAddons = val;
-        wizardData.fees.userCustomized = true;
-      },
-    },
-  ];
 
-  // Use global original values object (shared with updateQuickSliderValues)
+function setupQuickSliders() {
+  ensureWizardFeeDefaults();
+
+  const baselines = gatherSliderBaselines();
+  initSlidersFromBaseline(baselines);
+
   if (!window.sliderOriginalValues) {
     window.sliderOriginalValues = {};
   }
-  const originalValues = window.sliderOriginalValues;
-
-  // Initialize slider baselines Map for tooltip calculations
   if (!window.sliderBaselines) {
     window.sliderBaselines = new Map();
   }
-  const sliderBaselines = window.sliderBaselines;
+  if (!window.quickSliderBindings) {
+    window.quickSliderBindings = {};
+  }
 
-  // Create throttled version of expensive calculation (150ms delay)
-  const throttledCalculate = throttle(autoCalculateQuick, 150);
+  const quickSliderBindings = window.quickSliderBindings;
+  const throttledQuickCalc = throttle(autoCalculateQuick, 150);
 
-  sliderConfigs.forEach((config) => {
-    const slider = document.getElementById(config.sliderId);
-    const input = document.getElementById(config.inputId);
-    const diffIndicator = document.getElementById(config.diffId);
-    const resetBtn = document.getElementById(config.resetId);
+  Object.entries(sliderPolarityMap).forEach(([field, meta]) => {
+    const slider = document.getElementById(meta.sliderId);
+    const input = document.getElementById(meta.inputId);
+    const diffIndicator = meta.diffId
+      ? document.getElementById(meta.diffId)
+      : null;
+    const resetBtn = meta.resetId
+      ? document.getElementById(meta.resetId)
+      : null;
 
     if (!slider || !input) {
-      console.warn(
-        `[setupQuickSliders] Missing elements for ${config.sliderId}:`,
-        {
-          slider: !!slider,
-          input: !!input,
-        }
-      );
+      console.warn('[slider] Missing elements', {
+        field,
+        sliderId: meta.sliderId,
+        inputId: meta.inputId,
+      });
       return;
     }
 
-    // Ensure slider has a valid numeric value (not empty string or NaN)
-    const currentValue = parseFloat(slider.value);
-    if (!Number.isFinite(currentValue)) {
-      slider.value = 0;
-      input.value = formatCurrency(0);
-    }
-
-    // Store original value when first loaded (preserve exact amount)
-    const originalValue = parseFloat(slider.value) || 0;
-    originalValues[config.sliderId] = originalValue;
-
-    // Calculate min and max to truly center the original value
-    // Range = how far left/right the slider can deviate from original
-    let range;
-
-    if (originalValue === 0) {
-      // If original is 0, use 20% of max as the range to the right
-      range = config.max * 0.2;
-    } else {
-      // Use 50% of original value as range, or 20% of max, whichever is larger
-      range = Math.max(originalValue * 0.5, config.max * 0.2);
-    }
-
-    // Set min and max so original is at the exact center
-    let calculatedMin = Math.max(0, originalValue - range); // Can't go below 0
-    let calculatedMax = originalValue + range;
-
-    // Ensure max doesn't exceed reasonable bounds
-    if (calculatedMax > config.max) {
-      calculatedMax = config.max;
-      // Adjust min to keep original centered if possible
-      calculatedMin = Math.max(
-        0,
-        originalValue - (calculatedMax - originalValue)
-      );
-    }
-
-    slider.min = calculatedMin;
-    slider.max = calculatedMax;
-    slider.step = 0.01; // Allow penny precision for exact values
-    slider.dataset.dragIncrement = config.step; // Store increment for snap behavior
-
-    // Initialize visual progress at center position
-    updateSliderProgress(slider);
-
-    // Move reset button inside diff indicator
-    if (resetBtn && diffIndicator) {
+    if (diffIndicator && resetBtn && resetBtn.parentElement !== diffIndicator) {
       diffIndicator.appendChild(resetBtn);
     }
 
-    // Update diff indicator (buyer-centric: green = good for buyer, red = bad for buyer)
-    const updateDiff = (currentValue) => {
-      const original = originalValues[config.sliderId];
-      const diff = currentValue - original;
+    let origin = Number(slider.dataset.origin) || 0;
+    slider.dataset.field = field;
+    slider.dataset.stepSize = meta.step || 1;
 
-      if (diff === 0) {
-        diffIndicator.style.display = "none";
+    window.sliderOriginalValues[meta.sliderId] = origin;
+
+    input.value = formatSliderInputValue(origin, meta);
+    updateSliderVisual(slider, origin, origin, meta, null);
+    updateDiffIndicatorState(diffIndicator, resetBtn, origin, origin, meta);
+
+    const applyValue = (rawValue, options = {}) => {
+      const {
+        triggerThrottle = true,
+        commit = false,
+        updateWizard = true,
+        skipFormatting = false,
+      } = options;
+
+      let numeric = Number(rawValue);
+      if (!Number.isFinite(numeric)) numeric = origin;
+
+      numeric = clampSliderValueToRange(numeric, slider);
+
+      const snapZone = Number(slider.dataset.snapZone);
+      if (Number.isFinite(snapZone) && snapZone > 0) {
+        if (Math.abs(numeric - origin) < snapZone) {
+          numeric = origin;
+        }
+      }
+
+      slider.value = numeric;
+
+      if (!skipFormatting) {
+        input.value = formatSliderInputValue(numeric, meta);
+      }
+
+      updateSliderVisual(slider, numeric, origin, meta, null);
+      updateDiffIndicatorState(diffIndicator, resetBtn, numeric, origin, meta);
+
+      if (updateWizard && typeof meta.setValue === 'function') {
+        meta.setValue(numeric);
+      }
+
+      if (triggerThrottle) {
+        throttledQuickCalc();
+      }
+
+      if (commit) {
+        autoCalculateQuick();
+      }
+
+      return numeric;
+    };
+
+    const setBaseline = (newBaseline, { apply = true } = {}) => {
+      const nextBaseline = Number(newBaseline);
+      origin = Number.isFinite(nextBaseline) ? nextBaseline : 0;
+      slider.dataset.origin = origin;
+      configureSliderRange(slider, origin, meta);
+      slider.dataset.snapZone = Number.isFinite(meta.snapZone)
+        ? meta.snapZone
+        : meta.step || 0;
+      window.sliderOriginalValues[meta.sliderId] = origin;
+
+      if (apply) {
+        applyValue(origin, {
+          triggerThrottle: false,
+          commit: false,
+          updateWizard: false,
+        });
       } else {
-        diffIndicator.style.display = "flex"; // Show inline diff indicator
-
-        // Determine if change is positive or negative for buyer
-        let isBuyerPositive;
-        if (config.buyerPositiveOnDecrease) {
-          // For fields where decrease is good (sale price, cash down, fees, etc.)
-          isBuyerPositive = diff < 0;
-        } else {
-          // For fields where increase is good (trade allowance)
-          isBuyerPositive = diff > 0;
-        }
-
-        const diffClass = isBuyerPositive ? "positive" : "negative";
-        diffIndicator.className = `quick-diff-indicator ${diffClass}`;
-
-        // Create diff text span if it doesn't exist
-        let diffText = diffIndicator.querySelector(".diff-text");
-        if (!diffText) {
-          diffText = document.createElement("span");
-          diffText.className = "diff-text";
-          diffIndicator.insertBefore(diffText, resetBtn);
-        }
-
-        // Show only the dollar amount change from original (no payment change - tooltip handles that)
-        diffText.innerHTML = `${diff > 0 ? "+" : ""}${formatCurrency(
-          diff
-        )} from original`;
+        slider.value = origin;
+        input.value = formatSliderInputValue(origin, meta);
+        updateSliderVisual(slider, origin, origin, meta, null);
+        updateDiffIndicatorState(diffIndicator, resetBtn, origin, origin, meta);
       }
     };
 
-    // Slider to input sync (while dragging - use throttled calculation)
-    slider.addEventListener("input", async (e) => {
-      let value = parseFloat(e.target.value);
+    // Ensure range metadata reflects current baseline before attaching events
+    setBaseline(origin, { apply: true });
 
-      // Snap to drag increment during user interaction
-      const dragIncrement =
-        parseFloat(slider.dataset.dragIncrement) || config.step;
-      value = Math.round(value / dragIncrement) * dragIncrement;
-
-      // Update slider to snapped value
-      slider.value = value;
-
-      // Update UI immediately (fast, no lag)
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-      updateDiff(value);
-      config.updateWizardData(value);
-
-      // Throttle expensive calculations (max once per 150ms)
-      try {
-        await throttledCalculate();
-        // Update tooltip after calculation completes so it shows new payment
-        showSliderTooltip(slider, value);
-      } catch (error) {
-        console.error(`[slider-input] Error in ${config.sliderId}:`, error);
-      }
+    slider.addEventListener('input', () => {
+      applyValue(slider.value, {
+        commit: false,
+        updateWizard: true,
+      });
     });
 
-    // When user releases slider, do final unthrottled calculation
-    slider.addEventListener("change", async (e) => {
-      let value = parseFloat(e.target.value);
-      const originalValue = originalValues[config.sliderId];
-
-      // Snap to original if within half a step
-      if (Math.abs(value - originalValue) <= config.step / 2) {
-        value = originalValue;
-        slider.value = value;
-        input.value = formatCurrency(value);
-        updateSliderProgress(slider);
-        updateDiff(value);
-        config.updateWizardData(value);
-      }
-
-      // Final calculation without throttling
-      try {
-        await autoCalculateQuick();
-      } catch (error) {
-        console.error(`[slider-change] Error in ${config.sliderId}:`, error);
-      }
-    });
-
-    // Input to slider sync - preserve exact penny values
-    input.addEventListener("blur", async (e) => {
-      const rawValue = e.target.value.replace(/[^0-9.-]/g, "");
-      let value = parseFloat(rawValue);
-
-      if (isNaN(value) || value < 0) value = 0;
-      else if (value > config.max) value = config.max;
-
-      // Don't round - preserve exact penny value from input
-      value = Math.round(value * 100) / 100; // Only round to cents
-
-      slider.value = value;
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-      updateDiff(value);
-      config.updateWizardData(value);
+    slider.addEventListener('change', async () => {
+      applyValue(slider.value, {
+        triggerThrottle: false,
+        updateWizard: true,
+      });
       await autoCalculateQuick();
     });
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
+    input.addEventListener('blur', async (event) => {
+      const parsed = parseSliderInputValue(event.target.value, meta);
+      applyValue(parsed, {
+        triggerThrottle: false,
+        updateWizard: true,
+      });
+      await autoCalculateQuick();
+    });
+
+    input.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
         input.blur();
       }
     });
 
-    // Reset button click
     if (resetBtn) {
-      resetBtn.addEventListener("click", async () => {
-        const original = originalValues[config.sliderId];
-        slider.value = original;
-        input.value = formatCurrency(original);
-        updateSliderProgress(slider);
-        updateDiff(original);
-        config.updateWizardData(original);
+      resetBtn.addEventListener('click', async () => {
+        applyValue(origin, {
+          triggerThrottle: false,
+          updateWizard: true,
+        });
         await autoCalculateQuick();
+        hideSliderTooltip();
       });
     }
 
-    // Get the parent adjustment container (for ribbons in "Adjust Your Numbers")
-    const adjustmentSection = slider.closest(".quick-adjustment");
-
-    // Get the parent slider section (for sliders in itemization/breakdown)
-    const sliderSection = slider.closest(".quick-item--with-slider");
-
-    // Use whichever section exists
-    const hoverSection = adjustmentSection || sliderSection;
+    const hoverSection =
+      slider.closest('.quick-adjustment') ||
+      slider.closest('.quick-item--with-slider');
 
     if (hoverSection) {
-      // Make the section focusable for keyboard navigation
-      if (!hoverSection.hasAttribute("tabindex")) {
-        hoverSection.setAttribute("tabindex", "0");
+      if (hoverSection._arrowKeyHandler) {
+        document.removeEventListener('keydown', hoverSection._arrowKeyHandler);
       }
 
-      // Track if mouse is over this section
+      if (!hoverSection.hasAttribute('tabindex')) {
+        hoverSection.setAttribute('tabindex', '0');
+      }
+
       let isHovering = false;
 
-      // Show tooltip when hovering over entire section
-      hoverSection.addEventListener("mouseenter", () => {
+      hoverSection.addEventListener('mouseenter', () => {
         isHovering = true;
-        const value = parseFloat(slider.value);
-        showSliderTooltip(slider, value);
-
-        // Focus the section so arrow keys work immediately
         hoverSection.focus();
+        showSliderTooltip(slider, parseFloat(slider.value) || origin);
       });
 
-      hoverSection.addEventListener("mousemove", () => {
-        const value = parseFloat(slider.value);
-        showSliderTooltip(slider, value);
+      hoverSection.addEventListener('mousemove', () => {
+        if (!isHovering) return;
+        showSliderTooltip(slider, parseFloat(slider.value) || origin);
       });
 
-      hoverSection.addEventListener("mouseleave", () => {
+      hoverSection.addEventListener('mouseleave', () => {
         isHovering = false;
         hideSliderTooltip();
-
-        // Clear baseline for this slider so it gets a fresh one next time
         if (window.sliderBaselines) {
           window.sliderBaselines.delete(slider.id);
         }
       });
 
-      // Handle arrow keys when hovering over section (with throttling)
-      const handleArrowKey = async (e) => {
-        if (!isHovering) return;
-
-        const originalValue = originalValues[config.sliderId];
-
-        // Check for arrow keys
-        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
-          e.preventDefault();
-
-          // If input is focused, blur it first to avoid conflicts
-          if (document.activeElement === input) {
-            input.blur();
-            await new Promise((resolve) => setTimeout(resolve, 0));
-          }
-
-          // Decrease value
-          let currentValue = parseFloat(slider.value);
-          let newValue = currentValue - config.step;
-
-          // Apply min constraint
-          const minValue = parseFloat(slider.min) || 0;
-          newValue = Math.max(minValue, newValue);
-
-          slider.value = newValue;
-          // Read back the actual value (browser may round to step)
-          const actualValue = parseFloat(slider.value);
-          input.value = formatCurrency(actualValue);
-          updateSliderProgress(slider);
-          updateDiff(actualValue);
-          config.updateWizardData(actualValue);
-
-          // Use throttled calculations for arrow keys too
-          await throttledCalculate();
-          showSliderTooltip(slider, actualValue);
-        } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
-          e.preventDefault();
-
-          // If input is focused, blur it first to avoid conflicts
-          if (document.activeElement === input) {
-            input.blur();
-            await new Promise((resolve) => setTimeout(resolve, 0));
-          }
-
-          // Increase value
-          let currentValue = parseFloat(slider.value);
-          let newValue = currentValue + config.step;
-
-          // Apply max constraint
-          newValue = Math.min(parseFloat(slider.max) || 100000, newValue);
-
-          slider.value = newValue;
-          // Read back the actual value (browser may round to step)
-          const actualValue = parseFloat(slider.value);
-          input.value = formatCurrency(actualValue);
-          updateSliderProgress(slider);
-          updateDiff(actualValue);
-          config.updateWizardData(actualValue);
-
-          // Use throttled calculations for arrow keys too
-          await throttledCalculate();
-          showSliderTooltip(slider, actualValue);
+      const handleArrowKey = async (event) => {
+        if (
+          !isHovering ||
+          !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
+            event.key
+          )
+        ) {
+          return;
         }
+
+        event.preventDefault();
+
+        if (document.activeElement === input) {
+          input.blur();
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+
+        const direction =
+          event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
+        const stepSize = Number(meta.step) || 1;
+        const currentValue = parseFloat(slider.value) || origin;
+        let targetValue = currentValue + direction * stepSize;
+        targetValue = clampSliderValueToRange(targetValue, slider);
+
+        applyValue(targetValue, {
+          triggerThrottle: false,
+          updateWizard: true,
+        });
+        await throttledQuickCalc();
+        showSliderTooltip(slider, parseFloat(slider.value) || origin);
       };
 
-      // Add keyboard listener to document (so it works regardless of focus)
-      document.addEventListener("keydown", handleArrowKey);
-
-      // Store cleanup function for later if needed
+      document.addEventListener('keydown', handleArrowKey);
       hoverSection._arrowKeyHandler = handleArrowKey;
     }
-  });
 
-  // Store configs for later use
-  window.sliderOriginalValues = originalValues;
+    quickSliderBindings[field] = {
+      field,
+      meta,
+      slider,
+      input,
+      diffIndicator,
+      resetBtn,
+      get origin() {
+        return origin;
+      },
+      setBaseline,
+      setValue: (value, options = {}) =>
+        applyValue(value, {
+          triggerThrottle: options.triggerThrottle ?? false,
+          commit: options.commit ?? false,
+          updateWizard: options.updateWizard ?? true,
+          skipFormatting: options.skipFormatting ?? false,
+        }),
+    };
+  });
 }
 
-/**
- * PHASE 1: Initialize Centered Sliders with SliderManager
- * This replaces the default slider behavior with centered sliders
- */
 function initializeCenteredSliders() {
   console.log('🎚️  initializeCenteredSliders called, wizardData:', wizardData);
   const salePrice = wizardData.financing.salePrice || 0;
@@ -12447,12 +12556,12 @@ function initializeCenteredSliders() {
 
   console.log('🎚️  Initializing centered sliders:', { salePrice, cashDown, tradeValue, tradePayoff });
 
-  sliderManager.initialize([
-    { id: 'quickSliderSalePrice', originalValue: salePrice },
-    { id: 'quickSliderCashDown', originalValue: cashDown },
-    { id: 'quickSliderTradeAllowance', originalValue: tradeValue },
-    { id: 'quickSliderTradePayoff', originalValue: tradePayoff }
-  ]);
+  const bindings = window.quickSliderBindings || {};
+
+  bindings.salePrice?.setBaseline(salePrice, { apply: true });
+  bindings.cashDown?.setBaseline(cashDown, { apply: true });
+  bindings.tradeAllowance?.setBaseline(tradeValue, { apply: true });
+  bindings.tradePayoff?.setBaseline(tradePayoff, { apply: true });
 
   // Update calculator store with initial values
   const calcStore = useCalculatorStore.getState();
@@ -12570,72 +12679,20 @@ function resetOriginalMonthlyPayment() {
  * Update Quick Entry slider values from wizard data
  */
 function updateQuickSliderValues() {
-  const updates = [
-    {
-      sliderId: "quickSliderSalePrice",
-      inputId: "quickInputSalePrice",
-      diffId: "quickDiffSalePrice",
-      resetId: "quickResetSalePrice",
-      value: wizardData.financing?.salePrice || 0,
-    },
-    {
-      sliderId: "quickSliderCashDown",
-      inputId: "quickInputCashDown",
-      diffId: "quickDiffCashDown",
-      resetId: "quickResetCashDown",
-      value: wizardData.financing?.cashDown || 0,
-    },
-    {
-      sliderId: "quickSliderTradeAllowance",
-      inputId: "quickInputTradeAllowance",
-      diffId: "quickDiffTradeAllowance",
-      resetId: "quickResetTradeAllowance",
-      value: wizardData.tradein?.tradeValue || 0,
-    },
-    {
-      sliderId: "quickSliderTradePayoff",
-      inputId: "quickInputTradePayoff",
-      diffId: "quickDiffTradePayoff",
-      resetId: "quickResetTradePayoff",
-      value: wizardData.tradein?.tradePayoff || 0,
-    },
-    {
-      sliderId: "quickSliderDealerFees",
-      inputId: "quickInputDealerFees",
-      diffId: "quickDiffDealerFees",
-      resetId: "quickResetDealerFees",
-      value: wizardData.fees?.dealerFees || 0,
-    },
-    {
-      sliderId: "quickSliderCustomerAddons",
-      inputId: "quickInputCustomerAddons",
-      diffId: "quickDiffCustomerAddons",
-      resetId: "quickResetCustomerAddons",
-      value: wizardData.fees?.customerAddons || 0,
-    },
-  ];
+  const bindings = window.quickSliderBindings || {};
+  const targetValues = {
+    salePrice: wizardData.financing?.salePrice || 0,
+    cashDown: wizardData.financing?.cashDown || 0,
+    tradeAllowance: wizardData.tradein?.tradeValue || 0,
+    tradePayoff: wizardData.tradein?.tradePayoff || 0,
+    dealerFees: wizardData.fees?.dealerFees || 0,
+    addons: wizardData.fees?.customerAddons || 0,
+  };
 
-  updates.forEach(({ sliderId, inputId, diffId, resetId, value }) => {
-    const slider = document.getElementById(sliderId);
-    const input = document.getElementById(inputId);
-    const diffIndicator = document.getElementById(diffId);
-    const resetBtn = document.getElementById(resetId);
-
-    if (slider && input) {
-      // Set exact penny value (step=0.01 allows precise values without browser rounding)
-      slider.value = value;
-      input.value = formatCurrency(value);
-      updateSliderProgress(slider);
-
-      // Reset original value to current value (preserve exact amount)
-      if (window.sliderOriginalValues) {
-        window.sliderOriginalValues[sliderId] = value;
-      }
-
-      // Hide diff indicator and reset button since we're at the new "original" value
-      if (diffIndicator) diffIndicator.style.display = "none";
-      if (resetBtn) resetBtn.style.display = "none";
-    }
+  Object.entries(targetValues).forEach(([field, value]) => {
+    const binding = bindings[field];
+    if (!binding) return;
+    binding.setBaseline(value, { apply: true });
   });
 
   // Reset original monthly payment for tooltip

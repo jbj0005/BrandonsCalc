@@ -723,6 +723,33 @@ body {
   transform: none !important;
 }
 
+/* === Vehicle Price & Condition Styling Fix === */
+.vehicle-price {
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: linear-gradient(135deg, var(--primary), #0052a3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: inline-block;
+  margin-top: 2px;
+}
+
+.vehicle-condition {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  font-weight: 400;
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+.vehicle-subinfo {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
 /* ===================================
    VIN AUTOCOMPLETE & SAVED VEHICLES
    =================================== */
@@ -4315,28 +4342,22 @@ body {
   width: 100%;
   height: 6px;
   border-radius: var(--radius-full);
-  background:
-    /* Center baseline marker */
-    linear-gradient(90deg,
-      transparent 0%,
-      transparent calc(50% - 1px),
-      rgba(30, 41, 59, 0.4) calc(50% - 1px),
-      rgba(30, 41, 59, 0.4) calc(50% + 1px),
-      transparent calc(50% + 1px),
-      transparent 100%
-    ),
-    /* Fill from center to current position */
-    linear-gradient(
-      to right,
-      rgba(203, 213, 225, 0.3) 0%,
-      rgba(203, 213, 225, 0.3) var(--fill-start, 50%),
-      var(--primary) var(--fill-start, 50%),
-      var(--primary) var(--fill-end, 50%),
-      rgba(203, 213, 225, 0.3) var(--fill-end, 50%),
-      rgba(203, 213, 225, 0.3) 100%
-    );
+  background: #e5e7eb;
   outline: none;
   cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.quick-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: transparent;
+}
+
+.quick-slider::-moz-range-track {
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: transparent;
 }
 
 .quick-slider::-webkit-slider-thumb {
@@ -4345,38 +4366,32 @@ body {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
-  border: 3px solid var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, #0052a3 100%);
+  border: 2px solid #ffffff;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3),
-    0 0 0 2px rgba(255, 255, 255, 0.9) inset;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
   transition: all 0.2s ease;
 }
 
 .quick-slider:hover::-webkit-slider-thumb {
   transform: scale(1.15);
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.5),
-    0 0 0 2px rgba(255, 255, 255, 0.9) inset;
-  border-width: 4px;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.45);
 }
 
 .quick-slider::-moz-range-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 100%);
-  border: 3px solid var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, #0052a3 100%);
+  border: 2px solid #ffffff;
   cursor: pointer;
-  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3),
-    0 0 0 2px rgba(255, 255, 255, 0.9) inset;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
   transition: all 0.2s ease;
 }
 
 .quick-slider:hover::-moz-range-thumb {
   transform: scale(1.15);
-  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.5),
-    0 0 0 2px rgba(255, 255, 255, 0.9) inset;
-  border-width: 4px;
+  box-shadow: 0 4px 14px rgba(14, 165, 233, 0.45);
 }
 
 .quick-value-input {
@@ -6971,83 +6986,6 @@ body {
 /* ============================================
    PHASE 1: CENTERED SLIDER STYLING
    ============================================ */
-
-.quick-slider {
-  position: relative;
-  --slider-center: 50%;
-  --slider-progress: 50%;
-  --fill-start: 50%;
-  --fill-end: 50%;
-}
-
-/* Center marker line */
-.quick-slider::before {
-  content: '';
-  position: absolute;
-  left: var(--slider-center);
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 18px;
-  background: var(--primary-start);
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 1;
-  opacity: 0.7;
-  box-shadow: 0 0 4px rgba(59, 130, 246, 0.3);
-}
-
-/* Fill track from center */
-.quick-slider::-webkit-slider-runnable-track {
-  background: linear-gradient(
-    to right,
-    #e2e8f0 0%,
-    #e2e8f0 var(--fill-start),
-    var(--primary-start) var(--fill-start),
-    var(--primary-end) var(--fill-end),
-    #e2e8f0 var(--fill-end),
-    #e2e8f0 100%
-  );
-}
-
-.quick-slider::-moz-range-track {
-  background: linear-gradient(
-    to right,
-    #e2e8f0 0%,
-    #e2e8f0 var(--fill-start),
-    var(--primary-start) var(--fill-start),
-    var(--primary-end) var(--fill-end),
-    #e2e8f0 var(--fill-end),
-    #e2e8f0 100%
-  );
-}
-
-/* Enhanced thumb style */
-.quick-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: white;
-  border: 2px solid var(--primary-start);
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  position: relative;
-  z-index: 2;
-}
-
-.quick-slider::-moz-range-thumb {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: white;
-  border: 2px solid var(--primary-start);
-  cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  position: relative;
-  z-index: 2;
-}
 
 /* Toast Container */
 #toast-container {
