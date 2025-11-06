@@ -4102,11 +4102,11 @@ body {
 /* Quick Entry Itemization */
 /* Adjustments Section (Slider Controls) */
 .adjust-numbers-card {
-  background: #f1f5f9;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-top: var(--spacing-md);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  margin-top: 1.5rem;
 }
 
 .adjust-numbers-header {
@@ -4128,42 +4128,41 @@ body {
 .quick-adjustments-list {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-sm);
+  gap: 1rem;
 }
 
 .quick-adjustment {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  padding: var(--spacing-md);
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(14, 165, 233, 0.15);
+  gap: 0.35rem;
+  padding: 0.75rem 0.9rem;
   border-radius: var(--radius-md);
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
   transition: all var(--transition-base);
 }
 
 .quick-adjustment:hover {
-  background: white;
-  border-color: rgba(14, 165, 233, 0.3);
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.1);
+  background: #ffffff;
+  border-color: rgba(14, 165, 233, 0.25);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.08);
 }
 
 .quick-adjustment-label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: var(--spacing-xs);
-  text-align: center;
+  text-align: left;
 }
 
 /* Itemization Section (Calculation Breakdown) */
 /* === Itemization Card === */
 .itemization-card {
-  background: #f1f5f9;
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-top: var(--spacing-md);
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+  margin-top: 1.5rem;
 }
 
 .itemization-card h3 {
@@ -4214,14 +4213,55 @@ body {
   gap: var(--spacing-xs);
 }
 
-.quick-item {
+.quick-item,
+.itemization-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: var(--spacing-sm);
-  border-radius: var(--radius-sm);
-  background: rgba(148, 163, 184, 0.02);
-  min-height: 36px;
+  padding: 0.4rem 0;
+  font-size: 0.95rem;
+  line-height: 1.4;
+  border-bottom: 1px solid var(--border);
+}
+
+.quick-item:last-child,
+.itemization-row:last-child {
+  border-bottom: none;
+}
+
+.quick-item-label,
+.itemization-row .item-label {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: left;
+  padding-left: 1rem;
+  padding-right: 0;
+  margin: 0;
+}
+
+.quick-item-value,
+.itemization-row .item-value {
+  flex: 0 0 110px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-align: right;
+  padding-left: 0;
+  padding-right: 1rem;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+}
+
+.itemization-row.nested .item-label {
+  padding-left: 1.25rem;
+}
+
+.itemization-row.nested .item-value {
+  padding-left: 0;
 }
 
 .quick-item--with-slider {
@@ -4230,11 +4270,21 @@ body {
   padding: var(--spacing-md);
   background: rgba(14, 165, 233, 0.03);
   border: 1px solid rgba(14, 165, 233, 0.1);
+  border-radius: var(--radius-md);
+  gap: var(--spacing-sm);
 }
 
-.quick-item--indent {
-  margin-left: var(--spacing-lg);
-  background: rgba(148, 163, 184, 0.03);
+.quick-item--with-slider .quick-item-label,
+.quick-item--with-slider .quick-item-value {
+  flex: initial;
+}
+
+.quick-item--indent .quick-item-label {
+  padding-left: 2rem;
+}
+
+.quick-item--indent .quick-item-value {
+  padding-right: 1rem;
 }
 
 .quick-item--less .quick-item-label,
@@ -4242,15 +4292,14 @@ body {
   font-weight: 700;
 }
 
-/* Header rows for main calculation flow */
 .quick-item--header {
   background: linear-gradient(
     135deg,
     rgba(59, 130, 246, 0.06),
     rgba(37, 99, 235, 0.03)
   );
-  border-left: 3px solid #3b82f6;
-  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: inset 3px 0 #3b82f6;
+  padding: 0.4rem 0;
   margin: 2px 0;
 }
 
@@ -4267,7 +4316,7 @@ body {
   );
   border: 1px solid rgba(251, 191, 36, 0.3);
   margin-top: var(--spacing-xs);
-  padding: var(--spacing-md);
+  padding: 0.4rem 0;
   border-radius: var(--radius-sm);
 }
 
@@ -4281,7 +4330,7 @@ body {
   background: #2c3e50;
   color: white;
   margin-top: var(--spacing-sm);
-  padding: var(--spacing-md);
+  padding: 0.4rem 0;
   border-top: 3px solid #34495e;
 }
 
@@ -4294,7 +4343,7 @@ body {
 .quick-item--highlight {
   background: linear-gradient(135deg, #059669, #047857);
   color: white;
-  padding: var(--spacing-md);
+  padding: 0.4rem 0;
   border-radius: var(--radius-sm);
 }
 
@@ -4304,21 +4353,12 @@ body {
   font-weight: 700;
 }
 
-.quick-item-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  text-align: left;
-  flex: 1;
-}
-
-.quick-item-value {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-primary);
-  font-family: "IBM Plex Mono", monospace;
-  text-align: right;
-  min-width: 100px;
+.quick-item--with-slider,
+.quick-item--highlight,
+.quick-item--subtotal,
+.quick-item--total,
+.quick-item--header {
+  border-bottom: none;
 }
 
 .quick-slider-control {
@@ -4331,27 +4371,31 @@ body {
 
 .slider-row {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: var(--spacing-sm);
+  justify-content: space-between;
+  gap: 0.75rem;
   width: 100%;
-  flex-wrap: wrap;
 }
 
 .slider-row input[type="range"] {
-  flex: 1 1 200px;
+  flex: 1 1 auto;
+  min-width: 200px;
 }
 
 .slider-row .quick-value-wrapper {
+  display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: flex-end;
-  gap: var(--spacing-xs);
-  flex: 0 0 auto;
+  gap: 0.5rem;
+  flex-shrink: 0;
 }
 
-.slider-row .quick-value-wrapper .quick-value-input {
-  width: 120px;
+.slider-row .quick-value-input {
+  width: 110px;
+  text-align: right;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
 }
 
 .quick-slider {
@@ -4440,12 +4484,16 @@ body {
 .quick-value-wrapper {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xs);
+  align-items: flex-end;
+  gap: 0.4rem;
   position: relative;
 }
 
 .quick-value-wrapper .quick-value-input {
-  width: 100%;
+  width: 110px;
+  text-align: right;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
 }
 
 /* Diff Indicator */

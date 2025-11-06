@@ -12732,13 +12732,15 @@ function initializeCenteredSliders() {
   const cashDown = wizardData.financing.cashDown || 0;
   const tradeValue = wizardData.tradein?.tradeValue || 0;
   const tradePayoff = wizardData.tradein?.tradePayoff || 0;
+  const dealerFees = wizardData.fees?.dealerFees || 0;
+  const customerAddons = wizardData.fees?.customerAddons || 0;
 
   if (!salePrice) {
     console.log('⏭️  Skipping slider initialization - no sale price yet');
     return;
   }
 
-  console.log('🎚️  Initializing centered sliders:', { salePrice, cashDown, tradeValue, tradePayoff });
+  console.log('🎚️  Initializing centered sliders:', { salePrice, cashDown, tradeValue, tradePayoff, dealerFees, customerAddons });
 
   const bindings = window.quickSliderBindings || {};
 
@@ -12746,6 +12748,8 @@ function initializeCenteredSliders() {
   bindings.cashDown?.setBaseline(cashDown, { apply: true });
   bindings.tradeAllowance?.setBaseline(tradeValue, { apply: true });
   bindings.tradePayoff?.setBaseline(tradePayoff, { apply: true });
+  bindings.dealerFees?.setBaseline(dealerFees, { apply: true });
+  bindings.addons?.setBaseline(customerAddons, { apply: true });
 
   // Update calculator store with initial values
   const calcStore = useCalculatorStore.getState();
