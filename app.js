@@ -1009,9 +1009,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   await autoPopulateLocationFromProfile();
   await autoPopulateCalculatorFromProfile();
 
-  // Auto-populate trade-in from most recently used garage vehicle
-  await autoPopulateFromGarage();
-
   // Update profile dropdown label with user's first name
   await updateProfileDropdownLabel();
 });
@@ -6393,8 +6390,7 @@ async function setPreferredDownPayment() {
   try {
     const vehicleSelected =
       Boolean(selectedVehicle?.vin) ||
-      Boolean(wizardData?.vehicle?.vin) ||
-      Boolean(document.querySelector('.your-vehicle-card, .selected-vehicle-card'));
+      Boolean(wizardData?.vehicle?.vin);
     if (!vehicleSelected) return; // Keep $0 defaults until a vehicle exists
 
     if (!supabase) return;
@@ -6688,39 +6684,7 @@ async function autoPopulateCalculatorFromProfile() {
     const profile = await loadCustomerProfileData();
     if (!profile) return;
 
-    let valuesChanged = false;
-
-    // Auto-populate down payment
-    if (profile.preferred_down_payment && profile.preferred_down_payment > 0) {
-      const cashDownSlider = document.getElementById("quickSliderCashDown");
-      if (cashDownSlider && !wizardData.financing?.cashDown) {
-        // Set slider value
-        cashDownSlider.value = profile.preferred_down_payment;
-
-        // Update wizardData
-        if (!wizardData.financing) wizardData.financing = {};
-        wizardData.financing.cashDown = profile.preferred_down_payment;
-
-        // Update display input
-        const cashDownInput = document.getElementById("quickValueCashDown");
-        if (cashDownInput) {
-          cashDownInput.value = formatCurrency(profile.preferred_down_payment);
-        }
-
-        // Dispatch input event to trigger UI updates
-        cashDownSlider.dispatchEvent(new Event("input", { bubbles: true }));
-        cashDownSlider.dispatchEvent(new Event("change", { bubbles: true }));
-
-        valuesChanged = true;
-      }
-    }
-
     // Trade-in auto-populate removed - now managed through My Garage
-
-    // Trigger recalculation if any values were set
-    if (valuesChanged) {
-      await autoCalculateQuick();
-    }
   } catch (error) {
     console.error("Error auto-populating calculator from profile:", error);
   }
