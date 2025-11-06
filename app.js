@@ -5112,7 +5112,7 @@ function matchRate(rates, criteria) {
  */
 async function calculateLowestApr() {
   const term = parseInt(wizardData.financing.loanTerm, 10) || 72;
-  const condition = deriveSaleCondition(wizardData.vehicle) || "used";
+  const condition = deriveSaleCondition(wizardData.vehicle) || "new";
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
 
   console.log('🔍 [calculateLowestApr] Comparing lenders at term:', term, 'months');
@@ -11368,7 +11368,7 @@ async function selectQuickSavedVehicle(vehicle) {
   // Also update wizardData.vehicle to ensure sale condition + grade are synced
   wizardData.vehicle = {
     ...vehicle,
-    saleCondition: vehicle.saleCondition || vehicle.condition || "used",
+    saleCondition: vehicle.saleCondition || vehicle.condition || "new",
     conditionGrade: vehicle.conditionGrade || vehicle.condition_grade || (VEHICLE_GRADE_VALUES.has(String(vehicle.condition).toLowerCase()) ? vehicle.condition : undefined),
   };
 
