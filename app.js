@@ -7546,7 +7546,7 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) 
 
   diffText.textContent = `${formatSliderValue(diff, meta, {
     includeSign: true,
-  })} from baseline`;
+  })}`;
 
   if (resetBtn) {
     resetBtn.style.display = "inline-flex";
