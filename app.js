@@ -155,6 +155,7 @@ let currentUserId = null;
 // Saved vehicles cache
 let savedVehicles = [];
 let selectedVehicle = null;
+let quickEntryInitialized = false;
 let similarVehicles = [];
 
 // Google Places
@@ -510,6 +511,21 @@ function formatMileage(value) {
     typeof value === "string" ? parseInt(value.replace(/[^0-9]/g, "")) : value;
   if (isNaN(num) || num === 0) return "";
   return num.toLocaleString("en-US");
+}
+
+/**
+ * Escape HTML entities from dynamic text content
+ * @param {string|number|null|undefined} value
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  if (value === null || value === undefined) return "";
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -7023,7 +7039,6 @@ const sliderPolarityMap = {
     format: "currency",
     step: 10,
     snapZone: 5,
-    minFloor: 0,
     getBaseline: () => {
       ensureWizardFeeDefaults();
       return wizardData.fees?.dealerFees ?? 0;
@@ -7095,7 +7110,6 @@ const sliderPolarityMap = {
     format: "currency",
     step: 10,
     snapZone: 5,
-    minFloor: 0,
     getBaseline: () => {
       ensureWizardFeeDefaults();
       return wizardData.fees?.customerAddons ?? 0;
@@ -8409,10 +8423,14 @@ window.saveGarageVehicle = saveGarageVehicle;
 window.closeDuplicateVehicleModal = closeDuplicateVehicleModal;
 window.keepExistingVehicle = keepExistingVehicle;
 window.updateExistingVehicle = updateExistingVehicle;
+window.openSavedOffersModal = openMyOffersModal;
+window.closeSavedOffersModal = closeMyOffersModal;
 
 /* ============================================================================
    My Offers Functions
    ============================================================================ */
+
+let savedOffersMenuObserver = null;
 
 /**
  * Open My Offers modal and load offers
@@ -8422,6 +8440,11 @@ async function openMyOffersModal() {
   const modal = document.getElementById("my-offers-modal");
   if (!modal) {
     console.error("❌ [My Offers] Modal element not found!");
+    return;
+  }
+
+  if (modal.classList.contains("active")) {
+    console.log("ℹ️ [My Offers] Modal already open");
     return;
   }
 
@@ -8442,6 +8465,44 @@ function closeMyOffersModal() {
     modal.classList.remove("active");
     modal.style.display = "none";
   }
+}
+
+/**
+ * Ensure Saved Offers entry in the profile menu always opens the modal
+ */
+function attachSavedOffersMenuHook() {
+  const profileMenu = document.getElementById("profile-menu");
+  if (!profileMenu || profileMenu.dataset.offersHooked === "true") {
+    return;
+  }
+
+  profileMenu.dataset.offersHooked = "true";
+  if (savedOffersMenuObserver) {
+    savedOffersMenuObserver.disconnect();
+    savedOffersMenuObserver = null;
+  }
+  profileMenu.addEventListener("click", (event) => {
+    const offersLink = event.target?.closest?.('[data-action="offers"]');
+    if (!offersLink) return;
+
+    // Allow AuthManager's handler to run before forcing the modal open
+    setTimeout(() => {
+      const modal = document.getElementById("my-offers-modal");
+      if (!modal) return;
+      if (!modal.classList.contains("active")) {
+        openMyOffersModal();
+      }
+    }, 0);
+  });
+}
+
+document.addEventListener("DOMContentLoaded", attachSavedOffersMenuHook);
+savedOffersMenuObserver = new MutationObserver(() => attachSavedOffersMenuHook());
+if (typeof document !== "undefined" && document.body) {
+  savedOffersMenuObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
 }
 
 /**
@@ -8517,18 +8578,29 @@ function displayOffersList(offers, containerId) {
       const vehicleInfo =
         `${offer.vehicle_year || ""} ${offer.vehicle_make || ""} ${
           offer.vehicle_model || ""
-        }`.trim() || "Vehicle";
-      const dealerInfo = offer.dealer_name || "Private Seller";
-      const submittedDate = new Date(offer.submitted_at).toLocaleDateString(
-        "en-US",
-        {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
-        }
-      );
-
-      const offerName = `${vehicleInfo} - ${dealerInfo} - ${submittedDate}`;
+        }`.trim();
+      const createdAtRaw =
+        offer.created_at ||
+        offer.submitted_at ||
+        offer.inserted_at ||
+        offer.createdAt;
+      const submittedDate = createdAtRaw
+        ? new Date(createdAtRaw).toLocaleDateString("en-US", {
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
+          })
+        : "Recently saved";
+      const paymentLabel = formatCurrency(offer.monthly_payment || 0);
+      const offerName =
+        offer.offer_name ||
+        [
+          vehicleInfo || "Custom Offer",
+          `${paymentLabel}/mo`,
+          submittedDate,
+        ]
+          .filter(Boolean)
+          .join(" – ");
       const isClosed = offer.status === "closed";
 
       return `
@@ -8538,7 +8610,7 @@ function displayOffersList(offers, containerId) {
         <div class="offer-card-header">
           <div>
             <h3 class="offer-card-title">${offerName}</h3>
-            <p class="offer-card-subtitle">Submitted ${submittedDate}</p>
+            <p class="offer-card-subtitle">Saved ${submittedDate}</p>
           </div>
           <span class="offer-card-status ${offer.status}">${
         offer.status === "active" ? "Active" : "Closed"
@@ -8746,14 +8818,17 @@ async function saveOffer(offerData) {
     const vehicleInfo =
       `${vehicle.year || ""} ${vehicle.make || ""} ${
         vehicle.model || ""
-      }`.trim() || "Vehicle";
-    const dealerInfo = dealer.name || "Private Seller";
-    const submittedDate = new Date().toLocaleDateString("en-US", {
-      month: "2-digit",
+      }`.trim() || "Custom Offer";
+    const paymentLabel = formatCurrency(
+      reviewData.monthlyPayment || 0
+    );
+    const timestamp = new Date().toLocaleString("en-US", {
+      month: "short",
       day: "2-digit",
-      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-    const offerName = `${vehicleInfo} - ${dealerInfo} - ${submittedDate}`;
+    const offerName = `${vehicleInfo} – ${paymentLabel}/mo – ${timestamp}`;
 
     console.log("[save-offer] Saving offer for user:", authStore.user.id);
 
@@ -8832,11 +8907,228 @@ console.log('✅ [app.js] My Offers modal functions exported to window');
    Submit Offer Functions
    ============================================================================ */
 
+function buildOfferPreviewHtml(reviewData = {}) {
+  ensureWizardFeeDefaults();
+
+  const vehicle = wizardData.vehicle || {};
+  const financing = wizardData.financing || {};
+  const trade = wizardData.trade || wizardData.tradein || {};
+  const feesSnapshot = reviewData.fees || {};
+
+  const safeNumber = (value, fallback = 0) =>
+    Number.isFinite(Number(value)) ? Number(value) : fallback;
+
+  const salePriceValue = Number.isFinite(reviewData.salePrice)
+    ? reviewData.salePrice
+    : safeNumber(financing.salePrice);
+  const monthlyPaymentValue = Number.isFinite(reviewData.monthlyPayment)
+    ? reviewData.monthlyPayment
+    : 0;
+  const cashDownValue = Number.isFinite(reviewData.cashDown)
+    ? reviewData.cashDown
+    : safeNumber(financing.cashDown);
+  const amountFinancedValue = Number.isFinite(reviewData.amountFinanced)
+    ? reviewData.amountFinanced
+    : 0;
+  const cashDueValue = Number.isFinite(reviewData.cashDue)
+    ? reviewData.cashDue
+    : 0;
+  const termValue = Number.isFinite(reviewData.term) && reviewData.term > 0
+    ? reviewData.term
+    : safeNumber(financing.term, 72);
+  const aprDecimal =
+    typeof reviewData.apr === "number"
+      ? reviewData.apr
+      : typeof financing.apr === "number"
+      ? Number(financing.apr) / 100
+      : 0;
+
+  const dealerFeesValue = Number(
+    reviewData.totalDealerFees ??
+      feesSnapshot.totalDealerFees ??
+      wizardData.fees?.dealerFees ??
+      0
+  );
+  const customerAddonsValue = Number(
+    reviewData.totalCustomerAddons ??
+      feesSnapshot.totalCustomerAddons ??
+      wizardData.fees?.customerAddons ??
+      0
+  );
+  const govtFeesValue = Number(
+    reviewData.totalGovtFees ??
+      feesSnapshot.totalGovtFees ??
+      wizardData.fees?.totalGovtFees ??
+      0
+  );
+
+  const tradeAllowanceValue = Number(
+    reviewData.tradeOffer ??
+      trade?.value ??
+      wizardData.tradein?.tradeValue ??
+      0
+  );
+  const tradePayoffValue = Number(
+    reviewData.tradePayoff ??
+      trade?.payoff ??
+      wizardData.tradein?.tradePayoff ??
+      0
+  );
+  const netTradeValue = Number.isFinite(reviewData.netTrade)
+    ? reviewData.netTrade
+    : tradeAllowanceValue - tradePayoffValue;
+
+  const paymentLabel =
+    monthlyPaymentValue > 0
+      ? `${formatCurrency(monthlyPaymentValue)}/mo`
+      : null;
+
+  const conditionText =
+    getVehicleConditionText(vehicle.condition) || "—";
+  const yearText = vehicle.year ? vehicle.year.toString() : "—";
+  const makeText = vehicle.make ? capitalizeWords(vehicle.make) : "—";
+  const modelText = vehicle.model ? capitalizeWords(vehicle.model) : "—";
+  const trimText = vehicle.trim ? capitalizeWords(vehicle.trim) : "—";
+  const exteriorColorRaw =
+    vehicle.exterior_color ||
+    vehicle.exteriorColor ||
+    vehicle.extColor ||
+    vehicle.color ||
+    vehicle.exterior ||
+    null;
+  const exteriorColorText = exteriorColorRaw
+    ? capitalizeWords(exteriorColorRaw)
+    : "—";
+  const mileageText = vehicle.mileage
+    ? `${formatMileage(vehicle.mileage)} mi`
+    : "—";
+  const vinText = vehicle.vin ? formatVIN(vehicle.vin) : "—";
+
+  const gridItem = (label, value) => {
+    const display =
+      value === null || value === undefined || value === ""
+        ? "—"
+        : value;
+    return `
+      <div class="offer-preview-grid-item">
+        <span class="offer-preview-grid-label">${escapeHtml(label)}</span>
+        <span class="offer-preview-grid-value">${escapeHtml(display)}</span>
+      </div>
+    `;
+  };
+
+  const vehicleGrid = [
+    gridItem("Condition", conditionText),
+    gridItem("Year", yearText),
+    gridItem("Make", makeText),
+    gridItem("Model", modelText),
+    gridItem("Trim", trimText),
+    gridItem("Exterior Color", exteriorColorText),
+    gridItem("Mileage", mileageText),
+    gridItem("VIN", vinText),
+  ].join("");
+
+  const dealGrid = [
+    gridItem("Monthly Payment", paymentLabel || "—"),
+    gridItem("APR", formatPercent(aprDecimal)),
+    gridItem("Term", termValue ? `${termValue} mos` : "—"),
+    gridItem("Cash Down", formatCurrency(cashDownValue)),
+    gridItem("Cash Due", formatCurrency(cashDueValue)),
+    gridItem("Amount Financed", formatCurrency(amountFinancedValue)),
+  ].join("");
+
+  const feesGrid = []
+    .concat(
+      dealerFeesValue ? gridItem("Dealer Fees", formatCurrency(dealerFeesValue)) : []
+    )
+    .concat(
+      customerAddonsValue
+        ? gridItem("Customer Add-ons", formatCurrency(customerAddonsValue))
+        : []
+    )
+    .concat(
+      govtFeesValue ? gridItem("Govt Fees", formatCurrency(govtFeesValue)) : []
+    )
+    .join("");
+
+  const tradeGrid = []
+    .concat(
+      tradeAllowanceValue
+        ? gridItem("Trade Allowance", formatCurrency(tradeAllowanceValue))
+        : []
+    )
+    .concat(
+      tradePayoffValue
+        ? gridItem("Trade Payoff", formatCurrency(tradePayoffValue))
+        : []
+    )
+    .concat(
+      tradeAllowanceValue || tradePayoffValue || netTradeValue
+        ? gridItem("Net Trade", formatCurrencyAccounting(netTradeValue))
+        : []
+    )
+    .join("");
+
+  return `
+    <div class="offer-preview-text">
+      <div class="offer-preview-hero">
+        <span class="offer-preview-hero-label">Customer Offer</span>
+        <span class="offer-preview-hero-value">${escapeHtml(
+          salePriceValue > 0
+            ? formatCurrency(salePriceValue)
+            : "Custom Offer"
+        )}</span>
+        ${
+          paymentLabel
+            ? `<span class="offer-preview-hero-subtitle">${escapeHtml(paymentLabel)}</span>`
+            : ""
+        }
+      </div>
+
+      <div class="offer-preview-section">
+        <div class="offer-preview-section-title">Vehicle</div>
+        <div class="offer-preview-grid">
+          ${vehicleGrid}
+        </div>
+      </div>
+
+      <div class="offer-preview-section">
+        <div class="offer-preview-section-title">Deal Numbers</div>
+        <div class="offer-preview-grid">
+          ${dealGrid}
+        </div>
+      </div>
+
+      ${
+        feesGrid
+          ? `<div class="offer-preview-section">
+              <div class="offer-preview-section-title">Fees & Taxes</div>
+              <div class="offer-preview-grid">
+                ${feesGrid}
+              </div>
+            </div>`
+          : ""
+      }
+
+      ${
+        tradeGrid
+          ? `<div class="offer-preview-section">
+              <div class="offer-preview-section-title">Trade-In</div>
+              <div class="offer-preview-grid">
+                ${tradeGrid}
+              </div>
+            </div>`
+          : ""
+      }
+    </div>
+  `;
+}
+
 /**
  * Format offer data into fancy unicode text with emoji
  */
-async function formatOfferText(customerNotes = "") {
-  const reviewData = await computeReviewData();
+async function formatOfferText(customerNotes = "", reviewDataOverride = null) {
+  const reviewData = reviewDataOverride || (await computeReviewData());
   if (!reviewData) {
     return "Error: Unable to generate offer. Please ensure all fields are filled.";
   }
@@ -9040,11 +9332,12 @@ async function openSubmitOfferModal() {
     );
   }
 
-  // Generate and display offer preview (must await since formatOfferText is now async)
-  const offerText = await formatOfferText();
+  const reviewData = await computeReviewData();
+
+  // Generate and display offer preview
   const previewElement = document.getElementById("offerPreviewText");
   if (previewElement) {
-    previewElement.textContent = offerText;
+    previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
   }
 
   // Auto-populate customer information from profile
@@ -9220,7 +9513,8 @@ async function handleShareOffer() {
 
     // Get formatted offer text with notes
     const notes = document.getElementById("submitOfferNotes").value.trim();
-    const offerText = await formatOfferText(notes);
+    const reviewData = await computeReviewData();
+    const offerText = await formatOfferText(notes, reviewData);
 
     // Check if Web Share API is available
     if (!navigator.share) {
@@ -9283,7 +9577,8 @@ async function handleEmailOffer() {
 
     // Get formatted offer text with notes
     const notes = document.getElementById("submitOfferNotes").value.trim();
-    const offerText = await formatOfferText(notes);
+    const reviewData = await computeReviewData();
+    const offerText = await formatOfferText(notes, reviewData);
 
     // Get customer info for saving
     const customerName = document
@@ -9343,7 +9638,8 @@ async function handleSmsOffer() {
 
     // Get formatted offer text with notes
     const notes = document.getElementById("submitOfferNotes").value.trim();
-    const offerText = await formatOfferText(notes);
+    const reviewData = await computeReviewData();
+    const offerText = await formatOfferText(notes, reviewData);
 
     // Get customer info for saving
     const customerName = document
@@ -9377,6 +9673,32 @@ async function handleSmsOffer() {
       vehicle.model || ""
     }`.trim();
 
+    const offerPriceValue =
+      savedOffer?.offer_price ??
+      reviewData.salePrice ??
+      wizardData.financing?.salePrice ??
+      0;
+    const paymentValue =
+      savedOffer?.monthly_payment ??
+      reviewData.monthlyPayment ??
+      0;
+    const aprValue =
+      savedOffer?.apr ??
+      reviewData.apr ??
+      0;
+    const termValue =
+      savedOffer?.term_months ??
+      reviewData.term ??
+      wizardData.financing?.term ??
+      72;
+
+    const summaryLines = [
+      `Customer Offer: ${formatCurrency(offerPriceValue)}`,
+      `Payment: ${formatCurrency(paymentValue)}/mo @ ${(aprValue * 100).toFixed(2)}% for ${termValue} mos`,
+      offerName ? `Vehicle: ${offerName}` : null,
+    ].filter(Boolean);
+    const smsSummary = summaryLines.join("\n");
+
     // Send SMS via Twilio endpoint
     const response = await fetch("/api/send-sms", {
       method: "POST",
@@ -9387,6 +9709,8 @@ async function handleSmsOffer() {
         offerId: savedOffer.id,
         offerName: offerName || "Vehicle Offer",
         recipientPhone: salespersonPhone,
+        offerSummary: smsSummary,
+        offerText,
       }),
     });
 
@@ -9417,7 +9741,8 @@ async function handleCopyOffer() {
 
     // Get formatted offer text with notes
     const notes = document.getElementById("submitOfferNotes").value.trim();
-    const offerText = await formatOfferText(notes);
+    const reviewData = await computeReviewData();
+    const offerText = await formatOfferText(notes, reviewData);
 
     // Get customer info for saving
     const customerName = document
@@ -10456,6 +10781,33 @@ async function initializeQuickEntry() {
   // Populate location
   const quickLocation = document.getElementById("quick-location");
 
+  if (!quickEntryInitialized) {
+    if (!selectedVehicle && !wizardData.vehicle?.vin) {
+      ensureWizardFeeDefaults();
+      wizardData.financing = {
+        ...(wizardData.financing || {}),
+        salePrice: 0,
+        cashDown: 0,
+        term: wizardData.financing?.term || 72,
+        creditScoreRange:
+          wizardData.financing?.creditScoreRange || "excellent",
+      };
+      wizardData.tradein = {
+        hasTradeIn: false,
+        tradeValue: 0,
+        tradePayoff: 0,
+        vehicles: [],
+      };
+      wizardData.trade = {
+        hasTradeIn: false,
+        value: 0,
+        payoff: 0,
+        vehicles: [],
+      };
+    }
+    quickEntryInitialized = true;
+  }
+
   // Check if location field has a value but wizardData doesn't have coordinates
   const locationValue = quickLocation?.value?.trim();
   if (
@@ -10560,11 +10912,16 @@ async function initializeQuickEntry() {
   const quickLoanTerm = document.getElementById("quick-loan-term");
   const quickCreditScore = document.getElementById("quick-credit-score");
 
-  if (wizardData.financing?.salePrice) {
-    quickVehiclePrice.value = formatCurrency(wizardData.financing.salePrice);
+  const salePriceValue =
+    parseCurrencyToNumber(wizardData.financing?.salePrice) || 0;
+  const cashDownValue =
+    parseCurrencyToNumber(wizardData.financing?.cashDown) || 0;
+
+  if (quickVehiclePrice) {
+    quickVehiclePrice.value = formatCurrency(salePriceValue);
   }
-  if (wizardData.financing?.cashDown) {
-    quickDownPayment.value = formatCurrency(wizardData.financing.cashDown);
+  if (quickDownPayment) {
+    quickDownPayment.value = formatCurrency(cashDownValue);
   }
 
   // Set defaults: 72 months, excellent credit (750+)
@@ -12501,7 +12858,21 @@ function setupQuickSliders() {
 
       slider.value = visualValue;
 
-      const actualValue = convertVisualToActual(slider, visualValue);
+      let actualValue = convertVisualToActual(slider, visualValue);
+
+      const minActual = Number.isFinite(meta.minFloor)
+        ? Number(meta.minFloor)
+        : -Infinity;
+      const maxActual = Number.isFinite(meta.maxCeil)
+        ? Number(meta.maxCeil)
+        : Infinity;
+
+      if (actualValue < minActual || actualValue > maxActual) {
+        actualValue = Math.min(Math.max(actualValue, minActual), maxActual);
+        const correctedVisual = convertActualToVisual(slider, actualValue);
+        visualValue = correctedVisual;
+        slider.value = correctedVisual;
+      }
 
       if (!skipFormatting) {
         input.value = formatSliderInputValue(actualValue, meta);
@@ -12538,6 +12909,52 @@ function setupQuickSliders() {
         : baseline;
       const visualValue = convertActualToVisual(slider, actualValue);
       return applyVisualValue(visualValue, options);
+    };
+
+    const adjustByStep = async (
+      direction,
+      { showTooltip = false } = {}
+    ) => {
+      const stepSize = step;
+      const originActual = Number(slider.dataset.origin) || 0;
+      const snapZone =
+        Number(slider.dataset.snapZone) ||
+        Number(meta.snapZone) ||
+        stepSize;
+      const currentVisual = Number.isFinite(parseFloat(slider.value))
+        ? parseFloat(slider.value)
+        : getSliderVisualOrigin(slider);
+      const currentActual = convertVisualToActual(slider, currentVisual);
+      let targetActual = currentActual + direction * stepSize;
+
+      // Snap relative to true origin so we stay on clean increments
+      const deltaFromOrigin = targetActual - originActual;
+      if (snapZone > 0 && Math.abs(deltaFromOrigin) < snapZone) {
+        targetActual = originActual;
+      } else {
+        targetActual =
+          originActual +
+          Math.round(deltaFromOrigin / stepSize) * stepSize;
+      }
+
+      const minActual = Number.isFinite(meta.minFloor)
+        ? Number(meta.minFloor)
+        : -Infinity;
+      const maxActual = Number.isFinite(meta.maxCeil)
+        ? Number(meta.maxCeil)
+        : Infinity;
+      targetActual = Math.min(Math.max(targetActual, minActual), maxActual);
+
+      const { actualValue } = applyActualValue(targetActual, {
+        triggerThrottle: false,
+        updateWizard: true,
+      });
+
+      await throttledQuickCalc();
+
+      if (showTooltip) {
+        showSliderTooltip(slider, actualValue);
+      }
     };
 
     const baseline = Number(slider.dataset.origin) || 0;
@@ -12635,12 +13052,21 @@ function setupQuickSliders() {
       });
 
       const handleArrowKey = async (event) => {
-        if (
-          !isHovering ||
-          !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(
-            event.key
-          )
-        ) {
+        const allowedKeys = [
+          'ArrowLeft',
+          'ArrowRight',
+          'ArrowUp',
+          'ArrowDown',
+        ];
+        if (!allowedKeys.includes(event.key)) {
+          return;
+        }
+
+        const sliderHasFocus =
+          document.activeElement === slider ||
+          document.activeElement === input;
+
+        if (!isHovering && !sliderHasFocus) {
           return;
         }
 
@@ -12653,20 +13079,7 @@ function setupQuickSliders() {
 
         const direction =
           event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
-        const stepSize = step;
-        const currentValue = parseFloat(slider.value) || visualOrigin;
-        let targetValue = currentValue + direction * stepSize;
-        targetValue = clampSliderValueToRange(targetValue, slider);
-
-        applyVisualValue(targetValue, {
-          triggerThrottle: false,
-          updateWizard: true,
-        });
-        await throttledQuickCalc();
-        showSliderTooltip(
-          slider,
-          convertVisualToActual(slider, parseFloat(slider.value))
-        );
+        await adjustByStep(direction, { showTooltip: true });
       };
 
       document.addEventListener('keydown', handleArrowKey);
@@ -12723,47 +13136,71 @@ function setupQuickSliders() {
           updateWizard: options.updateWizard ?? true,
         }),
     };
+
+    slider.addEventListener('keydown', async (event) => {
+      if (
+        event.key === 'ArrowLeft' ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowRight' ||
+        event.key === 'ArrowUp'
+      ) {
+        event.preventDefault();
+        const direction =
+          event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1;
+        await adjustByStep(direction, { showTooltip: true });
+      }
+    });
   });
 }
 
 function initializeCenteredSliders() {
   console.log('🎚️  initializeCenteredSliders called, wizardData:', wizardData);
-  const salePrice = wizardData.financing.salePrice || 0;
-  const cashDown = wizardData.financing.cashDown || 0;
-  const tradeValue = wizardData.tradein?.tradeValue || 0;
-  const tradePayoff = wizardData.tradein?.tradePayoff || 0;
-  const dealerFees = wizardData.fees?.dealerFees || 0;
-  const customerAddons = wizardData.fees?.customerAddons || 0;
+  ensureWizardFeeDefaults();
 
-  if (!salePrice) {
-    console.log('⏭️  Skipping slider initialization - no sale price yet');
-    return;
-  }
+  const financing = wizardData.financing || {};
+  const tradein = wizardData.tradein || {};
+  const fees = wizardData.fees || {};
+  const hasVehicleSelection =
+    Boolean(selectedVehicle?.vin) || Boolean(wizardData.vehicle?.vin);
 
-  console.log('🎚️  Initializing centered sliders:', { salePrice, cashDown, tradeValue, tradePayoff, dealerFees, customerAddons });
+  const baselineValues = {
+    salePrice: hasVehicleSelection
+      ? Number(financing.salePrice) || 0
+      : 0,
+    cashDown: Number(financing.cashDown) || 0,
+    tradeAllowance: hasVehicleSelection
+      ? Number(tradein.tradeValue) || 0
+      : 0,
+    tradePayoff: hasVehicleSelection
+      ? Number(tradein.tradePayoff) || 0
+      : 0,
+    dealerFees: Number(fees.dealerFees) || 0,
+    addons: Number(fees.customerAddons) || 0,
+  };
+
+  console.log('🎚️  Applying slider baselines:', baselineValues);
 
   const bindings = window.quickSliderBindings || {};
 
-  bindings.salePrice?.setBaseline(salePrice, { apply: true });
-  bindings.cashDown?.setBaseline(cashDown, { apply: true });
-  bindings.tradeAllowance?.setBaseline(tradeValue, { apply: true });
-  bindings.tradePayoff?.setBaseline(tradePayoff, { apply: true });
-  bindings.dealerFees?.setBaseline(dealerFees, { apply: true });
-  bindings.addons?.setBaseline(customerAddons, { apply: true });
+  Object.entries(baselineValues).forEach(([field, value]) => {
+    const binding = bindings[field];
+    if (binding) {
+      binding.setBaseline(value, { apply: true, updateWizard: true });
+    }
+  });
 
-  // Update calculator store with initial values
   const calcStore = useCalculatorStore.getState();
   calcStore.updateState({
-    salePrice,
-    cashDown,
-    tradeValue,
-    tradePayoff,
-    originalSalePrice: salePrice,
-    originalCashDown: cashDown,
-    originalTradeValue: tradeValue,
-    originalTradePayoff: tradePayoff,
-    apr: wizardData.financing.apr || 5.99,
-    term: wizardData.financing.term || 72
+    salePrice: baselineValues.salePrice,
+    cashDown: baselineValues.cashDown,
+    tradeValue: baselineValues.tradeAllowance,
+    tradePayoff: baselineValues.tradePayoff,
+    originalSalePrice: baselineValues.salePrice,
+    originalCashDown: baselineValues.cashDown,
+    originalTradeValue: baselineValues.tradeAllowance,
+    originalTradePayoff: baselineValues.tradePayoff,
+    apr: financing.apr || 5.99,
+    term: financing.term || 72
   });
 }
 

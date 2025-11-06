@@ -6,11 +6,14 @@
   /* Brand Colors - Blue to Yellow Gradient */
   --primary-start: #1e40af;
   --primary-end: #3b82f6;
+  --primary: #3b82f6;
+  --primary-dark: #1d4ed8;
   --secondary-start: #fbbf24;
   --secondary-end: #fcd34d;
   --accent: #f59e0b;
   --success: #10b981;
   --error: #ef4444;
+  --gray-50: #f8fafc;
   --error-dark: #b91c1c;
   --neutral: #e5e7eb;
 
@@ -2868,6 +2871,8 @@ body {
 .apr-confirmation-btn--keep {
   background: linear-gradient(135deg, var(--primary), var(--primary-dark));
   color: white;
+  -webkit-text-fill-color: currentColor;
+  font-weight: 600;
 }
 
 .apr-confirmation-btn--keep:hover {
@@ -4738,7 +4743,8 @@ body {
   border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--primary-start);
+  -webkit-text-fill-color: currentColor;
   cursor: pointer;
   transition: all 0.2s ease;
 }
@@ -4839,7 +4845,8 @@ body {
   align-items: center;
   gap: var(--spacing-xs);
   border: 1px solid rgba(59, 130, 246, 0.3);
-  color: var(--primary);
+  color: var(--primary-start);
+  -webkit-text-fill-color: currentColor;
   background: rgba(59, 130, 246, 0.08);
   border-radius: var(--radius-md);
   padding: var(--spacing-xs) var(--spacing-sm);
@@ -6905,12 +6912,94 @@ body {
 }
 
 .offer-preview-text {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 13px;
   line-height: 1.5;
   margin: 0;
-  white-space: pre-wrap;
-  color: #2d3748;
+  color: var(--text-primary);
+  white-space: normal;
+}
+
+.offer-preview-hero {
+  background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+  color: white;
+  border-radius: 12px;
+  padding: 18px 20px;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(59, 130, 246, 0.25);
+}
+
+.offer-preview-hero-label {
+  display: block;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.offer-preview-hero-value {
+  display: block;
+  font-family: "Poppins", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.offer-preview-hero-subtitle {
+  display: block;
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.85;
+}
+
+.offer-preview-section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 8px 0 4px;
+}
+
+.offer-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.offer-preview-grid-item {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 70px;
+}
+
+.offer-preview-grid-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.offer-preview-grid-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.offer-preview-divider {
+  height: 1px;
+  background: rgba(148, 163, 184, 0.4);
+  margin: 8px 0;
 }
 
 .form-row-2col {

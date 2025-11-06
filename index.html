@@ -2076,9 +2076,9 @@
           <div class="offer-preview-section">
             <h3 class="section-title">Offer Preview</h3>
             <div class="offer-preview-box">
-              <pre id="offerPreviewText" class="offer-preview-text">
-Loading offer...</pre
-              >
+              <div id="offerPreviewText" class="offer-preview-text">
+                Loading offer...
+              </div>
             </div>
           </div>
 
@@ -2285,6 +2285,142 @@ Loading offer...</pre
               </svg>
               Copy
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Saved Offers Modal -->
+    <div id="my-offers-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeMyOffersModal()"></div>
+      <div class="modal-content my-offers-modal">
+        <button
+          class="modal-close"
+          onclick="closeMyOffersModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <div class="offers-header">
+          <div class="offers-icon">
+            <svg
+              width="36"
+              height="36"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M17 9V7a2 2 0 0 0-2-2H7L3 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M17 16l2 2 4-4"
+              />
+            </svg>
+          </div>
+          <h2 class="offers-title">Saved Offers</h2>
+          <p class="offers-subtitle">
+            Review, resend, or close your previous offers
+          </p>
+        </div>
+
+        <div class="offers-body">
+          <div class="offers-tabs">
+            <button
+              type="button"
+              class="offers-tab active"
+              data-tab="active"
+              onclick="switchOffersTab('active')"
+            >
+              Active Offers
+              <span class="offers-tab-badge" id="activeOffersCount">0</span>
+            </button>
+            <button
+              type="button"
+              class="offers-tab"
+              data-tab="closed"
+              onclick="switchOffersTab('closed')"
+            >
+              Closed Offers
+              <span class="offers-tab-badge" id="closedOffersCount">0</span>
+            </button>
+          </div>
+
+          <div class="offers-tab-content">
+            <div
+              id="activeOffersList"
+              class="offers-list"
+              data-tab-content="active"
+            >
+              <div class="offers-empty">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M21 13.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l.9-3.8a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5"
+                  />
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M16 3h5m0 0v5m0-5L12 12"
+                  />
+                </svg>
+                <p>No active offers yet</p>
+                <small>Submit an offer to see it here.</small>
+              </div>
+            </div>
+
+            <div
+              id="closedOffersList"
+              class="offers-list"
+              data-tab-content="closed"
+              style="display: none"
+            >
+              <div class="offers-empty">
+                <svg
+                  width="48"
+                  height="48"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.5"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    d="M8 17v-5l4-2 4 2v5M5 21h14M5 3h14M5 3v18M19 3v18"
+                  />
+                </svg>
+                <p>No closed offers</p>
+                <small>Closed offers will appear here for reference.</small>
+              </div>
+            </div>
           </div>
         </div>
       </div>

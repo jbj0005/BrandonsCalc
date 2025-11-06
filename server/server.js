@@ -1358,7 +1358,13 @@ app.post("/api/send-sms", async (req, res) => {
       });
     }
 
-    const { offerId, offerName, recipientPhone } = req.body;
+    const {
+      offerId,
+      offerName,
+      recipientPhone,
+      offerSummary,
+      offerText
+    } = req.body;
 
     if (!offerId) {
       return res.status(400).json({ error: "offerId is required" });
@@ -1378,8 +1384,30 @@ app.post("/api/send-sms", async (req, res) => {
     const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     const offerUrl = `${baseUrl}/offer.html?id=${offerId}`;
 
-    // Create SMS message
-    const message = `Vehicle Purchase Offer${offerName ? ` - ${offerName}` : ''}\n\nView your personalized offer:\n${offerUrl}`;
+    const sanitizedSummary =
+      typeof offerSummary === "string" && offerSummary.trim().length > 0
+        ? offerSummary.trim()
+        : null;
+
+    let summaryFallback = null;
+    if (!sanitizedSummary && typeof offerText === "string" && offerText.trim()) {
+      const lines = offerText.trim().split(/\r?\n/).slice(0, 5);
+      summaryFallback = lines.join("\n");
+    }
+
+    const messageSegments = [
+      `Vehicle Purchase Offer${offerName ? ` - ${offerName}` : ""}`,
+    ];
+
+    if (sanitizedSummary) {
+      messageSegments.push(sanitizedSummary);
+    } else if (summaryFallback) {
+      messageSegments.push(summaryFallback);
+    }
+
+    messageSegments.push(`View the full offer:\n${offerUrl}`);
+
+    const message = messageSegments.join("\n\n");
 
     console.log(`[send-sms] Sending SMS to ${formattedPhone}`);
 
