@@ -145,6 +145,48 @@ body {
   border-color: rgba(99, 102, 241, 0.3);
 }
 
+/* Enhanced toast with action buttons */
+.toast--with-actions {
+  max-width: 500px;
+  padding: 20px;
+}
+
+.toast__message {
+  margin-bottom: 12px;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.toast__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.toast__action-btn {
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}
+
+.toast__action-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-1px);
+}
+
+.toast__action-btn:active {
+  transform: translateY(0);
+}
+
 /* ===================================
    HERO SECTION
    =================================== */

@@ -928,6 +928,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.log('✅ autoCalculateQuick completed');
 
     console.log('✅ Vehicle data populated from garage');
+
+    // Background VIN verification (non-blocking)
+    if (vehicle.vin) {
+      verifyVehicleVin(vehicle.vin, vehicle, 'garage').catch(err => {
+        console.error('[vin-sync] Background verification failed:', err);
+      });
+    }
   }
 
   console.log('✅ ExcelCalc v2.0 Phase 1 initialized successfully!');
@@ -4387,6 +4394,537 @@ function showToast(message, type = "info") {
     toast.classList.remove("toast--show");
     setTimeout(() => toast.remove(), 300);
   }, 4000);
+}
+
+/**
+ * Enhanced toast with action buttons
+ * @param {string} message - The message to display
+ * @param {string} type - Toast type (info, success, warning, error)
+ * @param {Array} actions - Array of {label, callback} objects for action buttons
+ * @param {number} duration - Auto-dismiss duration in ms (0 = no auto-dismiss)
+ */
+function showToastWithActions(message, type = "info", actions = [], duration = 0) {
+  const toast = document.createElement("div");
+  toast.className = `toast toast--${type} toast--with-actions`;
+
+  const messageEl = document.createElement("div");
+  messageEl.className = "toast__message";
+  messageEl.textContent = message;
+  toast.appendChild(messageEl);
+
+  if (actions.length > 0) {
+    const actionsEl = document.createElement("div");
+    actionsEl.className = "toast__actions";
+
+    actions.forEach(action => {
+      const btn = document.createElement("button");
+      btn.className = "toast__action-btn";
+      btn.textContent = action.label;
+      btn.addEventListener("click", () => {
+        action.callback();
+        toast.classList.remove("toast--show");
+        setTimeout(() => toast.remove(), 300);
+      });
+      actionsEl.appendChild(btn);
+    });
+
+    toast.appendChild(actionsEl);
+  }
+
+  document.body.appendChild(toast);
+
+  // Trigger animation
+  requestAnimationFrame(() => {
+    toast.classList.add("toast--show");
+  });
+
+  // Auto-dismiss if duration > 0
+  if (duration > 0) {
+    setTimeout(() => {
+      toast.classList.remove("toast--show");
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+  }
+
+  return toast;
+}
+
+// ============================================================================
+// VIN VERIFICATION SYSTEM
+// ============================================================================
+
+// Debug flag for VIN sync - set window.debugVinSync = true to enable verbose logging
+window.debugVinSync = window.debugVinSync || false;
+
+// Track ongoing VIN verification requests to prevent overlaps
+const activeVinVerifications = new Map();
+
+/**
+ * Vehicle schema mapping for garage_vehicles table
+ * Maps MarketCheck API fields to our database schema
+ */
+const GARAGE_VEHICLE_SCHEMA = {
+  year: { type: 'integer', apiField: 'year' },
+  make: { type: 'text', apiField: 'make' },
+  model: { type: 'text', apiField: 'model' },
+  trim: { type: 'text', apiField: 'trim' },
+  vin: { type: 'text', apiField: 'vin' },
+  mileage: { type: 'integer', apiField: 'miles' },
+  condition: { type: 'text', apiField: null }, // Derived from year
+  estimated_value: { type: 'numeric', apiField: 'price' },
+  payoff_amount: { type: 'numeric', apiField: null }, // User-specific, not from API
+  photo_url: { type: 'text', apiField: 'media.photo_links[0]' },
+  nickname: { type: 'text', apiField: null }, // User-specific
+  notes: { type: 'text', apiField: null } // User-specific
+};
+
+/**
+ * Fetch VIN details from MarketCheck API
+ * @param {string} vin - Vehicle Identification Number
+ * @returns {Promise<Object|null>} - Normalized vehicle data or null
+ */
+async function fetchVinDetails(vin) {
+  if (!vin || typeof vin !== 'string') {
+    if (window.debugVinSync) console.warn('[vin-sync] Invalid VIN provided');
+    return null;
+  }
+
+  const cleanVin = vin.trim().toUpperCase();
+  if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(cleanVin)) {
+    if (window.debugVinSync) console.warn('[vin-sync] VIN format invalid:', cleanVin);
+    return null;
+  }
+
+  try {
+    if (window.debugVinSync) console.log('[vin-sync] Fetching VIN:', cleanVin);
+
+    const response = await fetch(`${API_BASE}/api/mc/by-vin/${cleanVin}`);
+
+    if (!response.ok) {
+      if (window.debugVinSync) {
+        console.warn('[vin-sync] API error:', response.status, response.statusText);
+      }
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (window.debugVinSync) {
+      console.log('[vin-sync] API response:', data);
+    }
+
+    return normalizeMarketCheckResponse(data);
+  } catch (error) {
+    console.error('[vin-sync] Fetch error:', error);
+    showToast(`VIN verification failed: ${error.message}`, 'error');
+    return null;
+  }
+}
+
+/**
+ * Normalize MarketCheck API response to match our vehicle schema
+ * @param {Object} apiData - Raw API response
+ * @returns {Object} - Normalized vehicle object
+ */
+function normalizeMarketCheckResponse(apiData) {
+  if (!apiData || typeof apiData !== 'object') {
+    return {};
+  }
+
+  // MarketCheck returns a listing object
+  const listing = apiData.listing || apiData;
+
+  // Determine condition based on year
+  const currentYear = new Date().getFullYear();
+  const vehicleYear = parseInt(listing.year);
+  const condition = vehicleYear >= currentYear ? 'new' : 'used';
+
+  // Extract photo URL from media
+  let photoUrl = null;
+  if (listing.media?.photo_links && Array.isArray(listing.media.photo_links)) {
+    photoUrl = listing.media.photo_links[0] || null;
+  }
+
+  // Build normalized vehicle object
+  const normalized = {
+    year: vehicleYear || null,
+    make: listing.make || null,
+    model: listing.model || null,
+    trim: listing.trim || null,
+    vin: listing.vin || null,
+    mileage: parseInt(listing.miles) || null,
+    condition: condition,
+    estimated_value: parseFloat(listing.price) || null,
+    photo_url: photoUrl
+  };
+
+  // Include any extra fields that don't exist in our schema
+  const extraFields = {};
+  const knownFields = new Set(Object.keys(GARAGE_VEHICLE_SCHEMA));
+
+  Object.keys(listing).forEach(key => {
+    if (!knownFields.has(key) && listing[key] != null) {
+      extraFields[key] = listing[key];
+    }
+  });
+
+  if (Object.keys(extraFields).length > 0) {
+    normalized._extraFields = extraFields;
+  }
+
+  if (window.debugVinSync) {
+    console.log('[vin-sync] Normalized vehicle:', normalized);
+    if (normalized._extraFields) {
+      console.log('[vin-sync] Extra fields found:', normalized._extraFields);
+    }
+  }
+
+  return normalized;
+}
+
+/**
+ * Compare stored vehicle with fresh MarketCheck data
+ * @param {Object} stored - Current vehicle data from database
+ * @param {Object} fresh - Fresh data from MarketCheck
+ * @returns {Object} - { changed: boolean, differences: Array, missingFields: Array }
+ */
+function diffVehicleAttributes(stored, fresh) {
+  const differences = [];
+  const missingFields = [];
+
+  // Compare known schema fields
+  Object.keys(GARAGE_VEHICLE_SCHEMA).forEach(field => {
+    const schema = GARAGE_VEHICLE_SCHEMA[field];
+
+    // Skip user-specific fields that shouldn't be auto-updated
+    if (['payoff_amount', 'nickname', 'notes'].includes(field)) {
+      return;
+    }
+
+    const storedValue = stored[field];
+    const freshValue = fresh[field];
+
+    // Only compare if fresh value exists
+    if (freshValue != null && storedValue !== freshValue) {
+      // Normalize for comparison
+      const storedNorm = normalizeValueForComparison(storedValue, schema.type);
+      const freshNorm = normalizeValueForComparison(freshValue, schema.type);
+
+      if (storedNorm !== freshNorm) {
+        differences.push({
+          field,
+          oldValue: storedValue,
+          newValue: freshValue,
+          displayName: fieldToDisplayName(field)
+        });
+      }
+    }
+  });
+
+  // Check for extra fields from MarketCheck that don't exist in our schema
+  if (fresh._extraFields) {
+    Object.keys(fresh._extraFields).forEach(field => {
+      if (!GARAGE_VEHICLE_SCHEMA[field]) {
+        missingFields.push({
+          field,
+          value: fresh._extraFields[field],
+          suggestedType: inferSqlType(fresh._extraFields[field])
+        });
+      }
+    });
+  }
+
+  if (window.debugVinSync) {
+    console.log('[vin-sync] Diff results:', {
+      differences,
+      missingFields,
+      changed: differences.length > 0 || missingFields.length > 0
+    });
+  }
+
+  return {
+    changed: differences.length > 0 || missingFields.length > 0,
+    differences,
+    missingFields
+  };
+}
+
+/**
+ * Normalize values for comparison
+ */
+function normalizeValueForComparison(value, type) {
+  if (value == null) return null;
+
+  switch (type) {
+    case 'integer':
+      return parseInt(value);
+    case 'numeric':
+      return parseFloat(value);
+    case 'text':
+      return String(value).trim().toLowerCase();
+    default:
+      return value;
+  }
+}
+
+/**
+ * Convert field name to display name
+ */
+function fieldToDisplayName(field) {
+  const displayNames = {
+    year: 'Year',
+    make: 'Make',
+    model: 'Model',
+    trim: 'Trim',
+    vin: 'VIN',
+    mileage: 'Mileage',
+    condition: 'Condition',
+    estimated_value: 'Estimated Value',
+    photo_url: 'Photo',
+    payoff_amount: 'Payoff Amount',
+    nickname: 'Nickname',
+    notes: 'Notes'
+  };
+  return displayNames[field] || field;
+}
+
+/**
+ * Infer SQL type from JavaScript value
+ */
+function inferSqlType(value) {
+  if (value == null) return 'TEXT';
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? 'INTEGER' : 'NUMERIC(10,2)';
+  }
+  if (typeof value === 'boolean') return 'BOOLEAN';
+  if (Array.isArray(value)) return 'JSONB';
+  if (typeof value === 'object') return 'JSONB';
+  return 'TEXT';
+}
+
+/**
+ * Generate SQL to add missing columns to schema
+ * @param {Array} missingFields - Array of {field, value, suggestedType}
+ * @param {string} tableName - Table name (garage_vehicles or saved_offers)
+ * @returns {string} - SQL ALTER TABLE statement
+ */
+function generateSchemaSql(missingFields, tableName = 'garage_vehicles') {
+  if (!missingFields || missingFields.length === 0) {
+    return '';
+  }
+
+  const statements = missingFields.map(({ field, suggestedType }) => {
+    return `ALTER TABLE ${tableName}\nADD COLUMN ${field} ${suggestedType};`;
+  });
+
+  return `-- Add missing columns from MarketCheck API\n-- Generated: ${new Date().toISOString()}\n\n${statements.join('\n\n')}`;
+}
+
+/**
+ * Update vehicle record in Supabase
+ * @param {string} vehicleId - Vehicle UUID
+ * @param {Object} updates - Fields to update
+ * @param {string} source - 'garage' or 'saved'
+ * @returns {Promise<boolean>} - Success status
+ */
+async function updateVehicleRecord(vehicleId, updates, source = 'garage') {
+  try {
+    const tableName = source === 'garage' ? 'garage_vehicles' : 'saved_offers';
+
+    if (window.debugVinSync) {
+      console.log(`[vin-sync] Updating ${tableName} record:`, vehicleId, updates);
+    }
+
+    const { data, error } = await supabase
+      .from(tableName)
+      .update(updates)
+      .eq('id', vehicleId)
+      .select();
+
+    if (error) {
+      console.error('[vin-sync] Update error:', error);
+      showToast(`Failed to update vehicle: ${error.message}`, 'error');
+      return false;
+    }
+
+    if (window.debugVinSync) {
+      console.log('[vin-sync] Update successful:', data);
+    }
+
+    return true;
+  } catch (error) {
+    console.error('[vin-sync] Update exception:', error);
+    showToast(`Failed to update vehicle: ${error.message}`, 'error');
+    return false;
+  }
+}
+
+/**
+ * Main VIN verification orchestration
+ * Silently verifies VIN against MarketCheck and notifies only if discrepancies exist
+ * @param {string} vin - Vehicle Identification Number
+ * @param {Object} storedVehicle - Current vehicle data from database
+ * @param {string} source - 'garage' or 'saved'
+ */
+async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
+  if (!vin) {
+    if (window.debugVinSync) console.log('[vin-sync] No VIN provided, skipping verification');
+    return;
+  }
+
+  const cleanVin = vin.trim().toUpperCase();
+
+  // Check if verification is already in progress for this VIN
+  if (activeVinVerifications.has(cleanVin)) {
+    if (window.debugVinSync) {
+      console.log('[vin-sync] Verification already in progress for:', cleanVin);
+    }
+    return;
+  }
+
+  // Mark verification as in progress
+  activeVinVerifications.set(cleanVin, Date.now());
+
+  try {
+    if (window.debugVinSync) {
+      console.log('[vin-sync] Starting verification for:', cleanVin);
+      console.log('[vin-sync] Stored vehicle:', storedVehicle);
+    }
+
+    // Fetch fresh data from MarketCheck (non-blocking)
+    const freshData = await fetchVinDetails(cleanVin);
+
+    // Check if this verification is still relevant (user might have selected another vehicle)
+    if (!activeVinVerifications.has(cleanVin)) {
+      if (window.debugVinSync) {
+        console.log('[vin-sync] Verification cancelled (stale):', cleanVin);
+      }
+      return;
+    }
+
+    if (!freshData) {
+      if (window.debugVinSync) {
+        console.log('[vin-sync] No fresh data available for:', cleanVin);
+      }
+      return;
+    }
+
+    // Compare stored vs fresh data
+    const diff = diffVehicleAttributes(storedVehicle, freshData);
+
+    if (!diff.changed) {
+      if (window.debugVinSync) {
+        console.log('[vin-sync] No changes detected for:', cleanVin);
+      }
+      return;
+    }
+
+    // Build summary message
+    const changes = diff.differences.map(d =>
+      `${d.displayName}: ${formatDiffValue(d.oldValue)} → ${formatDiffValue(d.newValue)}`
+    );
+
+    let message = `Found ${diff.differences.length} update${diff.differences.length > 1 ? 's' : ''} for ${storedVehicle.year} ${storedVehicle.make} ${storedVehicle.model}:\n${changes.join(', ')}`;
+
+    if (diff.missingFields.length > 0) {
+      message += `\n\nPlus ${diff.missingFields.length} new field${diff.missingFields.length > 1 ? 's' : ''} available from MarketCheck.`;
+    }
+
+    // Prepare actions
+    const actions = [
+      {
+        label: 'Update Record',
+        callback: async () => {
+          // Build update object from differences
+          const updates = {};
+          diff.differences.forEach(d => {
+            updates[d.field] = d.newValue;
+          });
+
+          const success = await updateVehicleRecord(storedVehicle.id, updates, source);
+
+          if (success) {
+            showToast('Vehicle record updated successfully', 'success');
+
+            // Refresh the appropriate data
+            if (source === 'garage') {
+              await loadGarageVehicles();
+              await setupVehicleSelector(); // Refresh dropdown
+            }
+          }
+        }
+      },
+      {
+        label: 'Dismiss',
+        callback: () => {
+          if (window.debugVinSync) {
+            console.log('[vin-sync] User dismissed update notification');
+          }
+        }
+      }
+    ];
+
+    // Add SQL view action if there are missing fields
+    if (diff.missingFields.length > 0) {
+      actions.splice(1, 0, {
+        label: 'View SQL',
+        callback: () => {
+          const sql = generateSchemaSql(diff.missingFields, source === 'garage' ? 'garage_vehicles' : 'saved_offers');
+
+          // Create a modal to show the SQL
+          const modal = document.createElement('div');
+          modal.className = 'modal';
+          modal.innerHTML = `
+            <div class="modal-backdrop"></div>
+            <div class="modal-content" style="max-width: 700px;">
+              <div class="modal-header">
+                <h3 class="modal-title">Missing Schema Fields</h3>
+                <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
+              </div>
+              <div class="modal-body">
+                <p>MarketCheck provides the following fields that don't exist in your database schema:</p>
+                <ul>
+                  ${diff.missingFields.map(f => `<li><strong>${f.field}</strong>: ${f.suggestedType}</li>`).join('')}
+                </ul>
+                <p>Run this SQL to add them:</p>
+                <pre style="background: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; max-height: 300px;">${sql}</pre>
+                <button class="btn btn--secondary" onclick="navigator.clipboard.writeText(\`${sql.replace(/`/g, '\\`')}\`).then(() => showToast('SQL copied to clipboard', 'success'))">
+                  Copy SQL
+                </button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          modal.style.display = 'flex';
+        }
+      });
+    }
+
+    // Show toast with actions
+    showToastWithActions(message, 'info', actions);
+
+  } catch (error) {
+    console.error('[vin-sync] Verification error:', error);
+    // Silent failure - don't interrupt user flow
+  } finally {
+    // Remove from active verifications
+    activeVinVerifications.delete(cleanVin);
+  }
+}
+
+/**
+ * Format diff value for display
+ */
+function formatDiffValue(value) {
+  if (value == null) return 'none';
+  if (typeof value === 'number') {
+    // Check if it looks like a price
+    if (value > 1000) {
+      return formatCurrency(value);
+    }
+    return value.toLocaleString();
+  }
+  return String(value);
 }
 
 /**
@@ -9858,6 +10396,13 @@ async function selectQuickSavedVehicle(vehicle) {
 
   // Trigger calculation to update monthly payment
   await autoCalculateQuick();
+
+  // Background VIN verification (non-blocking)
+  if (vehicle.vin) {
+    verifyVehicleVin(vehicle.vin, vehicle, 'saved').catch(err => {
+      console.error('[vin-sync] Background verification failed:', err);
+    });
+  }
 }
 
 /**
