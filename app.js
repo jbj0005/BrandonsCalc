@@ -620,6 +620,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ============================================
   console.log('🚀 Initializing ExcelCalc v2.0 Phase 1...');
 
+  // Initialize base slider defaults even when no vehicle is selected
+  ;['quickSliderSalePrice', 'quickSliderCashDown', 'quickSliderTradeAllowance', 'quickSliderTradePayoff']
+    .forEach((id) => {
+      const slider = document.getElementById(id);
+      if (slider) {
+        slider.min = 0;
+        slider.max = 150000;
+        slider.value = 0;
+        slider.step = 500;
+      }
+    });
+
   // Listen for profile loaded event (MUST be set up BEFORE AuthManager initializes)
   window.addEventListener('profile-loaded', async (e) => {
     const { profile } = e.detail;
@@ -637,7 +649,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (profile.email) wizardData.customer.email = profile.email;
     if (profile.phone) wizardData.customer.phone = profile.phone;
 
-    if (profile.preferred_down_payment) {
+    if (profile.preferred_down_payment && wizardData.vehicle?.vin) {
       wizardData.financing.cashDown = profile.preferred_down_payment;
       const cashDownInput = document.getElementById('quickSliderCashDown');
       if (cashDownInput) cashDownInput.value = profile.preferred_down_payment;
