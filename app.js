@@ -7290,6 +7290,7 @@ const sliderPolarityMap = {
     format: "currency",
     step: 10,
     snapZone: 5,
+    minFloor: 0,
     getBaseline: () => {
       ensureWizardFeeDefaults();
       return wizardData.fees?.customerAddons ?? 0;
@@ -12091,6 +12092,47 @@ function setupAprEditing() {
     await incrementApr();
   });
 
+  // Click-and-hold for continuous adjustment
+  let holdInterval = null;
+  let holdTimeout = null;
+
+  const startHold = (callback) => {
+    callback(); // Immediate first action
+    holdTimeout = setTimeout(() => {
+      holdInterval = setInterval(callback, 100); // Repeat every 100ms
+    }, 300); // Start repeating after 300ms hold
+  };
+
+  const stopHold = () => {
+    if (holdTimeout) clearTimeout(holdTimeout);
+    if (holdInterval) clearInterval(holdInterval);
+    holdTimeout = null;
+    holdInterval = null;
+  };
+
+  aprArrowLeft.addEventListener("mousedown", () => startHold(decrementApr));
+  aprArrowLeft.addEventListener("mouseup", stopHold);
+  aprArrowLeft.addEventListener("mouseleave", stopHold);
+
+  aprArrowRight.addEventListener("mousedown", () => startHold(incrementApr));
+  aprArrowRight.addEventListener("mouseup", stopHold);
+  aprArrowRight.addEventListener("mouseleave", stopHold);
+
+  // Keyboard support on arrow buttons themselves
+  aprArrowLeft.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      await decrementApr();
+    }
+  });
+
+  aprArrowRight.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      await incrementApr();
+    }
+  });
+
   // Keyboard arrow support when APR value is focused
   aprValue.addEventListener("keydown", async (e) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
@@ -12320,6 +12362,47 @@ function setupTermEditing() {
   termArrowRight.addEventListener("click", async (e) => {
     e.preventDefault();
     await incrementTerm();
+  });
+
+  // Click-and-hold for continuous adjustment
+  let termHoldInterval = null;
+  let termHoldTimeout = null;
+
+  const startTermHold = (callback) => {
+    callback(); // Immediate first action
+    termHoldTimeout = setTimeout(() => {
+      termHoldInterval = setInterval(callback, 100); // Repeat every 100ms
+    }, 300); // Start repeating after 300ms hold
+  };
+
+  const stopTermHold = () => {
+    if (termHoldTimeout) clearTimeout(termHoldTimeout);
+    if (termHoldInterval) clearInterval(termHoldInterval);
+    termHoldTimeout = null;
+    termHoldInterval = null;
+  };
+
+  termArrowLeft.addEventListener("mousedown", () => startTermHold(decrementTerm));
+  termArrowLeft.addEventListener("mouseup", stopTermHold);
+  termArrowLeft.addEventListener("mouseleave", stopTermHold);
+
+  termArrowRight.addEventListener("mousedown", () => startTermHold(incrementTerm));
+  termArrowRight.addEventListener("mouseup", stopTermHold);
+  termArrowRight.addEventListener("mouseleave", stopTermHold);
+
+  // Keyboard support on arrow buttons themselves
+  termArrowLeft.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      await decrementTerm();
+    }
+  });
+
+  termArrowRight.addEventListener("keydown", async (e) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowUp" || e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      await incrementTerm();
+    }
   });
 
   // Keyboard arrow support when term value is focused
