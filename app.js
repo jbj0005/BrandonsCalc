@@ -629,6 +629,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         slider.max = 150000;
         slider.value = 0;
         slider.step = 500;
+        if (!slider.dataset.defaultMin) slider.dataset.defaultMin = slider.min;
+        if (!slider.dataset.defaultMax) slider.dataset.defaultMax = slider.max;
+        if (!slider.dataset.defaultStep) slider.dataset.defaultStep = slider.step;
       }
     });
 
@@ -7476,8 +7479,23 @@ function configureSliderRange(slider, origin, meta, visualOriginOverride) {
     ? Number(meta.maxCeil)
     : Infinity;
 
-  slider.min = Math.max(minFloor, visualOrigin - padding);
-  slider.max = Math.min(maxCeil, visualOrigin + padding);
+  let computedMin = Math.max(minFloor, visualOrigin - padding);
+  let computedMax = Math.min(maxCeil, visualOrigin + padding);
+
+  const defaultMin = Number(slider.dataset.defaultMin);
+  if (Number.isFinite(defaultMin)) {
+    computedMin = Math.min(computedMin, defaultMin);
+    computedMin = Math.max(minFloor, computedMin);
+  }
+
+  const defaultMax = Number(slider.dataset.defaultMax);
+  if (Number.isFinite(defaultMax)) {
+    computedMax = Math.max(computedMax, defaultMax);
+    computedMax = Math.min(maxCeil, computedMax);
+  }
+
+  slider.min = computedMin;
+  slider.max = computedMax;
   slider.step = step;
 }
 
