@@ -5864,6 +5864,16 @@ body {
   overflow-y: auto;
 }
 
+/* Subtle entrance animation for the profile modal */
+#customer-profile-modal.active .modal-content {
+  animation: profileModalFadeIn 0.25s ease;
+}
+
+@keyframes profileModalFadeIn {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
 .customer-profile-header {
   text-align: center;
   padding: 32px 32px 24px;

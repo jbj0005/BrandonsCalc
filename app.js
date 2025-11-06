@@ -6212,6 +6212,19 @@ async function openCustomerProfileModal() {
   try {
     document.body.style.overflow = "hidden"; // prevent background scroll
   } catch {}
+  // Bind ESC-to-close while open
+  try {
+    if (!window.__customerProfileEscHandler) {
+      window.__customerProfileEscHandler = (e) => {
+        const key = e.key || e.code;
+        if (key === "Escape" || key === "Esc") {
+          e.preventDefault();
+          closeCustomerProfileModal();
+        }
+      };
+      document.addEventListener("keydown", window.__customerProfileEscHandler);
+    }
+  } catch {}
   console.log("✅ [My Profile] Modal opened");
 }
 
@@ -6226,6 +6239,13 @@ function closeCustomerProfileModal() {
   }
   try {
     document.body.style.overflow = "";
+  } catch {}
+  // Unbind ESC handler once closed
+  try {
+    if (window.__customerProfileEscHandler) {
+      document.removeEventListener("keydown", window.__customerProfileEscHandler);
+      window.__customerProfileEscHandler = null;
+    }
   } catch {}
 }
 
