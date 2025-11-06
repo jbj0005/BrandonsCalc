@@ -11,6 +11,22 @@ import {
   getRateSheets
 } from './src/lib/supabase';
 
+function calculateSliderMax(baseValue, multiplier = 1.5, minimum = 150000) {
+  return Math.max(minimum, baseValue * multiplier);
+}
+
+function calculateDownPaymentSliderMax(baseValue) {
+  let calculatedMax = 0;
+  if (baseValue <= 10000) {
+    calculatedMax = Math.max(5000, baseValue * 3);
+  } else if (baseValue <= 30000) {
+    calculatedMax = baseValue * 2.5;
+  } else {
+    calculatedMax = baseValue * 2;
+  }
+  return Math.min(calculatedMax, 100000);
+}
+
 /**
  * EXPRESS MODE WIZARD - WITH SUPABASE & GOOGLE PLACES
  * Integrated with real saved vehicles and location services
@@ -856,7 +872,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           console.log('🎚️ Slider value BEFORE setting:', salePriceSlider.value);
 
           // Ensure max is high enough to accommodate the price
-          const minMax = Math.max(150000, salePrice * 1.5); // At least 1.5x the price or 150k
+          const minMax = calculateSliderMax(salePrice);
           salePriceSlider.max = minMax.toString();
 
           salePriceSlider.value = salePrice;
@@ -879,7 +895,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
         if (tradeValueSlider) {
           // Ensure max is high enough
-          const minMax = Math.max(150000, vehicle.estimated_value * 1.5);
+          const minMax = calculateSliderMax(vehicle.estimated_value);
           tradeValueSlider.max = minMax.toString();
           tradeValueSlider.value = vehicle.estimated_value;
         }
@@ -5456,6 +5472,17 @@ function populateReviewVehicleCard(reviewData) {
  */
 
 function initializeReviewSliders(reviewData) {
+  // Ensure down payment slider has a reasonable ceiling based on sale price
+  try {
+    const salePrice = Number(wizardData?.financing?.salePrice) || Number(reviewData?.salePrice) || 0;
+    const dpMax = calculateDownPaymentSliderMax(salePrice);
+    if (Number.isFinite(dpMax) && dpMax > 0) {
+      sliderPolarityMap.cashDown.maxCeil = dpMax;
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[review-sliders] Unable to set cashDown maxCeil:', e);
+  }
   const sliderConfigs = [
     {
       sliderId: "reviewSalePriceSlider",
@@ -13162,6 +13189,18 @@ function initializeCenteredSliders() {
   const fees = wizardData.fees || {};
   const hasVehicleSelection =
     Boolean(selectedVehicle?.vin) || Boolean(wizardData.vehicle?.vin);
+
+  // Update dynamic slider ceilings based on current sale price
+  const salePriceForCeil = Number(financing.salePrice) || 0;
+  try {
+    const dpMax = calculateDownPaymentSliderMax(salePriceForCeil);
+    if (Number.isFinite(dpMax) && dpMax > 0) {
+      sliderPolarityMap.cashDown.maxCeil = dpMax;
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('[sliders] Unable to set cashDown maxCeil:', e);
+  }
 
   const baselineValues = {
     salePrice: hasVehicleSelection
