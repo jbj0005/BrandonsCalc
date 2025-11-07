@@ -9325,6 +9325,12 @@ function buildOfferPreviewHtml(reviewData = {}) {
     vehicle.dealerStock ||
     null;
   const stockNumberText = stockNumberRaw ? String(stockNumberRaw) : "";
+  const askingPriceValue = vehicle.asking_price || vehicle.askingPrice || 0;
+
+  // Get customer contact info from form fields
+  const customerName = document.getElementById("submitCustomerName")?.value || "";
+  const customerEmail = document.getElementById("submitCustomerEmail")?.value || "";
+  const customerPhone = document.getElementById("submitCustomerPhone")?.value || "";
 
   const gridItem = (label, value) => {
     const display =
@@ -9409,52 +9415,23 @@ function buildOfferPreviewHtml(reviewData = {}) {
       </div>
 
       <div class="offer-preview-section">
-        <div class="offer-preview-section-title">Vehicle</div>
-        <div class="offer-preview-grid">
-          ${vehicleGrid}
-        </div>
-      </div>
-
-      <div class="offer-preview-section">
-        <div class="offer-preview-section-title">Deal Numbers</div>
-        <div class="offer-preview-grid">
-          ${dealGrid}
-        </div>
-      </div>
-
-      ${
-        feesGrid
-          ? `<div class="offer-preview-section">
-              <div class="offer-preview-section-title">Fees & Taxes</div>
-              <div class="offer-preview-grid">
-                ${feesGrid}
-              </div>
-            </div>`
-          : ""
-      }
-
-      ${
-        tradeGrid
-          ? `<div class="offer-preview-section">
-              <div class="offer-preview-section-title">Trade-In</div>
-              <div class="offer-preview-grid">
-                ${tradeGrid}
-              </div>
-            </div>`
-          : ""
-      }
-
-      <div class="offer-preview-section">
-        <div class="offer-preview-section-title">Dealer-Facing Preview</div>
         <div class="offer-preview-dealer-text">
-          <div style="font-family: monospace; white-space: pre-wrap; font-size: 13px; line-height: 1.6; background: #f5f5f5; padding: 16px; border-radius: 8px; border: 1px solid #e0e0e0;">🚗 <strong>VEHICLE PURCHASE OFFER</strong>
+          <div style="font-family: monospace; white-space: pre-wrap; font-size: 13px; line-height: 1.6; background: #f5f5f5; padding: 16px; border-radius: 8px; border: 1px solid #e0e0e0;">Hi - I am interested in your listing: ${escapeHtml(
+            stockNumberText
+              ? `Stock #${stockNumberText}, VIN ${vinText}`
+              : `VIN ${vinText}`
+          )}. Would you mind reaching out and discussing the details?
 
-💵 <strong>Customer Offer Price</strong>
-${escapeHtml(
-            salePriceValue > 0
-              ? formatCurrency(salePriceValue, true, { showCents: true })
-              : "Custom Offer"
-          )}
+🚗 <strong>VEHICLE PURCHASE OFFER</strong>
+
+💵 <strong>Customer Offer</strong>
+${
+            askingPriceValue > 0
+              ? `${escapeHtml(formatCurrency(askingPriceValue, true, { showCents: true }))} > My Offer: ${escapeHtml(
+                  formatCurrency(salePriceValue, true, { showCents: true })
+                )}`
+              : `My Offer: ${escapeHtml(formatCurrency(salePriceValue, true, { showCents: true }))}`
+          }
 
 🚗 <strong>Vehicle Details</strong>
 Condition: ${escapeHtml(conditionText)}
@@ -9463,7 +9440,13 @@ Make: ${escapeHtml(makeText)}
 Model: ${escapeHtml(modelText)}
 Trim: ${escapeHtml(trimText)}
 Dealer Stock #: ${escapeHtml(stockNumberText || "(not available)")}
-VIN: ${escapeHtml(vinText)}</div>
+Ext Color: ${escapeHtml(exteriorColorText)}
+VIN: ${escapeHtml(vinText)}
+
+👤 <strong>Customer Contact</strong>
+Name: ${escapeHtml(customerName || "(not provided)")}
+Email: ${escapeHtml(customerEmail || "(not provided)")}
+Phone: ${escapeHtml(customerPhone || "(not provided)")}</div>
         </div>
       </div>
     </div>
@@ -9752,115 +9735,34 @@ async function loadCustomerDataForSubmission() {
  * Load dealer data for submission (auto-populate from wizardData)
  */
 async function loadDealerDataForSubmission() {
-  const dealer = wizardData.dealer || {};
+  const vehicle = wizardData.vehicle || {};
 
-  // Populate dealer fields if available
-  if (dealer.name) {
-    document.getElementById("submitDealershipName").value = dealer.name;
+  // Populate dealer fields from vehicle data if available
+  if (vehicle.dealer_name) {
+    document.getElementById("submitDealershipName").value = vehicle.dealer_name;
   }
-  if (dealer.phone) {
-    document.getElementById("submitSalespersonPhone").value = dealer.phone;
+  if (vehicle.dealer_phone) {
+    document.getElementById("submitDealerPhone").value = vehicle.dealer_phone;
   }
 
-  // Set up salesperson auto-complete
-  setupSalespersonAutoComplete();
-}
+  // Build dealer address from components
+  const addressParts = [];
+  if (vehicle.dealer_street) addressParts.push(vehicle.dealer_street);
+  if (vehicle.dealer_city) addressParts.push(vehicle.dealer_city);
+  if (vehicle.dealer_state) addressParts.push(vehicle.dealer_state);
+  if (vehicle.dealer_zip) addressParts.push(vehicle.dealer_zip);
 
-/**
- * Setup salesperson auto-complete functionality
- */
-function setupSalespersonAutoComplete() {
-  const salespersonNameInput = document.getElementById("submitSalespersonName");
-  if (!salespersonNameInput) return;
+  if (addressParts.length > 0) {
+    document.getElementById("submitDealerAddress").value = addressParts.join(", ");
+  }
 
-  let debounceTimer;
-
-  salespersonNameInput.addEventListener("input", async (e) => {
-    clearTimeout(debounceTimer);
-
-    const query = e.target.value.trim();
-    if (query.length < 2) return; // Only search after 2 characters
-
-    debounceTimer = setTimeout(async () => {
-      await loadSalespersonSuggestions(query);
-    }, 300); // Debounce 300ms
-  });
-
-  // When user selects a suggestion, auto-fill other fields
-  salespersonNameInput.addEventListener("change", async (e) => {
-    const selectedName = e.target.value.trim();
-    if (!selectedName) return;
-
-    // Find matching salesperson in database
-    const { data: salespeople, error } = await supabase
-      .from("salesperson_contacts")
-      .select("*")
-      .eq("full_name", selectedName)
-      .order("last_used_at", { ascending: false })
-      .limit(1);
-
-    if (error || !salespeople || salespeople.length === 0) return;
-
-    const salesperson = salespeople[0];
-
-    // Auto-fill fields
-    if (salesperson.dealership_name) {
-      document.getElementById("submitDealershipName").value =
-        salesperson.dealership_name;
-    }
-    if (salesperson.phone) {
-      document.getElementById("submitSalespersonPhone").value =
-        salesperson.phone;
-    }
-    if (salesperson.email) {
-      document.getElementById("submitSalespersonEmail").value =
-        salesperson.email;
-    }
-  });
-}
-
-/**
- * Load salesperson suggestions from Supabase
- */
-async function loadSalespersonSuggestions(query = "") {
-  try {
-    const datalist = document.getElementById("salespersonSuggestions");
-    if (!datalist) return;
-
-    // Clear existing options
-    datalist.innerHTML = "";
-
-    if (!query || query.length < 2) return;
-
-    // Query database for matching salespeople
-    const { data: salespeople, error } = await supabase
-      .from("salesperson_contacts")
-      .select("*")
-      .or(`full_name.ilike.%${query}%,dealership_name.ilike.%${query}%`)
-      .order("times_used", { ascending: false })
-      .order("last_used_at", { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error("Error loading salesperson suggestions:", error);
-      return;
-    }
-
-    if (!salespeople || salespeople.length === 0) return;
-
-    // Populate datalist with suggestions
-    salespeople.forEach((person) => {
-      const option = document.createElement("option");
-      option.value = person.full_name;
-      option.textContent = `${person.full_name} - ${
-        person.dealership_name || "Unknown Dealership"
-      }`;
-      datalist.appendChild(option);
-    });
-  } catch (error) {
-    console.error("Error loading salesperson suggestions:", error);
+  // Set vehicle listing URL
+  if (vehicle.listing_url) {
+    document.getElementById("submitVehicleUrl").value = vehicle.listing_url;
   }
 }
+
+// Salesperson auto-complete removed - dealer info now auto-populated from vehicle data
 
 /* ============================================================================
    Submission Methods
@@ -9930,10 +9832,10 @@ async function handleEmailOffer() {
     // Validate customer information and dealer email
     if (!validateSubmissionForm()) return;
 
-    const salespersonEmail = document
-      .getElementById("submitSalespersonEmail")
+    const dealerEmail = document
+      .getElementById("submitDealerEmail")
       .value.trim();
-    if (!salespersonEmail) {
+    if (!dealerEmail) {
       alert("Please enter the dealer's email address.");
       return;
     }
@@ -9971,7 +9873,7 @@ async function handleEmailOffer() {
     );
     const body = encodeURIComponent(offerText);
 
-    window.location.href = `mailto:${salespersonEmail}?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:${dealerEmail}?subject=${subject}&body=${body}`;
 
     // Success - show toast and close modals after brief delay
     setTimeout(async () => {
@@ -9991,10 +9893,10 @@ async function handleSmsOffer() {
     // Validate customer information and dealer phone
     if (!validateSubmissionForm()) return;
 
-    const salespersonPhone = document
-      .getElementById("submitSalespersonPhone")
+    const dealerPhone = document
+      .getElementById("submitDealerPhone")
       .value.trim();
-    if (!salespersonPhone) {
+    if (!dealerPhone) {
       alert("Please enter the dealer's phone number.");
       return;
     }
@@ -10071,7 +9973,7 @@ async function handleSmsOffer() {
       body: JSON.stringify({
         offerId: savedOffer.id,
         offerName: offerName || "Vehicle Offer",
-        recipientPhone: salespersonPhone,
+        recipientPhone: dealerPhone,
         offerSummary: smsSummary,
         offerText,
       }),
@@ -10152,11 +10054,11 @@ function validateSubmissionForm() {
   const customerPhone = document
     .getElementById("submitCustomerPhone")
     .value.trim();
-  const salespersonPhone = document
-    .getElementById("submitSalespersonPhone")
+  const dealerPhone = document
+    .getElementById("submitDealerPhone")
     .value.trim();
-  const salespersonEmail = document
-    .getElementById("submitSalespersonEmail")
+  const dealerEmail = document
+    .getElementById("submitDealerEmail")
     .value.trim();
 
   // Validate required customer fields
@@ -10173,7 +10075,7 @@ function validateSubmissionForm() {
   }
 
   // Validate at least one dealer contact method
-  if (!salespersonPhone && !salespersonEmail) {
+  if (!dealerPhone && !dealerEmail) {
     alert(
       "Please provide at least one contact method for the dealer (phone or email)."
     );
@@ -10193,8 +10095,13 @@ async function handleSubmissionSuccess() {
   // Close the review contract modal if open
   closeReviewContractModal();
 
-  // Show success toast with path to My Offers
-  showToast("Offer saved under your Profile > My Offers", "success");
+  // Show success toast
+  showToast("Offer sent successfully!", "success");
+
+  // Open My Offers modal to show saved offer
+  if (typeof openMyOffersModal === 'function') {
+    await openMyOffersModal();
+  }
 
   // Scroll to top
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -10246,47 +10153,16 @@ async function saveOfferToDatabase(
         );
     }
 
-    // Get salesperson data from form
-    const salespersonName = document
-      .getElementById("submitSalespersonName")
-      .value.trim();
+    // Get dealer data from form (salesperson field removed)
     const dealershipName = document
       .getElementById("submitDealershipName")
       .value.trim();
-    const salespersonPhone = document
-      .getElementById("submitSalespersonPhone")
+    const dealerPhone = document
+      .getElementById("submitDealerPhone")
       .value.trim();
-    const salespersonEmail = document
-      .getElementById("submitSalespersonEmail")
+    const dealerEmail = document
+      .getElementById("submitDealerEmail")
       .value.trim();
-
-    // Save/update salesperson if provided
-    let salespersonId = null;
-    if (salespersonName || dealershipName) {
-      const { data: salesperson, error: salespersonError } = await supabase
-        .from("salesperson_contacts")
-        .upsert(
-          {
-            full_name: salespersonName || "Unknown",
-            dealership_name: dealershipName || null,
-            phone: salespersonPhone || null,
-            email: salespersonEmail || null,
-            last_used_at: new Date().toISOString(),
-          },
-          { onConflict: "full_name,dealership_name" }
-        )
-        .select()
-        .single();
-
-      if (!salespersonError && salesperson) {
-        salespersonId = salesperson.id;
-
-        // Increment usage count
-        await supabase.rpc("increment_salesperson_usage", {
-          salesperson_id: salesperson.id,
-        });
-      }
-    }
 
     // Prepare offer data
     const vehicle = wizardData.vehicle || {};
@@ -10296,7 +10172,6 @@ async function saveOfferToDatabase(
 
     const offerData = {
       user_id: userId,
-      salesperson_id: salespersonId,
       offer_name: `${vehicle.year || ""} ${vehicle.make || ""} ${
         vehicle.model || ""
       }`.trim(),
@@ -10379,7 +10254,6 @@ async function saveOfferToDatabase(
 window.formatOfferText = formatOfferText;
 window.openSubmitOfferModal = openSubmitOfferModal;
 window.closeSubmitOfferModal = closeSubmitOfferModal;
-window.setupSalespersonAutoComplete = setupSalespersonAutoComplete;
 window.handleShareOffer = handleShareOffer;
 window.handleEmailOffer = handleEmailOffer;
 window.handleSmsOffer = handleSmsOffer;
@@ -12881,6 +12755,8 @@ window.resetTilBaselines = () => {
  * Buyer-centric: Green = good (lower costs), Red = bad (higher costs)
  */
 function updateTilDiffIndicators(reviewData, monthlyFinanceCharge) {
+  if (!reviewData) return; // Safety check
+
   const baselines = window.tilBaselines;
 
   // Helper to update a single diff indicator

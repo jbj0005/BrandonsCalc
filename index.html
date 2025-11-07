@@ -2103,22 +2103,9 @@
             </div>
           </div>
 
-          <!-- Salesperson/Dealer Information -->
+          <!-- Dealer Information -->
           <div class="profile-section">
             <h3 class="profile-section-title">Dealer Contact</h3>
-            <div class="form-group">
-              <label class="form-label" for="submitSalespersonName"
-                >Salesperson Name</label
-              >
-              <input
-                type="text"
-                id="submitSalespersonName"
-                class="form-input"
-                placeholder="Mike Johnson"
-                list="salespersonSuggestions"
-              />
-              <datalist id="salespersonSuggestions"></datalist>
-            </div>
             <div class="form-group">
               <label class="form-label" for="submitDealershipName"
                 >Dealership Name</label
@@ -2130,29 +2117,51 @@
                 placeholder="ABC Motors"
               />
             </div>
+            <div class="form-group">
+              <label class="form-label" for="submitDealerAddress"
+                >Address</label
+              >
+              <input
+                type="text"
+                id="submitDealerAddress"
+                class="form-input"
+                placeholder="123 Main St, City, ST 12345"
+              />
+            </div>
             <div class="form-row-2col">
               <div class="form-group">
-                <label class="form-label" for="submitSalespersonPhone"
+                <label class="form-label" for="submitDealerPhone"
                   >Phone</label
                 >
                 <input
                   type="tel"
-                  id="submitSalespersonPhone"
+                  id="submitDealerPhone"
                   class="form-input"
                   placeholder="(555) 987-6543"
                 />
               </div>
               <div class="form-group">
-                <label class="form-label" for="submitSalespersonEmail"
+                <label class="form-label" for="submitDealerEmail"
                   >Email</label
                 >
                 <input
                   type="email"
-                  id="submitSalespersonEmail"
+                  id="submitDealerEmail"
                   class="form-input"
                   placeholder="dealer@example.com"
                 />
               </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="submitVehicleUrl"
+                >Vehicle Listing URL</label
+              >
+              <input
+                type="url"
+                id="submitVehicleUrl"
+                class="form-input"
+                placeholder="https://..."
+              />
             </div>
             <small class="form-hint"
               >At least one contact method (phone or email) is required</small
