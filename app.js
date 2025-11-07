@@ -7118,26 +7118,29 @@ function deriveSaleCondition(vehicle) {
 function buildVehicleSummaryMarkup(vehicle) {
   const priceText = getVehiclePriceText(vehicle);
   const gradeText = getVehicleGradeText(deriveVehicleGrade(vehicle));
-  const saleText = getVehicleSaleConditionText(deriveSaleCondition(vehicle));
-  const trimText = vehicle.trim ? capitalizeWords(vehicle.trim) : "";
+  const saleText = gradeText || getVehicleSaleConditionText(deriveSaleCondition(vehicle));
+  const trimSegment = vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : "";
   const mileageText = Number.isFinite(Number(vehicle.mileage))
-    ? formatMileage(Number(vehicle.mileage))
+    ? `${formatMileage(Number(vehicle.mileage))} miles`
     : null;
 
   return `
     <div class="vehicle-card">
       <div class="vehicle-header">
-        <h3>${vehicle.year || ""} ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(vehicle.model || "")}</h3>
-        <span class="vehicle-price">${priceText}</span>
+        <div class="vehicle-title">
+          ${vehicle.year || ""} ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(vehicle.model || "")}${trimSegment}
+        </div>
+        <div class="vehicle-price">${priceText}</div>
       </div>
       <div class="vehicle-subinfo">
-        ${trimText ? `<span class="vehicle-trim">${trimText}</span>` : ""}
-        ${gradeText ? `<span class="vehicle-condition">${gradeText}</span>` : saleText ? `<span class="vehicle-condition">${saleText}</span>` : ""}
+        ${mileageText ? `<span class="vehicle-miles">${mileageText}</span>` : ""}
+        ${saleText ? `<span class="vehicle-condition">${saleText}</span>` : ""}
       </div>
-      <div class="vehicle-metadata">
-        ${mileageText ? `<span>${mileageText} miles</span>` : ""}
-        ${vehicle.vin ? `<span>VIN: ${formatVIN(vehicle.vin)}</span>` : ""}
-      </div>
+      ${
+        vehicle.vin
+          ? `<div class="vehicle-vin">${formatVIN(vehicle.vin)}</div>`
+          : ""
+      }
     </div>
   `;
 }
