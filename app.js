@@ -6060,7 +6060,7 @@ async function confirmAprChoice(choice) {
   window._aprConfirmationForPreview = false;
 
   if (isPreviewFlow) {
-    await openPreviewOfferModal();
+    await openSubmitOfferModal();
   } else {
     await proceedToReviewModal();
   }
@@ -9292,9 +9292,10 @@ function buildOfferPreviewHtml(reviewData = {}) {
     ? reviewData.netTrade
     : tradeAllowanceValue - tradePayoffValue;
 
+  // PRECISION: Show cents for critical financial values
   const paymentLabel =
     monthlyPaymentValue > 0
-      ? `${formatCurrency(monthlyPaymentValue)}/mo`
+      ? `${formatCurrency(monthlyPaymentValue, true, { showCents: true })}/mo`
       : null;
 
   const conditionText =
@@ -9317,6 +9318,13 @@ function buildOfferPreviewHtml(reviewData = {}) {
     ? `${formatMileage(vehicle.mileage)} mi`
     : "—";
   const vinText = vehicle.vin ? String(vehicle.vin).toUpperCase() : "—";
+  const stockNumberRaw =
+    vehicle.stock_number ||
+    vehicle.dealer_stock ||
+    vehicle.stockNumber ||
+    vehicle.dealerStock ||
+    null;
+  const stockNumberText = stockNumberRaw ? String(stockNumberRaw) : "";
 
   const gridItem = (label, value) => {
     const display =
@@ -9337,6 +9345,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
     gridItem("Make", makeText),
     gridItem("Model", modelText),
     gridItem("Trim", trimText),
+    gridItem("Dealer Stock #", stockNumberText),
     gridItem("Exterior Color", exteriorColorText),
     gridItem("Mileage", mileageText),
     gridItem("VIN", vinText),
@@ -9346,39 +9355,39 @@ function buildOfferPreviewHtml(reviewData = {}) {
     gridItem("Monthly Payment", paymentLabel || "—"),
     gridItem("APR", formatPercent(aprDecimal)),
     gridItem("Term", termValue ? `${termValue} mos` : "—"),
-    gridItem("Cash Down", formatCurrency(cashDownValue)),
-    gridItem("Cash Due", formatCurrency(cashDueValue)),
-    gridItem("Amount Financed", formatCurrency(amountFinancedValue)),
+    gridItem("Cash Down", formatCurrency(cashDownValue, true, { showCents: true })),
+    gridItem("Cash Due", formatCurrency(cashDueValue, true, { showCents: true })),
+    gridItem("Amount Financed", formatCurrency(amountFinancedValue, true, { showCents: true })),
   ].join("");
 
   const feesGrid = []
     .concat(
-      dealerFeesValue ? gridItem("Dealer Fees", formatCurrency(dealerFeesValue)) : []
+      dealerFeesValue ? gridItem("Dealer Fees", formatCurrency(dealerFeesValue, true, { showCents: true })) : []
     )
     .concat(
       customerAddonsValue
-        ? gridItem("Customer Add-ons", formatCurrency(customerAddonsValue))
+        ? gridItem("Customer Add-ons", formatCurrency(customerAddonsValue, true, { showCents: true }))
         : []
     )
     .concat(
-      govtFeesValue ? gridItem("Govt Fees", formatCurrency(govtFeesValue)) : []
+      govtFeesValue ? gridItem("Govt Fees", formatCurrency(govtFeesValue, true, { showCents: true })) : []
     )
     .join("");
 
   const tradeGrid = []
     .concat(
       tradeAllowanceValue
-        ? gridItem("Trade Allowance", formatCurrency(tradeAllowanceValue))
+        ? gridItem("Trade Allowance", formatCurrency(tradeAllowanceValue, true, { showCents: true }))
         : []
     )
     .concat(
       tradePayoffValue
-        ? gridItem("Trade Payoff", formatCurrency(tradePayoffValue))
+        ? gridItem("Trade Payoff", formatCurrency(tradePayoffValue, true, { showCents: true }))
         : []
     )
     .concat(
       tradeAllowanceValue || tradePayoffValue || netTradeValue
-        ? gridItem("Net Trade", formatCurrencyAccounting(netTradeValue))
+        ? gridItem("Net Trade", formatCurrencyAccounting(netTradeValue, { showCents: true }))
         : []
     )
     .join("");
@@ -9389,7 +9398,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
         <span class="offer-preview-hero-label">Customer Offer</span>
         <span class="offer-preview-hero-value">${escapeHtml(
           salePriceValue > 0
-            ? formatCurrency(salePriceValue)
+            ? formatCurrency(salePriceValue, true, { showCents: true })
             : "Custom Offer"
         )}</span>
         ${
@@ -9434,6 +9443,29 @@ function buildOfferPreviewHtml(reviewData = {}) {
             </div>`
           : ""
       }
+
+      <div class="offer-preview-section">
+        <div class="offer-preview-section-title">Dealer-Facing Preview</div>
+        <div class="offer-preview-dealer-text">
+          <div style="font-family: monospace; white-space: pre-wrap; font-size: 13px; line-height: 1.6; background: #f5f5f5; padding: 16px; border-radius: 8px; border: 1px solid #e0e0e0;">🚗 <strong>VEHICLE PURCHASE OFFER</strong>
+
+💵 <strong>Customer Offer Price</strong>
+${escapeHtml(
+            salePriceValue > 0
+              ? formatCurrency(salePriceValue, true, { showCents: true })
+              : "Custom Offer"
+          )}
+
+🚗 <strong>Vehicle Details</strong>
+Condition: ${escapeHtml(conditionText)}
+Year: ${escapeHtml(yearText)}
+Make: ${escapeHtml(makeText)}
+Model: ${escapeHtml(modelText)}
+Trim: ${escapeHtml(trimText)}
+Dealer Stock #: ${escapeHtml(stockNumberText || "(not available)")}
+VIN: ${escapeHtml(vinText)}</div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -9658,6 +9690,7 @@ async function openSubmitOfferModal() {
   // Auto-populate dealer information from wizardData
   await loadDealerDataForSubmission();
 
+  modal.classList.add("active");
   modal.style.display = "flex";
 }
 async function openPreviewFlow() {
@@ -9684,6 +9717,7 @@ window.openPreviewFlow = openPreviewFlow;
 function closeSubmitOfferModal() {
   const modal = document.getElementById("submit-offer-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
 }
@@ -13448,22 +13482,18 @@ function setupQuickSliders() {
 
       // STICKY ORIGIN LOGIC:
       // If within snapZone of origin, snap to exact origin (preserves precision)
-      // If outside snapZone, snap to nearest step increment (clean negotiations)
-      let snappedDelta;
-      if (preserveExact) {
-        snappedDelta = delta;
-      } else if (snapZone > 0 && Math.abs(delta) < snapZone) {
-        // Within snap zone - return to exact origin
-        snappedDelta = 0;
-      } else {
-        // Outside snap zone - snap to nearest step increment
-        snappedDelta = Math.round(delta / step) * step;
+      // If outside snapZone, snap to absolute step boundaries (clean negotiations)
+      if (!preserveExact) {
+        if (snapZone > 0 && Math.abs(delta) < snapZone) {
+          // Within snap zone - return to exact origin
+          visualValue = visualOrigin;
+        } else {
+          // Outside snap zone - snap to absolute step boundaries
+          visualValue = Math.round(visualValue / step) * step;
+        }
       }
 
-      visualValue = clampSliderValueToRange(
-        visualOrigin + snappedDelta,
-        slider
-      );
+      visualValue = clampSliderValueToRange(visualValue, slider);
 
       slider.value = visualValue;
 
@@ -13549,14 +13579,12 @@ function setupQuickSliders() {
       const currentActual = convertVisualToActual(slider, currentVisual);
       let targetActual = currentActual + direction * stepSize;
 
-      // Snap relative to true origin so we stay on clean increments
+      // Snap relative to true origin within snapZone, otherwise snap to absolute boundaries
       const deltaFromOrigin = targetActual - originActual;
       if (snapZone > 0 && Math.abs(deltaFromOrigin) < snapZone) {
         targetActual = originActual;
       } else {
-        targetActual =
-          originActual +
-          Math.round(deltaFromOrigin / stepSize) * stepSize;
+        targetActual = Math.round(targetActual / stepSize) * stepSize;
       }
 
       const minActual = Number.isFinite(meta.minFloor)
