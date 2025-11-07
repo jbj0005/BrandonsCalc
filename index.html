@@ -525,6 +525,15 @@
                         ></div>
                         <button
                           type="button"
+                          class="quick-baseline-btn"
+                          id="quickBaselineSalePrice"
+                          style="display: none"
+                          title="Set as baseline"
+                        >
+                          📌
+                        </button>
+                        <button
+                          type="button"
                           class="quick-reset-btn"
                           id="quickResetSalePrice"
                           style="display: none"
@@ -2644,7 +2653,7 @@
           <button
             type="button"
             class="btn btn-success"
-            onclick="openSubmitOfferModal()"
+            onclick="openPreviewFlow()"
             id="btnSubmitOfferFromContract"
           >
             <svg

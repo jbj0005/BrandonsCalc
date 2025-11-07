@@ -198,7 +198,7 @@ const API_BASE = window.location.origin;
  * @param {boolean} showNegative - Whether to show negative values in accounting style
  * @returns {string} Formatted currency string
  */
-function formatCurrency(value, showNegative = true) {
+function formatCurrency(value, showNegative = true, options = {}) {
   const num =
     typeof value === "string"
       ? parseFloat(value.replace(/[^0-9.-]/g, ""))
@@ -206,9 +206,15 @@ function formatCurrency(value, showNegative = true) {
   if (isNaN(num)) return "";
 
   const absValue = Math.abs(num);
+
+  // PRECISION SUPPORT: Show cents when value has fractional part
+  // or when explicitly requested via options.showCents
+  const hasCents = Math.abs(absValue - Math.round(absValue)) > 0.001;
+  const showCents = options.showCents !== undefined ? options.showCents : hasCents;
+
   const formatted = absValue.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: showCents ? 2 : 0,
+    maximumFractionDigits: showCents ? 2 : 0,
   });
 
   if (num < 0 && showNegative) {
@@ -4285,15 +4291,25 @@ async function computeReviewData() {
   const unpaidBalance = cashPrice - cashDown - netTrade;
   const amountFinanced = Math.max(unpaidBalance + totalFees + totalTaxes, 0);
 
-  let selectedApr;
+  try {
+    await ensureAprOptions();
+  } catch (error) {
+    console.warn("[apr] Unable to preload APR cache:", error);
+  }
+
+  const activeLoanCondition = getEffectiveLoanCondition();
+  let selectedApr = null;
   try {
     if (selectedLenderId === "lowest") {
-      selectedApr = await calculateLowestApr();
+      selectedApr =
+        getCachedAprInfo(activeLoanCondition) ||
+        (await calculateLowestApr(activeLoanCondition));
     } else {
-      let rateInfo = currentRates.get(selectedLenderId);
+      const cacheKey = getRateCacheKey(selectedLenderId, activeLoanCondition);
+      let rateInfo = currentRates.get(cacheKey);
       if (!rateInfo) {
-        await calculateLowestApr();
-        rateInfo = currentRates.get(selectedLenderId);
+        await calculateLowestApr(activeLoanCondition);
+        rateInfo = currentRates.get(cacheKey);
       }
 
       if (rateInfo) {
@@ -4304,25 +4320,26 @@ async function computeReviewData() {
           apr: rateInfo.aprDecimal,
           note: rateInfo.note,
           effectiveDate: rateInfo.effectiveDate,
+          condition: activeLoanCondition,
         };
-      } else {
-        console.warn(
-          "[review] Rate info still not found, falling back to lowest"
-        );
-        selectedApr = await calculateLowestApr();
       }
     }
   } catch (error) {
-    console.warn("[review] Falling back to default APR:", error);
+    console.warn("[review] Unable to resolve lender APR:", error);
   }
 
   if (!selectedApr || !Number.isFinite(selectedApr.apr)) {
-    selectedApr = {
-      lenderId: "default",
-      lenderName: "Standard Rate",
-      apr: 0.0699,
-      note: "Default rate - no lenders matched",
-    };
+    const defaultAprInfo =
+      getCachedAprInfo("new") || getCachedAprInfo("used") || null;
+    if (defaultAprInfo) {
+      selectedApr = { ...defaultAprInfo };
+    }
+  }
+  if (!selectedApr || !Number.isFinite(selectedApr.apr)) {
+    throw new Error("Unable to determine lender APR. Please verify lender data.");
+  }
+  if (!selectedApr.condition) {
+    selectedApr.condition = activeLoanCondition;
   }
 
   // Check for custom APR override (user manually adjusted APR in TIL section)
@@ -4330,7 +4347,7 @@ async function computeReviewData() {
   if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
     apr = customAprOverride;
   } else {
-    apr = Number.isFinite(selectedApr.apr) ? selectedApr.apr : 0.0699;
+    apr = selectedApr.apr;
   }
   const monthlyPayment = calculateMonthlyPayment(amountFinanced, apr, term);
   const totalPayments = monthlyPayment * term;
@@ -4378,9 +4395,36 @@ async function computeReviewData() {
 
 // Store lenders and rates
 let lendersConfig = [];
-let currentRates = new Map(); // Map<lenderId, {apr, note}>
+let currentRates = new Map(); // Map<cacheKey, {apr, note, condition}>
 let selectedLenderId = "lowest";
 let customAprOverride = null; // Store custom APR when user manually adjusts it (decimal form, e.g., 0.0549 for 5.49%)
+
+function normalizeLoanCondition(value) {
+  if (!value) return "";
+  const v = String(value).toLowerCase();
+  if (v === "cpo" || v.startsWith("certified")) return "used";
+  if (v === "new" || v === "used") return v;
+  return v;
+}
+
+function getRateCacheKey(lenderId, condition) {
+  const normalized = normalizeLoanCondition(condition) || "new";
+  return `${lenderId || "default"}::${normalized}`;
+}
+
+function getEffectiveLoanCondition(conditionOverride) {
+  const explicit = normalizeLoanCondition(conditionOverride);
+  if (explicit) return explicit;
+  const override =
+    normalizeLoanCondition(wizardData.financing?.loanConditionOverride) || "";
+  if (override) return override;
+  return "new";
+}
+
+function getCachedAprInfo(condition = "new") {
+  const info = wizardData.availableAprs?.[condition];
+  return Number.isFinite(info?.apr) ? info : null;
+}
 
 /**
  * Load lenders from config
@@ -4396,6 +4440,38 @@ async function loadLenders() {
     console.error("[lenders] Error loading lenders:", error);
     lendersConfig = [];
   }
+}
+
+async function ensureAprOptions(force = false) {
+  wizardData.availableAprs = wizardData.availableAprs || {};
+  const targets = [];
+  if (force || !wizardData.availableAprs.new) targets.push("new");
+  if (force || !wizardData.availableAprs.used) targets.push("used");
+
+  for (const condition of targets) {
+    try {
+      const aprInfo = await calculateLowestApr(condition);
+      if (aprInfo) {
+        wizardData.availableAprs[condition] = aprInfo;
+      }
+    } catch (error) {
+      console.warn(`[apr] Unable to load ${condition} rates:`, error);
+    }
+  }
+
+  if (selectedLenderId === "lowest") {
+    const effective = getEffectiveLoanCondition();
+    const preferred =
+      getCachedAprInfo(effective) ||
+      getCachedAprInfo("new") ||
+      getCachedAprInfo("used") ||
+      null;
+    if (preferred) {
+      wizardData.selectedApr = { ...preferred };
+    }
+  }
+
+  return wizardData.availableAprs;
 }
 
 /**
@@ -5110,12 +5186,10 @@ function matchRate(rates, criteria) {
 /**
  * Get APR for all lenders and find lowest
  */
-async function calculateLowestApr() {
+async function calculateLowestApr(conditionOverride) {
   const term = parseInt(wizardData.financing.loanTerm, 10) || 72;
-  const condition = deriveSaleCondition(wizardData.vehicle) || "new";
+  const condition = getEffectiveLoanCondition(conditionOverride);
   const creditScore = mapCreditScoreRange(wizardData.financing.creditScore);
-
-  console.log('🔍 [calculateLowestApr] Comparing lenders at term:', term, 'months');
 
   const candidates = [];
 
@@ -5139,43 +5213,26 @@ async function calculateLowestApr() {
           apr: match.aprDecimal,
           note: match.note,
           effectiveDate: match.effectiveDate,
+          condition,
         };
 
         candidates.push(candidate);
 
         // Store in rates map
-        currentRates.set(lender.id, match);
+        currentRates.set(getRateCacheKey(lender.id, condition), match);
       }
     } catch (error) {
       // Silently skip lender on error
     }
   }
 
-  // Find winner with lowest APR
-  // NOTE: Since all lenders are compared at the same user-selected term,
-  // lowest APR = lowest monthly payment = lowest total cost
   if (candidates.length === 0) {
-    // Default fallback rate
-    return {
-      lenderId: "default",
-      lenderName: "Standard Rate",
-      apr: 0.0699, // 6.99%
-      note: "Default rate - no lenders matched",
-    };
+    return null;
   }
-
-  // INSTRUMENTATION: Log all candidates for debugging
-  console.log('📊 [calculateLowestApr] All candidates at', term, 'months:');
-  const sortedCandidates = [...candidates].sort((a, b) => a.apr - b.apr);
-  sortedCandidates.forEach((c, idx) => {
-    console.log(`  ${idx + 1}. ${c.lenderName}: ${formatPercent(c.apr)} APR`);
-  });
 
   const winner = candidates.reduce((best, candidate) =>
     candidate.apr < best.apr ? candidate : best
   );
-
-  console.log(`✅ [calculateLowestApr] Winner: ${winner.lenderName} (${formatPercent(winner.apr)} APR at ${term} months)`);
 
   return winner;
 }
@@ -5266,12 +5323,13 @@ function populateReviewSummary(reviewData) {
   const data = reviewData || latestReviewData;
   if (!data) return;
 
-  setText("summaryMonthlyPayment", formatCurrency(data.monthlyPayment));
+  // PRECISION: Always show cents for critical financial displays
+  setText("summaryMonthlyPayment", formatCurrency(data.monthlyPayment, true, { showCents: true }));
   setText("summaryTerm", `${data.term} months`);
   setText("summaryAPR", formatPercent(data.apr));
   setText("summaryAmountFinanced", formatCurrency(data.amountFinanced));
   setText("summaryTotalPayments", formatCurrency(data.totalPayments));
-  setText("summaryFinanceCharge", formatCurrency(data.financeCharge));
+  setText("summaryFinanceCharge", formatCurrency(data.financeCharge, true, { showCents: true }));
   setText("summaryTotalSalePrice", formatCurrency(data.totalSalePrice));
   setText("summaryOtherCharges", formatCurrency(data.sumOtherCharges));
   setText("summaryCashDue", formatCurrency(data.cashDue));
@@ -5350,12 +5408,13 @@ function populateReviewSection(reviewData) {
   }
 
   setText("reviewAPR", formatPercent(apr));
-  setText("reviewFinanceCharge", formatCurrency(financeCharge));
+  // PRECISION: Always show cents for critical financial displays
+  setText("reviewFinanceCharge", formatCurrency(financeCharge, true, { showCents: true }));
   setText("reviewAmountFinanced", formatCurrency(amountFinanced));
   setText("reviewTotalPayments", formatCurrency(totalPayments));
   setText("reviewTotalSalePrice", formatCurrency(totalSalePrice));
 
-  setText("reviewMonthlyPayment", formatCurrency(monthlyPayment));
+  setText("reviewMonthlyPayment", formatCurrency(monthlyPayment, true, { showCents: true }));
   setText("reviewNumPayments", term);
 
   setText("reviewSalePrice", formatCurrency(cashPrice));
@@ -5412,7 +5471,8 @@ function populateReviewSection(reviewData) {
   }
 
   // Populate collapsible header values
-  setText("collapsibleMonthlyPayment", formatCurrency(monthlyPayment));
+  // PRECISION: Always show cents for monthly payment
+  setText("collapsibleMonthlyPayment", formatCurrency(monthlyPayment, true, { showCents: true }));
   setText("collapsibleLenderName", lenderName);
   setText("collapsibleCashDue", formatCurrency(cashDue));
 
@@ -5769,9 +5829,9 @@ async function refreshReviewDebounced() {
 /**
  * Format currency with accounting style (negative in parentheses)
  */
-function formatCurrencyAccounting(value) {
+function formatCurrencyAccounting(value, options = {}) {
   const abs = Math.abs(value);
-  const formatted = formatCurrency(abs);
+  const formatted = formatCurrency(abs, false, options);
   return value < 0 ? `(${formatted})` : formatted;
 }
 
@@ -5913,49 +5973,73 @@ window.closeFeesModal = closeFeesModal;
  * Open the Review Contract modal and populate with current data
  */
 async function openReviewContractModal() {
-  // Check if user has custom APR - if so, show confirmation modal first
+  try {
+    await ensureAprOptions();
+  } catch (error) {
+    console.warn("[apr] Unable to preload APR options:", error);
+  }
+  window._aprConfirmationForPreview = false;
+
   if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
     showAprConfirmationModal();
-    return; // Don't proceed to review until user makes a choice
+    return;
   }
 
-  // Otherwise, proceed directly to review
-  proceedToReviewModal();
+  await proceedToReviewModal();
 }
 
-/**
- * Show APR confirmation modal when custom APR is detected
- */
 function showAprConfirmationModal() {
   const modal = document.getElementById("apr-confirmation-modal");
   if (!modal) return;
 
-  // Get lender rate and custom rate
-  const selectedApr = wizardData.selectedApr || {};
-  const lenderRate = Number.isFinite(selectedApr.apr)
-    ? selectedApr.apr
-    : 0.0699;
+  const aprOptions = wizardData.availableAprs || {};
+  const baseCondition = getEffectiveLoanCondition();
+  const baseAprInfo =
+    wizardData.selectedApr ||
+    aprOptions[baseCondition] ||
+    aprOptions.new ||
+    aprOptions.used ||
+    null;
 
-  // Update modal with rates
+  const lenderRateInfo =
+    baseAprInfo || aprOptions.new || aprOptions.used || null;
+  if (!lenderRateInfo || !Number.isFinite(lenderRateInfo.apr)) {
+    console.warn("[apr] Unable to display lender rate for confirmation modal");
+    return;
+  }
+
   const lenderRateEl = document.getElementById("aprConfirmLenderRate");
+  const lenderLabelEl = document.getElementById("aprConfirmLenderLabel");
   const customRateEl = document.getElementById("aprConfirmCustomRate");
+  const newRateEl = document.getElementById("aprResetNewValue");
+  const usedRateEl = document.getElementById("aprResetUsedValue");
 
   if (lenderRateEl) {
-    lenderRateEl.textContent = (lenderRate * 100).toFixed(2) + "%";
+    lenderRateEl.textContent = formatPercent(lenderRateInfo.apr);
+  }
+  if (lenderLabelEl) {
+    lenderLabelEl.textContent = `Lender Rate (${capitalizeWords(
+      lenderRateInfo.condition || baseCondition
+    )})`;
+  }
+  if (customRateEl && Number.isFinite(customAprOverride)) {
+    customRateEl.textContent = formatPercent(customAprOverride);
+  }
+  if (newRateEl) {
+    newRateEl.textContent = aprOptions.new
+      ? formatPercent(aprOptions.new.apr)
+      : "--%";
+  }
+  if (usedRateEl) {
+    usedRateEl.textContent = aprOptions.used
+      ? formatPercent(aprOptions.used.apr)
+      : "--%";
   }
 
-  if (customRateEl) {
-    customRateEl.textContent = (customAprOverride * 100).toFixed(2) + "%";
-  }
-
-  // Show the modal
   modal.classList.add("active");
   modal.style.display = "flex";
 }
 
-/**
- * Handle user's choice from APR confirmation modal
- */
 async function confirmAprChoice(choice) {
   const modal = document.getElementById("apr-confirmation-modal");
   if (modal) {
@@ -5963,27 +6047,23 @@ async function confirmAprChoice(choice) {
     modal.style.display = "none";
   }
 
-  if (choice === "reset") {
-    // Reset to lender rate
+  if (choice === "reset-new" || choice === "reset-used") {
+    await resetAprToCondition(choice === "reset-used" ? "used" : "new");
+  } else if (choice === "reset") {
+    wizardData.financing = wizardData.financing || {};
+    wizardData.financing.loanConditionOverride = null;
     customAprOverride = null;
-
-    // Update the APR display
-    const aprValue = document.getElementById("quickTilAPR");
-    if (aprValue) {
-      const selectedApr = wizardData.selectedApr || {};
-      const lenderRate = Number.isFinite(selectedApr.apr)
-        ? selectedApr.apr
-        : 0.0699;
-      aprValue.textContent = (lenderRate * 100).toFixed(2) + "%";
-    }
-
-    // Recalculate with lender rate
     await autoCalculateQuick();
   }
-  // If 'keep', do nothing - keep customAprOverride as is
 
-  // Now proceed to review modal
-  proceedToReviewModal();
+  const isPreviewFlow = window._aprConfirmationForPreview === true;
+  window._aprConfirmationForPreview = false;
+
+  if (isPreviewFlow) {
+    await openPreviewOfferModal();
+  } else {
+    await proceedToReviewModal();
+  }
 }
 window.confirmAprChoice = confirmAprChoice;
 
@@ -7156,6 +7236,7 @@ const sliderPolarityMap = {
     inputId: "quickInputSalePrice",
     diffId: "quickDiffSalePrice",
     resetId: "quickResetSalePrice",
+    baselineId: "quickBaselineSalePrice",
     positiveDirection: "left",
     colorPositive: SLIDER_GRADIENT_POSITIVE,
     colorNegative: SLIDER_GRADIENT_NEGATIVE,
@@ -7440,7 +7521,7 @@ function updateSliderVisual(slider, visualValue, originActual, meta) {
   slider.style.background = gradient;
 }
 
-function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) {
+function updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, value, origin, meta) {
   if (!diffIndicator) return;
   const diff = value - origin;
   const buyerPositive = computeBuyerPositive(meta, diff);
@@ -7448,6 +7529,7 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) 
   if (diff === 0) {
     diffIndicator.style.display = "none";
     if (resetBtn) resetBtn.style.display = "none";
+    if (baselineBtn) baselineBtn.style.display = "none";
     return;
   }
 
@@ -7460,8 +7542,10 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) 
   if (!diffText) {
     diffText = document.createElement("span");
     diffText.className = "diff-text";
-    if (resetBtn) {
-      diffIndicator.insertBefore(diffText, resetBtn);
+    // Insert before first button (baseline or reset)
+    const firstButton = baselineBtn || resetBtn;
+    if (firstButton) {
+      diffIndicator.insertBefore(diffText, firstButton);
     } else {
       diffIndicator.appendChild(diffText);
     }
@@ -7470,6 +7554,11 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) 
   diffText.textContent = `${formatSliderValue(diff, meta, {
     includeSign: true,
   })}`;
+
+  // Show baseline button when there's a diff (allows setting current value as new baseline)
+  if (baselineBtn) {
+    baselineBtn.style.display = "inline-flex";
+  }
 
   if (resetBtn) {
     resetBtn.style.display = "inline-flex";
@@ -7516,7 +7605,8 @@ function configureSliderRange(slider, origin, meta, visualOriginOverride) {
 function formatSliderInputValue(value, meta) {
   const numeric = Number(value) || 0;
   if (meta.format === "currency") {
-    return formatCurrency(numeric);
+    // PRECISION: Always show cents in input fields to indicate precision support
+    return formatCurrency(numeric, true, { showCents: true });
   }
   if (meta.format === "percent") {
     return formatPercent(numeric);
@@ -9570,6 +9660,23 @@ async function openSubmitOfferModal() {
 
   modal.style.display = "flex";
 }
+async function openPreviewFlow() {
+  try {
+    await ensureAprOptions();
+  } catch (error) {
+    console.warn("[apr] Unable to preload APR options:", error);
+  }
+
+  if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
+    window._aprConfirmationForPreview = true;
+    showAprConfirmationModal();
+    return;
+  }
+
+  window._aprConfirmationForPreview = false;
+  await openSubmitOfferModal();
+}
+window.openPreviewFlow = openPreviewFlow;
 
 /**
  * Close Submit Offer modal
@@ -12069,8 +12176,20 @@ function setupAprEditing() {
     }
   };
 
+  // Guard: Check if sale price has been entered
+  const canAdjustFinancing = () => {
+    const salePrice = wizardData.financing?.salePrice || 0;
+    return salePrice > 0;
+  };
+
   // Increment APR by 0.01%
   const incrementApr = async () => {
+    if (!canAdjustFinancing()) {
+      // Show visual feedback that control is disabled
+      aprValue.style.animation = 'shake 0.3s';
+      setTimeout(() => { aprValue.style.animation = ''; }, 300);
+      return;
+    }
     const currentApr = getCurrentApr();
     if (currentApr !== null) {
       await updateApr(currentApr + 0.0001); // +0.01%
@@ -12079,6 +12198,12 @@ function setupAprEditing() {
 
   // Decrement APR by 0.01%
   const decrementApr = async () => {
+    if (!canAdjustFinancing()) {
+      // Show visual feedback that control is disabled
+      aprValue.style.animation = 'shake 0.3s';
+      setTimeout(() => { aprValue.style.animation = ''; }, 300);
+      return;
+    }
     const currentApr = getCurrentApr();
     if (currentApr !== null) {
       await updateApr(currentApr - 0.0001); // -0.01%
@@ -12356,8 +12481,20 @@ function setupTermEditing() {
     }
   };
 
+  // Guard: Check if sale price has been entered
+  const canAdjustFinancing = () => {
+    const salePrice = wizardData.financing?.salePrice || 0;
+    return salePrice > 0;
+  };
+
   // Increment term by 6 months
   const incrementTerm = async () => {
+    if (!canAdjustFinancing()) {
+      // Show visual feedback that control is disabled
+      termValue.style.animation = 'shake 0.3s';
+      setTimeout(() => { termValue.style.animation = ''; }, 300);
+      return;
+    }
     const currentTerm = getCurrentTerm();
     if (currentTerm > 0) {
       await updateTerm(currentTerm + 6);
@@ -12366,6 +12503,12 @@ function setupTermEditing() {
 
   // Decrement term by 6 months
   const decrementTerm = async () => {
+    if (!canAdjustFinancing()) {
+      // Show visual feedback that control is disabled
+      termValue.style.animation = 'shake 0.3s';
+      setTimeout(() => { termValue.style.animation = ''; }, 300);
+      return;
+    }
     const currentTerm = getCurrentTerm();
     if (currentTerm > 0) {
       await updateTerm(currentTerm - 6);
@@ -12745,7 +12888,7 @@ function updateTilDiffIndicators(reviewData, monthlyFinanceCharge) {
     diffEl.style.display = "block";
   };
 
-  // Update each TIL diff indicator
+  // Update APR and Term diffs (always show when changed)
   updateDiff("aprDiff", reviewData.apr, "apr", (v) => formatPercent(v));
   updateDiff(
     "termDiff",
@@ -12753,30 +12896,65 @@ function updateTilDiffIndicators(reviewData, monthlyFinanceCharge) {
     "term",
     (v) => `${v} mo`
   );
-  updateDiff(
-    "financeChargeDiff",
-    reviewData.financeCharge,
-    "financeCharge",
-    (v) => formatCurrency(v)
-  );
-  updateDiff(
-    "amountFinancedDiff",
-    reviewData.amountFinanced,
-    "amountFinanced",
-    (v) => formatCurrency(v)
-  );
-  updateDiff(
-    "totalPaymentsDiff",
-    reviewData.totalPayments,
-    "totalPayments",
-    (v) => formatCurrency(v)
-  );
-  updateDiff(
-    "monthlyFinanceChargeDiff",
-    monthlyFinanceCharge,
-    "monthlyFinanceCharge",
-    (v) => formatCurrency(v)
-  );
+
+  // FINANCE CHARGE DIFF LOGIC:
+  // Only show finance charge diff when APR or Term has changed from baseline
+  // Don't show when sale price changes - that's expected and not helpful
+  const aprChanged = baselines.apr !== null && Math.abs(reviewData.apr - baselines.apr) >= 0.0001;
+  const termChanged = baselines.term !== null && reviewData.term !== baselines.term;
+  const shouldShowFinanceChargeDiff = aprChanged || termChanged;
+
+  if (shouldShowFinanceChargeDiff) {
+    // Show diffs for all finance-related values
+    updateDiff(
+      "financeChargeDiff",
+      reviewData.financeCharge,
+      "financeCharge",
+      (v) => formatCurrency(v, true, { showCents: true })
+    );
+    updateDiff(
+      "amountFinancedDiff",
+      reviewData.amountFinanced,
+      "amountFinanced",
+      (v) => formatCurrency(v, true, { showCents: true })
+    );
+    updateDiff(
+      "totalPaymentsDiff",
+      reviewData.totalPayments,
+      "totalPayments",
+      (v) => formatCurrency(v, true, { showCents: true })
+    );
+    updateDiff(
+      "monthlyFinanceChargeDiff",
+      monthlyFinanceCharge,
+      "monthlyFinanceCharge",
+      (v) => formatCurrency(v, true, { showCents: true })
+    );
+  } else {
+    // Set baselines but don't show diffs (baseline from first calculation)
+    if (baselines.financeCharge === null) {
+      baselines.financeCharge = reviewData.financeCharge;
+    }
+    if (baselines.amountFinanced === null) {
+      baselines.amountFinanced = reviewData.amountFinanced;
+    }
+    if (baselines.totalPayments === null) {
+      baselines.totalPayments = reviewData.totalPayments;
+    }
+    if (baselines.monthlyFinanceCharge === null) {
+      baselines.monthlyFinanceCharge = monthlyFinanceCharge;
+    }
+
+    // Hide all finance diff indicators
+    ["financeChargeDiff", "amountFinancedDiff", "totalPaymentsDiff", "monthlyFinanceChargeDiff"].forEach(id => {
+      const diffEl = document.getElementById(id);
+      if (diffEl) {
+        diffEl.style.display = "none";
+        diffEl.textContent = "";
+        diffEl.className = "quick-til-diff";
+      }
+    });
+  }
 }
 
 async function autoCalculateQuick() {
@@ -12926,7 +13104,8 @@ async function autoCalculateQuick() {
     const reviewData = await computeReviewData();
 
     // Display main results
-    setText("quickMonthlyPayment", formatCurrency(reviewData.monthlyPayment));
+    // PRECISION: Always show cents for monthly payment (critical financial display)
+    setText("quickMonthlyPayment", formatCurrency(reviewData.monthlyPayment, true, { showCents: true }));
     setText("quickTerm", `${reviewData.term} months`);
     setText("quickAPR", formatPercent(reviewData.apr));
 
@@ -13011,39 +13190,42 @@ async function autoCalculateQuick() {
     // Calculate and display Monthly Finance Charge (interest portion per month)
     const monthlyFinanceCharge =
       reviewData.term > 0 ? reviewData.financeCharge / reviewData.term : 0;
+    // PRECISION: Always show cents for finance charge (critical financial display)
     setText(
       "quickTilMonthlyFinanceCharge",
-      formatCurrency(monthlyFinanceCharge)
+      formatCurrency(monthlyFinanceCharge, true, { showCents: true })
     );
 
     // Update TIL diff indicators
     updateTilDiffIndicators(reviewData, monthlyFinanceCharge);
 
     // Display calculation breakdown values (read-only mirrors of slider values)
-    setText("quickCalcSalePrice", formatCurrency(reviewData.salePrice));
-    setText("quickCalcCashDown", formatCurrency(reviewData.cashDown));
-    setText("quickCalcTradeAllowance", formatCurrency(reviewData.tradeOffer));
-    setText("quickCalcTradePayoff", formatCurrency(reviewData.tradePayoff));
-    setText("quickCalcDealerFees", formatCurrency(reviewData.totalDealerFees));
+    // PRECISION: Show exact values with cents in itemization
+    setText("quickCalcSalePrice", formatCurrency(reviewData.salePrice, true, { showCents: true }));
+    setText("quickCalcCashDown", formatCurrency(reviewData.cashDown, true, { showCents: true }));
+    setText("quickCalcTradeAllowance", formatCurrency(reviewData.tradeOffer, true, { showCents: true }));
+    setText("quickCalcTradePayoff", formatCurrency(reviewData.tradePayoff, true, { showCents: true }));
+    setText("quickCalcDealerFees", formatCurrency(reviewData.totalDealerFees, true, { showCents: true }));
     setText(
       "quickCalcCustomerAddons",
-      formatCurrency(reviewData.totalCustomerAddons)
+      formatCurrency(reviewData.totalCustomerAddons, true, { showCents: true })
     );
 
     // Display itemization values (read-only)
-    setText("quickNetTrade", formatCurrencyAccounting(reviewData.netTrade));
-    setText("quickUnpaidBalance", formatCurrency(reviewData.unpaidBalance));
-    setText("quickOtherCharges", formatCurrency(reviewData.sumOtherCharges));
-    setText("quickGovtFees", formatCurrency(reviewData.totalGovtFees));
-    setText("quickStateTax", formatCurrency(reviewData.stateTaxTotal));
-    setText("quickCountyTax", formatCurrency(reviewData.countyTaxTotal));
+    // PRECISION: Show exact calculated values with cents
+    setText("quickNetTrade", formatCurrencyAccounting(reviewData.netTrade, { showCents: true }));
+    setText("quickUnpaidBalance", formatCurrency(reviewData.unpaidBalance, true, { showCents: true }));
+    setText("quickOtherCharges", formatCurrency(reviewData.sumOtherCharges, true, { showCents: true }));
+    setText("quickGovtFees", formatCurrency(reviewData.totalGovtFees, true, { showCents: true }));
+    setText("quickStateTax", formatCurrency(reviewData.stateTaxTotal, true, { showCents: true }));
+    setText("quickCountyTax", formatCurrency(reviewData.countyTaxTotal, true, { showCents: true }));
     setText(
       "quickSaleTaxTotal",
-      formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal)
+      formatCurrency(reviewData.stateTaxTotal + reviewData.countyTaxTotal, true, { showCents: true })
     );
     setText(
       "quickAmountFinancedTotal",
-      formatCurrency(reviewData.amountFinanced)
+      formatCurrency(reviewData.amountFinanced, true, { showCents: true })
     );
 
     // Update tax labels with state/county info
@@ -13207,6 +13389,9 @@ function setupQuickSliders() {
     const resetBtn = meta.resetId
       ? document.getElementById(meta.resetId)
       : null;
+    const baselineBtn = meta.baselineId
+      ? document.getElementById(meta.baselineId)
+      : null;
 
     if (!slider || !input) {
       console.warn('[slider] Missing elements', {
@@ -13217,8 +13402,14 @@ function setupQuickSliders() {
       return;
     }
 
-    if (diffIndicator && resetBtn && resetBtn.parentElement !== diffIndicator) {
-      diffIndicator.appendChild(resetBtn);
+    // Append buttons to diff indicator in order: baseline, then reset
+    if (diffIndicator) {
+      if (baselineBtn && baselineBtn.parentElement !== diffIndicator) {
+        diffIndicator.appendChild(baselineBtn);
+      }
+      if (resetBtn && resetBtn.parentElement !== diffIndicator) {
+        diffIndicator.appendChild(resetBtn);
+      }
     }
 
     slider.dataset.field = field;
@@ -13242,6 +13433,7 @@ function setupQuickSliders() {
         commit = false,
         updateWizard = true,
         skipFormatting = false,
+        preserveExact = false,
       } = options;
 
       const baseline = Number(slider.dataset.origin) || 0;
@@ -13253,10 +13445,19 @@ function setupQuickSliders() {
       visualValue = clampSliderValueToRange(visualValue, slider);
 
       const delta = visualValue - visualOrigin;
-      let snappedDelta = Math.round(delta / step) * step;
 
-      if (snapZone > 0 && Math.abs(delta) < snapZone) {
+      // STICKY ORIGIN LOGIC:
+      // If within snapZone of origin, snap to exact origin (preserves precision)
+      // If outside snapZone, snap to nearest step increment (clean negotiations)
+      let snappedDelta;
+      if (preserveExact) {
+        snappedDelta = delta;
+      } else if (snapZone > 0 && Math.abs(delta) < snapZone) {
+        // Within snap zone - return to exact origin
         snappedDelta = 0;
+      } else {
+        // Outside snap zone - snap to nearest step increment
+        snappedDelta = Math.round(delta / step) * step;
       }
 
       visualValue = clampSliderValueToRange(
@@ -13282,6 +13483,12 @@ function setupQuickSliders() {
         slider.value = correctedVisual;
       }
 
+      if (Number.isFinite(actualValue)) {
+        slider.dataset.currentActual = String(actualValue);
+      } else {
+        delete slider.dataset.currentActual;
+      }
+
       if (!skipFormatting) {
         input.value = formatSliderInputValue(actualValue, meta);
       }
@@ -13290,6 +13497,7 @@ function setupQuickSliders() {
       updateDiffIndicatorState(
         diffIndicator,
         resetBtn,
+        baselineBtn,
         actualValue,
         baseline,
         meta
@@ -13316,7 +13524,13 @@ function setupQuickSliders() {
         ? rawActualValue
         : baseline;
       const visualValue = convertActualToVisual(slider, actualValue);
-      return applyVisualValue(visualValue, options);
+      const { preserveExact, ...restOptions } = options || {};
+      const shouldPreserve =
+        typeof preserveExact === 'boolean' ? preserveExact : true;
+      return applyVisualValue(visualValue, {
+        ...restOptions,
+        preserveExact: shouldPreserve,
+      });
     };
 
     const adjustByStep = async (
@@ -13369,7 +13583,7 @@ function setupQuickSliders() {
     const visualOrigin = getSliderVisualOrigin(slider);
     input.value = formatSliderInputValue(baseline, meta);
     updateSliderVisual(slider, visualOrigin, baseline, meta);
-    updateDiffIndicatorState(diffIndicator, resetBtn, baseline, baseline, meta);
+    updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, baseline, baseline, meta);
 
     applyActualValue(baseline, {
       triggerThrottle: false,
@@ -13414,6 +13628,46 @@ function setupQuickSliders() {
           triggerThrottle: false,
           updateWizard: true,
         });
+        await autoCalculateQuick();
+        hideSliderTooltip();
+      });
+    }
+
+    // BASELINE BUTTON: Set current value as new baseline for calculations
+    if (baselineBtn) {
+      baselineBtn.addEventListener('click', async () => {
+        let currentActual = Number(slider.dataset.currentActual);
+        if (!Number.isFinite(currentActual)) {
+          const parsedFromInput = parseSliderInputValue(input.value, meta);
+          if (Number.isFinite(parsedFromInput)) {
+            currentActual = parsedFromInput;
+          } else {
+            const currentVisual = parseFloat(slider.value);
+            currentActual = convertVisualToActual(slider, currentVisual);
+          }
+        }
+
+        const binding = quickSliderBindings[field];
+        if (binding?.setBaseline) {
+          binding.setBaseline(currentActual, {
+            apply: true,
+            updateWizard: true,
+          });
+        } else {
+          slider.dataset.origin = currentActual;
+          window.sliderOriginalValues[meta.sliderId] = currentActual;
+          setSliderVisualOrigin(slider, currentActual);
+          configureSliderRange(slider, currentActual, meta, currentActual);
+          applyActualValue(currentActual, {
+            triggerThrottle: false,
+            updateWizard: true,
+          });
+        }
+
+        if (window.resetTilBaselines) {
+          window.resetTilBaselines();
+        }
+
         await autoCalculateQuick();
         hideSliderTooltip();
       });
@@ -13515,7 +13769,10 @@ function setupQuickSliders() {
         slider.dataset.stepSize = step;
         window.sliderOriginalValues[meta.sliderId] = baselineValue;
 
-        const visualOriginNext = Math.round(baselineValue / step) * step;
+        // STICKY ORIGIN: Keep visual origin at precise value for sticky behavior
+        // When user is at origin, they see exact value (e.g., $43,230)
+        // When moving away, values snap to step increments (e.g., $43,200, $43,300)
+        const visualOriginNext = baselineValue; // No rounding - preserve precision
         setSliderVisualOrigin(slider, visualOriginNext);
         configureSliderRange(slider, baselineValue, meta, visualOriginNext);
 
@@ -13526,6 +13783,7 @@ function setupQuickSliders() {
           updateDiffIndicatorState(
             diffIndicator,
             resetBtn,
+            baselineBtn,
             baselineValue,
             baselineValue,
             meta
