@@ -13,7 +13,9 @@
     "functions:serve": "supabase functions serve",
     "functions:deploy": "supabase functions deploy send-sms --no-verify-jwt",
     "supabase:start": "supabase start",
-    "supabase:stop": "supabase stop"
+    "supabase:stop": "supabase stop",
+    "mcp:verify": "node .mcp/verify-setup.mjs",
+    "mcp:install": "npm install --save-dev @modelcontextprotocol/server-filesystem @modelcontextprotocol/server-git"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
