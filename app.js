@@ -9528,6 +9528,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
   const customerEmail = document.getElementById("submitCustomerEmail")?.value || "";
   const customerPhoneRaw = document.getElementById("submitCustomerPhone")?.value || "";
   const customerPhone = formatPhoneNumber(customerPhoneRaw);
+  const additionalNotes = document.getElementById("submitOfferNotes")?.value || "";
 
   const gridItem = (label, value) => {
     const display =
@@ -9617,7 +9618,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
             stockNumberText
               ? `Stock #${stockNumberText}, VIN ${vinText}`
               : `VIN ${vinText}`
-          )}. Would you mind reaching out and discussing the details?
+          )}. Would you mind reaching out to finalize the details? I appreciate your consideration of my offer and I'm looking forward to speaking with you soon!
 
 🚗 <strong>VEHICLE PURCHASE OFFER</strong>
 
@@ -9634,9 +9635,22 @@ Year: ${escapeHtml(yearText)}
 Make: ${escapeHtml(makeText)}
 Model: ${escapeHtml(modelText)}
 Trim: ${escapeHtml(trimText)}
-Dealer Stock #: ${escapeHtml(stockNumberText || "(not available)")}
 Ext Color: ${escapeHtml(exteriorColorText)}
+Mileage: ${escapeHtml(mileageText)}
 VIN: ${escapeHtml(vinText)}
+
+🔄 <strong>Trade-In</strong>
+${tradeAllowanceValue || tradePayoffValue ? `${trade.year ? "Year: " + escapeHtml(trade.year) : ""}
+${trade.make ? "Make: " + escapeHtml(capitalizeWords(trade.make)) : ""}
+${trade.model ? "Model: " + escapeHtml(capitalizeWords(trade.model)) : ""}
+${trade.trim ? "Trim: " + escapeHtml(capitalizeWords(trade.trim)) : ""}
+${trade.mileage ? "Mileage: " + escapeHtml(formatMileage(trade.mileage) + " mi") : ""}
+${trade.exterior_color || trade.exteriorColor || trade.extColor || trade.color ? "Ext Color: " + escapeHtml(capitalizeWords(trade.exterior_color || trade.exteriorColor || trade.extColor || trade.color)) : ""}
+${trade.vin ? "VIN: " + escapeHtml(String(trade.vin).toUpperCase()) : ""}` : "No Trade-in"}
+${additionalNotes ? `
+
+📝 <strong>Additional Notes</strong>
+${escapeHtml(additionalNotes)}` : ""}
 
 👤 <strong>Customer Contact</strong>
 Name: ${escapeHtml(customerName || "(not provided)")}
@@ -9873,6 +9887,34 @@ async function openSubmitOfferModal() {
     previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
   }
 
+  // Add event listener to Additional Notes textarea to update preview and scroll
+  const notesTextarea = document.getElementById("submitOfferNotes");
+  if (notesTextarea) {
+    // Remove any existing listener to avoid duplicates
+    const existingListener = notesTextarea._previewUpdateListener;
+    if (existingListener) {
+      notesTextarea.removeEventListener("input", existingListener);
+    }
+
+    // Create new listener
+    const updatePreview = async () => {
+      const updatedReviewData = await computeReviewData();
+      if (previewElement) {
+        previewElement.innerHTML = buildOfferPreviewHtml(updatedReviewData);
+
+        // Scroll to preview to show the newly added note
+        const previewSection = document.querySelector(".offer-preview-section");
+        if (previewSection) {
+          previewSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+    };
+
+    // Store listener reference for later removal
+    notesTextarea._previewUpdateListener = updatePreview;
+    notesTextarea.addEventListener("input", updatePreview);
+  }
+
   modal.classList.add("active");
   modal.style.display = "flex";
 }
@@ -10002,7 +10044,7 @@ function toggleDealerEditMode() {
     // Switch to edit mode
     viewMode.style.display = "none";
     editMode.style.display = "block";
-    toggleBtn.textContent = "Done";
+    toggleBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
   } else {
     // Switch to view mode and sync values
     const dealerName = document.getElementById("submitDealershipName").value;
@@ -10049,7 +10091,7 @@ function toggleDealerEditMode() {
     // Switch back to view mode
     editMode.style.display = "none";
     viewMode.style.display = "block";
-    toggleBtn.textContent = "Edit";
+    toggleBtn.innerHTML = '<svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>';
   }
 }
 
@@ -14162,7 +14204,7 @@ function showSliderTooltip(sliderElement, currentValue) {
   const paymentEl = tooltip.querySelector(".tooltip-payment");
   const changeEl = tooltip.querySelector(".tooltip-change");
 
-  paymentEl.textContent = `${formatCurrency(monthlyPayment)}/mo`;
+  paymentEl.textContent = formatCurrency(monthlyPayment);
 
   // Update change indicator (buyer-centric: lower payment = green/good, higher payment = red/bad)
   if (Math.abs(paymentDiff) < 1) {

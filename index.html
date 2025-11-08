@@ -836,8 +836,8 @@
                   </div>
 
                   <!-- Sales Tax (Header) -->
-                  <div class="quick-item itemization-row quick-item--header">
-                    <div class="quick-item-label item-label">Sales Tax</div>
+                  <div class="quick-item itemization-row quick-item--plus quick-item--header">
+                    <div class="quick-item-label item-label">PLUS Sales Tax</div>
                     <div class="quick-item-value item-value" id="quickSaleTaxTotal">
                       $0.00
                     </div>
@@ -2039,9 +2039,6 @@
             </svg>
           </div>
           <h2 class="submit-offer-title">Submit Your Offer</h2>
-          <p class="submit-offer-subtitle">
-            Share this offer with the dealer via multiple channels
-          </p>
         </div>
 
         <div class="submit-offer-body">
@@ -2116,8 +2113,10 @@
           <div class="profile-section">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <h3 class="profile-section-title" style="margin: 0;">Dealer Contact</h3>
-              <button type="button" id="toggleDealerEdit" onclick="toggleDealerEditMode()" style="padding: 4px 12px; font-size: 14px; cursor: pointer; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px;">
-                Edit
+              <button type="button" id="toggleDealerEdit" onclick="toggleDealerEditMode()" style="padding: 6px 10px; font-size: 14px; cursor: pointer; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                </svg>
               </button>
             </div>
 
@@ -2172,8 +2171,6 @@
                 <input type="url" id="submitVehicleUrl" class="form-input" placeholder="https://..." />
               </div>
             </div>
-
-            <small class="form-hint">At least one contact method (phone or email) is required</small>
           </div>
 
           <!-- Additional Notes -->
@@ -2275,10 +2272,10 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                   stroke-width="2"
-                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
                 />
               </svg>
-              Copy
+              Print
             </button>
           </div>
         </div>
@@ -2720,7 +2717,8 @@
       class="slider-payment-tooltip"
       style="display: none"
     >
-      <div class="tooltip-payment">$0/mo</div>
+      <div class="tooltip-label">Monthly Payment</div>
+      <div class="tooltip-payment">$0</div>
       <div class="tooltip-change">--</div>
     </div>
 
