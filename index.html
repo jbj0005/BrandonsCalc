@@ -2335,6 +2335,23 @@
           </p>
         </div>
 
+        <!-- Sending Progress Indicator (hidden by default) -->
+        <div id="offer-send-progress" class="offer-send-progress" style="display: none;">
+          <div class="progress-messages">
+            <div class="progress-message" id="progress-sms" style="display: none;">
+              <span class="progress-icon">📱</span>
+              <span id="progress-sms-text">Sending SMS to dealer...</span>
+            </div>
+            <div class="progress-message" id="progress-email" style="display: none;">
+              <span class="progress-icon">📧</span>
+              <span id="progress-email-text">Sending email confirmation...</span>
+            </div>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="offer-progress-bar"></div>
+          </div>
+        </div>
+
         <div class="offers-body">
           <div class="offers-tabs">
             <button

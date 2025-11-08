@@ -1473,6 +1473,37 @@ app.post("/api/send-sms", async (req, res) => {
   }
 });
 
+// GET /api/sms-status/:messageSid
+// Check Twilio message delivery status
+app.get("/api/sms-status/:messageSid", async (req, res) => {
+  try {
+    if (!twilioClient) {
+      return res.status(500).json({ error: "Twilio not configured" });
+    }
+
+    const { messageSid } = req.params;
+
+    // Fetch current message status from Twilio
+    const message = await twilioClient.messages(messageSid).fetch();
+
+    return res.json({
+      ok: true,
+      sid: message.sid,
+      status: message.status, // queued, sending, sent, delivered, failed, undelivered
+      to: message.to,
+      dateUpdated: message.dateUpdated,
+      errorCode: message.errorCode,
+      errorMessage: message.errorMessage
+    });
+  } catch (err) {
+    console.error("[sms-status] Error:", err);
+    return res.status(500).json({
+      error: "Failed to fetch status",
+      detail: err?.message
+    });
+  }
+});
+
 // POST /api/send-email
 // Send email to user with offer copy
 app.post("/api/send-email", async (req, res) => {

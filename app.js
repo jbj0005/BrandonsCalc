@@ -9845,8 +9845,8 @@ ${customerNotes.trim()}`;
 
 ─────────────────────────────────────────
 Generated on ${currentDate}
-Powered by ExcelCalc Finance Calculator
-https://excelcalc.com
+Powered by Brandon's Calculator
+https://github.com/jbj0005/BrandonsCalc
 `;
 
   return offerText.trim();
@@ -10210,6 +10210,146 @@ async function handleEmailOffer() {
 }
 
 /**
+ * Poll Twilio for message status updates
+ */
+async function pollSmsStatus(messageSid, maxAttempts = 15, interval = 1000) {
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const response = await fetch(`${API_BASE}/api/sms-status/${messageSid}`);
+
+      if (!response.ok) {
+        console.warn(`[poll-sms] Status check failed (attempt ${i + 1})`);
+        continue;
+      }
+
+      const data = await response.json();
+      console.log(`[poll-sms] Status: ${data.status} (attempt ${i + 1})`);
+
+      // Terminal states - stop polling
+      if (['delivered', 'sent', 'failed', 'undelivered'].includes(data.status)) {
+        return { success: ['delivered', 'sent'].includes(data.status), status: data.status, attempts: i + 1, data };
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, interval));
+
+    } catch (error) {
+      console.error('[poll-sms] Poll error:', error);
+    }
+  }
+
+  // Timeout - assume sent if we got this far
+  return { success: true, status: 'timeout', attempts: maxAttempts };
+}
+
+/**
+ * Show sending progress with real status tracking
+ */
+async function showSendingProgress(options = {}) {
+  const {
+    smsMessageSid = null,
+    emailPromise = null,
+    minDuration = 7000
+  } = options;
+
+  // Get progress elements
+  const progressEl = document.getElementById('offer-send-progress');
+  const progressBar = document.getElementById('offer-progress-bar');
+  const smsEl = document.getElementById('progress-sms');
+  const smsText = document.getElementById('progress-sms-text');
+  const emailEl = document.getElementById('progress-email');
+  const emailText = document.getElementById('progress-email-text');
+
+  if (!progressEl || !progressBar) {
+    console.warn('[progress] Progress elements not found');
+    return { smsStatus: null, emailStatus: null };
+  }
+
+  const startTime = Date.now();
+
+  // Show progress indicator
+  if (smsMessageSid) smsEl.style.display = 'flex';
+  if (emailPromise) emailEl.style.display = 'flex';
+  progressEl.style.display = 'block';
+  progressBar.style.width = '0%';
+
+  // Track completion
+  const results = {
+    smsStatus: null,
+    emailStatus: null
+  };
+
+  // Start SMS polling if we have a message SID
+  const smsPromise = smsMessageSid
+    ? pollSmsStatus(smsMessageSid).then(result => {
+        results.smsStatus = result;
+
+        // Update SMS text based on status
+        if (result.success) {
+          smsText.textContent = result.status === 'delivered' ? 'SMS delivered to dealer! ✓' : 'SMS sent to dealer! ✓';
+          progressBar.style.width = emailPromise ? '50%' : '100%';
+        } else {
+          smsText.textContent = 'SMS sending failed ✗';
+        }
+
+        return result;
+      })
+    : Promise.resolve(null);
+
+  // Handle email if provided
+  const emailTask = emailPromise
+    ? emailPromise.then(result => {
+        results.emailStatus = result;
+        emailText.textContent = result.ok ? 'Email sent! ✓' : 'Email failed ✗';
+        progressBar.style.width = '100%';
+        return result;
+      }).catch(error => {
+        console.error('[progress] Email error:', error);
+        emailText.textContent = 'Email failed ✗';
+        return { ok: false };
+      })
+    : Promise.resolve(null);
+
+  // Animate progress bar smoothly during polling
+  const progressInterval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    const currentWidth = parseFloat(progressBar.style.width) || 0;
+    const targetWidth = smsMessageSid && !results.smsStatus ?
+      Math.min(45, (elapsed / 5000) * 45) : // Cap at 45% until SMS completes
+      emailPromise && !results.emailStatus ?
+        Math.min(90, 50 + (elapsed / 5000) * 40) : // 50% to 90% for email
+        currentWidth; // Stay at current if both done
+
+    if (targetWidth > currentWidth) {
+      progressBar.style.width = `${targetWidth}%`;
+    }
+  }, 200);
+
+  // Wait for both tasks and minimum duration
+  await Promise.all([
+    smsPromise,
+    emailTask,
+    new Promise(resolve => setTimeout(resolve, minDuration))
+  ]);
+
+  clearInterval(progressInterval);
+
+  // Complete to 100%
+  progressBar.style.width = '100%';
+
+  // Hide progress after brief delay
+  await new Promise(resolve => setTimeout(resolve, 800));
+  progressEl.style.display = 'none';
+  smsEl.style.display = 'none';
+  emailEl.style.display = 'none';
+  smsText.textContent = 'Sending SMS to dealer...';
+  emailText.textContent = 'Sending email confirmation...';
+  progressBar.style.width = '0%';
+
+  return results;
+}
+
+/**
  * Handle SMS button - Send via Twilio
  */
 async function handleSmsOffer() {
@@ -10229,6 +10369,7 @@ async function handleSmsOffer() {
     const notes = document.getElementById("submitOfferNotes").value.trim();
     const reviewData = await computeReviewData();
     const offerText = await formatOfferText(notes, reviewData);
+    const offerPreviewHtml = buildOfferPreviewHtml(reviewData);
 
     // Get customer info for saving
     const customerName = document
@@ -10241,26 +10382,27 @@ async function handleSmsOffer() {
       .getElementById("submitCustomerPhone")
       .value.trim();
 
-    // Save offer to customer_offers table and get the offer ID
-    showToast("Saving offer...", "info");
+    // Save offer to customer_offers table silently (no toast)
     const savedOffer = await saveOffer({
       offerText,
+      offerPreviewHtml,
       customerName,
       customerEmail,
       customerPhone,
     });
 
     if (!savedOffer || !savedOffer.id) {
-      throw new Error("Failed to save offer");
+      showToast("Failed to save offer", "error");
+      return;
     }
 
-    // Close modals and open My Offers modal immediately
+    // Close modals and open My Offers modal FIRST
     closeSubmitOfferModal();
     closeReviewContractModal();
     await openMyOffersModal();
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // Get offer name for SMS
+    // Prepare offer data
     const vehicle = wizardData.vehicle || {};
     const offerName = `${vehicle.year || ""} ${vehicle.make || ""} ${
       vehicle.model || ""
@@ -10292,9 +10434,8 @@ async function handleSmsOffer() {
     ].filter(Boolean);
     const smsSummary = summaryLines.join("\n");
 
-    // Now send SMS in background
-    showToast("Sending SMS to dealer...", "info");
-    const response = await fetch("/api/send-sms", {
+    // Send SMS and get message SID
+    const smsResponse = await fetch("/api/send-sms", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -10308,38 +10449,17 @@ async function handleSmsOffer() {
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
+    if (!smsResponse.ok) {
+      const errorData = await smsResponse.json();
       showToast(`Failed to send SMS: ${errorData.detail || errorData.error}`, "error");
       return;
     }
 
-    const result = await response.json();
+    const smsResult = await smsResponse.json();
 
-    // Show success toast
-    const dealerPhoneFormatted = dealerPhone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-
-    // Check if test mode was used (Twilio trial account restriction)
-    if (result.testMode) {
-      const maskedVerified = result.to.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
-      const maskedRequested = result.requestedPhone.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
-      showToast(
-        `🧪 TEST MODE: SMS sent to verified number ${maskedVerified} instead of dealer ${maskedRequested}`,
-        "warning",
-        5000
-      );
-    } else {
-      showToast(
-        `📱 SMS sent to dealer ${dealerPhoneFormatted}`,
-        "success",
-        4000
-      );
-    }
-
-    // Also send email copy to user
-    if (customerEmail) {
-      try {
-        const emailResponse = await fetch("/api/send-email", {
+    // Create email promise if customer email provided
+    const emailPromise = customerEmail
+      ? fetch("/api/send-email", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -10352,22 +10472,45 @@ async function handleSmsOffer() {
             offerSummary: smsSummary,
             vehicleInfo: offerName,
           }),
-        });
+        }).then(res => res.json())
+      : null;
 
-        if (emailResponse.ok) {
-          const emailResult = await emailResponse.json();
-          showToast(
-            `📧 Offer copy sent to ${customerEmail}`,
-            "success",
-            4000
-          );
-        } else {
-          console.warn("[sms] Failed to send email copy to user");
-        }
-      } catch (emailError) {
-        console.error("[sms] Error sending email copy:", emailError);
-        // Don't fail the whole operation if email fails
+    // Show progress with real status tracking (minimum 7 seconds)
+    const progressResults = await showSendingProgress({
+      smsMessageSid: smsResult.messageSid,
+      emailPromise,
+      minDuration: 7000
+    });
+
+    // Show success toasts AFTER progress completes
+    const dealerPhoneFormatted = dealerPhone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+
+    if (progressResults.smsStatus?.success) {
+      if (smsResult.testMode) {
+        const maskedVerified = smsResult.to.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
+        const maskedRequested = smsResult.requestedPhone.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
+        showToast(
+          `🧪 TEST MODE: SMS sent to verified number ${maskedVerified} instead of dealer ${maskedRequested}`,
+          "warning",
+          5000
+        );
+      } else {
+        showToast(
+          `📱 SMS sent to dealer ${dealerPhoneFormatted}`,
+          "success",
+          4000
+        );
       }
+    } else {
+      showToast(`⚠️ SMS may not have been delivered`, "warning", 4000);
+    }
+
+    if (progressResults.emailStatus?.ok) {
+      showToast(
+        `📧 Offer copy sent to ${customerEmail}`,
+        "success",
+        4000
+      );
     }
   } catch (error) {
     console.error("Error sending SMS:", error);
