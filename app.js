@@ -10091,13 +10091,24 @@ async function handleShareOffer() {
       .getElementById("submitCustomerPhone")
       .value.trim();
 
-    // Save offer to new customer_offers table
-    await saveOffer({
+    // Save offer to customer_offers table
+    showToast("Saving offer...", "info");
+    const savedOffer = await saveOffer({
       offerText,
       customerName,
       customerEmail,
       customerPhone,
     });
+
+    if (!savedOffer || !savedOffer.id) {
+      throw new Error("Failed to save offer");
+    }
+
+    // Close modals and open My Offers modal immediately
+    closeSubmitOfferModal();
+    closeReviewContractModal();
+    await openMyOffersModal();
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
     // Use Web Share API
     await navigator.share({
@@ -10105,8 +10116,7 @@ async function handleShareOffer() {
       text: offerText,
     });
 
-    // Success - show toast and close modals
-    await handleSubmissionSuccess();
+    showToast("Offer shared successfully!", "success");
   } catch (error) {
     if (error.name !== "AbortError") {
       console.error("Error sharing offer:", error);
@@ -10147,13 +10157,24 @@ async function handleEmailOffer() {
       .getElementById("submitCustomerPhone")
       .value.trim();
 
-    // Save offer to new customer_offers table
-    await saveOffer({
+    // Save offer to customer_offers table
+    showToast("Saving offer...", "info");
+    const savedOffer = await saveOffer({
       offerText,
       customerName,
       customerEmail,
       customerPhone,
     });
+
+    if (!savedOffer || !savedOffer.id) {
+      throw new Error("Failed to save offer");
+    }
+
+    // Close modals and open My Offers modal immediately
+    closeSubmitOfferModal();
+    closeReviewContractModal();
+    await openMyOffersModal();
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
     // Create mailto link
     const vehicle = wizardData.vehicle || {};
@@ -10166,10 +10187,8 @@ async function handleEmailOffer() {
 
     window.location.href = `mailto:${dealerEmail}?subject=${subject}&body=${body}`;
 
-    // Success - show toast and close modals after brief delay
-    setTimeout(async () => {
-      await handleSubmissionSuccess();
-    }, 1000);
+    // Show success toast
+    showToast(`📧 Email opened to ${dealerEmail}`, "success", 4000);
   } catch (error) {
     console.error("Error emailing offer:", error);
     alert("Error preparing email. Please try again.");
@@ -10208,10 +10227,8 @@ async function handleSmsOffer() {
       .getElementById("submitCustomerPhone")
       .value.trim();
 
-    // Show loading indicator
-    showToast("Sending SMS...", "info");
-
     // Save offer to customer_offers table and get the offer ID
+    showToast("Saving offer...", "info");
     const savedOffer = await saveOffer({
       offerText,
       customerName,
@@ -10222,6 +10239,12 @@ async function handleSmsOffer() {
     if (!savedOffer || !savedOffer.id) {
       throw new Error("Failed to save offer");
     }
+
+    // Close modals and open My Offers modal immediately
+    closeSubmitOfferModal();
+    closeReviewContractModal();
+    await openMyOffersModal();
+    window.scrollTo({ top: 0, behavior: "smooth" });
 
     // Get offer name for SMS
     const vehicle = wizardData.vehicle || {};
@@ -10255,7 +10278,8 @@ async function handleSmsOffer() {
     ].filter(Boolean);
     const smsSummary = summaryLines.join("\n");
 
-    // Send SMS via Twilio endpoint
+    // Now send SMS in background
+    showToast("Sending SMS to dealer...", "info");
     const response = await fetch("/api/send-sms", {
       method: "POST",
       headers: {
@@ -10272,21 +10296,29 @@ async function handleSmsOffer() {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(
-        errorData.detail || errorData.error || "Failed to send SMS"
-      );
+      showToast(`Failed to send SMS: ${errorData.detail || errorData.error}`, "error");
+      return;
     }
 
     const result = await response.json();
+
+    // Show success toast
+    const dealerPhoneFormatted = dealerPhone.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
 
     // Check if test mode was used (Twilio trial account restriction)
     if (result.testMode) {
       const maskedVerified = result.to.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
       const maskedRequested = result.requestedPhone.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
       showToast(
-        `🧪 TEST MODE: SMS sent to verified number ${maskedVerified} instead of dealer number ${maskedRequested} due to Twilio trial account restrictions.`,
+        `🧪 TEST MODE: SMS sent to verified number ${maskedVerified} instead of dealer ${maskedRequested}`,
         "warning",
         5000
+      );
+    } else {
+      showToast(
+        `📱 SMS sent to dealer ${dealerPhoneFormatted}`,
+        "success",
+        4000
       );
     }
 
@@ -10323,9 +10355,6 @@ async function handleSmsOffer() {
         // Don't fail the whole operation if email fails
       }
     }
-
-    // Success - show toast and close modals (delay 7s to show test mode toast)
-    await handleSubmissionSuccess(7000);
   } catch (error) {
     console.error("Error sending SMS:", error);
     alert(`Error sending text message: ${error.message}`);
@@ -10356,21 +10385,30 @@ async function handleCopyOffer() {
       .getElementById("submitCustomerPhone")
       .value.trim();
 
-    // Save offer to new customer_offers table
-    await saveOffer({
+    // Save offer to customer_offers table
+    showToast("Saving offer...", "info");
+    const savedOffer = await saveOffer({
       offerText,
       customerName,
       customerEmail,
       customerPhone,
     });
 
+    if (!savedOffer || !savedOffer.id) {
+      throw new Error("Failed to save offer");
+    }
+
+    // Close modals and open My Offers modal immediately
+    closeSubmitOfferModal();
+    closeReviewContractModal();
+    await openMyOffersModal();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
     // Copy to clipboard
     await navigator.clipboard.writeText(offerText);
 
-    alert("Offer copied to clipboard! You can now paste it anywhere.");
-
-    // Success - show toast and close modals
-    await handleSubmissionSuccess();
+    // Show success toast
+    showToast("📋 Offer copied to clipboard!", "success", 4000);
   } catch (error) {
     console.error("Error copying offer:", error);
     alert("Error copying to clipboard. Please try again.");

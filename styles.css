@@ -4709,6 +4709,22 @@ body {
   height: 14px;
 }
 
+/* Standalone variant with card-like appearance */
+.btn-edit-fees-standalone {
+  padding: 0.75rem 1.5rem;
+  font-size: 14px;
+  background: linear-gradient(135deg, #ffffff, #f8f9fa);
+  border: 2px solid var(--border);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.btn-edit-fees-standalone:hover {
+  background: linear-gradient(135deg, #ffffff, #ffffff);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 .btn-review-contract {
   display: flex;
   align-items: center;

@@ -469,28 +469,6 @@
               <div class="card adjust-numbers-card">
                 <div class="adjust-numbers-header">
                   <h3>Adjust Your Numbers</h3>
-                  <button
-                    type="button"
-                    onclick="openFeesModal()"
-                    class="btn-edit-fees"
-                  >
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                    >
-                      <path
-                        d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
-                      ></path>
-                      <path
-                        d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
-                      ></path>
-                    </svg>
-                    Add Dealer & Gov't Fees
-                  </button>
                 </div>
 
                 <div class="quick-adjustments-list">
@@ -660,6 +638,32 @@
                         </button>
                       </div>
                     </div>
+                  </div>
+
+                  <!-- Add Dealer & Gov't Fees Button -->
+                  <div style="display: flex; justify-content: flex-end; margin: -0.5rem 0 -0.5rem 0; padding: 0.5rem 0;">
+                    <button
+                      type="button"
+                      onclick="openFeesModal()"
+                      class="btn-edit-fees btn-edit-fees-standalone"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                        ></path>
+                        <path
+                          d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                        ></path>
+                      </svg>
+                      Add Dealer & Gov't Fees
+                    </button>
                   </div>
 
                   <!-- Dealer Fees Slider -->
