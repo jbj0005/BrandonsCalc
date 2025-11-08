@@ -14,7 +14,6 @@ export class SMSSender {
    */
   public static async sendOffer(request: SendSMSRequest): Promise<APIResponse<any>> {
     try {
-      console.log('📱 Sending SMS offer:', request);
       
       // Validate phone number
       if (!request.dealerPhone) {
@@ -52,7 +51,6 @@ export class SMSSender {
       }
       
       // Log success
-      console.log('✅ SMS sent successfully:', data);
       
       // Update offer status if we have a current offer
       const offerStore = useOfferStore.getState();

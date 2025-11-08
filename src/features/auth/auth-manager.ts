@@ -53,7 +53,6 @@ export class AuthManager {
    * Initialize authentication
    */
   private async init(): Promise<void> {
-    console.log('🔐 Initializing Auth Manager...');
     
     // Check for existing session
     const { data: { session } } = await supabase.auth.getSession();
@@ -66,7 +65,6 @@ export class AuthManager {
     
     // Listen for auth state changes
     supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Auth state changed:', event);
       
       if (event === 'SIGNED_IN' && session) {
         await this.handleUserSession(session.user);
@@ -81,7 +79,6 @@ export class AuthManager {
 
     // Subscribe to auth store changes to update UI
     useAuthStore.subscribe((state) => {
-      console.log('🔄 Auth store state changed, updating UI');
       this.updateProfileDropdownUI();
     });
   }
@@ -193,7 +190,6 @@ export class AuthManager {
    * Auto-populate form fields with user profile data
    */
   private autoPopulateFields(profile: UserProfile): void {
-    console.log('🔄 Auto-populating fields with profile:', profile);
     
     // Field mappings
     const fieldMappings: Record<string, keyof UserProfile | string> = {
@@ -259,7 +255,6 @@ export class AuthManager {
         }, 1000);
 
         locationInput.dataset.autoFilled = 'true';
-        console.log('📍 Auto-populated location:', locationString);
       }
     }
 
@@ -301,23 +296,18 @@ export class AuthManager {
    * Setup profile dropdown UI
    */
   private setupProfileDropdown(): void {
-    console.log('🔧 [Auth Manager] setupProfileDropdown() called');
 
     // Create dropdown HTML if it doesn't exist
     if (!document.getElementById('profile-dropdown')) {
       const header = document.querySelector('header') || document.querySelector('.header');
-      console.log('🔍 [Auth Manager] Looking for header element:', !!header);
 
       if (header) {
-        console.log('✅ [Auth Manager] Header found, injecting profile dropdown HTML');
         header.insertAdjacentHTML('beforeend', this.getProfileDropdownHTML());
         this.attachDropdownListeners();
-        console.log('✅ [Auth Manager] Profile dropdown HTML injected and listeners attached');
       } else {
         console.error('❌ [Auth Manager] Header element not found! Cannot inject profile dropdown');
       }
     } else {
-      console.log('ℹ️  [Auth Manager] Profile dropdown already exists');
     }
 
     this.updateProfileDropdownUI();
@@ -477,11 +467,8 @@ export class AuthManager {
     
     // Menu actions
     profileMenu?.addEventListener('click', (e) => {
-      console.log('🖱️  [Auth Manager] Profile menu clicked');
       const target = e.target as HTMLElement;
-      console.log('🖱️  [Auth Manager] Click target:', target);
       const action = target.closest('[data-action]')?.getAttribute('data-action');
-      console.log('🖱️  [Auth Manager] Found action:', action);
 
       if (action) {
         e.preventDefault();
@@ -643,38 +630,28 @@ export class AuthManager {
    * Handle menu actions
    */
   private async handleMenuAction(action: string): Promise<void> {
-    console.log('🔧 [Auth Manager] handleMenuAction called with action:', action);
     const profileMenu = document.getElementById('profile-menu');
     profileMenu?.classList.remove('active');
 
     switch (action) {
       case 'profile':
-        console.log('👤 [Auth Manager] Attempting to open profile modal...');
-        console.log('👤 [Auth Manager] window.openCustomerProfileModal exists?', typeof window.openCustomerProfileModal === 'function');
         if (typeof window.openCustomerProfileModal === 'function') {
           window.openCustomerProfileModal();
         } else {
-          console.warn('⚠️  openCustomerProfileModal is not available on window');
         }
         break;
 
       case 'garage':
-        console.log('🚗 [Auth Manager] Attempting to open garage modal...');
-        console.log('🚗 [Auth Manager] window.openMyGarageModal exists?', typeof window.openMyGarageModal === 'function');
         if (typeof window.openMyGarageModal === 'function') {
           window.openMyGarageModal();
         } else {
-          console.warn('⚠️  openMyGarageModal is not available on window');
         }
         break;
 
       case 'offers':
-        console.log('📋 [Auth Manager] Attempting to open offers modal...');
-        console.log('📋 [Auth Manager] window.openMyOffersModal exists?', typeof window.openMyOffersModal === 'function');
         if (typeof window.openMyOffersModal === 'function') {
           window.openMyOffersModal();
         } else {
-          console.warn('⚠️  openMyOffersModal is not available on window');
         }
         break;
         
@@ -692,15 +669,8 @@ export class AuthManager {
     const signInBtn = document.getElementById('btn-sign-in');
     const profileMenuBtn = document.getElementById('btn-profile-menu');
 
-    console.log('🎨 Updating profile dropdown UI:', {
-      isAuthenticated: authStore.isAuthenticated,
-      hasProfile: !!authStore.profile,
-      signInBtn: !!signInBtn,
-      profileMenuBtn: !!profileMenuBtn
-    });
 
     if (!signInBtn || !profileMenuBtn) {
-      console.warn('⚠️ Profile dropdown buttons not found in DOM');
       return;
     }
 
@@ -725,12 +695,10 @@ export class AuthManager {
       if (menuUserName) menuUserName.textContent = profile.full_name || 'User';
       if (menuUserEmail) menuUserEmail.textContent = profile.email;
 
-      console.log('✅ Showing authenticated profile UI');
     } else {
       // Show sign in button
       signInBtn.style.display = 'flex';
       profileMenuBtn.style.display = 'none';
-      console.log('✅ Showing sign-in button');
     }
   }
   

@@ -4996,6 +4996,10 @@ body {
 }
 
 .fees-tax-grid__label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   font-size: 14px;
   font-weight: 600;
   color: var(--text);
@@ -5013,6 +5017,41 @@ body {
   background: rgba(148, 163, 184, 0.15);
   color: var(--text-secondary);
   cursor: not-allowed;
+}
+
+.tax-override-indicator {
+  display: none;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 8px;
+  line-height: 1.2;
+}
+
+.tax-override-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 8px;
+  margin-left: 6px;
+}
+
+.tax-override-pill::before {
+  content: "⚠";
+  font-size: 12px;
+}
+
+.tax-default-hint {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: 4px;
 }
 
 .fees-summary {
@@ -7065,6 +7104,20 @@ body {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
+}
+
+.offer-preview-error {
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  color: #991b1b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.offer-preview-error button {
+  margin-top: 12px;
 }
 
 .offer-preview-divider {

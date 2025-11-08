@@ -21,7 +21,6 @@ import {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('🚀 Initializing ExcelCalc v2.0...');
   
   // ============================================
   // 1. Initialize Authentication
@@ -31,7 +30,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for profile loaded event
   window.addEventListener('profile-loaded', (e) => {
     const { profile } = e.detail;
-    console.log('✅ Profile loaded:', profile);
     
     // Auto-populate wizardData with user profile
     if (window.wizardData) {
@@ -96,7 +94,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for slider changes
   window.addEventListener('slider-changed', (e) => {
     const { id, value, delta, percentage } = e.detail;
-    console.log('🎚️ Slider changed:', id, value, `Δ ${delta} (${percentage.toFixed(1)}%)`);
     
     // Update wizardData based on slider ID
     switch(id) {
@@ -128,7 +125,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const vehicles = await getGarageVehicles(authStore.user.id);
     useGarageStore.getState().setVehicles(vehicles);
     
-    console.log('🚗 Loaded garage vehicles:', vehicles);
     
     // Add vehicles to trade-in dropdown if it exists
     const tradeSelect = document.getElementById('trade-vehicle-select');
@@ -169,7 +165,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   async function loadRateSheets(creditScore) {
     const rates = await getRateSheets(creditScore);
-    console.log('💰 Loaded rate sheets:', rates);
     
     // Update APR dropdown if it exists
     const aprSelect = document.getElementById('apr-select');
@@ -477,7 +472,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Subscribe to auth changes
   useAuthStore.subscribe((state, prevState) => {
     if (state.isAuthenticated !== prevState.isAuthenticated) {
-      console.log('🔐 Auth state changed:', state.isAuthenticated);
       
       if (state.isAuthenticated) {
         // User signed in
@@ -498,10 +492,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Subscribe to calculator changes
   useCalculatorStore.subscribe((state) => {
-    console.log('📊 Calculator updated:', {
-      monthlyPayment: state.monthlyPayment,
-      totalFinanced: state.totalFinanced
-    });
   });
   
   // ============================================
@@ -511,7 +501,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { getCustomerOffers } = await import('./src/lib/supabase');
     const offers = await getCustomerOffers(userId);
     useOfferStore.getState().setOffers(offers);
-    console.log('📄 Loaded user offers:', offers);
   }
   
   // ============================================
@@ -520,7 +509,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Your existing code here...
   
-  console.log('✅ ExcelCalc v2.0 initialized successfully!');
 });
 
 // ============================================
@@ -696,4 +684,3 @@ window.ExcelCalc = {
   AuthManager
 };
 
-console.log('💡 ExcelCalc v2.0 is available in window.ExcelCalc for debugging');

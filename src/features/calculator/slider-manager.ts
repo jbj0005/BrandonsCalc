@@ -16,13 +16,11 @@ export class SliderManager {
    * Initialize sliders with configuration
    */
   public initialize(configs: Array<{ id: string; originalValue: number }>): void {
-    console.log('🎚️ Initializing sliders:', configs);
     
     configs.forEach(config => {
       const element = document.getElementById(config.id) as HTMLInputElement;
       
       if (!element) {
-        console.warn(`Slider element not found: ${config.id}`);
         return;
       }
       

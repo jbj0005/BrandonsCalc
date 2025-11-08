@@ -139,17 +139,12 @@ if (typeof window !== "undefined") {
     }
   } catch (storageError) {
     // eslint-disable-next-line no-console
-    console.warn(
-      "[fee-debug] unable to read feeDebugEnabled flag",
-      storageError
-    );
   }
   window.enableFeeDebugging = function enableFeeDebugging() {
     try {
       window.sessionStorage?.setItem("feeDebugEnabled", "true");
     } catch (storageError) {
       // eslint-disable-next-line no-console
-      console.warn("[fee-debug] unable to persist flag", storageError);
     }
     feeDebug.enable(true);
   };
@@ -158,7 +153,6 @@ if (typeof window !== "undefined") {
       window.sessionStorage?.removeItem("feeDebugEnabled");
     } catch (storageError) {
       // eslint-disable-next-line no-console
-      console.warn("[fee-debug] unable to clear flag", storageError);
     }
     feeDebug.enable(false);
   };
@@ -276,7 +270,6 @@ function safeParseJSON(raw) {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch (error) {
-    console.warn("[fees] Failed to parse JSON", { error, raw });
     return [];
   }
 }
@@ -392,7 +385,6 @@ async function fetchFeeItemsFromView(viewName) {
 function setSuggestionItems(store, items, context) {
   if (!store) return;
   if (!Array.isArray(items) || items.length === 0) {
-    console.warn(`[fees] No items available for ${context}`);
     store.setItems([]);
     return;
   }
@@ -665,7 +657,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // ============================================
   // PHASE 1: Initialize TypeScript Modules
   // ============================================
-  console.log('🚀 Initializing ExcelCalc v2.0 Phase 1...');
 
   // Initialize base slider defaults even when no vehicle is selected
   const sliderDefaults = [
@@ -694,13 +685,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Listen for profile loaded event (MUST be set up BEFORE AuthManager initializes)
   window.addEventListener('profile-loaded', async (e) => {
     const { profile } = e.detail;
-    console.log('✅ Profile loaded:', profile);
 
     // Update currentUserId for legacy code
     const authStore = useAuthStore.getState();
     if (authStore.user) {
       currentUserId = authStore.user.id;
-      console.log('✅ Updated currentUserId:', currentUserId);
     }
 
     // Auto-populate wizardData with user profile
@@ -725,13 +714,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Load saved vehicles for the dropdown
     await loadSavedVehicles();
-    console.log('✅ Saved vehicles loaded:', savedVehicles.length, 'vehicles');
   });
 
   // Listen for slider changes
   window.addEventListener('slider-changed', (e) => {
     const { id, value, delta, percentage } = e.detail;
-    console.log('🎚️ Slider changed:', id, value, `Δ ${delta} (${percentage.toFixed(1)}%)`);
 
     // Update wizardData based on slider ID
     switch(id) {
@@ -759,7 +746,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.saveCustomerProfile = saveCustomerProfile;
   window.openMyGarageModal = openMyGarageModal;
   window.openMyOffersModal = openMyOffersModal;
-  console.log('✅ [app.js] Modal functions exported to window');
 
   // Initialize Authentication Manager (after event listeners are set up)
   await AuthManager.initialize();
@@ -768,14 +754,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   async function loadUserGarageVehicles() {
     const authStore = useAuthStore.getState();
     if (!authStore.user) {
-      console.log('⏭️  Skipping garage load - no user yet');
       return;
     }
 
     const vehicles = await getGarageVehicles(authStore.user.id);
     useGarageStore.getState().setVehicles(vehicles);
 
-    console.log('🚗 Loaded garage vehicles:', vehicles);
 
     // Update vehicle selector dropdown if it exists
     updateVehicleSelectorDropdown();
@@ -897,14 +881,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Handle vehicle selection from garage
   async function selectGarageVehicle(vehicle) {
-    console.log('🚗 Selected garage vehicle:', vehicle);
-    console.log('🔍 Vehicle keys:', Object.keys(vehicle));
-    console.log('💵 Vehicle price fields:', {
-      asking_price: vehicle.asking_price,
-      price: vehicle.price,
-      estimated_value: vehicle.estimated_value,
-      msrp: vehicle.msrp
-    });
 
     // Populate VIN field
     const vinInput = document.getElementById('quick-vin');
@@ -917,7 +893,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     const salePrice = vehicle.asking_price || vehicle.price || vehicle.estimated_value || vehicle.msrp;
 
     // Update wizardData
-    console.log('🔍 Checking wizardData:', !!wizardData, typeof wizardData);
     if (wizardData) {
       wizardData.vehicle = {
         year: vehicle.year,
@@ -932,38 +907,29 @@ document.addEventListener("DOMContentLoaded", async () => {
       };
 
       // Set sale price
-      console.log('💵 Vehicle price:', salePrice, 'Type:', typeof salePrice);
 
       if (salePrice) {
         // Update the hidden input that autoCalculateQuick reads from
         const quickVehiclePrice = document.getElementById('quick-vehicle-price');
         if (quickVehiclePrice) {
           quickVehiclePrice.value = salePrice;
-          console.log('📝 Set hidden input value to:', quickVehiclePrice.value);
         }
 
         // Update the slider (but don't dispatch event yet - will happen after centered sliders init)
         const salePriceSlider = document.getElementById('quickSliderSalePrice');
         if (salePriceSlider) {
-          console.log('🎚️ Slider max BEFORE:', salePriceSlider.max);
-          console.log('🎚️ Slider value BEFORE setting:', salePriceSlider.value);
 
           // Ensure max is high enough to accommodate the price
           const minMax = calculateSliderMax(salePrice);
           salePriceSlider.max = minMax.toString();
 
           salePriceSlider.value = salePrice;
-          console.log('🎚️ Slider max AFTER:', salePriceSlider.max);
-          console.log('🎚️ Slider value AFTER setting:', salePriceSlider.value);
         }
 
         // Set wizardData AFTER updating slider to avoid race condition
         wizardData.financing.salePrice = Number(salePrice);
 
-        console.log('💰 Set sale price to:', wizardData.financing.salePrice);
-        console.log('🔍 wizardData.financing:', wizardData.financing);
       } else {
-        console.warn('⚠️ No price field found on vehicle');
       }
 
       // Set trade-in values if available - ONLY from actual trade-in fields
@@ -991,22 +957,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Trigger VIN decode if the VIN input has a handler
     if (vinInput && vehicle.vin) {
-      console.log('🔍 Triggering VIN decode for:', vehicle.vin);
     }
 
       // Initialize centered sliders if we have a sale price
       if (salePrice) {
-        console.log('🎯 About to initialize sliders, wizardData.financing.salePrice:', wizardData.financing.salePrice);
         // Apply preferred down payment once a vehicle is active
         await setPreferredDownPayment();
         initializeCenteredSliders();
       }
 
     // Log wizardData state before calculation
-    console.log('📊 wizardData before calculation:', {
-      financing: wizardData.financing,
-      tradein: wizardData.tradein
-    });
 
     // Trigger payment calculation
     refreshReview();
@@ -1014,11 +974,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // FIX: Also trigger autoCalculateQuick to update the quick-entry payment display
     // This is needed because refreshReview() only updates the review section,
     // but autoCalculateQuick() is required to update the monthly payment hero
-    console.log('🔄 Triggering autoCalculateQuick after vehicle selection...');
     await autoCalculateQuick();
-    console.log('✅ autoCalculateQuick completed');
 
-    console.log('✅ Vehicle data populated from garage');
 
     // Background VIN verification (non-blocking)
     if (vehicle.vin) {
@@ -1028,7 +985,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  console.log('✅ ExcelCalc v2.0 Phase 1 initialized successfully!');
 
   // Initialize Quick Entry mode (now the default and only mode)
   await initializeQuickEntry();
@@ -1086,7 +1042,6 @@ async function initializeSupabase() {
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR4bmR1ZXVxbGpldWpsY2NuZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcwMzI3OTMsImV4cCI6MjA3MjYwODc5M30.ozHVMxQ0qL4mzZ2q2cRkYPduBk927_a7ffd3tOI6Pdc";
 
     if (!supabaseUrl || !supabaseKey) {
-      console.warn("Supabase credentials not found");
       return;
     }
 
@@ -1102,14 +1057,12 @@ async function initializeSupabase() {
       }
     };
     supabase = createClient(supabaseUrl, supabaseKey, authOptions);
-    console.log('✅ [initializeSupabase] Created Supabase client with storageKey: excelcalc-auth');
 
     // Get current session
     const { data, error } = await supabase.auth.getSession();
 
     currentUserId = data?.session?.user?.id ?? null;
     if (currentUserId) {
-      console.log("✅ [initializeSupabase] Restored session for user:", currentUserId);
       await loadSavedVehicles();
     }
 
@@ -1118,7 +1071,6 @@ async function initializeSupabase() {
       const newUserId = session?.user?.id ?? null;
       if (newUserId !== currentUserId) {
         currentUserId = newUserId;
-        console.log("🔄 [initializeSupabase] Auth state changed. New user:", currentUserId);
         loadSavedVehicles();
         updateLoginButton();
       }
@@ -1129,12 +1081,6 @@ async function initializeSupabase() {
 
     // If no session, check if user needs to sign in
     if (!currentUserId) {
-      console.warn(
-        "[express-mode] No active session. User needs to sign in on the main app first."
-      );
-      console.warn(
-        "[express-mode] Visit http://localhost:5174 and sign in, then return here."
-      );
     }
   } catch (error) {
     console.error("Error initializing Supabase:", error);
@@ -1205,13 +1151,18 @@ async function loadGoogleMaps() {
     const apiKey = data.googleMaps?.apiKey;
 
     if (!apiKey) {
-      console.warn("Google Maps API key not available");
       return;
     }
 
     // Load Google Maps script
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=initGooglePlaces`;
+    const params = new URLSearchParams({
+      key: apiKey,
+      libraries: "places",
+      callback: "initGooglePlaces",
+      loading: "async",
+    });
+    script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
     script.async = true;
     script.defer = true;
     document.head.appendChild(script);
@@ -1329,7 +1280,9 @@ function applyLocaleToFees({ stateCode, countyName }) {
   };
 
   const config = TAX_RATE_CONFIG[upperState] ?? null;
-  if (config) {
+  const hasUserOverride = Boolean(wizardData.fees?.userTaxOverride);
+
+  if (config && !hasUserOverride) {
     const statePercent = Math.round((config.stateRate ?? 0) * 10000) / 100;
     const countyPercent =
       Math.round((config.counties?.[upperCounty] ?? 0) * 10000) / 100;
@@ -1344,7 +1297,7 @@ function applyLocaleToFees({ stateCode, countyName }) {
         );
       });
     }
-  } else {
+  } else if (!config || hasUserOverride) {
     updateTaxInputs();
   }
 
@@ -1411,21 +1364,16 @@ function setupLocationInput() {
  */
 async function loadSavedVehicles() {
   try {
-    console.log('🚗 [loadSavedVehicles] Starting to load saved vehicles...');
-    console.log('🚗 [loadSavedVehicles] currentUserId:', currentUserId);
 
     if (!supabase) {
-      console.warn('🚗 [loadSavedVehicles] Supabase client not initialized');
       return;
     }
 
     if (!currentUserId) {
-      console.warn('🚗 [loadSavedVehicles] No currentUserId, clearing savedVehicles array');
       savedVehicles = [];
       return;
     }
 
-    console.log('🚗 [loadSavedVehicles] Querying vehicles table...');
     // Query vehicles table with specific columns (using inserted_at like main app)
     const { data, error } = await supabase
       .from("vehicles")
@@ -1506,8 +1454,6 @@ async function loadSavedVehicles() {
       };
     });
 
-    console.log('✅ [loadSavedVehicles] Successfully loaded', savedVehicles.length, 'vehicles');
-    console.log('✅ [loadSavedVehicles] savedVehicles array:', savedVehicles);
 
     // Update the vehicle selector dropdown with saved vehicles
     // Check if updateVehicleSelectorDropdown is available (it's defined in event listener setup)
@@ -1531,9 +1477,6 @@ function setupVINInput() {
   const dropdown = document.getElementById("saved-vehicles-dropdown");
 
   if (!vinInput || !dropdown) {
-    console.warn(
-      "[vin-input] VIN input elements not found; skipping main wizard VIN setup"
-    );
     return;
   }
 
@@ -2135,10 +2078,6 @@ async function populateTrims(year, make, model) {
           }
         }
       } catch (err) {
-        console.warn(
-          `[cascading-dropdowns] Error validating trim "${trim}":`,
-          err.message
-        );
         // If validation fails due to API quota, skip validation and use all trims
         if (err.message.includes("429")) {
           validTrims.push(...trims.filter((t) => !validTrims.includes(t)));
@@ -2380,6 +2319,131 @@ async function removeUnavailableVehicle() {
 window.removeUnavailableVehicle = removeUnavailableVehicle;
 
 /**
+ * Check vehicle listing status from MarketCheck response and show appropriate toast
+ * @param {object} vinData - MarketCheck API response
+ * @param {object} savedVehicle - The saved vehicle being validated
+ * @returns {object} { shouldContinue: boolean, useData: object|null }
+ */
+function checkVehicleListingStatus(vinData, savedVehicle) {
+  if (!savedVehicle) {
+    // Not a saved vehicle selection, skip validation
+    return { shouldContinue: true, useData: vinData?.payload || null };
+  }
+
+  const searchSource = vinData?.extras?.search_source || "";
+  const isActive =
+    searchSource.includes("active listings") ||
+    searchSource.includes("private seller");
+  const isHistorical = searchSource.includes("historical");
+  const notFound = !vinData?.found || !vinData?.payload;
+
+  // SUCCESS: Vehicle found in active listings
+  if (isActive && vinData?.payload) {
+    const sourceLabel = searchSource.includes("zip-aware")
+      ? "nearby dealer listings"
+      : searchSource.includes("nationwide")
+      ? "dealer listings nationwide"
+      : searchSource.includes("private seller")
+      ? "private seller listings"
+      : "active listings";
+
+    showToast(
+      `✓ Listing verified - Vehicle is still active\nFound in: ${sourceLabel}`,
+      "success"
+    );
+    return { shouldContinue: true, useData: vinData.payload };
+  }
+
+  // WARNING: Vehicle only found in historical listings (inactive)
+  if (isHistorical && vinData?.payload) {
+    showToastWithActions(
+      `⚠ Listing inactive - This vehicle is no longer available in active listings.\n\nYou can still use the saved data, but the listing may have been sold or removed.`,
+      "warning",
+      [
+        {
+          label: "Keep Anyway",
+          callback: () => {
+          },
+        },
+        {
+          label: "Remove from Saved",
+          callback: async () => {
+            await removeSavedVehicleByVin(savedVehicle.vin);
+          },
+        },
+      ],
+      12000 // 12 seconds to read and decide
+    );
+    // Allow continuing with historical data
+    return { shouldContinue: true, useData: vinData.payload };
+  }
+
+  // ERROR: Vehicle not found at all
+  if (notFound) {
+    showToastWithActions(
+      `❌ Listing not found - Vehicle could not be found in MarketCheck.\n\nThe listing may have been removed. You can still use your saved data or remove it.`,
+      "error",
+      [
+        {
+          label: "Use Saved Data",
+          callback: () => {
+          },
+        },
+        {
+          label: "Remove from Saved",
+          callback: async () => {
+            await removeSavedVehicleByVin(savedVehicle.vin);
+          },
+        },
+      ],
+      0 // Don't auto-dismiss error toasts
+    );
+    // Continue with saved vehicle data as fallback
+    return { shouldContinue: true, useData: savedVehicle };
+  }
+
+  // Default: continue with whatever data we have
+  return { shouldContinue: true, useData: vinData?.payload || savedVehicle };
+}
+
+/**
+ * Remove a saved vehicle by VIN (used in toast action callbacks)
+ * @param {string} vin - The VIN of the vehicle to remove
+ */
+async function removeSavedVehicleByVin(vin) {
+  if (!supabase || !currentUserId) {
+    showToast("Unable to remove vehicle: Not signed in", "error");
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("vehicles")
+      .delete()
+      .eq("user_id", currentUserId)
+      .eq("vin", vin);
+
+    if (error) {
+      console.error("[remove-vehicle] Error removing vehicle:", error);
+      showToast("Failed to remove vehicle from database", "error");
+      return;
+    }
+
+    // Reload saved vehicles to update the dropdown
+    await loadSavedVehicles();
+
+    // Clear VIN input
+    const vinInput = document.getElementById("vin-input");
+    if (vinInput) vinInput.value = "";
+
+    showToast("Vehicle removed from your saved vehicles", "success");
+  } catch (error) {
+    console.error("[remove-vehicle] Error:", error);
+    showToast("Failed to remove vehicle", "error");
+  }
+}
+
+/**
  * Search for vehicle by VIN and show similar vehicles
  * @param {string} vin - The VIN to search
  * @param {object} savedVehicle - Optional saved vehicle data (if loading from saved vehicles)
@@ -2414,21 +2478,34 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     let allSimilarVehicles = [];
 
     // 1. Try to get vehicle details by VIN from MarketCheck
+    let vinData = null;
     try {
       const vinResponse = await fetch(
         `${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`
       );
 
       if (vinResponse.ok) {
-        const vinData = await vinResponse.json();
-        if (vinData.ok && vinData.payload) {
-          vehicleDetails = vinData.payload;
+        vinData = await vinResponse.json();
+
+        // Check listing status and show appropriate toast (only for saved vehicles)
+        const validationResult = checkVehicleListingStatus(vinData, savedVehicle);
+
+        if (validationResult.shouldContinue && validationResult.useData) {
+          vehicleDetails = validationResult.useData;
         }
       }
-    } catch (mcError) {}
+    } catch (mcError) {
+      console.error("[search-vehicle] MarketCheck error:", mcError);
+    }
 
     // 2. If MarketCheck failed and we have saved vehicle data, use it
     if (!vehicleDetails && savedVehicle) {
+      // Show toast that we're using saved data due to API failure
+      showToast(
+        "⚠ Using saved vehicle data - MarketCheck API unavailable",
+        "warning",
+        6000
+      );
       vehicleDetails = savedVehicle;
     }
 
@@ -2505,13 +2582,14 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
   } catch (error) {
     console.error("[search-vehicle] Error:", error);
 
-    // If this was a saved vehicle that's no longer available and we couldn't use saved data
-    if (savedVehicle && !error.message.includes("quota")) {
-      showUnavailableVehicleModal(savedVehicle);
-    } else {
-      // Manual VIN entry that failed - just show alert
-      alert(`Could not find vehicle: ${error.message}`);
+    // For manual VIN entry (not saved vehicle), show error message
+    if (!savedVehicle) {
+      showToast(
+        `❌ Could not find vehicle: ${error.message}\n\nPlease check the VIN and try again.`,
+        "error"
+      );
     }
+    // For saved vehicles, the validation toast has already been shown by checkVehicleListingStatus()
   } finally {
     loading.style.display = "none";
     vinInput.disabled = false;
@@ -4335,7 +4413,6 @@ async function computeReviewData() {
   try {
     await ensureAprOptions();
   } catch (error) {
-    console.warn("[apr] Unable to preload APR cache:", error);
   }
 
   const activeLoanCondition = getEffectiveLoanCondition();
@@ -4366,7 +4443,6 @@ async function computeReviewData() {
       }
     }
   } catch (error) {
-    console.warn("[review] Unable to resolve lender APR:", error);
   }
 
   if (!selectedApr || !Number.isFinite(selectedApr.apr)) {
@@ -4496,7 +4572,6 @@ async function ensureAprOptions(force = false) {
         wizardData.availableAprs[condition] = aprInfo;
       }
     } catch (error) {
-      console.warn(`[apr] Unable to load ${condition} rates:`, error);
     }
   }
 
@@ -4661,24 +4736,20 @@ const GARAGE_VEHICLE_SCHEMA = {
  */
 async function fetchVinDetails(vin) {
   if (!vin || typeof vin !== 'string') {
-    if (window.debugVinSync) console.warn('[vin-sync] Invalid VIN provided');
     return null;
   }
 
   const cleanVin = vin.trim().toUpperCase();
   if (!/^[A-HJ-NPR-Z0-9]{11,17}$/.test(cleanVin)) {
-    if (window.debugVinSync) console.warn('[vin-sync] VIN format invalid:', cleanVin);
     return null;
   }
 
   try {
-    if (window.debugVinSync) console.log('[vin-sync] Fetching VIN:', cleanVin);
 
     const response = await fetch(`${API_BASE}/api/mc/by-vin/${cleanVin}`);
 
     if (!response.ok) {
       if (window.debugVinSync) {
-        console.warn('[vin-sync] API error:', response.status, response.statusText);
       }
       return null;
     }
@@ -4686,7 +4757,6 @@ async function fetchVinDetails(vin) {
     const data = await response.json();
 
     if (window.debugVinSync) {
-      console.log('[vin-sync] API response:', data);
     }
 
     return normalizeMarketCheckResponse(data);
@@ -4749,9 +4819,7 @@ function normalizeMarketCheckResponse(apiData) {
   }
 
   if (window.debugVinSync) {
-    console.log('[vin-sync] Normalized vehicle:', normalized);
     if (normalized._extraFields) {
-      console.log('[vin-sync] Extra fields found:', normalized._extraFields);
     }
   }
 
@@ -4811,11 +4879,6 @@ function diffVehicleAttributes(stored, fresh) {
   }
 
   if (window.debugVinSync) {
-    console.log('[vin-sync] Diff results:', {
-      differences,
-      missingFields,
-      changed: differences.length > 0 || missingFields.length > 0
-    });
   }
 
   return {
@@ -4908,7 +4971,6 @@ async function updateVehicleRecord(vehicleId, updates, source = 'garage') {
     const tableName = source === 'garage' ? 'garage_vehicles' : 'saved_offers';
 
     if (window.debugVinSync) {
-      console.log(`[vin-sync] Updating ${tableName} record:`, vehicleId, updates);
     }
 
     const { data, error } = await supabase
@@ -4924,7 +4986,6 @@ async function updateVehicleRecord(vehicleId, updates, source = 'garage') {
     }
 
     if (window.debugVinSync) {
-      console.log('[vin-sync] Update successful:', data);
     }
 
     return true;
@@ -4944,7 +5005,6 @@ async function updateVehicleRecord(vehicleId, updates, source = 'garage') {
  */
 async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
   if (!vin) {
-    if (window.debugVinSync) console.log('[vin-sync] No VIN provided, skipping verification');
     return;
   }
 
@@ -4953,7 +5013,6 @@ async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
   // Check if verification is already in progress for this VIN
   if (activeVinVerifications.has(cleanVin)) {
     if (window.debugVinSync) {
-      console.log('[vin-sync] Verification already in progress for:', cleanVin);
     }
     return;
   }
@@ -4963,8 +5022,6 @@ async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
 
   try {
     if (window.debugVinSync) {
-      console.log('[vin-sync] Starting verification for:', cleanVin);
-      console.log('[vin-sync] Stored vehicle:', storedVehicle);
     }
 
     // Fetch fresh data from MarketCheck (non-blocking)
@@ -4973,14 +5030,12 @@ async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
     // Check if this verification is still relevant (user might have selected another vehicle)
     if (!activeVinVerifications.has(cleanVin)) {
       if (window.debugVinSync) {
-        console.log('[vin-sync] Verification cancelled (stale):', cleanVin);
       }
       return;
     }
 
     if (!freshData) {
       if (window.debugVinSync) {
-        console.log('[vin-sync] No fresh data available for:', cleanVin);
       }
       return;
     }
@@ -4990,7 +5045,6 @@ async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
 
     if (!diff.changed) {
       if (window.debugVinSync) {
-        console.log('[vin-sync] No changes detected for:', cleanVin);
       }
       return;
     }
@@ -5034,7 +5088,6 @@ async function verifyVehicleVin(vin, storedVehicle, source = 'garage') {
         label: 'Dismiss',
         callback: () => {
           if (window.debugVinSync) {
-            console.log('[vin-sync] User dismissed update notification');
           }
         }
       }
@@ -5626,7 +5679,6 @@ function initializeReviewSliders(reviewData) {
     }
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn('[review-sliders] Unable to set cashDown maxCeil:', e);
   }
   const sliderConfigs = [
     {
@@ -5902,6 +5954,7 @@ function ensureWizardFeeDefaults() {
       govtFees: 0,
       stateTaxRate: 6.0,
       countyTaxRate: 1.0,
+      userTaxOverride: false,
       items: {
         dealer: [],
         customer: [],
@@ -5971,6 +6024,14 @@ function initializeFeeModal() {
   manageBtn?.addEventListener("click", () => {
     openEditFeeModal(editFeeModalState.activeCategory || "dealer");
   });
+
+  const stateTaxInput = document.getElementById("modal-state-tax");
+  const countyTaxInput = document.getElementById("modal-county-tax");
+  [stateTaxInput, countyTaxInput].forEach((input) => {
+    if (!input) return;
+    input.addEventListener("change", handleManualTaxRateInput);
+    input.addEventListener("blur", handleManualTaxRateInput);
+  });
 }
 
 function openFeesModal() {
@@ -6017,7 +6078,6 @@ async function openReviewContractModal() {
   try {
     await ensureAprOptions();
   } catch (error) {
-    console.warn("[apr] Unable to preload APR options:", error);
   }
   window._aprConfirmationForPreview = false;
 
@@ -6045,7 +6105,6 @@ function showAprConfirmationModal() {
   const lenderRateInfo =
     baseAprInfo || aprOptions.new || aprOptions.used || null;
   if (!lenderRateInfo || !Number.isFinite(lenderRateInfo.apr)) {
-    console.warn("[apr] Unable to display lender rate for confirmation modal");
     return;
   }
 
@@ -6349,14 +6408,12 @@ window.printContract = printContract;
  * Open the Customer Profile modal and load existing profile
  */
 async function openCustomerProfileModal() {
-  console.log("👤 [My Profile] Opening modal...");
   const modal = document.getElementById("customer-profile-modal");
   if (!modal) {
     console.error("❌ [My Profile] Modal element not found!");
     return;
   }
 
-  console.log("✅ [My Profile] Modal element found, loading profile data...");
   // Load existing profile
   await loadCustomerProfileData();
 
@@ -6381,7 +6438,6 @@ async function openCustomerProfileModal() {
       document.addEventListener("keydown", window.__customerProfileEscHandler);
     }
   } catch {}
-  console.log("✅ [My Profile] Modal opened");
 }
 
 /**
@@ -6469,7 +6525,6 @@ async function loadCustomerProfileData() {
   try {
     const authStore = useAuthStore.getState();
     if (!authStore.user) {
-      console.log('No user authenticated');
       return null;
     }
 
@@ -6588,7 +6643,6 @@ async function setPreferredDownPayment() {
     window.cashDownBaseline = preferredDown;
   } catch (e) {
     // eslint-disable-next-line no-console
-    console.warn('[cashdown] unable to set preferred down payment', e);
   }
 }
 
@@ -7124,7 +7178,6 @@ async function syncAuthWithProfile() {
 
     // Auth is now handled by auth-manager.ts and Zustand store
     // This function is kept for backward compatibility but does minimal work
-    console.log("[auth-sync] Auth handled by auth-manager.ts");
   } catch (error) {
     console.error("[auth-sync] Unexpected error:", error);
   }
@@ -7143,6 +7196,24 @@ window.syncAuthWithProfile = syncAuthWithProfile;
 
 // Track selected trade-in vehicles (unlimited)
 let selectedTradeIns = [];
+let tradeDataSyncErrorToast = null;
+
+function showTradeDataErrorToast() {
+  if (tradeDataSyncErrorToast) return;
+  tradeDataSyncErrorToast = showToastWithActions(
+    "We couldn't load the selected trade-in details. Please reopen My Garage and reselect your trade vehicle.",
+    "error",
+    [
+      {
+        label: "Dismiss",
+        callback: () => {
+          tradeDataSyncErrorToast = null;
+        },
+      },
+    ],
+    0
+  );
+}
 
 function deriveVehiclePriceValue(vehicle) {
   const candidates = [
@@ -7680,7 +7751,6 @@ function gatherSliderBaselines() {
       const baseline = meta.getBaseline ? meta.getBaseline() : 0;
       acc[field] = Number.isFinite(baseline) ? baseline : 0;
     } catch (error) {
-      console.warn(`[slider] Unable to compute baseline for ${field}`, error);
       acc[field] = 0;
     }
     return acc;
@@ -7713,7 +7783,6 @@ function initSlidersFromBaseline(baselines) {
  * Open My Garage modal and load vehicles
  */
 async function openMyGarageModal() {
-  console.log("🚗 [My Garage] Opening modal...");
   const modal = document.getElementById("my-garage-modal");
   if (!modal) {
     console.error("❌ [My Garage] Modal element not found!");
@@ -7734,7 +7803,6 @@ async function openMyGarageModal() {
     document.addEventListener("keydown", window.__myGarageEscHandler);
   }
 
-  console.log("✅ [My Garage] Modal opened, loading vehicles...");
   await loadGarageVehicles();
 }
 
@@ -7762,7 +7830,6 @@ async function loadGarageVehicles() {
   }
 
   try {
-    console.log("🔍 Querying garage_vehicles table...");
     const { data: vehicles, error } = await supabase
       .from("garage_vehicles")
       .select("*")
@@ -8050,7 +8117,6 @@ async function updateTradeInCalculations() {
  */
 async function addSavedVehicleToGarage(savedVehicleId) {
   try {
-    console.log('🚗 [addSavedVehicleToGarage] Adding vehicle to garage:', savedVehicleId);
 
     if (!supabase || !currentUserId) {
       showToast('Please sign in to add vehicles to your garage', 'error');
@@ -8147,7 +8213,6 @@ async function addSavedVehicleToGarage(savedVehicleId) {
       notes: 'Imported from saved vehicles'
     };
 
-    console.log('🚗 [addSavedVehicleToGarage] Inserting garage vehicle:', garageVehicle);
 
     // 4. Insert into garage_vehicles
     const { error: insertError } = await supabase
@@ -8162,7 +8227,6 @@ async function addSavedVehicleToGarage(savedVehicleId) {
     }
 
     // 5. Remove from saved vehicles
-    console.log('🗑️ [addSavedVehicleToGarage] Removing from saved vehicles table...');
     const { error: deleteError } = await supabase
       .from('vehicles')
       .delete()
@@ -8174,19 +8238,15 @@ async function addSavedVehicleToGarage(savedVehicleId) {
       console.error('[addSavedVehicleToGarage] Delete error details:', deleteError.message, deleteError.details);
       // Don't fail the operation, just log it - vehicle was added to garage successfully
     } else {
-      console.log('✅ [addSavedVehicleToGarage] Vehicle removed from saved vehicles');
     }
 
     // 6. Refresh both lists
-    console.log('🔄 [addSavedVehicleToGarage] Refreshing saved vehicles list...');
     await loadSavedVehicles();
-    console.log('🔄 [addSavedVehicleToGarage] Refreshing garage vehicles list...');
     await loadUserGarageVehicles();
 
     // 7. Refresh the unified vehicle selector dropdown if it's currently visible
     const vehicleDropdown = document.getElementById("vehicle-selector-dropdown");
     if (vehicleDropdown && vehicleDropdown.style.display !== "none") {
-      console.log('🔄 [addSavedVehicleToGarage] Refreshing visible dropdown');
       if (typeof updateVehicleSelectorDropdown === 'function') {
         updateVehicleSelectorDropdown();
       }
@@ -8195,7 +8255,6 @@ async function addSavedVehicleToGarage(savedVehicleId) {
     // 8. Success toast!
     showToast(`${savedVehicle.year} ${savedVehicle.make} ${savedVehicle.model} added to My Garage`, 'success');
 
-    console.log('✅ [addSavedVehicleToGarage] Vehicle successfully added to garage');
 
   } catch (error) {
     console.error('[addSavedVehicleToGarage] Unexpected error:', error);
@@ -8281,7 +8340,6 @@ function hideGarageForm() {
  * Open edit vehicle modal
  */
 async function openEditVehicleModal(vehicleId) {
-  console.log('🔧 [openEditVehicleModal] Opening edit modal for vehicle:', vehicleId);
   const modal = document.getElementById("edit-vehicle-modal");
 
   if (!modal) {
@@ -8289,11 +8347,9 @@ async function openEditVehicleModal(vehicleId) {
     return;
   }
 
-  console.log('✅ [openEditVehicleModal] Modal element found');
 
   try {
     // Fetch vehicle data from garage
-    console.log('🔍 [openEditVehicleModal] Fetching vehicle data...');
     const { data: vehicle, error } = await supabase
       .from("garage_vehicles")
       .select("*")
@@ -8303,7 +8359,6 @@ async function openEditVehicleModal(vehicleId) {
     if (error) throw error;
 
     if (vehicle) {
-      console.log('✅ [openEditVehicleModal] Vehicle data loaded:', vehicle);
 
       // Store the vehicle ID in the modal
       modal.dataset.editingVehicleId = vehicleId;
@@ -8324,7 +8379,6 @@ async function openEditVehicleModal(vehicleId) {
         : "";
       document.getElementById("editNotes").value = vehicle.notes || "";
 
-      console.log('✅ [openEditVehicleModal] Form fields populated, showing modal');
       // Show modal
       modal.classList.add("active");
       modal.style.display = "flex";
@@ -8366,7 +8420,6 @@ window.closeEditVehicleModal = closeEditVehicleModal;
  * Save edited vehicle
  */
 async function saveEditedVehicle() {
-  console.log('💾 [saveEditedVehicle] Starting save...');
   const modal = document.getElementById("edit-vehicle-modal");
   const vehicleId = modal?.dataset.editingVehicleId;
 
@@ -8376,7 +8429,6 @@ async function saveEditedVehicle() {
     return;
   }
 
-  console.log('💾 [saveEditedVehicle] Saving vehicle ID:', vehicleId);
 
   try {
     // Collect form values
@@ -8400,9 +8452,6 @@ async function saveEditedVehicle() {
       ) || 0;
     const notes = document.getElementById("editNotes").value?.trim() || null;
 
-    console.log('💾 [saveEditedVehicle] Collected form values:', {
-      nickname, year, make, model, trim, mileage, condition, estimatedValue, payoffAmount
-    });
 
     // Validate required fields
     if (!year || !make || !model) {
@@ -8412,7 +8461,6 @@ async function saveEditedVehicle() {
     }
 
     // Update in garage_vehicles database
-    console.log('💾 [saveEditedVehicle] Updating database...');
     const { error } = await supabase
       .from("garage_vehicles")
       .update({
@@ -8435,19 +8483,16 @@ async function saveEditedVehicle() {
       throw error;
     }
 
-    console.log('✅ [saveEditedVehicle] Vehicle updated successfully');
     showToast("Vehicle updated successfully", "success");
 
     // Close modal
     closeEditVehicleModal();
 
     // Reload vehicles to reflect changes
-    console.log('🔄 [saveEditedVehicle] Reloading garage vehicles...');
     await loadGarageVehicles();
 
     // Update trade-in calculations if this vehicle is selected
     if (selectedTradeIns.includes(vehicleId)) {
-      console.log('🔄 [saveEditedVehicle] Updating trade-in calculations...');
       await updateTradeInCalculations();
     }
   } catch (error) {
@@ -8752,7 +8797,6 @@ window.addSavedVehicleToGarage = addSavedVehicleToGarage;
 window.showGarageForm = showGarageForm;
 window.hideGarageForm = hideGarageForm;
 window.editGarageVehicle = editGarageVehicle;
-console.log('✅ [app.js] My Garage modal functions exported to window');
 window.deleteGarageVehicle = deleteGarageVehicle;
 window.saveGarageVehicle = saveGarageVehicle;
 window.closeDuplicateVehicleModal = closeDuplicateVehicleModal;
@@ -8771,7 +8815,6 @@ let savedOffersMenuObserver = null;
  * Open My Offers modal and load offers
  */
 async function openMyOffersModal() {
-  console.log("📋 [My Offers] Opening modal...");
   const modal = document.getElementById("my-offers-modal");
   if (!modal) {
     console.error("❌ [My Offers] Modal element not found!");
@@ -8779,7 +8822,6 @@ async function openMyOffersModal() {
   }
 
   if (modal.classList.contains("active")) {
-    console.log("ℹ️ [My Offers] Modal already open");
     return;
   }
 
@@ -8798,7 +8840,6 @@ async function openMyOffersModal() {
     document.addEventListener("keydown", window.__myOffersEscHandler);
   }
 
-  console.log("✅ [My Offers] Modal opened, loading offers...");
 
   // Load and display offers
   await loadMyOffers();
@@ -8860,11 +8901,9 @@ async function loadMyOffers() {
   try {
     const authStore = useAuthStore.getState();
     if (!authStore.user) {
-      console.warn("[my-offers] No user logged in");
       return;
     }
 
-    console.log("[my-offers] Loading offers for user:", authStore.user.id);
 
     // Load all offers
     const { data: offers, error } = await supabase
@@ -9231,14 +9270,11 @@ async function saveOffer(offerData) {
 
     const offerName = offerParts.length > 1 ? offerParts.join(" – ") : "Custom Offer";
 
-    console.log("[save-offer] Saving offer for user:", authStore.user.id);
-    console.log("[save-offer] Review data:", reviewData);
 
     // Get or create customer profile
     let customerProfileId = localStorage.getItem("customerProfileId");
 
     if (!customerProfileId) {
-      console.log("[save-offer] No customerProfileId in localStorage, querying database...");
       const { data: profile } = await supabase
         .from("customer_profiles")
         .select("id")
@@ -9248,10 +9284,8 @@ async function saveOffer(offerData) {
       if (profile) {
         customerProfileId = profile.id;
         localStorage.setItem("customerProfileId", customerProfileId);
-        console.log("[save-offer] Found existing profile:", customerProfileId);
       } else {
         // Create a new customer profile
-        console.log("[save-offer] Creating new customer profile...");
         const { data: newProfile, error: profileError } = await supabase
           .from("customer_profiles")
           .insert({
@@ -9270,7 +9304,6 @@ async function saveOffer(offerData) {
 
         customerProfileId = newProfile.id;
         localStorage.setItem("customerProfileId", customerProfileId);
-        console.log("[save-offer] Created new profile:", customerProfileId);
       }
     }
 
@@ -9322,13 +9355,6 @@ async function saveOffer(offerData) {
       offer_text: offerData.offerText || null,
     };
 
-    console.log("[save-offer] ✅ Prepared offer object:");
-    console.log("  → user_id:", offer.user_id);
-    console.log("  → vehicle:", `${offer.vehicle_year} ${offer.vehicle_make} ${offer.vehicle_model}`);
-    console.log("  → vehicle_price:", offer.vehicle_price);
-    console.log("  → apr:", offer.apr);
-    console.log("  → term_months:", offer.term_months);
-    console.log("  → Full object:", JSON.stringify(offer, null, 2));
 
     // Save to database with graceful fallback when the remote schema is behind
     const offerForInsert = { ...offer };
@@ -9362,10 +9388,6 @@ async function saveOffer(offerData) {
 
       if (!error) {
         if (strippedColumns.length) {
-          console.warn(
-            "[save-offer] Insert succeeded after omitting columns:",
-            strippedColumns
-          );
         }
         break;
       }
@@ -9376,10 +9398,6 @@ async function saveOffer(offerData) {
       if (missingColumn && missingColumn in offerForInsert) {
         strippedColumns.push(missingColumn);
         delete offerForInsert[missingColumn];
-        console.warn(
-          `[save-offer] Column "${missingColumn}" missing in customer_offers; retrying without it (attempt ${attempt +
-            1}).`
-        );
         continue;
       }
 
@@ -9392,7 +9410,6 @@ async function saveOffer(offerData) {
       throw error;
     }
 
-    console.log("[save-offer] Offer saved successfully:", data);
     return data;
   } catch (error) {
     console.error("[save-offer] Caught error:", {
@@ -9411,7 +9428,6 @@ window.viewOfferDetails = viewOfferDetails;
 window.closeOffer = closeOffer;
 window.deleteOffer = deleteOffer;
 window.saveOffer = saveOffer;
-console.log('✅ [app.js] My Offers modal functions exported to window');
 
 /* ============================================================================
    Submit Offer Functions
@@ -9487,6 +9503,18 @@ function buildOfferPreviewHtml(reviewData = {}) {
   const netTradeValue = Number.isFinite(reviewData.netTrade)
     ? reviewData.netTrade
     : tradeAllowanceValue - tradePayoffValue;
+  const tradeVehicles =
+    (Array.isArray(trade?.vehicles) && trade.vehicles.length > 0
+      ? trade.vehicles
+      : Array.isArray(wizardData.tradein?.vehicles)
+      ? wizardData.tradein.vehicles
+      : []) || [];
+  const hasGarageTradeSelection =
+    Array.isArray(selectedTradeIns) && selectedTradeIns.length > 0;
+  if (hasGarageTradeSelection && tradeVehicles.length === 0) {
+    showTradeDataErrorToast();
+    throw new Error("trade-data-missing");
+  }
 
   // PRECISION: Show cents for critical financial values
   // Format APR and Term for hero subtitle (reuse existing termValue and aprDecimal)
@@ -9578,23 +9606,55 @@ function buildOfferPreviewHtml(reviewData = {}) {
     )
     .join("");
 
-  const tradeGrid = []
-    .concat(
-      tradeAllowanceValue
-        ? gridItem("Trade Allowance", formatCurrency(tradeAllowanceValue, true, { showCents: true }))
-        : []
-    )
-    .concat(
-      tradePayoffValue
-        ? gridItem("Trade Payoff", formatCurrency(tradePayoffValue, true, { showCents: true }))
-        : []
-    )
-    .concat(
-      tradeAllowanceValue || tradePayoffValue || netTradeValue
-        ? gridItem("Net Trade", formatCurrencyAccounting(netTradeValue, { showCents: true }))
-        : []
-    )
-    .join("");
+  const tradeGrid = ""
+
+  const formatTradeVehicleBlock = (vehicle, index, total) => {
+    const vehicleText = `${vehicle.year || ""} ${vehicle.make || ""} ${
+      vehicle.model || ""
+    }${vehicle.trim ? " " + vehicle.trim : ""}`.trim() || "Not specified";
+    const nicknameSuffix = vehicle.nickname ? ` (${vehicle.nickname})` : "";
+    const mileageText = vehicle.mileage
+      ? `${formatMileage(vehicle.mileage)} mi`
+      : "Not specified";
+    const conditionText =
+      getVehicleGradeText(deriveVehicleGrade(vehicle)) ||
+      getVehicleSaleConditionText(deriveSaleCondition(vehicle)) ||
+      "Not specified";
+    const exteriorColor =
+      vehicle.exterior_color ||
+      vehicle.exteriorColor ||
+      vehicle.extColor ||
+      vehicle.color ||
+      null;
+    const lines = [
+      `${escapeHtml(vehicleText)}${escapeHtml(nicknameSuffix)}`,
+      `VIN: ${escapeHtml(
+        vehicle.vin ? String(vehicle.vin).toUpperCase() : "Not specified"
+      )}`,
+      `Mileage: ${escapeHtml(mileageText)}`,
+      `Condition: ${escapeHtml(conditionText)}`,
+    ];
+
+    if (exteriorColor) {
+      lines.push(
+        `Ext Color: ${escapeHtml(capitalizeWords(exteriorColor.toString()))}`
+      );
+    }
+
+    return lines.join("\n");
+  };
+
+  const tradeDetailsText = tradeVehicles.length
+    ? tradeVehicles
+        .map((vehicle, index) =>
+          formatTradeVehicleBlock(vehicle, index, tradeVehicles.length)
+        )
+        .join("\n\n")
+    : tradeAllowanceValue || tradePayoffValue
+    ? `Net Trade: ${formatCurrencyAccounting(netTradeValue, {
+        showCents: true,
+      })}`
+    : "No Trade-in";
 
   return `
     <div class="offer-preview-text">
@@ -9640,13 +9700,7 @@ Mileage: ${escapeHtml(mileageText)}
 VIN: ${escapeHtml(vinText)}
 
 🔄 <strong>Trade-In</strong>
-${Array.isArray(wizardData.trade?.vehicles) && wizardData.trade.vehicles.length > 0 ? `${trade.year ? "Year: " + escapeHtml(trade.year) : ""}
-${trade.make ? "Make: " + escapeHtml(capitalizeWords(trade.make)) : ""}
-${trade.model ? "Model: " + escapeHtml(capitalizeWords(trade.model)) : ""}
-${trade.trim ? "Trim: " + escapeHtml(capitalizeWords(trade.trim)) : ""}
-${trade.mileage ? "Mileage: " + escapeHtml(formatMileage(trade.mileage) + " mi") : ""}
-${trade.exterior_color || trade.exteriorColor || trade.extColor || trade.color ? "Ext Color: " + escapeHtml(capitalizeWords(trade.exterior_color || trade.exteriorColor || trade.extColor || trade.color)) : ""}
-${trade.vin ? "VIN: " + escapeHtml(String(trade.vin).toUpperCase()) : ""}` : "No Trade-in"}
+${tradeDetailsText}
 ${additionalNotes ? `
 
 📝 <strong>Additional Notes</strong>
@@ -9884,7 +9938,17 @@ async function openSubmitOfferModal() {
   // Generate and display offer preview (now with populated form data)
   const previewElement = document.getElementById("offerPreviewText");
   if (previewElement) {
-    previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
+    try {
+      previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
+    } catch (error) {
+      console.error("[submit-offer] Unable to render preview:", error);
+      previewElement.innerHTML = `
+        <div class="offer-preview-error">
+          <p>We couldn't load the selected trade-in details. Please open My Garage, reselect your trade vehicle, and try again.</p>
+          <button type="button" class="btn btn-secondary" onclick="openMyGarageModal()">Open My Garage</button>
+        </div>
+      `;
+    }
   }
 
   modal.classList.add("active");
@@ -9894,7 +9958,6 @@ async function openPreviewFlow() {
   try {
     await ensureAprOptions();
   } catch (error) {
-    console.warn("[apr] Unable to preload APR options:", error);
   }
 
   if (customAprOverride !== null && Number.isFinite(customAprOverride)) {
@@ -10218,12 +10281,10 @@ async function pollSmsStatus(messageSid, maxAttempts = 15, interval = 1000) {
       const response = await fetch(`${API_BASE}/api/sms-status/${messageSid}`);
 
       if (!response.ok) {
-        console.warn(`[poll-sms] Status check failed (attempt ${i + 1})`);
         continue;
       }
 
       const data = await response.json();
-      console.log(`[poll-sms] Status: ${data.status} (attempt ${i + 1})`);
 
       // Terminal states - stop polling
       if (['delivered', 'sent', 'failed', 'undelivered'].includes(data.status)) {
@@ -10261,7 +10322,6 @@ async function showSendingProgress(options = {}) {
   const emailText = document.getElementById('progress-email-text');
 
   if (!progressEl || !progressBar) {
-    console.warn('[progress] Progress elements not found');
     return { smsStatus: null, emailStatus: null };
   }
 
@@ -10858,14 +10918,58 @@ function updateTaxInputs() {
   const stateTaxDisplay = document.getElementById("modal-state-tax");
   const countyTaxDisplay = document.getElementById("modal-county-tax");
   if (stateTaxDisplay) {
-    stateTaxDisplay.textContent =
-      (wizardData.fees?.stateTaxRate ?? 0).toFixed(2) + "%";
+    stateTaxDisplay.value = (wizardData.fees?.stateTaxRate ?? 0).toFixed(2);
   }
   if (countyTaxDisplay) {
-    countyTaxDisplay.textContent =
-      (wizardData.fees?.countyTaxRate ?? 0).toFixed(2) + "%";
+    countyTaxDisplay.value = (wizardData.fees?.countyTaxRate ?? 0).toFixed(2);
   }
   updateFeeSummary();
+  updateTaxOverrideIndicators();
+}
+
+function handleManualTaxRateInput(event) {
+  const input = event?.target;
+  if (!input) return;
+
+  ensureWizardFeeDefaults();
+  const numericValue = parseFloat(String(input.value).trim());
+  const sanitized = Number.isFinite(numericValue)
+    ? Math.max(numericValue, 0)
+    : 0;
+
+  if (input.id === "modal-state-tax") {
+    wizardData.fees.stateTaxRate = sanitized;
+  } else if (input.id === "modal-county-tax") {
+    wizardData.fees.countyTaxRate = sanitized;
+  } else {
+    return;
+  }
+
+  wizardData.fees.userTaxOverride = true;
+  input.value = sanitized.toFixed(2);
+
+  updateTaxInputs();
+  updateTaxLabels();
+  refreshReviewDebounced();
+  autoCalculateQuick().catch((error) => {
+    console.error("[taxes] Unable to refresh quick calculation:", error);
+  });
+}
+
+function updateTaxOverrideIndicators() {
+  const overrideActive = Boolean(wizardData.fees?.userTaxOverride);
+  if (typeof document !== "undefined") {
+    document.querySelectorAll(".tax-override-indicator").forEach((el) => {
+      el.style.display = overrideActive ? "inline-flex" : "none";
+    });
+  }
+
+  const note = document.getElementById("taxSourceNote");
+  if (note) {
+    note.textContent = overrideActive
+      ? "User-entered tax rates are applied. Live tax lookups are bypassed."
+      : "Taxes are based on your address entered above.";
+  }
 }
 
 function addFeeRow(categoryKey, initialData = {}) {
@@ -11650,7 +11754,6 @@ async function initializeQuickEntry() {
         };
       }
     } catch (error) {
-      console.warn("[init] Failed to geocode location from field:", error);
     }
   } else if (wizardData.location?.formatted_address) {
     quickLocation.value = wizardData.location.formatted_address;
@@ -11691,7 +11794,6 @@ async function initializeQuickEntry() {
             };
           }
         } catch (error) {
-          console.warn("[init] Failed to geocode saved location:", error);
         }
       }
     }
@@ -11735,7 +11837,6 @@ async function initializeQuickEntry() {
   setupQuickSavedVehicles();
 
   // Setup location autocomplete for Quick mode
-  setupQuickLocationAutocomplete();
   setupQuickLocationManualFallback();
 
   // Setup auto-calculation on input changes
@@ -11796,11 +11897,14 @@ function setupQuickSavedVehicles() {
   quickVin.addEventListener("click", showDropdown);
 
   quickVin.addEventListener("input", (e) => {
-    const value = e.target.value.toUpperCase().trim();
+    const rawValue = e.target.value;
+    const value = rawValue.toUpperCase().trim();
     if (value.length > 0) {
       filterQuickSavedVehicles(value);
     } else {
+      e.target.value = "";
       displayQuickSavedVehicles();
+      clearQuickVehicleSelection();
     }
   });
 
@@ -11985,7 +12089,6 @@ function displayQuickVehicleCard(vehicle) {
   const card = document.getElementById("quick-vehicle-card");
 
   if (!display || !card) {
-    console.warn("[quick-vehicle-card] Card container missing");
     return;
   }
 
@@ -12122,7 +12225,6 @@ function displayQuickVehicleCard(vehicle) {
         }
       })
       .catch((error) => {
-        console.warn("[vehicle-card] Could not get driving distance:", error);
       });
 
     // Display map with route
@@ -12133,7 +12235,6 @@ function displayQuickVehicleCard(vehicle) {
       vehicle.dealer_lng,
       dealerName
     ).catch((error) => {
-      console.warn("[vehicle-card] Could not display dealer map:", error);
     });
   } else {
     const distanceInfoEl = document.getElementById("vehicle-distance-info");
@@ -12151,6 +12252,52 @@ function displayQuickVehicleCard(vehicle) {
     }
     hideDealerMap();
   }
+}
+
+function hideQuickVehicleCard() {
+  const display = document.getElementById("quick-vehicle-display");
+  const card = document.getElementById("quick-vehicle-card");
+  if (display) display.style.display = "none";
+  if (card) card.innerHTML = "";
+  const mapContainer = document.getElementById("quick-dealer-map-container");
+  if (mapContainer) mapContainer.style.display = "none";
+  const mapCanvas = document.getElementById("quick-dealer-map");
+  if (mapCanvas) mapCanvas.innerHTML = "";
+}
+
+function clearQuickVehicleSelection() {
+  selectedVehicle = null;
+  wizardData.vehicle = null;
+  wizardData.financing = wizardData.financing || {};
+  wizardData.financing.salePrice = 0;
+
+  if (sliderPolarityMap?.salePrice?.setValue) {
+    sliderPolarityMap.salePrice.setValue(0);
+  }
+
+  const bindings = window.quickSliderBindings || {};
+  const saleBinding = bindings.salePrice;
+  if (saleBinding?.setBaseline) {
+    saleBinding.setBaseline(0, { updateWizard: true });
+  } else {
+    const saleSlider = document.getElementById("quickSliderSalePrice");
+    if (saleSlider) {
+      saleSlider.value = 0;
+      updateSliderProgress(saleSlider);
+      saleSlider.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+    const saleInput = document.getElementById("quickInputSalePrice");
+    if (saleInput) {
+      saleInput.value = formatCurrency(0, true, { showCents: true });
+    }
+  }
+
+  const hiddenPrice = document.getElementById("quick-vehicle-price");
+  if (hiddenPrice) hiddenPrice.value = "";
+
+  hideQuickVehicleCard();
+  resetQuickCalculationDisplay();
+  autoCalculateQuick().catch(() => {});
 }
 
 /**
@@ -12322,7 +12469,6 @@ function setupQuickLocationManualFallback() {
  */
 async function getDrivingDistance(originLat, originLon, destLat, destLon) {
   if (!window.google?.maps?.DistanceMatrixService) {
-    console.warn("[distance-api] Google Distance Matrix API not available");
     return null;
   }
 
@@ -12348,10 +12494,6 @@ async function getDrivingDistance(originLat, originLon, destLat, destLon) {
             distanceMiles: element.distance.value / 1609.34, // Convert meters to miles
           });
         } else {
-          console.warn(
-            "[distance-api] Distance Matrix request failed:",
-            status
-          );
           resolve(null);
         }
       });
@@ -12381,12 +12523,10 @@ async function displayDealerMapWithRoute(
   const mapElement = document.getElementById("quick-dealer-map");
 
   if (!mapContainer || !mapElement) {
-    console.warn("[dealer-map] Map container elements not found");
     return;
   }
 
   if (!window.google?.maps) {
-    console.warn("[dealer-map] Google Maps API not loaded");
     mapContainer.style.display = "none";
     return;
   }
@@ -12582,7 +12722,6 @@ function setupAprEditing() {
   const aprArrowRight = document.getElementById("aprArrowRight");
 
   if (!aprValue || !aprArrowLeft || !aprArrowRight) {
-    console.warn("[apr-editing] APR editing elements not found");
     return;
   }
 
@@ -12810,7 +12949,6 @@ function setupAprTooltip(aprValue) {
   const valueWrapper = aprValue.closest(".quick-til-value-wrapper");
 
   if (!tooltip || !tooltipPayment || !tooltipDiff || !valueWrapper) {
-    console.warn("[apr-tooltip] Tooltip elements not found");
     return () => {}; // Return empty function
   }
 
@@ -12893,7 +13031,6 @@ function setupTermEditing() {
   const termArrowRight = document.getElementById("termArrowRight");
 
   if (!termValue || !termArrowLeft || !termArrowRight) {
-    console.warn("[term-editing] Term editing elements not found");
     return;
   }
 
@@ -13113,7 +13250,6 @@ function setupTermTooltip(termValue) {
   const valueWrapper = termValue.closest(".quick-til-value-wrapper");
 
   if (!tooltip || !tooltipPayment || !tooltipDiff || !valueWrapper) {
-    console.warn("[term-tooltip] Tooltip elements not found");
     return () => {}; // Return empty function
   }
 
@@ -13200,7 +13336,6 @@ function setupMonthlyFinanceChargeTooltip() {
   );
 
   if (!monthlyFCValue || !tooltip || !tooltipAmount || !tooltipDiff) {
-    console.warn("[monthly-fc-tooltip] Tooltip elements not found");
     return;
   }
 
@@ -13426,22 +13561,11 @@ async function autoCalculateQuick() {
   let quickCreditScore = document.getElementById("quick-credit-score")?.value;
 
   // INSTRUMENTATION: Log all gathered values for debugging
-  console.log('🔍 [autoCalculateQuick] Gathered inputs:', {
-    quickVehiclePrice,
-    quickDownPayment,
-    quickLoanTerm,
-    quickCreditScore,
-    hasPrice: !!quickVehiclePrice,
-    priceValid: quickVehiclePrice > 0,
-    hasTerm: !!quickLoanTerm,
-    hasCredit: !!quickCreditScore
-  });
 
   // FIX: If credit score is not set, use a default value from user profile or "excellent" (750+)
   if (!quickCreditScore) {
     // Try to get from wizardData, otherwise default to 'excellent' (750+)
     quickCreditScore = wizardData?.financing?.creditScoreRange || 'excellent';
-    console.log('⚠️  [autoCalculateQuick] Credit score not set, defaulting to:', quickCreditScore);
 
     // Set it in the DOM so it shows up
     const creditScoreSelect = document.getElementById("quick-credit-score");
@@ -13457,16 +13581,10 @@ async function autoCalculateQuick() {
     !quickLoanTerm ||
     !quickCreditScore
   ) {
-    console.warn('⚠️  [autoCalculateQuick] Missing required inputs, cannot calculate:', {
-      hasPrice: !!quickVehiclePrice,
-      priceValid: quickVehiclePrice > 0,
-      hasTerm: !!quickLoanTerm,
-      hasCredit: !!quickCreditScore
-    });
+    resetQuickCalculationDisplay();
     return; // Silently return, don't show alerts
   }
 
-  console.log('✅ [autoCalculateQuick] All inputs valid, proceeding with calculation...');
 
   // Update wizard data
   wizardData.financing = {
@@ -13699,6 +13817,54 @@ async function autoCalculateQuick() {
 /**
  * Update tax labels to show state/county names and rates
  */
+function resetQuickCalculationDisplay() {
+  const currencyFields = [
+    "quickMonthlyPayment",
+    "quickTilFinanceCharge",
+    "quickTilAmountFinanced",
+    "quickTilTotalPayments",
+    "quickTilMonthlyFinanceCharge",
+    "quickCalcSalePrice",
+    "quickCalcCashDown",
+    "quickCalcTradeAllowance",
+    "quickCalcTradePayoff",
+    "quickCalcDealerFees",
+    "quickCalcCustomerAddons",
+    "quickCalcCustomerAddons",
+    "quickNetTrade",
+    "quickUnpaidBalance",
+    "quickOtherCharges",
+    "quickGovtFees",
+    "quickStateTax",
+    "quickCountyTax",
+    "quickSaleTaxTotal",
+    "quickAmountFinancedTotal",
+    "quickCashDueHighlight",
+  ];
+  const uniqueCurrencyFields = [...new Set(currencyFields)];
+  uniqueCurrencyFields.forEach((id) => setText(id, "$0.00"));
+  setText("quickTerm", "0 months");
+  setText("quickAPR", "0.00%");
+  setText("quickTilAPR", "0.00%");
+  setText("quickTilTerm", "0");
+  const lenderInfoEl = document.getElementById("quickLenderInfo");
+  if (lenderInfoEl) lenderInfoEl.style.display = "none";
+  const customAprBadge = document.getElementById("quickCustomAprBadge");
+  if (customAprBadge) customAprBadge.style.display = "none";
+  const lenderNameEl = document.getElementById("quickLenderName");
+  if (lenderNameEl) lenderNameEl.textContent = "";
+  const lenderDateEl = document.getElementById("quickLenderDate");
+  if (lenderDateEl) lenderDateEl.textContent = "";
+  const lenderDateSeparator = document.getElementById(
+    "quickLenderDateSeparator"
+  );
+  if (lenderDateSeparator) lenderDateSeparator.style.display = "none";
+  const lenderEffectiveDateEl = document.getElementById(
+    "lender-effective-date"
+  );
+  if (lenderEffectiveDateEl) lenderEffectiveDateEl.style.display = "none";
+}
+
 function updateTaxLabels() {
   ensureWizardFeeDefaults();
 
@@ -13706,32 +13872,41 @@ function updateTaxLabels() {
   const countyName = wizardData.location?.countyName || "";
   const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
   const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
+  const overrideActive = Boolean(wizardData.fees?.userTaxOverride);
 
   // Update quick entry tax labels
   const stateTaxLabel = document.getElementById("quickStateTaxLabel");
   const countyTaxLabel = document.getElementById("quickCountyTaxLabel");
+  const buildLabel = (baseHtml) =>
+    overrideActive
+      ? `${baseHtml} <span class="tax-override-pill">⚠ User Tax Rates Used</span>`
+      : baseHtml;
 
   if (stateTaxLabel) {
     if (stateCode) {
-      stateTaxLabel.textContent = `${stateCode} State Tax (${stateTaxRate.toFixed(
-        2
-      )}%)`;
+      const base = `${escapeHtml(
+        stateCode
+      )} State Tax (${stateTaxRate.toFixed(2)}%)`;
+      stateTaxLabel.innerHTML = buildLabel(base);
     } else {
-      stateTaxLabel.innerHTML = `State Tax (${stateTaxRate.toFixed(
+      const base = `State Tax (${stateTaxRate.toFixed(
         2
-      )}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+      )}%) <span class="tax-default-hint">Using default</span>`;
+      stateTaxLabel.innerHTML = buildLabel(base);
     }
   }
 
   if (countyTaxLabel) {
     if (countyName) {
-      countyTaxLabel.textContent = `${countyName} County Tax (${countyTaxRate.toFixed(
-        2
-      )}%)`;
+      const base = `${escapeHtml(
+        countyName
+      )} County Tax (${countyTaxRate.toFixed(2)}%)`;
+      countyTaxLabel.innerHTML = buildLabel(base);
     } else {
-      countyTaxLabel.innerHTML = `County Tax (${countyTaxRate.toFixed(
+      const base = `County Tax (${countyTaxRate.toFixed(
         2
-      )}%) <span style="font-size: 10px; opacity: 0.7;">- using default</span>`;
+      )}%) <span class="tax-default-hint">Using default</span>`;
+      countyTaxLabel.innerHTML = buildLabel(base);
     }
   }
 
@@ -13778,6 +13953,8 @@ function updateTaxLabels() {
       contractCountyTaxLabel.textContent = "County Tax";
     }
   }
+
+  updateTaxOverrideIndicators();
 }
 
 /**
@@ -13846,11 +14023,6 @@ function setupQuickSliders() {
       : null;
 
     if (!slider || !input) {
-      console.warn('[slider] Missing elements', {
-        field,
-        sliderId: meta.sliderId,
-        inputId: meta.inputId,
-      });
       return;
     }
 
@@ -14222,7 +14394,6 @@ function setupQuickSliders() {
 }
 
 function initializeCenteredSliders() {
-  console.log('🎚️  initializeCenteredSliders called, wizardData:', wizardData);
   ensureWizardFeeDefaults();
 
   const financing = wizardData.financing || {};
@@ -14241,7 +14412,6 @@ function initializeCenteredSliders() {
       }
     } catch (e) {
       // eslint-disable-next-line no-console
-      console.warn('[sliders] Unable to set cashDown maxCeil:', e);
     }
   } else {
     delete sliderPolarityMap.cashDown.maxCeil;
@@ -14262,7 +14432,6 @@ function initializeCenteredSliders() {
     addons: Number(fees.customerAddons) || 0,
   };
 
-  console.log('🎚️  Applying slider baselines:', baselineValues);
 
   const bindings = window.quickSliderBindings || {};
 

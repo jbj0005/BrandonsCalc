@@ -234,10 +234,27 @@ function mcUrl(path, params = {}, apiKey = MARKETCHECK_API_KEY) {
   return u.toString();
 }
 
+function logMarketCheckRateLimits(response) {
+  if (!response?.headers) return;
+  const interesting = [];
+  response.headers.forEach((value, key) => {
+    if (/rate-?limit/i.test(key)) {
+      interesting.push(`${key}: ${value}`);
+    }
+  });
+  if (interesting.length) {
+    console.info(
+      "[mc] Rate limit status →",
+      interesting.join(" | ")
+    );
+  }
+}
+
 async function getJson(url) {
   const hit = cache.get(url);
   if (hit) return hit;
   const r = await fetch(url, { headers: { Accept: "application/json" } });
+  logMarketCheckRateLimits(r);
   if (!r.ok) {
     const bodyText = await r.text().catch(() => "");
     const error = new Error(

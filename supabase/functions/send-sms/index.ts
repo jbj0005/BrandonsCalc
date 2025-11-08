@@ -48,7 +48,6 @@ serve(async (req) => {
   try {
     // Parse request body
     const requestData = await req.json() as SMSOfferRequest;
-    console.log('SMS request received:', requestData);
 
     // Validate required fields
     if (!requestData.to || !requestData.dealerName) {
@@ -122,7 +121,6 @@ serve(async (req) => {
       throw new Error(twilioData.message || 'Failed to send SMS');
     }
 
-    console.log('SMS sent successfully:', twilioData.sid);
 
     // Log to database
     const logEntry = {

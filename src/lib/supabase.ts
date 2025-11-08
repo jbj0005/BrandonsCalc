@@ -18,8 +18,6 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'YOUR_ANON_KEY_HERE') {
-  console.warn('⚠️  Supabase environment variables not configured. Using fallback.');
-  console.warn('Please add VITE_SUPABASE_ANON_KEY to your .env file');
   // Use empty strings as fallback to prevent page from breaking
   // The app will still work but Supabase features will be limited
 }

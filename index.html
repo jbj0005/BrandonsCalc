@@ -480,7 +480,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">Sale Price</div>
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderSalePrice"
+                      id="quickSalePriceLabel"
+                    >
+                      Sale Price
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -495,6 +501,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputSalePrice"
+                          aria-labelledby="quickSalePriceLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -522,7 +529,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">Cash Down</div>
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderCashDown"
+                      id="quickCashDownLabel"
+                    >
+                      Cash Down
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -537,6 +550,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputCashDown"
+                          aria-labelledby="quickCashDownLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -564,7 +578,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">Trade-In Allowance</div>
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderTradeAllowance"
+                      id="quickTradeAllowanceLabel"
+                    >
+                      Trade-In Allowance
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -579,6 +599,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputTradeAllowance"
+                          aria-labelledby="quickTradeAllowanceLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -606,7 +627,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">Trade-In Payoff</div>
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderTradePayoff"
+                      id="quickTradePayoffLabel"
+                    >
+                      Trade-In Payoff
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -621,6 +648,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputTradePayoff"
+                          aria-labelledby="quickTradePayoffLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -674,7 +702,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">Total Dealer Fees</div>
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderDealerFees"
+                      id="quickDealerFeesLabel"
+                    >
+                      Total Dealer Fees
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -689,6 +723,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputDealerFees"
+                          aria-labelledby="quickDealerFeesLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -716,9 +751,13 @@
                     >
                       $0/mo
                     </div>
-                    <div class="quick-adjustment-label">
+                    <label
+                      class="quick-adjustment-label"
+                      for="quickSliderCustomerAddons"
+                      id="quickCustomerAddonsLabel"
+                    >
                       Total Customer Add-ons
-                    </div>
+                    </label>
                     <div class="quick-slider-control slider-row">
                       <input
                         type="range"
@@ -733,6 +772,7 @@
                           type="text"
                           class="quick-value-input"
                           id="quickInputCustomerAddons"
+                          aria-labelledby="quickCustomerAddonsLabel"
                         />
                         <div
                           class="quick-diff-indicator"
@@ -1032,26 +1072,44 @@
             <h4>Taxes</h4>
           </div>
           <div class="fees-tax-grid">
-            <label class="fees-tax-grid__label" for="modal-state-tax"
-              >State Tax Rate</label
-            >
+            <label class="fees-tax-grid__label" for="modal-state-tax" id="modalStateTaxLabel">
+              <span>State Tax Rate</span>
+              <span
+                class="tax-override-indicator"
+                id="stateTaxOverrideIndicator"
+                role="status"
+                aria-live="polite"
+              >
+                ⚠ User Tax Rates Used
+              </span>
+            </label>
             <input
-              type="text"
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0"
               id="modal-state-tax"
-              class="form-input form-input--readonly"
-              readonly
-              disabled
+              class="form-input"
               value="6.00"
             />
-            <label class="fees-tax-grid__label" for="modal-county-tax"
-              >County Tax Rate</label
-            >
+            <label class="fees-tax-grid__label" for="modal-county-tax" id="modalCountyTaxLabel">
+              <span>County Tax Rate</span>
+              <span
+                class="tax-override-indicator"
+                id="countyTaxOverrideIndicator"
+                role="status"
+                aria-live="polite"
+              >
+                ⚠ User Tax Rates Used
+              </span>
+            </label>
             <input
-              type="text"
+              type="number"
+              inputmode="decimal"
+              step="0.01"
+              min="0"
               id="modal-county-tax"
-              class="form-input form-input--readonly"
-              readonly
-              disabled
+              class="form-input"
               value="1.00"
             />
           </div>
@@ -1072,7 +1130,7 @@
               >$0.00</span
             >
           </div>
-          <p class="fees-summary__link" style="cursor: default">
+          <p class="fees-summary__link" style="cursor: default" id="taxSourceNote">
             Taxes are based on your address entered above.
           </p>
         </div>
@@ -2177,6 +2235,7 @@
           <div class="profile-section">
             <h3 class="profile-section-title">Additional Notes (Optional)</h3>
             <div class="form-group">
+              <label class="form-label" for="submitOfferNotes">Notes</label>
               <textarea
                 id="submitOfferNotes"
                 class="form-textarea"
@@ -2317,15 +2376,11 @@
               stroke="currentColor"
               stroke-width="2"
             >
+              <!-- Dollar Sign -->
               <path
                 stroke-linecap="round"
                 stroke-linejoin="round"
-                d="M17 9V7a2 2 0 0 0-2-2H7L3 9v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"
-              />
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M17 16l2 2 4-4"
+                d="M12 2v20M17 5H9.5a3.5 3.5 0 100 7h5a3.5 3.5 0 110 7H6"
               />
             </svg>
           </div>
