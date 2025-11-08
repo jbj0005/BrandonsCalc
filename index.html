@@ -489,7 +489,7 @@
                         d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
                       ></path>
                     </svg>
-                    Edit Fees & Taxes
+                    Add Dealer & Gov't Fees
                   </button>
                 </div>
 
@@ -523,15 +523,6 @@
                           id="quickDiffSalePrice"
                           style="display: none"
                         ></div>
-                        <button
-                          type="button"
-                          class="quick-baseline-btn"
-                          id="quickBaselineSalePrice"
-                          style="display: none"
-                          title="Set as baseline"
-                        >
-                          📌
-                        </button>
                         <button
                           type="button"
                           class="quick-reset-btn"
@@ -947,7 +938,7 @@
           </svg>
         </button>
 
-        <h3 class="modal-title">Enter Fees & Taxes</h3>
+        <h3 class="modal-title">Enter Your Fees</h3>
         <div class="modal-toolbar">
           <p class="modal-description">
             Tune the fees that roll into your amount financed. We’ll auto-save
@@ -2052,7 +2043,21 @@
         <div class="submit-offer-body">
           <!-- Offer Preview -->
           <div class="offer-preview-section">
-            <h3 class="section-title">Offer Preview</h3>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 class="section-title" style="margin: 0;">Offer Preview</h3>
+              <button
+                type="button"
+                onclick="closeSubmitOfferModal()"
+                style="padding: 8px 16px; background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); border: none; border-radius: 8px; color: white; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
+                onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'"
+              >
+                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                </svg>
+                Back to Calculator
+              </button>
+            </div>
             <div class="offer-preview-box">
               <div id="offerPreviewText" class="offer-preview-text">
                 Loading offer...
@@ -2065,13 +2070,13 @@
             <h3 class="profile-section-title">Your Information</h3>
             <div class="form-group">
               <label class="form-label" for="submitCustomerName"
-                >Full Name *</label
+                >Name *</label
               >
               <input
                 type="text"
                 id="submitCustomerName"
                 class="form-input"
-                placeholder="John Smith"
+                placeholder="John"
                 required
               />
             </div>
@@ -2105,67 +2110,66 @@
 
           <!-- Dealer Information -->
           <div class="profile-section">
-            <h3 class="profile-section-title">Dealer Contact</h3>
-            <div class="form-group">
-              <label class="form-label" for="submitDealershipName"
-                >Dealership Name</label
-              >
-              <input
-                type="text"
-                id="submitDealershipName"
-                class="form-input"
-                placeholder="ABC Motors"
-              />
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <h3 class="profile-section-title" style="margin: 0;">Dealer Contact</h3>
+              <button type="button" id="toggleDealerEdit" onclick="toggleDealerEditMode()" style="padding: 4px 12px; font-size: 14px; cursor: pointer; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px;">
+                Edit
+              </button>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="submitDealerAddress"
-                >Address</label
-              >
-              <input
-                type="text"
-                id="submitDealerAddress"
-                class="form-input"
-                placeholder="123 Main St, City, ST 12345"
-              />
-            </div>
-            <div class="form-row-2col">
-              <div class="form-group">
-                <label class="form-label" for="submitDealerPhone"
-                  >Phone</label
-                >
-                <input
-                  type="tel"
-                  id="submitDealerPhone"
-                  class="form-input"
-                  placeholder="(555) 987-6543"
-                />
+
+            <!-- View Mode (clickable links) -->
+            <div id="dealerViewMode">
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Dealership</label>
+                <div id="dealerNameDisplay" style="font-size: 16px; color: #111827;">—</div>
               </div>
-              <div class="form-group">
-                <label class="form-label" for="submitDealerEmail"
-                  >Email</label
-                >
-                <input
-                  type="email"
-                  id="submitDealerEmail"
-                  class="form-input"
-                  placeholder="dealer@example.com"
-                />
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Address</label>
+                <div id="dealerAddressDisplay" style="font-size: 14px; color: #374151;">—</div>
+              </div>
+              <div class="form-row-2col" style="margin-bottom: 12px;">
+                <div class="form-group">
+                  <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Phone</label>
+                  <a id="dealerPhoneDisplay" href="#" style="font-size: 14px; color: #2563eb; text-decoration: none;">—</a>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Email</label>
+                  <a id="dealerEmailDisplay" href="#" style="font-size: 14px; color: #2563eb; text-decoration: none;">—</a>
+                </div>
+              </div>
+              <div class="form-group" style="margin-bottom: 12px;">
+                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Vehicle Listing</label>
+                <a id="dealerUrlDisplay" href="#" target="_blank" style="font-size: 14px; color: #2563eb; text-decoration: none; word-break: break-all;">—</a>
               </div>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="submitVehicleUrl"
-                >Vehicle Listing URL</label
-              >
-              <input
-                type="url"
-                id="submitVehicleUrl"
-                class="form-input"
-                placeholder="https://..."
-              />
+
+            <!-- Edit Mode (inputs) -->
+            <div id="dealerEditMode" style="display: none;">
+              <div class="form-group">
+                <label class="form-label" for="submitDealershipName">Dealership Name</label>
+                <input type="text" id="submitDealershipName" class="form-input" placeholder="ABC Motors" />
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="submitDealerAddress">Address</label>
+                <input type="text" id="submitDealerAddress" class="form-input" placeholder="123 Main St, City, ST 12345" />
+              </div>
+              <div class="form-row-2col">
+                <div class="form-group">
+                  <label class="form-label" for="submitDealerPhone">Phone</label>
+                  <input type="tel" id="submitDealerPhone" class="form-input" placeholder="(555) 987-6543" />
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="submitDealerEmail">Email</label>
+                  <input type="email" id="submitDealerEmail" class="form-input" placeholder="dealer@example.com" />
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="submitVehicleUrl">Vehicle Listing URL</label>
+                <input type="url" id="submitVehicleUrl" class="form-input" placeholder="https://..." />
+              </div>
             </div>
-            <small class="form-hint"
-              >At least one contact method (phone or email) is required</small
-            >
+
+            <small class="form-hint">At least one contact method (phone or email) is required</small>
           </div>
 
           <!-- Additional Notes -->

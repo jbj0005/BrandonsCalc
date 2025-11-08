@@ -51,6 +51,7 @@ const GOOGLE_MAPS_MAP_ID_FALLBACK =
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID || "";
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN || "";
 const TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER || "";
+const TWILIO_VERIFIED_NUMBER = process.env.TWILIO_VERIFIED_NUMBER || ""; // For trial account testing
 const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
   ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
   : null;
@@ -1380,6 +1381,19 @@ app.post("/api/send-sms", async (req, res) => {
       ? recipientPhone
       : `+1${cleanPhone}`;
 
+    // Test Mode: Override recipient phone if TWILIO_VERIFIED_NUMBER is set (for trial accounts)
+    let actualRecipient = formattedPhone;
+    let isTestMode = false;
+    let requestedPhone = formattedPhone;
+
+    if (TWILIO_VERIFIED_NUMBER) {
+      actualRecipient = TWILIO_VERIFIED_NUMBER.startsWith('+')
+        ? TWILIO_VERIFIED_NUMBER
+        : `+1${TWILIO_VERIFIED_NUMBER.replace(/\D/g, '')}`;
+      isTestMode = true;
+      console.log(`[send-sms] TEST MODE: Overriding recipient from ${formattedPhone} to verified number ${actualRecipient}`);
+    }
+
     // Generate offer view URL
     const baseUrl = process.env.BASE_URL || `http://localhost:${PORT}`;
     const offerUrl = `${baseUrl}/offer.html?id=${offerId}`;
@@ -1409,13 +1423,13 @@ app.post("/api/send-sms", async (req, res) => {
 
     const message = messageSegments.join("\n\n");
 
-    console.log(`[send-sms] Sending SMS to ${formattedPhone}`);
+    console.log(`[send-sms] Sending SMS to ${actualRecipient}`);
 
     // Send SMS via Twilio
     const twilioMessage = await twilioClient.messages.create({
       body: message,
       from: TWILIO_PHONE_NUMBER,
-      to: formattedPhone
+      to: actualRecipient
     });
 
     console.log(`[send-sms] SMS sent successfully. SID: ${twilioMessage.sid}`);
@@ -1424,7 +1438,9 @@ app.post("/api/send-sms", async (req, res) => {
       ok: true,
       messageSid: twilioMessage.sid,
       status: twilioMessage.status,
-      to: formattedPhone
+      to: actualRecipient,
+      testMode: isTestMode,
+      requestedPhone: isTestMode ? requestedPhone : undefined
     });
 
   } catch (err) {

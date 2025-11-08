@@ -308,106 +308,112 @@ export interface Database {
       customer_offers: {
         Row: {
           id: string
+          customer_profile_id: string
+          offer_name: string
+          status: string
           user_id: string | null
-          vehicle_year: number
-          vehicle_make: string
-          vehicle_model: string
+          vehicle_year: number | null
+          vehicle_make: string | null
+          vehicle_model: string | null
           vehicle_trim: string | null
-          vehicle_price: number
+          vehicle_vin: string | null
+          vehicle_mileage: number | null
+          vehicle_condition: string | null
+          vehicle_price: number | null
+          offer_price: number | null
           down_payment: number | null
           trade_value: number | null
           trade_payoff: number | null
-          apr: number
-          term_months: number
-          monthly_payment: number
+          trade_in_details: Json | null
+          apr: number | null
+          term_months: number | null
+          monthly_payment: number | null
           dealer_fees: number | null
           customer_addons: number | null
-          state_tax_rate: number | null
-          county_tax_rate: number | null
-          total_tax: number | null
-          amount_financed: number
-          finance_charge: number
-          total_of_payments: number
           customer_name: string | null
           customer_email: string | null
           customer_phone: string | null
-          customer_location: string | null
+          customer_address: string | null
           dealer_name: string | null
-          dealer_phone: string | null
           dealer_address: string | null
-          status: string | null
-          share_token: string | null
-          viewed_at: string | null
+          dealer_phone: string | null
+          offer_text: string | null
+          submitted_at: string | null
+          closed_at: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
+          customer_profile_id: string
+          offer_name: string
+          status?: string
           user_id?: string | null
-          vehicle_year: number
-          vehicle_make: string
-          vehicle_model: string
+          vehicle_year?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
           vehicle_trim?: string | null
-          vehicle_price: number
+          vehicle_vin?: string | null
+          vehicle_mileage?: number | null
+          vehicle_condition?: string | null
+          vehicle_price?: number | null
+          offer_price?: number | null
           down_payment?: number | null
           trade_value?: number | null
           trade_payoff?: number | null
-          apr: number
-          term_months: number
-          monthly_payment: number
+          trade_in_details?: Json | null
+          apr?: number | null
+          term_months?: number | null
+          monthly_payment?: number | null
           dealer_fees?: number | null
           customer_addons?: number | null
-          state_tax_rate?: number | null
-          county_tax_rate?: number | null
-          total_tax?: number | null
-          amount_financed: number
-          finance_charge: number
-          total_of_payments: number
           customer_name?: string | null
           customer_email?: string | null
           customer_phone?: string | null
-          customer_location?: string | null
+          customer_address?: string | null
           dealer_name?: string | null
-          dealer_phone?: string | null
           dealer_address?: string | null
-          status?: string | null
-          share_token?: string | null
-          viewed_at?: string | null
+          dealer_phone?: string | null
+          offer_text?: string | null
+          submitted_at?: string | null
+          closed_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
+          customer_profile_id?: string
+          offer_name?: string
+          status?: string
           user_id?: string | null
-          vehicle_year?: number
-          vehicle_make?: string
-          vehicle_model?: string
+          vehicle_year?: number | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
           vehicle_trim?: string | null
-          vehicle_price?: number
+          vehicle_vin?: string | null
+          vehicle_mileage?: number | null
+          vehicle_condition?: string | null
+          vehicle_price?: number | null
+          offer_price?: number | null
           down_payment?: number | null
           trade_value?: number | null
           trade_payoff?: number | null
-          apr?: number
-          term_months?: number
-          monthly_payment?: number
+          trade_in_details?: Json | null
+          apr?: number | null
+          term_months?: number | null
+          monthly_payment?: number | null
           dealer_fees?: number | null
           customer_addons?: number | null
-          state_tax_rate?: number | null
-          county_tax_rate?: number | null
-          total_tax?: number | null
-          amount_financed?: number
-          finance_charge?: number
-          total_of_payments?: number
           customer_name?: string | null
           customer_email?: string | null
           customer_phone?: string | null
-          customer_location?: string | null
+          customer_address?: string | null
           dealer_name?: string | null
-          dealer_phone?: string | null
           dealer_address?: string | null
-          status?: string | null
-          share_token?: string | null
-          viewed_at?: string | null
+          dealer_phone?: string | null
+          offer_text?: string | null
+          submitted_at?: string | null
+          closed_at?: string | null
           created_at?: string
           updated_at?: string
         }

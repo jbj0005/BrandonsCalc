@@ -7,6 +7,9 @@
 -- Drop the restrictive SELECT policy
 DROP POLICY IF EXISTS "Users can view own offers" ON customer_offers;
 
+-- Ensure we don't fail if the public policy already exists
+DROP POLICY IF EXISTS "Anyone can view offers with link" ON customer_offers;
+
 -- Create new policy that allows anyone to view any offer
 -- This is secure because:
 -- 1. UUIDs are unguessable (cryptographically random)

@@ -249,6 +249,18 @@ function normalizeCurrencyNumber(value) {
   return Math.round(value * 100) / 100;
 }
 
+function formatPhoneNumber(phone) {
+  if (!phone) return "";
+  // Remove all non-digit characters
+  const digits = phone.replace(/\D/g, "");
+  // Format as (XXX) XXX-XXXX
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  }
+  // Return original if not 10 digits
+  return phone;
+}
+
 function toTitleCase(str) {
   return String(str)
     .toLowerCase()
@@ -620,6 +632,35 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateTaxInputs();
   // Note: loadSavedVehicles() will be called automatically when profile-loaded event fires
   await loadLenders(); // Load lenders for rate comparison
+
+  // Setup phone number auto-formatting for customer phone input
+  const customerPhoneInput = document.getElementById("submitCustomerPhone");
+  if (customerPhoneInput) {
+    customerPhoneInput.addEventListener("input", function(e) {
+      // Get raw input value
+      let value = e.target.value.replace(/\D/g, ""); // Remove all non-digits
+
+      // Limit to 10 digits
+      if (value.length > 10) {
+        value = value.slice(0, 10);
+      }
+
+      // Format as (XXX) XXX-XXXX
+      let formatted = "";
+      if (value.length > 0) {
+        formatted = "(" + value.substring(0, 3);
+        if (value.length >= 4) {
+          formatted += ") " + value.substring(3, 6);
+          if (value.length >= 7) {
+            formatted += "-" + value.substring(6, 10);
+          }
+        }
+      }
+
+      // Update input value with formatted version
+      e.target.value = formatted;
+    });
+  }
 
   // ============================================
   // PHASE 1: Initialize TypeScript Modules
@@ -7236,7 +7277,6 @@ const sliderPolarityMap = {
     inputId: "quickInputSalePrice",
     diffId: "quickDiffSalePrice",
     resetId: "quickResetSalePrice",
-    baselineId: "quickBaselineSalePrice",
     positiveDirection: "left",
     colorPositive: SLIDER_GRADIENT_POSITIVE,
     colorNegative: SLIDER_GRADIENT_NEGATIVE,
@@ -7521,7 +7561,7 @@ function updateSliderVisual(slider, visualValue, originActual, meta) {
   slider.style.background = gradient;
 }
 
-function updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, value, origin, meta) {
+function updateDiffIndicatorState(diffIndicator, resetBtn, value, origin, meta) {
   if (!diffIndicator) return;
   const diff = value - origin;
   const buyerPositive = computeBuyerPositive(meta, diff);
@@ -7529,7 +7569,6 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, value, o
   if (diff === 0) {
     diffIndicator.style.display = "none";
     if (resetBtn) resetBtn.style.display = "none";
-    if (baselineBtn) baselineBtn.style.display = "none";
     return;
   }
 
@@ -7542,10 +7581,9 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, value, o
   if (!diffText) {
     diffText = document.createElement("span");
     diffText.className = "diff-text";
-    // Insert before first button (baseline or reset)
-    const firstButton = baselineBtn || resetBtn;
-    if (firstButton) {
-      diffIndicator.insertBefore(diffText, firstButton);
+    // Insert before reset button
+    if (resetBtn) {
+      diffIndicator.insertBefore(diffText, resetBtn);
     } else {
       diffIndicator.appendChild(diffText);
     }
@@ -7554,11 +7592,6 @@ function updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, value, o
   diffText.textContent = `${formatSliderValue(diff, meta, {
     includeSign: true,
   })}`;
-
-  // Show baseline button when there's a diff (allows setting current value as new baseline)
-  if (baselineBtn) {
-    baselineBtn.style.display = "inline-flex";
-  }
 
   if (resetBtn) {
     resetBtn.style.display = "inline-flex";
@@ -9146,65 +9179,174 @@ async function saveOffer(offerData) {
     const offerName = `${vehicleInfo} – ${paymentLabel}/mo – ${timestamp}`;
 
     console.log("[save-offer] Saving offer for user:", authStore.user.id);
+    console.log("[save-offer] Review data:", reviewData);
 
-    // Prepare offer data
+    // Get or create customer profile
+    let customerProfileId = localStorage.getItem("customerProfileId");
+
+    if (!customerProfileId) {
+      console.log("[save-offer] No customerProfileId in localStorage, querying database...");
+      const { data: profile } = await supabase
+        .from("customer_profiles")
+        .select("id")
+        .eq("user_id", authStore.user.id)
+        .single();
+
+      if (profile) {
+        customerProfileId = profile.id;
+        localStorage.setItem("customerProfileId", customerProfileId);
+        console.log("[save-offer] Found existing profile:", customerProfileId);
+      } else {
+        // Create a new customer profile
+        console.log("[save-offer] Creating new customer profile...");
+        const { data: newProfile, error: profileError } = await supabase
+          .from("customer_profiles")
+          .insert({
+            user_id: authStore.user.id,
+            email: authStore.user.email || offerData.customerEmail || "",
+            full_name: offerData.customerName || null,
+            phone: offerData.customerPhone || null,
+          })
+          .select()
+          .single();
+
+        if (profileError) {
+          console.error("[save-offer] Error creating customer profile:", profileError);
+          throw new Error("Failed to create customer profile: " + profileError.message);
+        }
+
+        customerProfileId = newProfile.id;
+        localStorage.setItem("customerProfileId", customerProfileId);
+        console.log("[save-offer] Created new profile:", customerProfileId);
+      }
+    }
+
+    // Prepare offer data matching the ACTUAL schema (verified from DB)
     const offer = {
+      // Required NOT NULL fields
       user_id: authStore.user.id,
+      customer_profile_id: customerProfileId,
       offer_name: offerName,
       status: "active",
 
-      // Vehicle details
-      vehicle_year: vehicle.year,
-      vehicle_make: vehicle.make,
-      vehicle_model: vehicle.model,
-      vehicle_trim: vehicle.trim,
-      vehicle_vin: vehicle.vin,
-      vehicle_mileage: vehicle.mileage,
+      // Vehicle fields (all nullable)
+      vehicle_year: vehicle.year || null,
+      vehicle_make: vehicle.make || null,
+      vehicle_model: vehicle.model || null,
+      vehicle_trim: vehicle.trim || null,
+      vehicle_vin: vehicle.vin || null,
+      vehicle_mileage: vehicle.mileage || null,
       vehicle_condition: deriveSaleCondition(vehicle) || null,
+      vehicle_price: reviewData.salePrice || null,
+      offer_price: reviewData.salePrice || null,
 
-      // Dealer details
-      dealer_name: dealer.name,
-      dealer_address: dealer.address,
-      dealer_phone: dealer.phone,
+      // Financing fields (all nullable)
+      apr: reviewData.apr || null,
+      term_months: reviewData.term || null,
+      monthly_payment: reviewData.monthlyPayment || null,
+      down_payment: reviewData.cashDown || null,
 
-      // Offer pricing
-      offer_price: reviewData.salePrice,
-      down_payment: reviewData.cashDown,
+      // Trade-in (nullable)
+      trade_value: trade?.value || reviewData.tradeOffer || null,
+      trade_payoff: trade?.payoff || reviewData.tradePayoff || null,
 
-      // Trade-in details (if any)
-      trade_in_details:
-        trade.vehicles && trade.vehicles.length > 0 ? trade.vehicles : null,
+      // Fees (nullable)
+      dealer_fees: reviewData.totalDealerFees || null,
+      customer_addons: reviewData.totalCustomerAddons || null,
 
-      // Financing details
-      apr: reviewData.apr,
-      term_months: reviewData.term,
-      monthly_payment: reviewData.monthlyPayment,
+      // Customer contact (all nullable)
+      customer_name: offerData.customerName || null,
+      customer_email: offerData.customerEmail || null,
+      customer_phone: offerData.customerPhone || null,
+      customer_address: wizardData.location?.fullAddress || null,
 
-      // Full offer text
-      offer_text: offerData.offerText,
+      // Dealer details (all nullable)
+      dealer_name: dealer.name || null,
+      dealer_address: dealer.address || null,
+      dealer_phone: dealer.phone || null,
 
-      // Customer contact
-      customer_name: offerData.customerName,
-      customer_email: offerData.customerEmail,
-      customer_phone: offerData.customerPhone,
-      customer_address: wizardData.location?.fullAddress || "",
+      // Offer text (nullable)
+      offer_text: offerData.offerText || null,
     };
 
-    // Save to database
-    const { data, error } = await supabase
-      .from("customer_offers")
-      .insert([offer])
-      .select()
-      .single();
+    console.log("[save-offer] ✅ Prepared offer object:");
+    console.log("  → user_id:", offer.user_id);
+    console.log("  → vehicle:", `${offer.vehicle_year} ${offer.vehicle_make} ${offer.vehicle_model}`);
+    console.log("  → vehicle_price:", offer.vehicle_price);
+    console.log("  → apr:", offer.apr);
+    console.log("  → term_months:", offer.term_months);
+    console.log("  → Full object:", JSON.stringify(offer, null, 2));
 
-    if (error) {
-      console.error("[save-offer] Error saving offer:", error);
+    // Save to database with graceful fallback when the remote schema is behind
+    const offerForInsert = { ...offer };
+    const strippedColumns = [];
+
+    const extractMissingColumn = (err) => {
+      if (!err) return null;
+      const sources = [err.message, err.details, err.hint].filter(Boolean);
+      for (const source of sources) {
+        const match = source.match(/'([^']+)' column/);
+        if (match && match[1] && match[1] !== "customer_offers") {
+          return match[1];
+        }
+      }
+      return null;
+    };
+
+    let data = null;
+    let error = null;
+    let attempt = 0;
+
+    while (true) {
+      attempt += 1;
+      const insertResult = await supabase
+        .from("customer_offers")
+        .insert(offerForInsert)
+        .select();
+
+      error = insertResult.error;
+      data = insertResult.data ? insertResult.data[0] : null;
+
+      if (!error) {
+        if (strippedColumns.length) {
+          console.warn(
+            "[save-offer] Insert succeeded after omitting columns:",
+            strippedColumns
+          );
+        }
+        break;
+      }
+
+      const missingColumn =
+        error.code === "PGRST204" ? extractMissingColumn(error) : null;
+
+      if (missingColumn && missingColumn in offerForInsert) {
+        strippedColumns.push(missingColumn);
+        delete offerForInsert[missingColumn];
+        console.warn(
+          `[save-offer] Column "${missingColumn}" missing in customer_offers; retrying without it (attempt ${attempt +
+            1}).`
+        );
+        continue;
+      }
+
+      console.error("[save-offer] ❌ Supabase error saving offer");
+      console.error("  → Message:", error.message);
+      console.error("  → Details:", error.details);
+      console.error("  → Hint:", error.hint);
+      console.error("  → Code:", error.code);
+      console.error("  → Full error:", error);
       throw error;
     }
 
+    console.log("[save-offer] Offer saved successfully:", data);
     return data;
   } catch (error) {
-    console.error("[save-offer] Error:", error);
+    console.error("[save-offer] Caught error:", {
+      message: error.message,
+      stack: error.stack,
+      fullError: error
+    });
     return null;
   }
 }
@@ -9293,10 +9435,10 @@ function buildOfferPreviewHtml(reviewData = {}) {
     : tradeAllowanceValue - tradePayoffValue;
 
   // PRECISION: Show cents for critical financial values
-  const paymentLabel =
-    monthlyPaymentValue > 0
-      ? `${formatCurrency(monthlyPaymentValue, true, { showCents: true })}/mo`
-      : null;
+  // Format APR and Term for hero subtitle (reuse existing termValue and aprDecimal)
+  const financeLabel = aprDecimal > 0 && termValue > 0
+    ? `${(aprDecimal * 100).toFixed(2)}% APR • ${termValue} months`
+    : null;
 
   const conditionText =
     getVehicleSaleConditionText(deriveSaleCondition(vehicle)) || "—";
@@ -9330,7 +9472,8 @@ function buildOfferPreviewHtml(reviewData = {}) {
   // Get customer contact info from form fields
   const customerName = document.getElementById("submitCustomerName")?.value || "";
   const customerEmail = document.getElementById("submitCustomerEmail")?.value || "";
-  const customerPhone = document.getElementById("submitCustomerPhone")?.value || "";
+  const customerPhoneRaw = document.getElementById("submitCustomerPhone")?.value || "";
+  const customerPhone = formatPhoneNumber(customerPhoneRaw);
 
   const gridItem = (label, value) => {
     const display =
@@ -9358,7 +9501,7 @@ function buildOfferPreviewHtml(reviewData = {}) {
   ].join("");
 
   const dealGrid = [
-    gridItem("Monthly Payment", paymentLabel || "—"),
+    gridItem("Monthly Payment", monthlyPaymentValue > 0 ? `${formatCurrency(monthlyPaymentValue, true, { showCents: true })}/mo` : "—"),
     gridItem("APR", formatPercent(aprDecimal)),
     gridItem("Term", termValue ? `${termValue} mos` : "—"),
     gridItem("Cash Down", formatCurrency(cashDownValue, true, { showCents: true })),
@@ -9408,8 +9551,8 @@ function buildOfferPreviewHtml(reviewData = {}) {
             : "Custom Offer"
         )}</span>
         ${
-          paymentLabel
-            ? `<span class="offer-preview-hero-subtitle">${escapeHtml(paymentLabel)}</span>`
+          financeLabel
+            ? `<span class="offer-preview-hero-subtitle">${escapeHtml(financeLabel)}</span>`
             : ""
         }
       </div>
@@ -9424,13 +9567,11 @@ function buildOfferPreviewHtml(reviewData = {}) {
 
 🚗 <strong>VEHICLE PURCHASE OFFER</strong>
 
-💵 <strong>Customer Offer</strong>
-${
+💵 <strong>My Offer:</strong>
+${escapeHtml(formatCurrency(salePriceValue, true, { showCents: true }))}${
             askingPriceValue > 0
-              ? `${escapeHtml(formatCurrency(askingPriceValue, true, { showCents: true }))} > My Offer: ${escapeHtml(
-                  formatCurrency(salePriceValue, true, { showCents: true })
-                )}`
-              : `My Offer: ${escapeHtml(formatCurrency(salePriceValue, true, { showCents: true }))}`
+              ? ` (List Price: ${escapeHtml(formatCurrency(askingPriceValue, true, { showCents: true }))})`
+              : ""
           }
 
 🚗 <strong>Vehicle Details</strong>
@@ -9446,7 +9587,12 @@ VIN: ${escapeHtml(vinText)}
 👤 <strong>Customer Contact</strong>
 Name: ${escapeHtml(customerName || "(not provided)")}
 Email: ${escapeHtml(customerEmail || "(not provided)")}
-Phone: ${escapeHtml(customerPhone || "(not provided)")}</div>
+Phone: ${escapeHtml(customerPhone || "(not provided)")}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+<strong>Built By:</strong>
+Brandon's Calculator Copyright 2026
+https://github.com/jbj0005/BrandonsCalc</div>
         </div>
       </div>
     </div>
@@ -9661,17 +9807,17 @@ async function openSubmitOfferModal() {
 
   const reviewData = await computeReviewData();
 
-  // Generate and display offer preview
-  const previewElement = document.getElementById("offerPreviewText");
-  if (previewElement) {
-    previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
-  }
-
-  // Auto-populate customer information from profile
+  // Auto-populate customer information from profile FIRST (before building preview)
   await loadCustomerDataForSubmission();
 
   // Auto-populate dealer information from wizardData
   await loadDealerDataForSubmission();
+
+  // Generate and display offer preview (now with populated form data)
+  const previewElement = document.getElementById("offerPreviewText");
+  if (previewElement) {
+    previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
+  }
 
   modal.classList.add("active");
   modal.style.display = "flex";
@@ -9737,13 +9883,10 @@ async function loadCustomerDataForSubmission() {
 async function loadDealerDataForSubmission() {
   const vehicle = wizardData.vehicle || {};
 
-  // Populate dealer fields from vehicle data if available
-  if (vehicle.dealer_name) {
-    document.getElementById("submitDealershipName").value = vehicle.dealer_name;
-  }
-  if (vehicle.dealer_phone) {
-    document.getElementById("submitDealerPhone").value = vehicle.dealer_phone;
-  }
+  const dealerName = vehicle.dealer_name || "";
+  const dealerPhone = vehicle.dealer_phone || "";
+  const dealerEmail = ""; // Not provided by vehicle data
+  const listingUrl = vehicle.listing_url || "";
 
   // Build dealer address from components
   const addressParts = [];
@@ -9751,14 +9894,108 @@ async function loadDealerDataForSubmission() {
   if (vehicle.dealer_city) addressParts.push(vehicle.dealer_city);
   if (vehicle.dealer_state) addressParts.push(vehicle.dealer_state);
   if (vehicle.dealer_zip) addressParts.push(vehicle.dealer_zip);
+  const dealerAddress = addressParts.join(", ");
 
-  if (addressParts.length > 0) {
-    document.getElementById("submitDealerAddress").value = addressParts.join(", ");
+  // Populate input fields (edit mode)
+  document.getElementById("submitDealershipName").value = dealerName;
+  document.getElementById("submitDealerPhone").value = dealerPhone;
+  document.getElementById("submitDealerEmail").value = dealerEmail;
+  document.getElementById("submitDealerAddress").value = dealerAddress;
+  document.getElementById("submitVehicleUrl").value = listingUrl;
+
+  // Populate display elements (view mode)
+  document.getElementById("dealerNameDisplay").textContent = dealerName || "—";
+  document.getElementById("dealerAddressDisplay").textContent = dealerAddress || "—";
+
+  const phoneDisplay = document.getElementById("dealerPhoneDisplay");
+  if (dealerPhone) {
+    const formattedPhone = formatPhoneNumber(dealerPhone);
+    phoneDisplay.textContent = formattedPhone;
+    phoneDisplay.href = `tel:${dealerPhone.replace(/\D/g, "")}`;
+  } else {
+    phoneDisplay.textContent = "—";
+    phoneDisplay.href = "#";
   }
 
-  // Set vehicle listing URL
-  if (vehicle.listing_url) {
-    document.getElementById("submitVehicleUrl").value = vehicle.listing_url;
+  const emailDisplay = document.getElementById("dealerEmailDisplay");
+  if (dealerEmail) {
+    emailDisplay.textContent = dealerEmail;
+    emailDisplay.href = `mailto:${dealerEmail}`;
+  } else {
+    emailDisplay.textContent = "—";
+    emailDisplay.href = "#";
+  }
+
+  const urlDisplay = document.getElementById("dealerUrlDisplay");
+  if (listingUrl) {
+    urlDisplay.textContent = listingUrl.length > 50 ? listingUrl.substring(0, 50) + "..." : listingUrl;
+    urlDisplay.href = listingUrl;
+  } else {
+    urlDisplay.textContent = "—";
+    urlDisplay.href = "#";
+  }
+}
+
+/**
+ * Toggle between view and edit modes for dealer contact info
+ */
+function toggleDealerEditMode() {
+  const viewMode = document.getElementById("dealerViewMode");
+  const editMode = document.getElementById("dealerEditMode");
+  const toggleBtn = document.getElementById("toggleDealerEdit");
+
+  if (editMode.style.display === "none") {
+    // Switch to edit mode
+    viewMode.style.display = "none";
+    editMode.style.display = "block";
+    toggleBtn.textContent = "Done";
+  } else {
+    // Switch to view mode and sync values
+    const dealerName = document.getElementById("submitDealershipName").value;
+    const dealerPhone = document.getElementById("submitDealerPhone").value;
+    const dealerEmail = document.getElementById("submitDealerEmail").value;
+    const dealerAddress = document.getElementById("submitDealerAddress").value;
+    const dealerUrl = document.getElementById("submitVehicleUrl").value;
+
+    // Update display elements
+    document.getElementById("dealerNameDisplay").textContent = dealerName || "—";
+    document.getElementById("dealerAddressDisplay").textContent = dealerAddress || "—";
+
+    // Update phone display and link
+    const phoneDisplay = document.getElementById("dealerPhoneDisplay");
+    if (dealerPhone) {
+      const formattedPhone = formatPhoneNumber(dealerPhone);
+      phoneDisplay.textContent = formattedPhone;
+      phoneDisplay.href = `tel:${dealerPhone.replace(/\D/g, "")}`;
+    } else {
+      phoneDisplay.textContent = "—";
+      phoneDisplay.href = "#";
+    }
+
+    // Update email display and link
+    const emailDisplay = document.getElementById("dealerEmailDisplay");
+    if (dealerEmail) {
+      emailDisplay.textContent = dealerEmail;
+      emailDisplay.href = `mailto:${dealerEmail}`;
+    } else {
+      emailDisplay.textContent = "—";
+      emailDisplay.href = "#";
+    }
+
+    // Update URL display and link
+    const urlDisplay = document.getElementById("dealerUrlDisplay");
+    if (dealerUrl) {
+      urlDisplay.textContent = dealerUrl.length > 50 ? dealerUrl.substring(0, 50) + "..." : dealerUrl;
+      urlDisplay.href = dealerUrl;
+    } else {
+      urlDisplay.textContent = "—";
+      urlDisplay.href = "#";
+    }
+
+    // Switch back to view mode
+    editMode.style.display = "none";
+    viewMode.style.display = "block";
+    toggleBtn.textContent = "Edit";
   }
 }
 
@@ -9988,6 +10225,17 @@ async function handleSmsOffer() {
 
     const result = await response.json();
 
+    // Check if test mode was used (Twilio trial account restriction)
+    if (result.testMode) {
+      const maskedVerified = result.to.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
+      const maskedRequested = result.requestedPhone.replace(/(\+1)(\d{3})(\d{3})(\d{4})/, '$1 ($2) $3-$4');
+      showToast(
+        `🧪 TEST MODE: SMS sent to verified number ${maskedVerified} instead of dealer number ${maskedRequested} due to Twilio trial account restrictions.`,
+        "warning",
+        5000
+      );
+    }
+
     // Success - show toast and close modals
     await handleSubmissionSuccess();
   } catch (error) {
@@ -10099,8 +10347,10 @@ async function handleSubmissionSuccess() {
   showToast("Offer sent successfully!", "success");
 
   // Open My Offers modal to show saved offer
-  if (typeof openMyOffersModal === 'function') {
-    await openMyOffersModal();
+  if (typeof window.openMyOffersModal === 'function') {
+    await window.openMyOffersModal();
+  } else {
+    console.error("openMyOffersModal function not found");
   }
 
   // Scroll to top
@@ -10254,6 +10504,7 @@ async function saveOfferToDatabase(
 window.formatOfferText = formatOfferText;
 window.openSubmitOfferModal = openSubmitOfferModal;
 window.closeSubmitOfferModal = closeSubmitOfferModal;
+window.toggleDealerEditMode = toggleDealerEditMode;
 window.handleShareOffer = handleShareOffer;
 window.handleEmailOffer = handleEmailOffer;
 window.handleSmsOffer = handleSmsOffer;
@@ -13299,9 +13550,6 @@ function setupQuickSliders() {
     const resetBtn = meta.resetId
       ? document.getElementById(meta.resetId)
       : null;
-    const baselineBtn = meta.baselineId
-      ? document.getElementById(meta.baselineId)
-      : null;
 
     if (!slider || !input) {
       console.warn('[slider] Missing elements', {
@@ -13312,11 +13560,8 @@ function setupQuickSliders() {
       return;
     }
 
-    // Append buttons to diff indicator in order: baseline, then reset
+    // Append reset button to diff indicator
     if (diffIndicator) {
-      if (baselineBtn && baselineBtn.parentElement !== diffIndicator) {
-        diffIndicator.appendChild(baselineBtn);
-      }
       if (resetBtn && resetBtn.parentElement !== diffIndicator) {
         diffIndicator.appendChild(resetBtn);
       }
@@ -13403,7 +13648,6 @@ function setupQuickSliders() {
       updateDiffIndicatorState(
         diffIndicator,
         resetBtn,
-        baselineBtn,
         actualValue,
         baseline,
         meta
@@ -13487,7 +13731,7 @@ function setupQuickSliders() {
     const visualOrigin = getSliderVisualOrigin(slider);
     input.value = formatSliderInputValue(baseline, meta);
     updateSliderVisual(slider, visualOrigin, baseline, meta);
-    updateDiffIndicatorState(diffIndicator, resetBtn, baselineBtn, baseline, baseline, meta);
+    updateDiffIndicatorState(diffIndicator, resetBtn, baseline, baseline, meta);
 
     applyActualValue(baseline, {
       triggerThrottle: false,
@@ -13515,6 +13759,7 @@ function setupQuickSliders() {
       applyActualValue(parsed, {
         triggerThrottle: false,
         updateWizard: true,
+        preserveExact: true,
       });
       await autoCalculateQuick();
     });
@@ -13532,46 +13777,6 @@ function setupQuickSliders() {
           triggerThrottle: false,
           updateWizard: true,
         });
-        await autoCalculateQuick();
-        hideSliderTooltip();
-      });
-    }
-
-    // BASELINE BUTTON: Set current value as new baseline for calculations
-    if (baselineBtn) {
-      baselineBtn.addEventListener('click', async () => {
-        let currentActual = Number(slider.dataset.currentActual);
-        if (!Number.isFinite(currentActual)) {
-          const parsedFromInput = parseSliderInputValue(input.value, meta);
-          if (Number.isFinite(parsedFromInput)) {
-            currentActual = parsedFromInput;
-          } else {
-            const currentVisual = parseFloat(slider.value);
-            currentActual = convertVisualToActual(slider, currentVisual);
-          }
-        }
-
-        const binding = quickSliderBindings[field];
-        if (binding?.setBaseline) {
-          binding.setBaseline(currentActual, {
-            apply: true,
-            updateWizard: true,
-          });
-        } else {
-          slider.dataset.origin = currentActual;
-          window.sliderOriginalValues[meta.sliderId] = currentActual;
-          setSliderVisualOrigin(slider, currentActual);
-          configureSliderRange(slider, currentActual, meta, currentActual);
-          applyActualValue(currentActual, {
-            triggerThrottle: false,
-            updateWizard: true,
-          });
-        }
-
-        if (window.resetTilBaselines) {
-          window.resetTilBaselines();
-        }
-
         await autoCalculateQuick();
         hideSliderTooltip();
       });
@@ -13687,7 +13892,6 @@ function setupQuickSliders() {
           updateDiffIndicatorState(
             diffIndicator,
             resetBtn,
-            baselineBtn,
             baselineValue,
             baselineValue,
             meta
