@@ -9640,7 +9640,7 @@ Mileage: ${escapeHtml(mileageText)}
 VIN: ${escapeHtml(vinText)}
 
 🔄 <strong>Trade-In</strong>
-${tradeAllowanceValue || tradePayoffValue ? `${trade.year ? "Year: " + escapeHtml(trade.year) : ""}
+${Array.isArray(wizardData.trade?.vehicles) && wizardData.trade.vehicles.length > 0 ? `${trade.year ? "Year: " + escapeHtml(trade.year) : ""}
 ${trade.make ? "Make: " + escapeHtml(capitalizeWords(trade.make)) : ""}
 ${trade.model ? "Model: " + escapeHtml(capitalizeWords(trade.model)) : ""}
 ${trade.trim ? "Trim: " + escapeHtml(capitalizeWords(trade.trim)) : ""}
@@ -9901,12 +9901,6 @@ async function openSubmitOfferModal() {
       const updatedReviewData = await computeReviewData();
       if (previewElement) {
         previewElement.innerHTML = buildOfferPreviewHtml(updatedReviewData);
-
-        // Scroll to preview to show the newly added note
-        const previewSection = document.querySelector(".offer-preview-section");
-        if (previewSection) {
-          previewSection.scrollIntoView({ behavior: "smooth", block: "start" });
-        }
       }
     };
 
