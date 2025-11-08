@@ -12682,7 +12682,7 @@ function setupAprTooltip(aprValue) {
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.textContent = "No change";
       tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable) instead of accounting format
@@ -12692,7 +12692,7 @@ function setupAprTooltip(aprValue) {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       });
-      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
+      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo`;
       // Buyer-centric: lower payment = positive (green), higher = negative (red)
       tooltipDiff.className =
         diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
@@ -12985,7 +12985,7 @@ function setupTermTooltip(termValue) {
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.textContent = "No change";
       tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable)
@@ -12994,7 +12994,7 @@ function setupTermTooltip(termValue) {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       });
-      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
+      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo`;
       // Buyer-centric: lower payment = positive (green), higher = negative (red)
       tooltipDiff.className =
         diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
@@ -13072,7 +13072,7 @@ function setupMonthlyFinanceChargeTooltip() {
 
     // Format difference with buyer-centric color
     if (Math.abs(diff) < 1) {
-      tooltipDiff.textContent = "Same as original";
+      tooltipDiff.textContent = "No change";
       tooltipDiff.className = "apr-tooltip__diff neutral";
     } else {
       // Format as +/- (human readable)
@@ -13081,7 +13081,7 @@ function setupMonthlyFinanceChargeTooltip() {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
       });
-      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo from original`;
+      tooltipDiff.textContent = `${sign}$${formattedDiff}/mo`;
       // Buyer-centric: lower interest = positive (green), higher = negative (red)
       tooltipDiff.className =
         diff > 0 ? "apr-tooltip__diff negative" : "apr-tooltip__diff positive";
