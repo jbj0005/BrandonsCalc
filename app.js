@@ -9012,7 +9012,14 @@ function displayOffersList(offers, containerId) {
               Close Offer
             </button>
           `
-              : ""
+              : `
+            <button class="offer-card-btn danger" onclick="deleteOffer('${offer.id}')">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+              Delete
+            </button>
+          `
           }
         </div>
       </div>
@@ -9142,6 +9149,41 @@ async function closeOffer(offerId) {
 }
 
 /**
+ * Delete a closed offer permanently
+ */
+async function deleteOffer(offerId) {
+  if (
+    !confirm(
+      "Delete this offer permanently? This action cannot be undone."
+    )
+  ) {
+    return;
+  }
+
+  try {
+    // Delete the offer from the database
+    const { error: deleteError } = await supabase
+      .from("customer_offers")
+      .delete()
+      .eq("id", offerId);
+
+    if (deleteError) {
+      console.error("[delete-offer] Error:", deleteError);
+      showToast("Failed to delete offer", "error");
+      return;
+    }
+
+    showToast("Offer deleted successfully", "success");
+
+    // Reload offers to update UI
+    await loadMyOffers();
+  } catch (error) {
+    console.error("[delete-offer] Error:", error);
+    showToast("Failed to delete offer", "error");
+  }
+}
+
+/**
  * Save a new offer to the database
  */
 async function saveOffer(offerData) {
@@ -9162,21 +9204,32 @@ async function saveOffer(offerData) {
     const dealer = wizardData.dealer || {};
     const trade = wizardData.trade || {};
 
-    // Generate offer name
-    const vehicleInfo =
-      `${vehicle.year || ""} ${vehicle.make || ""} ${
-        vehicle.model || ""
-      }`.trim() || "Custom Offer";
-    const paymentLabel = formatCurrency(
-      reviewData.monthlyPayment || 0
-    );
+    // Generate offer name: [Year, Make, Model, Trim, Ext Color, Offer Price, APR, timestamp]
+    const offerParts = [];
+
+    if (vehicle.year) offerParts.push(vehicle.year);
+    if (vehicle.make) offerParts.push(vehicle.make);
+    if (vehicle.model) offerParts.push(vehicle.model);
+    if (vehicle.trim) offerParts.push(vehicle.trim);
+
+    const extColor = vehicle.exterior_color || vehicle.extColor || vehicle.ext_color;
+    if (extColor) offerParts.push(extColor);
+
+    const offerPrice = reviewData.salePrice || 0;
+    if (offerPrice > 0) offerParts.push(formatCurrency(offerPrice, true, { showCents: false }));
+
+    const aprValue = reviewData.apr || 0;
+    if (aprValue > 0) offerParts.push(`${(aprValue * 100).toFixed(2)}%`);
+
     const timestamp = new Date().toLocaleString("en-US", {
       month: "short",
       day: "2-digit",
       hour: "2-digit",
       minute: "2-digit",
     });
-    const offerName = `${vehicleInfo} – ${paymentLabel}/mo – ${timestamp}`;
+    offerParts.push(timestamp);
+
+    const offerName = offerParts.length > 1 ? offerParts.join(" – ") : "Custom Offer";
 
     console.log("[save-offer] Saving offer for user:", authStore.user.id);
     console.log("[save-offer] Review data:", reviewData);
@@ -9356,6 +9409,7 @@ window.closeMyOffersModal = closeMyOffersModal;
 window.switchOffersTab = switchOffersTab;
 window.viewOfferDetails = viewOfferDetails;
 window.closeOffer = closeOffer;
+window.deleteOffer = deleteOffer;
 window.saveOffer = saveOffer;
 console.log('✅ [app.js] My Offers modal functions exported to window');
 
@@ -10236,8 +10290,42 @@ async function handleSmsOffer() {
       );
     }
 
-    // Success - show toast and close modals
-    await handleSubmissionSuccess();
+    // Also send email copy to user
+    if (customerEmail) {
+      try {
+        const emailResponse = await fetch("/api/send-email", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            offerId: savedOffer.id,
+            recipientEmail: customerEmail,
+            recipientName: customerName,
+            offerText,
+            offerSummary: smsSummary,
+            vehicleInfo: offerName,
+          }),
+        });
+
+        if (emailResponse.ok) {
+          const emailResult = await emailResponse.json();
+          showToast(
+            `📧 Offer copy sent to ${customerEmail}`,
+            "success",
+            4000
+          );
+        } else {
+          console.warn("[sms] Failed to send email copy to user");
+        }
+      } catch (emailError) {
+        console.error("[sms] Error sending email copy:", emailError);
+        // Don't fail the whole operation if email fails
+      }
+    }
+
+    // Success - show toast and close modals (delay 7s to show test mode toast)
+    await handleSubmissionSuccess(7000);
   } catch (error) {
     console.error("Error sending SMS:", error);
     alert(`Error sending text message: ${error.message}`);
@@ -10335,8 +10423,9 @@ function validateSubmissionForm() {
 
 /**
  * Handle successful submission
+ * @param {number} delayMs - Optional delay in milliseconds before opening My Offers modal
  */
-async function handleSubmissionSuccess() {
+async function handleSubmissionSuccess(delayMs = 0) {
   // Close the submit offer modal
   closeSubmitOfferModal();
 
@@ -10346,11 +10435,21 @@ async function handleSubmissionSuccess() {
   // Show success toast
   showToast("Offer sent successfully!", "success");
 
-  // Open My Offers modal to show saved offer
-  if (typeof window.openMyOffersModal === 'function') {
-    await window.openMyOffersModal();
+  // Open My Offers modal to show saved offer (with optional delay)
+  if (delayMs > 0) {
+    setTimeout(async () => {
+      if (typeof window.openMyOffersModal === 'function') {
+        await window.openMyOffersModal();
+      } else {
+        console.error("openMyOffersModal function not found");
+      }
+    }, delayMs);
   } else {
-    console.error("openMyOffersModal function not found");
+    if (typeof window.openMyOffersModal === 'function') {
+      await window.openMyOffersModal();
+    } else {
+      console.error("openMyOffersModal function not found");
+    }
   }
 
   // Scroll to top

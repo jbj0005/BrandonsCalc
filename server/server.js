@@ -6,6 +6,7 @@ import { fetch } from "undici";
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import twilio from 'twilio';
+import sgMail from '@sendgrid/mail';
 import {
   MARKETCHECK_ENDPOINTS,
   VIN_ENRICHMENT_ENDPOINTS,
@@ -55,6 +56,16 @@ const TWILIO_VERIFIED_NUMBER = process.env.TWILIO_VERIFIED_NUMBER || ""; // For 
 const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
   ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
   : null;
+
+// SendGrid Configuration
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
+const EMAIL_FROM = process.env.EMAIL_FROM || "";
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+  console.log("[sendgrid] API key configured");
+} else {
+  console.warn("[sendgrid] API key not set; email functionality will be disabled");
+}
 
 let MARKETCHECK_API_KEY =
   (process.env.MARKETCHECK_API_KEY || process.env.MARKETCHECK_KEY || "").trim();
@@ -1457,6 +1468,116 @@ app.post("/api/send-sms", async (req, res) => {
 
     res.status(500).json({
       error: "Failed to send SMS",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
+// POST /api/send-email
+// Send email to user with offer copy
+app.post("/api/send-email", async (req, res) => {
+  try {
+    const {
+      offerId,
+      recipientEmail,
+      recipientName,
+      offerText,
+      offerSummary,
+      vehicleInfo
+    } = req.body;
+
+    if (!recipientEmail) {
+      return res.status(400).json({ error: "recipientEmail is required" });
+    }
+
+    if (!offerText) {
+      return res.status(400).json({ error: "offerText is required" });
+    }
+
+    const subject = vehicleInfo
+      ? `Your Vehicle Offer - ${vehicleInfo}`
+      : "Your Vehicle Offer";
+
+    // Check if SendGrid is configured
+    if (!SENDGRID_API_KEY || !EMAIL_FROM) {
+      console.warn("[send-email] SendGrid not configured");
+      return res.status(500).json({
+        error: "Email service not configured",
+        detail: "SENDGRID_API_KEY and EMAIL_FROM must be set in .env"
+      });
+    }
+
+    console.log("[send-email] Sending email to:", recipientEmail);
+    console.log("[send-email] Subject:", subject);
+    console.log("[send-email] Offer ID:", offerId);
+
+    // Prepare email content
+    const greeting = recipientName ? `Hi ${recipientName},` : "Hi,";
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #333;">Your Vehicle Offer</h2>
+        <p>${greeting}</p>
+        <p>Thank you for using Brandon's Calculator. Here's a copy of your vehicle offer for your records:</p>
+
+        ${offerSummary ? `<div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+          <pre style="margin: 0; font-family: monospace; white-space: pre-wrap;">${offerSummary}</pre>
+        </div>` : ''}
+
+        <div style="background-color: #f9f9f9; padding: 20px; border-left: 4px solid #007bff; margin: 20px 0;">
+          <pre style="margin: 0; font-family: monospace; white-space: pre-wrap;">${offerText}</pre>
+        </div>
+
+        <p style="color: #666; font-size: 12px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+          <strong>Brandon's Calculator</strong><br>
+          Generated with <a href="https://github.com/jbj0005/BrandonsCalc">Brandon's Calculator</a><br>
+          Copyright 2026
+        </p>
+      </div>
+    `;
+
+    const textContent = `
+${greeting}
+
+Thank you for using Brandon's Calculator. Here's a copy of your vehicle offer for your records:
+
+${offerSummary || ''}
+
+${offerText}
+
+---
+Brandon's Calculator
+Generated with Brandon's Calculator
+https://github.com/jbj0005/BrandonsCalc
+Copyright 2026
+    `.trim();
+
+    // Send email via SendGrid
+    const msg = {
+      to: recipientEmail,
+      from: EMAIL_FROM,
+      subject: subject,
+      text: textContent,
+      html: htmlContent
+    };
+
+    try {
+      await sgMail.send(msg);
+      console.log(`[send-email] Email sent successfully to ${recipientEmail}`);
+
+      return res.json({
+        ok: true,
+        to: recipientEmail,
+        subject: subject
+      });
+    } catch (sendError) {
+      console.error("[send-email] SendGrid error:", sendError);
+      throw sendError;
+    }
+
+  } catch (err) {
+    console.error("[send-email] error:", err);
+    res.status(500).json({
+      error: "Failed to send email",
       detail: err?.message || "Unknown error"
     });
   }

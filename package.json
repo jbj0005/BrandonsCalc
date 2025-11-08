@@ -18,6 +18,7 @@
     "mcp:install": "npm install --save-dev @modelcontextprotocol/server-filesystem @modelcontextprotocol/server-git"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.45.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
