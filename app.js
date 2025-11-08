@@ -9887,28 +9887,6 @@ async function openSubmitOfferModal() {
     previewElement.innerHTML = buildOfferPreviewHtml(reviewData);
   }
 
-  // Add event listener to Additional Notes textarea to update preview and scroll
-  const notesTextarea = document.getElementById("submitOfferNotes");
-  if (notesTextarea) {
-    // Remove any existing listener to avoid duplicates
-    const existingListener = notesTextarea._previewUpdateListener;
-    if (existingListener) {
-      notesTextarea.removeEventListener("input", existingListener);
-    }
-
-    // Create new listener
-    const updatePreview = async () => {
-      const updatedReviewData = await computeReviewData();
-      if (previewElement) {
-        previewElement.innerHTML = buildOfferPreviewHtml(updatedReviewData);
-      }
-    };
-
-    // Store listener reference for later removal
-    notesTextarea._previewUpdateListener = updatePreview;
-    notesTextarea.addEventListener("input", updatePreview);
-  }
-
   modal.classList.add("active");
   modal.style.display = "flex";
 }
