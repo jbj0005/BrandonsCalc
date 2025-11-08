@@ -4092,13 +4092,26 @@ body {
   border-radius: var(--radius-md);
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.12);
-  transition: all var(--transition-base);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* When any slider is hovered, blur all children in the list */
+.quick-adjustments-list:has(.quick-adjustment:hover) > * {
+  filter: blur(0.5px);
+  opacity: 0.6;
+  transform: scale(0.98);
+}
+
+/* Remove blur and enhance the hovered slider */
 .quick-adjustment:hover {
+  filter: blur(0px) !important;
+  opacity: 1 !important;
+  transform: scale(1.02) !important;
   background: #ffffff;
-  border-color: rgba(14, 165, 233, 0.25);
-  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.08);
+  border-color: rgba(14, 165, 233, 0.4);
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
+  z-index: 10;
+  position: relative;
 }
 
 .quick-adjustment-label {
@@ -4723,6 +4736,14 @@ body {
   border-color: var(--primary);
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Wrapper for standalone button - compensates for parent gap */
+.btn-edit-fees-wrapper {
+  display: flex;
+  justify-content: flex-end;
+  margin: -0.5rem 0 -0.5rem 0;
+  padding: 0.5rem 0;
 }
 
 .btn-review-contract {
