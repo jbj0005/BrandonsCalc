@@ -905,6 +905,15 @@ document.addEventListener("DOMContentLoaded", async () => {
       vinInput.dispatchEvent(new Event('input', { bubbles: true }));
     }
 
+    // Reset financing controls to defaults when switching vehicles
+    const termDropdown = document.getElementById('quick-loan-term');
+    if (termDropdown) {
+      termDropdown.value = '72'; // Reset to default 72 months
+    }
+
+    // Reset custom APR override
+    customAprOverride = null;
+
     // Determine sale price from available fields
     const salePrice = vehicle.asking_price || vehicle.price || vehicle.estimated_value || vehicle.msrp;
 
@@ -921,6 +930,11 @@ document.addEventListener("DOMContentLoaded", async () => {
         saleCondition: deriveSaleCondition({ year: vehicle.year, condition: vehicle.saleCondition || vehicle.condition }),
         mileage: vehicle.mileage || 0
       };
+
+      // Reset financing term to default
+      if (wizardData.financing) {
+        wizardData.financing.term = 72;
+      }
 
       // Set sale price
 
@@ -12403,8 +12417,20 @@ async function selectQuickSavedVehicle(vehicle) {
   // Reset original values for diff indicators (new baseline)
   resetOriginalMonthlyPayment();
 
+  // Reset financing controls to defaults when switching vehicles
+  const termDropdown = document.getElementById('quick-loan-term');
+  if (termDropdown) {
+    termDropdown.value = '72'; // Reset to default 72 months
+  }
+
   // Reset custom APR override when vehicle changes
   customAprOverride = null;
+
+  // Reset financing term in wizardData to default
+  if (wizardData.financing) {
+    wizardData.financing.term = 72;
+  }
+
   // Reset tooltip original values
   if (window.resetAprTooltipOriginal) window.resetAprTooltipOriginal();
   if (window.resetTermTooltipOriginal) window.resetTermTooltipOriginal();
