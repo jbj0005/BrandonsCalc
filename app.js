@@ -167,6 +167,14 @@ let savedVehicles = [];
 let selectedVehicle = null;
 let quickEntryInitialized = false;
 let similarVehicles = [];
+let emailHandshakeUI = null;
+const isDevEnvironment =
+  window.location.hostname.includes("localhost") ||
+  window.location.hostname.startsWith("127.") ||
+  window.location.hostname === "0.0.0.0" ||
+  new URLSearchParams(window.location.search).has("devsend");
+let devSendPreference = null; // "dev" | "prod"
+let sendModeModalUI = null;
 
 // Google Places
 let placesAutocomplete = null;
@@ -622,6 +630,14 @@ document.addEventListener("DOMContentLoaded", async () => {
   initializeFeeModal();
   await loadFeeSuggestionData();
   updateTaxInputs();
+  emailHandshakeUI = {
+    modal: document.getElementById("email-handshake-modal"),
+    icon: document.getElementById("emailHandshakeIcon"),
+    title: document.getElementById("emailHandshakeTitle"),
+    message: document.getElementById("emailHandshakeMessage"),
+    progress: document.getElementById("emailHandshakeProgress"),
+    actions: document.getElementById("emailHandshakeActions"),
+  };
   // Note: loadSavedVehicles() will be called automatically when profile-loaded event fires
   await loadLenders(); // Load lenders for rate comparison
 
@@ -6113,6 +6129,8 @@ function showAprConfirmationModal() {
   const customRateEl = document.getElementById("aprConfirmCustomRate");
   const newRateEl = document.getElementById("aprResetNewValue");
   const usedRateEl = document.getElementById("aprResetUsedValue");
+  const diffRow = document.getElementById("aprConfirmDiffRow");
+  const diffEl = document.getElementById("aprConfirmDiff");
 
   if (lenderRateEl) {
     lenderRateEl.textContent = formatPercent(lenderRateInfo.apr);
@@ -6134,6 +6152,31 @@ function showAprConfirmationModal() {
     usedRateEl.textContent = aprOptions.used
       ? formatPercent(aprOptions.used.apr)
       : "--%";
+  }
+
+  if (diffRow && diffEl) {
+    if (
+      Number.isFinite(customAprOverride) &&
+      Number.isFinite(lenderRateInfo.apr)
+    ) {
+      diffRow.style.display = "flex";
+      const diffPoints = (lenderRateInfo.apr - customAprOverride) * 100;
+      if (Math.abs(diffPoints) < 0.005) {
+        diffEl.textContent = "No change";
+        diffEl.className = "apr-detail-value apr-detail-diff neutral";
+      } else {
+        const sign = diffPoints > 0 ? "+" : "-";
+        const formatted = Math.abs(diffPoints).toFixed(2);
+        diffEl.textContent = `${sign}${formatted} pts`;
+        diffEl.className = `apr-detail-value apr-detail-diff ${
+          diffPoints > 0 ? "positive" : "negative"
+        }`;
+      }
+    } else {
+      diffRow.style.display = "none";
+      diffEl.textContent = "--";
+      diffEl.className = "apr-detail-value apr-detail-diff";
+    }
   }
 
   modal.classList.add("active");
@@ -7803,7 +7846,16 @@ async function openMyGarageModal() {
     document.addEventListener("keydown", window.__myGarageEscHandler);
   }
 
-  await loadGarageVehicles();
+  const cachedVehicles = useGarageStore.getState().vehicles || [];
+  if (cachedVehicles.length > 0) {
+    renderGarageVehiclesList(cachedVehicles);
+  } else {
+    showGarageEmptyState();
+  }
+
+  loadGarageVehicles().catch((error) => {
+    console.error("[My Garage] Unable to refresh vehicles:", error);
+  });
 }
 
 /**
@@ -7838,31 +7890,35 @@ async function loadGarageVehicles() {
 
     if (error) throw error;
 
-    const vehicleList = document.getElementById("garage-vehicle-list");
-    const emptyState = document.getElementById("garage-empty-state");
-
-    if (!vehicles || vehicles.length === 0) {
-      showGarageEmptyState();
-      return;
-    }
-
-    // Hide empty state
-    if (emptyState) emptyState.style.display = "none";
-
-    // Render vehicles
-    vehicleList.innerHTML = vehicles
-      .map((vehicle) => renderGarageVehicleCard(vehicle))
-      .join("");
-
-    // Restore trade-in selections
-    selectedTradeIns.forEach((vehicleId) => {
-      const checkbox = document.getElementById(`tradein-checkbox-${vehicleId}`);
-      if (checkbox) checkbox.checked = true;
-    });
+    useGarageStore.getState().setVehicles(vehicles || []);
+    renderGarageVehiclesList(vehicles || []);
   } catch (error) {
     console.error("Error loading garage vehicles:", error);
     showGarageEmptyState();
   }
+}
+
+function renderGarageVehiclesList(vehicles = []) {
+  const vehicleList = document.getElementById("garage-vehicle-list");
+  const emptyState = document.getElementById("garage-empty-state");
+
+  if (!vehicles || vehicles.length === 0) {
+    showGarageEmptyState();
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = "none";
+
+  if (vehicleList) {
+    vehicleList.innerHTML = vehicles
+      .map((vehicle) => renderGarageVehicleCard(vehicle))
+      .join("");
+  }
+
+  selectedTradeIns.forEach((vehicleId) => {
+    const checkbox = document.getElementById(`tradein-checkbox-${vehicleId}`);
+    if (checkbox) checkbox.checked = true;
+  });
 }
 
 /**
@@ -10133,6 +10189,210 @@ function toggleDealerEditMode() {
 // Salesperson auto-complete removed - dealer info now auto-populated from vehicle data
 
 /* ============================================================================
+   Email Handshake Helpers
+   ============================================================================ */
+
+const EMAIL_HANDSHAKE_STAGES = {
+  saving: {
+    title: "Saving your offer...",
+    message: "We’re preparing your offer details before sending the email.",
+    progress: 35,
+    iconClass: "handshake-icon--spinner",
+  },
+  sending: {
+    title: "Sending email...",
+    message: "Delivering your offer via Twilio SendGrid.",
+    progress: 75,
+    iconClass: "handshake-icon--spinner",
+  },
+  success: {
+    title: "Email sent!",
+    message:
+      "A dealer will review your offer and typically responds within the hour.",
+    progress: 100,
+    iconClass: "handshake-icon--success",
+    iconSymbol: "✓",
+  },
+  error: {
+    title: "Unable to send email",
+    message: "Something prevented us from emailing your offer.",
+    progress: 100,
+    iconClass: "handshake-icon--error",
+    iconSymbol: "!",
+  },
+};
+
+function openEmailHandshakeModal() {
+  if (!emailHandshakeUI?.modal) return false;
+  emailHandshakeUI.modal.style.display = "flex";
+  emailHandshakeUI.modal.classList.add("active");
+  return true;
+}
+
+function closeEmailHandshakeModal(delayMs = 0) {
+  const performClose = () => {
+    if (!emailHandshakeUI?.modal) return;
+    emailHandshakeUI.modal.classList.remove("active");
+    emailHandshakeUI.modal.style.display = "none";
+    if (emailHandshakeUI.progress) {
+      emailHandshakeUI.progress.style.width = "0%";
+    }
+    if (emailHandshakeUI.actions) {
+      emailHandshakeUI.actions.innerHTML = "";
+    }
+  };
+  if (delayMs > 0) {
+    setTimeout(performClose, delayMs);
+  } else {
+    performClose();
+  }
+}
+
+function setEmailHandshakeStage(stage, options = {}) {
+  if (!emailHandshakeUI?.modal) return;
+  if (!openEmailHandshakeModal()) return;
+  const config = EMAIL_HANDSHAKE_STAGES[stage];
+  if (!config) return;
+
+  const iconEl = emailHandshakeUI.icon;
+  if (iconEl) {
+    iconEl.className = `handshake-icon ${config.iconClass || ""}`;
+    iconEl.textContent = config.iconSymbol || "";
+  }
+
+  if (emailHandshakeUI.title) {
+    emailHandshakeUI.title.textContent = options.title || config.title;
+  }
+
+  if (emailHandshakeUI.message) {
+    const baseMessage = options.message || config.message || "";
+    const detailMessage = options.detail
+      ? `${baseMessage}\n${options.detail}`
+      : baseMessage;
+    emailHandshakeUI.message.textContent = detailMessage;
+  }
+
+  if (emailHandshakeUI.progress) {
+    const width = options.progress ?? config.progress ?? 0;
+    emailHandshakeUI.progress.style.width = `${width}%`;
+  }
+
+  if (emailHandshakeUI.actions) {
+    emailHandshakeUI.actions.innerHTML = "";
+    const actions = options.actions || config.actions || [];
+    actions.forEach((action) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = action.variant || "btn btn-primary";
+      btn.textContent = action.label;
+      btn.addEventListener("click", action.onClick);
+      emailHandshakeUI.actions.appendChild(btn);
+    });
+  }
+}
+
+function getDevSendPreference() {
+  if (!isDevEnvironment) return "prod";
+  if (devSendPreference === "dev" || devSendPreference === "prod") {
+    return devSendPreference;
+  }
+  const params = new URLSearchParams(window.location.search);
+  if (params.has("devsend")) {
+    const val = params.get("devsend");
+    if (val === "dev" || val === "prod") {
+      return val;
+    }
+  }
+  return null;
+}
+
+window.__setSendModePreference = function setSendModePreference(mode) {
+  if (!isDevEnvironment) {
+    showToast("Send mode preference only applies in dev environment.", "warning");
+    return;
+  }
+  if (mode === "prod" || mode === "dev") {
+    devSendPreference = mode;
+    showToast(
+      `Send mode locked to ${mode === "dev" ? "Dev Simulation" : "Production"}.`,
+      "info"
+    );
+  } else {
+    devSendPreference = null;
+    showToast("Send mode prompt restored.", "info");
+  }
+};
+
+function promptSendMode(channel) {
+  if (!isDevEnvironment) {
+    return Promise.resolve("prod");
+  }
+
+  const preset = getDevSendPreference();
+  if (preset) {
+    return Promise.resolve(preset);
+  }
+
+  if (!sendModeModalUI?.modal) {
+    return Promise.resolve("prod");
+  }
+
+  return new Promise((resolve) => {
+    const { modal, message, devBtn, prodBtn, remember } = sendModeModalUI;
+    const channelLabel = channel === "email" ? "email" : "SMS";
+    if (message) {
+      message.textContent = `Dev environment detected. Send this ${channelLabel} as a simulation or via Twilio?`;
+    }
+    modal.style.display = "flex";
+    modal.classList.add("active");
+    const cleanup = () => {
+      modal.classList.remove("active");
+      modal.style.display = "none";
+      if (devBtn) devBtn.onclick = null;
+      if (prodBtn) prodBtn.onclick = null;
+      if (remember) remember.checked = false;
+    };
+    const handleChoice = (mode) => {
+      if (remember?.checked) {
+        devSendPreference = mode;
+      }
+      cleanup();
+      resolve(mode);
+    };
+    if (devBtn) devBtn.onclick = () => handleChoice("dev");
+    if (prodBtn) prodBtn.onclick = () => handleChoice("prod");
+  });
+}
+
+function buildEmailOfferSummary(reviewData = {}) {
+  const vehicle = wizardData.vehicle || {};
+  const vehicleLine = [vehicle.year, vehicle.make, vehicle.model]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  const lines = [];
+  if (vehicleLine) lines.push(vehicleLine);
+  lines.push(
+    `Offer: ${formatCurrency(reviewData.salePrice, true, { showCents: true })}`
+  );
+  lines.push(
+    `Cash Down: ${formatCurrency(reviewData.cashDown, true, { showCents: true })}`
+  );
+  lines.push(
+    `Payment: ${formatCurrency(reviewData.monthlyPayment, true, {
+      showCents: true,
+    })}/mo @ ${(reviewData.apr * 100).toFixed(2)}% for ${reviewData.term} mos`
+  );
+  lines.push(
+    `Amount Financed: ${formatCurrency(reviewData.amountFinanced, true, {
+      showCents: true,
+    })}`
+  );
+  return lines.join("\n");
+}
+
+/* ============================================================================
    Submission Methods
    ============================================================================ */
 
@@ -10203,72 +10463,116 @@ async function handleShareOffer() {
 }
 
 /**
- * Handle Email button (mailto: link)
+ * Handle Email button - send via Twilio SendGrid
  */
 async function handleEmailOffer() {
+  if (!validateSubmissionForm()) return;
+
+  const dealerEmail = document.getElementById("submitDealerEmail")?.value.trim();
+  if (!dealerEmail) {
+    alert("Please enter the dealer's email address.");
+    return;
+  }
+
+  const sendMode = await promptSendMode("email");
+  const simulateSend = isDevEnvironment && sendMode === "dev";
+
+  const dealerName = document.getElementById("submitDealershipName")?.value.trim() || "";
+
+  const notes = document.getElementById("submitOfferNotes").value.trim();
+  const reviewData = await computeReviewData();
+  const offerText = await formatOfferText(notes, reviewData);
+  const offerSummary = buildEmailOfferSummary(reviewData);
+  const vehicle = wizardData.vehicle || {};
+  const vehicleInfo = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(" ").trim();
+
+  const customerName = document.getElementById("submitCustomerName").value.trim();
+  const customerEmail = document.getElementById("submitCustomerEmail").value.trim();
+  const customerPhone = document.getElementById("submitCustomerPhone").value.trim();
+
+  setEmailHandshakeStage("saving");
+
+  let savedOffer;
   try {
-    // Validate customer information and dealer email
-    if (!validateSubmissionForm()) return;
-
-    const dealerEmail = document
-      .getElementById("submitDealerEmail")
-      .value.trim();
-    if (!dealerEmail) {
-      alert("Please enter the dealer's email address.");
-      return;
-    }
-
-    // Get formatted offer text with notes
-    const notes = document.getElementById("submitOfferNotes").value.trim();
-    const reviewData = await computeReviewData();
-    const offerText = await formatOfferText(notes, reviewData);
-
-    // Get customer info for saving
-    const customerName = document
-      .getElementById("submitCustomerName")
-      .value.trim();
-    const customerEmail = document
-      .getElementById("submitCustomerEmail")
-      .value.trim();
-    const customerPhone = document
-      .getElementById("submitCustomerPhone")
-      .value.trim();
-
-    // Save offer to customer_offers table
-    showToast("Saving offer...", "info");
-    const savedOffer = await saveOffer({
+    savedOffer = await saveOffer({
       offerText,
       customerName,
       customerEmail,
       customerPhone,
     });
-
     if (!savedOffer || !savedOffer.id) {
       throw new Error("Failed to save offer");
     }
+  } catch (error) {
+    setEmailHandshakeStage("error", {
+      detail: error?.message || "Unable to save offer before emailing.",
+      actions: [
+        {
+          label: "Back to Preview",
+          variant: "btn btn-secondary",
+          onClick: () => closeEmailHandshakeModal(),
+        },
+      ],
+    });
+    return;
+  }
 
-    // Close modals and open My Offers modal immediately
+  setEmailHandshakeStage("sending");
+
+  try {
+    if (simulateSend) {
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    } else {
+      const response = await fetch("/api/send-email", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          offerId: savedOffer.id,
+          recipientEmail: dealerEmail,
+          recipientName: dealerName || null,
+          offerText,
+          offerSummary,
+          vehicleInfo: vehicleInfo || null,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || errorData.error || "Failed to send email.");
+      }
+    }
+
+    setEmailHandshakeStage("success", {
+      actions: [
+        {
+          label: "Close",
+          variant: "btn btn-primary",
+          onClick: () => closeEmailHandshakeModal(),
+        },
+      ],
+      detail: simulateSend ? "🧪 Dev simulation: no live email sent." : "",
+    });
+
     closeSubmitOfferModal();
     closeReviewContractModal();
     await openMyOffersModal();
     window.scrollTo({ top: 0, behavior: "smooth" });
-
-    // Create mailto link
-    const vehicle = wizardData.vehicle || {};
-    const subject = encodeURIComponent(
-      `Vehicle Purchase Offer - ${vehicle.year || ""} ${vehicle.make || ""} ${
-        vehicle.model || ""
-      }`
-    );
-    const body = encodeURIComponent(offerText);
-
-    window.location.href = `mailto:${dealerEmail}?subject=${subject}&body=${body}`;
-
-    // Show success toast
-    showToast(`📧 Email opened to ${dealerEmail}`, "success", 4000);
+    if (simulateSend) {
+      showToast("🧪 Dev mode: Email not actually sent (simulation).", "warning", 5000);
+    }
   } catch (error) {
-    console.error("Error emailing offer:", error);
-    alert("Error preparing email. Please try again.");
+    setEmailHandshakeStage("error", {
+      detail: error?.message || "Unable to send email.",
+      actions: [
+        {
+          label: "Back to Preview",
+          variant: "btn btn-secondary",
+          onClick: () => closeEmailHandshakeModal(),
+        },
+      ],
+    });
   }
 }
 
@@ -10425,6 +10729,9 @@ async function handleSmsOffer() {
       return;
     }
 
+    const sendMode = await promptSendMode("sms");
+    const simulateSms = isDevEnvironment && sendMode === "dev";
+
     // Get formatted offer text with notes
     const notes = document.getElementById("submitOfferNotes").value.trim();
     const reviewData = await computeReviewData();
@@ -10493,53 +10800,76 @@ async function handleSmsOffer() {
       offerName ? `Vehicle: ${offerName}` : null,
     ].filter(Boolean);
     const smsSummary = summaryLines.join("\n");
+    let smsResult = null;
+    let emailPromise = null;
 
-    // Send SMS and get message SID
-    const smsResponse = await fetch("/api/send-sms", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        offerId: savedOffer.id,
-        offerName: offerName || "Vehicle Offer",
-        recipientPhone: dealerPhone,
-        offerSummary: smsSummary,
-        offerText,
-      }),
-    });
+    if (!simulateSms) {
+      const smsResponse = await fetch("/api/send-sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          offerId: savedOffer.id,
+          offerName: offerName || "Vehicle Offer",
+          recipientPhone: dealerPhone,
+          offerSummary: smsSummary,
+          offerText,
+        }),
+      });
 
-    if (!smsResponse.ok) {
-      const errorData = await smsResponse.json();
-      showToast(`Failed to send SMS: ${errorData.detail || errorData.error}`, "error");
-      return;
+      if (!smsResponse.ok) {
+        const errorData = await smsResponse.json();
+        showToast(`Failed to send SMS: ${errorData.detail || errorData.error}`, "error");
+        return;
+      }
+
+      smsResult = await smsResponse.json();
+
+      emailPromise = customerEmail
+        ? fetch("/api/send-email", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              offerId: savedOffer.id,
+              recipientEmail: customerEmail,
+              recipientName: customerName,
+              offerText,
+              offerSummary: smsSummary,
+              vehicleInfo: offerName,
+            }),
+          }).then((res) => res.json())
+        : null;
     }
 
-    const smsResult = await smsResponse.json();
-
-    // Create email promise if customer email provided
-    const emailPromise = customerEmail
-      ? fetch("/api/send-email", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            offerId: savedOffer.id,
-            recipientEmail: customerEmail,
-            recipientName: customerName,
-            offerText,
-            offerSummary: smsSummary,
-            vehicleInfo: offerName,
-          }),
-        }).then(res => res.json())
-      : null;
+    if (simulateSms) {
+      await showSendingProgress({
+        smsMessageSid: null,
+        emailPromise: null,
+        minDuration: 1500,
+      });
+      showToast(
+        "🧪 Dev mode: SMS not actually sent (simulation).",
+        "warning",
+        5000
+      );
+      if (customerEmail) {
+        showToast(
+          "🧪 Dev mode: Email copy not sent (simulation).",
+          "warning",
+          5000
+        );
+      }
+      return;
+    }
 
     // Show progress with real status tracking (minimum 7 seconds)
     const progressResults = await showSendingProgress({
       smsMessageSid: smsResult.messageSid,
       emailPromise,
-      minDuration: 7000
+      minDuration: 7000,
     });
 
     // Show success toasts AFTER progress completes
@@ -12043,13 +12373,25 @@ async function selectQuickSavedVehicle(vehicle) {
   displayQuickVehicleCard(vehicle);
 
   // Auto-populate vehicle price if available
-  if (vehicle.asking_price) {
+  const askingPriceRaw =
+    vehicle.asking_price ??
+    vehicle.price ??
+    vehicle.estimated_value ??
+    vehicle.msrp ??
+    null;
+  const askingPrice =
+    typeof askingPriceRaw === "string"
+      ? parseFloat(askingPriceRaw.replace(/[^0-9.-]/g, ""))
+      : Number(askingPriceRaw);
+  if (Number.isFinite(askingPrice) && askingPrice > 0) {
     const quickVehiclePrice = document.getElementById("quick-vehicle-price");
-    quickVehiclePrice.value = formatCurrency(vehicle.asking_price);
+    if (quickVehiclePrice) {
+      quickVehiclePrice.value = formatCurrency(askingPrice);
+    }
 
     // Update wizard data
     wizardData.financing = wizardData.financing || {};
-    wizardData.financing.salePrice = vehicle.asking_price;
+    wizardData.financing.salePrice = askingPrice;
   }
 
   // Set preferred down payment now that a vehicle is active
@@ -13879,7 +14221,7 @@ function updateTaxLabels() {
   const countyTaxLabel = document.getElementById("quickCountyTaxLabel");
   const buildLabel = (baseHtml) =>
     overrideActive
-      ? `${baseHtml} <span class="tax-override-pill">⚠ User Tax Rates Used</span>`
+      ? `${baseHtml} <span class="tax-override-pill">User Tax Rate</span>`
       : baseHtml;
 
   if (stateTaxLabel) {
@@ -13915,7 +14257,9 @@ function updateTaxLabels() {
   const modalCountyTaxLabel = document.getElementById("modalCountyTaxLabel");
 
   if (modalStateTaxLabel) {
-    if (stateCode) {
+    if (overrideActive) {
+      modalStateTaxLabel.textContent = "State Tax Rate";
+    } else if (stateCode) {
       modalStateTaxLabel.textContent = `State Tax Rate (${stateCode})`;
     } else {
       modalStateTaxLabel.textContent = "State Tax Rate";
@@ -13923,7 +14267,9 @@ function updateTaxLabels() {
   }
 
   if (modalCountyTaxLabel) {
-    if (countyName) {
+    if (overrideActive) {
+      modalCountyTaxLabel.textContent = "County Tax Rate";
+    } else if (countyName) {
       modalCountyTaxLabel.textContent = `County Tax Rate (${countyName})`;
     } else {
       modalCountyTaxLabel.textContent = "County Tax Rate";
@@ -14601,3 +14947,10 @@ if ("serviceWorker" in navigator && isProd) {
       .catch((error) => {});
   });
 }
+  sendModeModalUI = {
+    modal: document.getElementById("send-mode-modal"),
+    message: document.getElementById("sendModeMessage"),
+    devBtn: document.getElementById("sendModeDevBtn"),
+    prodBtn: document.getElementById("sendModeProdBtn"),
+    remember: document.getElementById("sendModeRemember"),
+  };

@@ -1079,9 +1079,7 @@
                 id="stateTaxOverrideIndicator"
                 role="status"
                 aria-live="polite"
-              >
-                ⚠ User Tax Rates Used
-              </span>
+              >User Tax Rate</span>
             </label>
             <input
               type="number"
@@ -1099,9 +1097,7 @@
                 id="countyTaxOverrideIndicator"
                 role="status"
                 aria-live="polite"
-              >
-                ⚠ User Tax Rates Used
-              </span>
+              >User Tax Rate</span>
             </label>
             <input
               type="number"
@@ -1351,6 +1347,10 @@
           <div class="apr-detail-row">
             <span class="apr-detail-label">Your Custom Rate:</span>
             <span class="apr-detail-value" id="aprConfirmCustomRate">--%</span>
+          </div>
+          <div class="apr-detail-row apr-detail-row--diff" id="aprConfirmDiffRow" style="display: none;">
+            <span class="apr-detail-label">Difference:</span>
+            <span class="apr-detail-value apr-detail-diff" id="aprConfirmDiff">--</span>
           </div>
         </div>
         <div class="apr-confirmation-buttons">
@@ -2780,6 +2780,46 @@
             Print Contract
           </button>
         </div>
+      </div>
+    </div>
+
+    <!-- Email Handshake Modal -->
+    <div id="email-handshake-modal" class="modal modal--handshake" style="display: none">
+      <div class="modal-overlay"></div>
+      <div class="modal-content handshake-modal">
+        <div class="handshake-icon" id="emailHandshakeIcon"></div>
+        <h3 class="handshake-title" id="emailHandshakeTitle">Sending email...</h3>
+        <p class="handshake-message" id="emailHandshakeMessage">
+          We’re preparing your offer and sending it via Twilio SendGrid.
+        </p>
+        <div class="handshake-progress">
+          <div class="handshake-progress__bar" id="emailHandshakeProgress"></div>
+        </div>
+        <div class="handshake-actions" id="emailHandshakeActions"></div>
+      </div>
+    </div>
+
+    <!-- Dev Send Mode Modal -->
+    <div id="send-mode-modal" class="modal send-mode-modal" style="display: none">
+      <div class="modal-overlay"></div>
+      <div class="modal-content send-mode-modal__content">
+        <div class="send-mode-modal__icon">🧪</div>
+        <h3 class="send-mode-modal__title">Choose Send Mode</h3>
+        <p class="send-mode-modal__message" id="sendModeMessage">
+          Dev environment detected. Send this message as a simulation or via Twilio?
+        </p>
+        <div class="send-mode-modal__actions">
+          <button type="button" class="btn btn-secondary" id="sendModeDevBtn">
+            Dev Simulation
+          </button>
+          <button type="button" class="btn btn-primary" id="sendModeProdBtn">
+            Send via Twilio
+          </button>
+        </div>
+        <label class="send-mode-modal__remember">
+          <input type="checkbox" id="sendModeRemember" />
+          Remember my choice
+        </label>
       </div>
     </div>
 

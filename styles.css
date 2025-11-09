@@ -2830,6 +2830,25 @@ body {
   color: var(--text-primary);
 }
 
+.apr-detail-diff {
+  font-size: 15px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.apr-detail-diff.positive {
+  color: var(--success);
+}
+
+.apr-detail-diff.negative {
+  color: var(--danger);
+}
+
+.apr-detail-diff.neutral {
+  color: var(--text-secondary);
+}
+
 .apr-confirmation-buttons {
   display: flex;
   flex-direction: column;
@@ -5028,6 +5047,7 @@ body {
   border-radius: 999px;
   padding: 2px 8px;
   line-height: 1.2;
+  gap: 4px;
 }
 
 .tax-override-pill {
@@ -5043,9 +5063,11 @@ body {
   margin-left: 6px;
 }
 
+.tax-override-indicator::before,
 .tax-override-pill::before {
   content: "⚠";
   font-size: 12px;
+  margin-right: 4px;
 }
 
 .tax-default-hint {
@@ -5085,6 +5107,139 @@ body {
   text-decoration: underline;
   margin-top: var(--spacing-xs);
   align-self: flex-start;
+}
+
+.handshake-modal {
+  max-width: 420px;
+  padding: 32px;
+  text-align: center;
+}
+
+.handshake-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: white;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+}
+
+.handshake-icon.handshake-icon--spinner {
+  border: 4px solid rgba(37, 99, 235, 0.15);
+  border-top-color: #2563eb;
+  animation: handshakeSpin 1s linear infinite;
+  background: transparent;
+}
+
+.handshake-icon.handshake-icon--success {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.handshake-icon.handshake-icon--error {
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+}
+
+.handshake-title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.handshake-message {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.handshake-progress {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.3);
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.handshake-progress__bar {
+  width: 0%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  transition: width 0.3s ease;
+}
+
+.handshake-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.handshake-actions .btn {
+  min-width: 120px;
+}
+
+.modal--handshake .modal-overlay {
+  cursor: default;
+}
+
+@keyframes handshakeSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.send-mode-modal__content {
+  max-width: 420px;
+  padding: 32px;
+  text-align: center;
+}
+
+.send-mode-modal__icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.send-mode-modal__title {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.send-mode-modal__message {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 20px;
+}
+
+.send-mode-modal__actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.send-mode-modal__actions .btn {
+  min-width: 150px;
+}
+
+.send-mode-modal__remember {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .modal-status {
