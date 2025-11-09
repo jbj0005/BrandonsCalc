@@ -4398,6 +4398,7 @@ async function computeReviewData() {
       countyTaxRate: 1.0,
     };
   }
+  ensureWizardFeeDefaults();
 
   const fees = wizardData.fees;
   const totalDealerFees = parseCurrencyToNumber(fees.dealerFees);
@@ -5421,8 +5422,9 @@ function recomputeTaxes({
   // State tax = taxable base * state rate
   const stateTaxAmount = taxableBase * stateRate;
 
-  // County tax = min(sale price, $5000) * county rate
-  const countyBaseSource = sale > 0 ? sale : taxableBase;
+  // County tax base: follow the same taxable base as state, capped at $5,000
+  // This matches FL surtax guidance (first $5,000 of the taxable amount)
+  const countyBaseSource = taxableBase;
   const countyTaxableBase = Math.min(Math.max(countyBaseSource, 0), 5000);
   const countyTaxAmount = countyTaxableBase * countyRate;
 
@@ -5971,20 +5973,41 @@ function setText(id, text) {
  */
 function ensureWizardFeeDefaults() {
   if (!wizardData.fees) {
-    wizardData.fees = {
-      dealerFees: 0,
-      customerAddons: 0,
-      govtFees: 0,
-      stateTaxRate: 6.0,
-      countyTaxRate: 1.0,
-      userTaxOverride: false,
-      items: {
-        dealer: [],
-        customer: [],
-        gov: [],
-      },
-    };
-  } else if (!wizardData.fees.items) {
+    wizardData.fees = {};
+  }
+
+  const coerceMoney = (value, fallback = 0) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const coerceRate = (value, fallback) => {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  wizardData.fees.dealerFees = coerceMoney(wizardData.fees.dealerFees, 0);
+  wizardData.fees.customerAddons = coerceMoney(
+    wizardData.fees.customerAddons,
+    0
+  );
+  wizardData.fees.govtFees = coerceMoney(wizardData.fees.govtFees, 0);
+  wizardData.fees.stateTaxRate = coerceRate(
+    wizardData.fees.stateTaxRate,
+    6.0
+  );
+  wizardData.fees.countyTaxRate = coerceRate(
+    wizardData.fees.countyTaxRate,
+    1.0
+  );
+
+  if (typeof wizardData.fees.userTaxOverride !== "boolean") {
+    wizardData.fees.userTaxOverride = false;
+  }
+
+  if (!wizardData.fees.items) {
     wizardData.fees.items = {
       dealer: [],
       customer: [],
@@ -6398,8 +6421,9 @@ async function proceedToReviewModal() {
     // Update tax labels with state/county info
     const stateCode = wizardData.location?.stateCode || "";
     const countyName = wizardData.location?.countyName || "";
-    const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
-    const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
+    const stateTaxRate = wizardData.fees?.stateTaxRate ?? 6.0;
+    const countyTaxRate = wizardData.fees?.countyTaxRate ?? 1.0;
+    const overrideActive = Boolean(wizardData.fees?.userTaxOverride);
 
     const contractStateTaxLabel = document.getElementById(
       "contractStateTaxLabel"
@@ -6409,15 +6433,25 @@ async function proceedToReviewModal() {
     );
 
     if (contractStateTaxLabel) {
-      contractStateTaxLabel.textContent = stateCode
-        ? `${stateCode} State Tax (${stateTaxRate.toFixed(2)}%)`
-        : `State Tax (${stateTaxRate.toFixed(2)}%)`;
+      contractStateTaxLabel.textContent = formatTaxLabelText({
+        baseLabel: "State Tax",
+        locationLabel: stateCode ? `${stateCode} State Tax` : null,
+        rate: stateTaxRate,
+        overrideActive,
+        includeDefaultHint: false,
+        allowHtml: false,
+      });
     }
 
     if (contractCountyTaxLabel) {
-      contractCountyTaxLabel.textContent = countyName
-        ? `${countyName} County Tax (${countyTaxRate.toFixed(2)}%)`
-        : `County Tax (${countyTaxRate.toFixed(2)}%)`;
+      contractCountyTaxLabel.textContent = formatTaxLabelText({
+        baseLabel: "County Tax",
+        locationLabel: countyName ? `${countyName} County Tax` : null,
+        rate: countyTaxRate,
+        overrideActive,
+        includeDefaultHint: false,
+        allowHtml: false,
+      });
     }
 
     // Show the modal
@@ -13959,7 +13993,7 @@ async function autoCalculateQuick() {
     resetQuickCalculationDisplay();
     return; // Silently return, don't show alerts
   }
-
+  ensureWizardFeeDefaults();
 
   // Update wizard data
   wizardData.financing = {
@@ -14240,49 +14274,73 @@ function resetQuickCalculationDisplay() {
   if (lenderEffectiveDateEl) lenderEffectiveDateEl.style.display = "none";
 }
 
+function formatTaxLabelText({
+  baseLabel,
+  locationLabel,
+  rate,
+  overrideActive,
+  includeDefaultHint = true,
+  allowHtml = true,
+}) {
+  const percent = Number.isFinite(rate) ? rate.toFixed(2) : "0.00";
+  if (overrideActive) {
+    return `${baseLabel} (${percent}%)`;
+  }
+  if (locationLabel) {
+    return `${locationLabel} (${percent}%)`;
+  }
+  const hint = includeDefaultHint
+    ? allowHtml
+      ? ' <span class="tax-default-hint">Using default</span>'
+      : " (Using default)"
+    : "";
+  return `${baseLabel} (${percent}%)${hint}`;
+}
+
 function updateTaxLabels() {
   ensureWizardFeeDefaults();
 
   const stateCode = wizardData.location?.stateCode || "";
   const countyName = wizardData.location?.countyName || "";
-  const stateTaxRate = wizardData.fees?.stateTaxRate || 6.0;
-  const countyTaxRate = wizardData.fees?.countyTaxRate || 1.0;
+  // Use nullish coalescing so a valid 0% override doesn't get replaced by defaults
+  const stateTaxRate = wizardData.fees?.stateTaxRate ?? 6.0;
+  const countyTaxRate = wizardData.fees?.countyTaxRate ?? 1.0;
   const overrideActive = Boolean(wizardData.fees?.userTaxOverride);
 
   // Update quick entry tax labels
   const stateTaxLabel = document.getElementById("quickStateTaxLabel");
   const countyTaxLabel = document.getElementById("quickCountyTaxLabel");
-  const buildLabel = (baseHtml) =>
+  const buildQuickLabel = (baseHtml) =>
     overrideActive
       ? `${baseHtml} <span class="tax-override-pill">User Tax Rate</span>`
       : baseHtml;
 
   if (stateTaxLabel) {
-    if (stateCode) {
-      const base = `${escapeHtml(
-        stateCode
-      )} State Tax (${stateTaxRate.toFixed(2)}%)`;
-      stateTaxLabel.innerHTML = buildLabel(base);
-    } else {
-      const base = `State Tax (${stateTaxRate.toFixed(
-        2
-      )}%) <span class="tax-default-hint">Using default</span>`;
-      stateTaxLabel.innerHTML = buildLabel(base);
-    }
+    const locationLabel = stateCode
+      ? `${escapeHtml(stateCode)} State Tax`
+      : null;
+    const base = formatTaxLabelText({
+      baseLabel: "State Tax",
+      locationLabel,
+      rate: stateTaxRate,
+      overrideActive,
+      includeDefaultHint: true,
+    });
+    stateTaxLabel.innerHTML = buildQuickLabel(base);
   }
 
   if (countyTaxLabel) {
-    if (countyName) {
-      const base = `${escapeHtml(
-        countyName
-      )} County Tax (${countyTaxRate.toFixed(2)}%)`;
-      countyTaxLabel.innerHTML = buildLabel(base);
-    } else {
-      const base = `County Tax (${countyTaxRate.toFixed(
-        2
-      )}%) <span class="tax-default-hint">Using default</span>`;
-      countyTaxLabel.innerHTML = buildLabel(base);
-    }
+    const locationLabel = countyName
+      ? `${escapeHtml(countyName)} County Tax`
+      : null;
+    const base = formatTaxLabelText({
+      baseLabel: "County Tax",
+      locationLabel,
+      rate: countyTaxRate,
+      overrideActive,
+      includeDefaultHint: true,
+    });
+    countyTaxLabel.innerHTML = buildQuickLabel(base);
   }
 
   // Update fees modal tax labels
@@ -14318,19 +14376,27 @@ function updateTaxLabels() {
   );
 
   if (contractStateTaxLabel) {
-    if (stateCode) {
-      contractStateTaxLabel.textContent = `${stateCode} State Tax`;
-    } else {
-      contractStateTaxLabel.textContent = "State Tax";
-    }
+    const text = formatTaxLabelText({
+      baseLabel: "State Tax",
+      locationLabel: stateCode ? `${stateCode} State Tax` : null,
+      rate: stateTaxRate,
+      overrideActive,
+      includeDefaultHint: false,
+      allowHtml: false,
+    });
+    contractStateTaxLabel.textContent = text;
   }
 
   if (contractCountyTaxLabel) {
-    if (countyName) {
-      contractCountyTaxLabel.textContent = `${countyName} County Tax`;
-    } else {
-      contractCountyTaxLabel.textContent = "County Tax";
-    }
+    const text = formatTaxLabelText({
+      baseLabel: "County Tax",
+      locationLabel: countyName ? `${countyName} County Tax` : null,
+      rate: countyTaxRate,
+      overrideActive,
+      includeDefaultHint: false,
+      allowHtml: false,
+    });
+    contractCountyTaxLabel.textContent = text;
   }
 
   updateTaxOverrideIndicators();

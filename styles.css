@@ -4816,8 +4816,8 @@ body {
   width: 100%;
   margin-top: var(--spacing-md);
   padding: var(--spacing-md) var(--spacing-lg);
-  background: linear-gradient(135deg, #2c3e50, #34495e);
-  border: 2px solid #34495e;
+  background: linear-gradient(135deg, var(--primary-start), var(--primary-end));
+  border: 2px solid var(--primary-end);
   border-radius: var(--radius-md);
   font-size: 15px;
   font-weight: 700;
@@ -4826,14 +4826,14 @@ body {
   letter-spacing: 0.5px;
   cursor: pointer;
   transition: all var(--transition-base);
-  box-shadow: 0 4px 12px rgba(44, 62, 80, 0.25);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
 }
 
 .btn-review-contract:hover {
-  background: linear-gradient(135deg, #34495e, #2c3e50);
-  border-color: #1a252f;
+  background: linear-gradient(135deg, var(--primary-end), var(--primary-start));
+  border-color: var(--primary-start);
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(44, 62, 80, 0.35);
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
 }
 
 .btn-review-contract:active {
@@ -5673,6 +5673,8 @@ tr.contract-header .contract-item-value {
 /* Amount Financed - prominent total */
 .contract-total {
   background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+  border-top: 2px solid #f97316;
+  border-bottom: 2px solid #f97316;
   color: white;
 }
 
