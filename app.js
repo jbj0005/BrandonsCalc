@@ -936,8 +936,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         wizardData.financing.term = 72;
       }
 
-      // Set sale price
-
+      // Set sale price and reset all financing values
       if (salePrice) {
         // Update the hidden input that autoCalculateQuick reads from
         const quickVehiclePrice = document.getElementById('quick-vehicle-price');
@@ -945,41 +944,32 @@ document.addEventListener("DOMContentLoaded", async () => {
           quickVehiclePrice.value = salePrice;
         }
 
-        // Update the slider (but don't dispatch event yet - will happen after centered sliders init)
-        const salePriceSlider = document.getElementById('quickSliderSalePrice');
-        if (salePriceSlider) {
-
-          // Ensure max is high enough to accommodate the price
-          const minMax = calculateSliderMax(salePrice);
-          salePriceSlider.max = minMax.toString();
-
-          salePriceSlider.value = salePrice;
-        }
-
-        // Set wizardData AFTER updating slider to avoid race condition
+        // Set wizardData
         wizardData.financing.salePrice = Number(salePrice);
-
-      } else {
+        // Reset down payment to 0 (will be set by setPreferredDownPayment later)
+        wizardData.financing.cashDown = 0;
       }
+
+      // Reset all fee sliders to 0 when switching vehicles
+      wizardData.fees = {
+        dealerFees: 0,
+        customerAddons: 0
+      };
 
       // Set trade-in values if available - ONLY from actual trade-in fields
-      if (vehicle.estimated_value) {
-        wizardData.tradein.tradeValue = vehicle.estimated_value;
-        const tradeValueSlider = document.getElementById('quickSliderTradeAllowance');
-        if (tradeValueSlider) {
-          // Ensure max is high enough
-          const minMax = calculateSliderMax(vehicle.estimated_value);
-          tradeValueSlider.max = minMax.toString();
-          tradeValueSlider.value = vehicle.estimated_value;
-        }
-      }
-
-      if (vehicle.payoff_amount) {
-        wizardData.tradein.tradePayoff = vehicle.payoff_amount;
-        const payoffSlider = document.getElementById('quickSliderTradePayoff');
-        if (payoffSlider) {
-          payoffSlider.value = vehicle.payoff_amount;
-        }
+      if (vehicle.estimated_value || vehicle.payoff_amount) {
+        wizardData.tradein = {
+          hasTradeIn: true,
+          tradeValue: vehicle.estimated_value || 0,
+          tradePayoff: vehicle.payoff_amount || 0
+        };
+      } else {
+        // Reset trade-in if new vehicle doesn't have trade-in data
+        wizardData.tradein = {
+          hasTradeIn: false,
+          tradeValue: 0,
+          tradePayoff: 0
+        };
       }
     } else {
       console.error('❌ wizardData is not defined!');
@@ -995,6 +985,9 @@ document.addEventListener("DOMContentLoaded", async () => {
         await setPreferredDownPayment();
         initializeCenteredSliders();
       }
+
+    // Update all slider UI to match the new wizardData values
+    updateQuickSliderValues();
 
     // Log wizardData state before calculation
 
@@ -12406,7 +12399,21 @@ async function selectQuickSavedVehicle(vehicle) {
     // Update wizard data
     wizardData.financing = wizardData.financing || {};
     wizardData.financing.salePrice = askingPrice;
+    wizardData.financing.cashDown = 0; // Reset, will be set by setPreferredDownPayment
   }
+
+  // Reset all fee sliders to 0 when switching vehicles
+  wizardData.fees = {
+    dealerFees: 0,
+    customerAddons: 0
+  };
+
+  // Reset trade-in to 0 when switching vehicles (user can add trade-in manually if needed)
+  wizardData.tradein = {
+    hasTradeIn: false,
+    tradeValue: 0,
+    tradePayoff: 0
+  };
 
   // Set preferred down payment now that a vehicle is active
   await setPreferredDownPayment();
