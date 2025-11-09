@@ -762,6 +762,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.saveCustomerProfile = saveCustomerProfile;
   window.openMyGarageModal = openMyGarageModal;
   window.openMyOffersModal = openMyOffersModal;
+  window.openMySavedVehiclesModal = openMySavedVehiclesModal;
+  window.closeMySavedVehiclesModal = closeMySavedVehiclesModal;
+  window.openEditSavedVehicleModal = openEditSavedVehicleModal;
+  window.closeEditSavedVehicleModal = closeEditSavedVehicleModal;
+  window.saveSavedVehicleChanges = saveSavedVehicleChanges;
+  window.deleteSavedVehicle = deleteSavedVehicle;
 
   // Initialize Authentication Manager (after event listeners are set up)
   await AuthManager.initialize();
@@ -9525,6 +9531,323 @@ window.viewOfferDetails = viewOfferDetails;
 window.closeOffer = closeOffer;
 window.deleteOffer = deleteOffer;
 window.saveOffer = saveOffer;
+
+/* ============================================================================
+   My Saved Vehicles Functions
+   ============================================================================ */
+
+// Store currently edited vehicle ID
+let currentEditVehicleId = null;
+
+/**
+ * Open My Saved Vehicles modal and load all vehicles
+ */
+async function openMySavedVehiclesModal() {
+  const modal = document.getElementById("my-saved-vehicles-modal");
+  if (!modal) {
+    console.error("❌ [My Saved Vehicles] Modal element not found!");
+    return;
+  }
+
+  if (!currentUserId) {
+    showToast("Please sign in to view your saved vehicles", "error");
+    return;
+  }
+
+  modal.style.display = "flex";
+
+  // Load vehicles
+  await loadSavedVehiclesList();
+}
+
+/**
+ * Close My Saved Vehicles modal
+ */
+function closeMySavedVehiclesModal() {
+  const modal = document.getElementById("my-saved-vehicles-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+/**
+ * Load all vehicles from Supabase and display them
+ */
+async function loadSavedVehiclesList() {
+  const listContainer = document.getElementById("saved-vehicles-edit-list");
+  const emptyState = document.getElementById("saved-vehicles-empty-state");
+
+  if (!currentUserId) {
+    console.error("❌ [Load Saved Vehicles] No user logged in");
+    if (emptyState) emptyState.style.display = "flex";
+    return;
+  }
+
+  try {
+    // Fetch vehicles from garage_vehicles table
+    const { data: vehicles, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .eq("user_id", currentUserId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("❌ [Load Saved Vehicles] Error fetching vehicles:", error);
+      showToast("Failed to load saved vehicles", "error");
+      return;
+    }
+
+    if (!vehicles || vehicles.length === 0) {
+      if (emptyState) emptyState.style.display = "flex";
+      listContainer.innerHTML = "";
+      listContainer.appendChild(emptyState);
+      return;
+    }
+
+    // Hide empty state
+    if (emptyState) emptyState.style.display = "none";
+
+    // Build vehicle cards
+    listContainer.innerHTML = vehicles
+      .map(
+        (vehicle) => `
+      <div class="saved-vehicle-card" data-vehicle-id="${vehicle.id}">
+        <div class="saved-vehicle-info">
+          <h3 class="saved-vehicle-title">
+            ${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? " " + vehicle.trim : ""}
+          </h3>
+          <div class="saved-vehicle-details">
+            ${vehicle.vin ? `<span class="detail-item">VIN: ${vehicle.vin}</span>` : ""}
+            ${vehicle.mileage ? `<span class="detail-item">${formatNumber(vehicle.mileage)} miles</span>` : ""}
+            ${vehicle.condition ? `<span class="detail-item">Condition: ${capitalizeFirst(vehicle.condition)}</span>` : ""}
+          </div>
+          <div class="saved-vehicle-values">
+            ${
+              vehicle.estimated_value
+                ? `<span class="value-item">Value: ${formatCurrency(vehicle.estimated_value)}</span>`
+                : ""
+            }
+            ${
+              vehicle.payoff_amount
+                ? `<span class="value-item">Payoff: ${formatCurrency(vehicle.payoff_amount)}</span>`
+                : ""
+            }
+          </div>
+          ${vehicle.notes ? `<p class="saved-vehicle-notes">${vehicle.notes}</p>` : ""}
+        </div>
+        <div class="saved-vehicle-actions">
+          <button
+            class="btn btn-secondary btn-sm"
+            onclick="openEditSavedVehicleModal('${vehicle.id}')"
+            title="Edit vehicle details"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit
+          </button>
+          <button
+            class="btn btn-danger btn-sm"
+            onclick="deleteSavedVehicle('${vehicle.id}')"
+            title="Delete vehicle"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Delete
+          </button>
+        </div>
+      </div>
+    `
+      )
+      .join("");
+  } catch (error) {
+    console.error("❌ [Load Saved Vehicles] Unexpected error:", error);
+    showToast("Failed to load saved vehicles", "error");
+  }
+}
+
+/**
+ * Open edit modal for a specific vehicle
+ */
+async function openEditSavedVehicleModal(vehicleId) {
+  const modal = document.getElementById("edit-saved-vehicle-modal");
+  if (!modal) {
+    console.error("❌ [Edit Saved Vehicle] Modal element not found!");
+    return;
+  }
+
+  currentEditVehicleId = vehicleId;
+
+  try {
+    // Fetch vehicle data
+    const { data: vehicle, error } = await supabase
+      .from("garage_vehicles")
+      .select("*")
+      .eq("id", vehicleId)
+      .single();
+
+    if (error || !vehicle) {
+      console.error("❌ [Edit Saved Vehicle] Error fetching vehicle:", error);
+      showToast("Failed to load vehicle data", "error");
+      return;
+    }
+
+    // Populate form fields
+    document.getElementById("edit-vehicle-year").value = vehicle.year || "";
+    document.getElementById("edit-vehicle-make").value = vehicle.make || "";
+    document.getElementById("edit-vehicle-model").value = vehicle.model || "";
+    document.getElementById("edit-vehicle-trim").value = vehicle.trim || "";
+    document.getElementById("edit-vehicle-vin").value = vehicle.vin || "";
+    document.getElementById("edit-vehicle-mileage").value = vehicle.mileage || "";
+    document.getElementById("edit-vehicle-condition").value = vehicle.condition || "";
+    document.getElementById("edit-vehicle-value").value = vehicle.estimated_value || "";
+    document.getElementById("edit-vehicle-payoff").value = vehicle.payoff_amount || "";
+    document.getElementById("edit-vehicle-photo").value = vehicle.photo_url || "";
+    document.getElementById("edit-vehicle-notes").value = vehicle.notes || "";
+
+    // Show modal
+    modal.style.display = "flex";
+  } catch (error) {
+    console.error("❌ [Edit Saved Vehicle] Unexpected error:", error);
+    showToast("Failed to load vehicle data", "error");
+  }
+}
+
+/**
+ * Close edit vehicle modal
+ */
+function closeEditSavedVehicleModal() {
+  const modal = document.getElementById("edit-saved-vehicle-modal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+  currentEditVehicleId = null;
+}
+
+/**
+ * Save changes to edited vehicle
+ */
+async function saveSavedVehicleChanges() {
+  if (!currentEditVehicleId) {
+    showToast("No vehicle selected for editing", "error");
+    return;
+  }
+
+  // Get form values
+  const year = parseInt(document.getElementById("edit-vehicle-year").value);
+  const make = document.getElementById("edit-vehicle-make").value.trim();
+  const model = document.getElementById("edit-vehicle-model").value.trim();
+  const trim = document.getElementById("edit-vehicle-trim").value.trim();
+  const vin = document.getElementById("edit-vehicle-vin").value.trim();
+  const mileage = document.getElementById("edit-vehicle-mileage").value
+    ? parseInt(document.getElementById("edit-vehicle-mileage").value)
+    : null;
+  const condition = document.getElementById("edit-vehicle-condition").value;
+  const estimated_value = document.getElementById("edit-vehicle-value").value
+    ? parseFloat(document.getElementById("edit-vehicle-value").value)
+    : null;
+  const payoff_amount = document.getElementById("edit-vehicle-payoff").value
+    ? parseFloat(document.getElementById("edit-vehicle-payoff").value)
+    : null;
+  const photo_url = document.getElementById("edit-vehicle-photo").value.trim();
+  const notes = document.getElementById("edit-vehicle-notes").value.trim();
+
+  // Validate required fields
+  if (!year || !make || !model) {
+    showToast("Year, Make, and Model are required", "error");
+    return;
+  }
+
+  try {
+    // Update vehicle in Supabase
+    const { data, error } = await supabase
+      .from("garage_vehicles")
+      .update({
+        year,
+        make,
+        model,
+        trim: trim || null,
+        vin: vin || null,
+        mileage,
+        condition: condition || null,
+        estimated_value,
+        payoff_amount,
+        photo_url: photo_url || null,
+        notes: notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", currentEditVehicleId)
+      .eq("user_id", currentUserId)
+      .select();
+
+    if (error) {
+      console.error("❌ [Save Vehicle Changes] Error updating vehicle:", error);
+      showToast("Failed to save changes: " + error.message, "error");
+      return;
+    }
+
+    // Success!
+    showToast("✓ Vehicle updated successfully", "success");
+
+    // Close edit modal
+    closeEditSavedVehicleModal();
+
+    // Reload vehicle list
+    await loadSavedVehiclesList();
+
+    // Also reload garage vehicles if the garage modal is open
+    if (typeof loadGarageVehicles === "function") {
+      await loadGarageVehicles();
+    }
+  } catch (error) {
+    console.error("❌ [Save Vehicle Changes] Unexpected error:", error);
+    showToast("Failed to save changes", "error");
+  }
+}
+
+/**
+ * Delete a saved vehicle
+ */
+async function deleteSavedVehicle(vehicleId) {
+  if (!confirm("Are you sure you want to delete this vehicle? This action cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("garage_vehicles")
+      .delete()
+      .eq("id", vehicleId)
+      .eq("user_id", currentUserId);
+
+    if (error) {
+      console.error("❌ [Delete Vehicle] Error deleting vehicle:", error);
+      showToast("Failed to delete vehicle: " + error.message, "error");
+      return;
+    }
+
+    // Success!
+    showToast("✓ Vehicle deleted successfully", "success");
+
+    // Reload vehicle list
+    await loadSavedVehiclesList();
+
+    // Also reload garage vehicles if the garage modal is open
+    if (typeof loadGarageVehicles === "function") {
+      await loadGarageVehicles();
+    }
+  } catch (error) {
+    console.error("❌ [Delete Vehicle] Unexpected error:", error);
+    showToast("Failed to delete vehicle", "error");
+  }
+}
+
+// Helper function to capitalize first letter
+function capitalizeFirst(str) {
+  if (!str) return "";
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
 
 /* ============================================================================
    Submit Offer Functions

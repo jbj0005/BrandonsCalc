@@ -2054,6 +2054,286 @@
       </div>
     </div>
 
+    <!-- My Saved Vehicles Modal -->
+    <div id="my-saved-vehicles-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeMySavedVehiclesModal()"></div>
+      <div class="modal-content my-garage-modal">
+        <button
+          class="modal-close"
+          onclick="closeMySavedVehiclesModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <div class="garage-header">
+          <div class="garage-icon">
+            <svg
+              width="48"
+              height="48"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+              ></path>
+              <polyline points="9 22 9 12 15 12 15 22"></polyline>
+            </svg>
+          </div>
+          <h2 class="garage-title">My Saved Vehicles</h2>
+          <p class="garage-subtitle">
+            View and edit all vehicle details from your garage
+          </p>
+        </div>
+
+        <div class="garage-body">
+          <!-- Vehicle List for Editing -->
+          <div id="saved-vehicles-edit-list" class="saved-vehicles-edit-list">
+            <!-- Vehicles will be dynamically inserted here -->
+            <div class="garage-empty-state" id="saved-vehicles-empty-state">
+              <svg
+                width="64"
+                height="64"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                style="margin: 0 auto 16px; opacity: 0.3"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                ></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+              <p>No saved vehicles</p>
+              <small>Add vehicles in "My Garage" to see them here</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Saved Vehicle Form Modal -->
+    <div id="edit-saved-vehicle-modal" class="modal" style="display: none">
+      <div class="modal-overlay" onclick="closeEditSavedVehicleModal()"></div>
+      <div class="modal-content edit-vehicle-modal">
+        <button
+          class="modal-close"
+          onclick="closeEditSavedVehicleModal()"
+          aria-label="Close"
+        >
+          <svg
+            width="24"
+            height="24"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M6 18L18 6M6 6l12 12"
+            ></path>
+          </svg>
+        </button>
+
+        <div class="garage-header">
+          <h2 class="garage-title">Edit Vehicle Details</h2>
+        </div>
+
+        <form id="edit-saved-vehicle-form" class="garage-form">
+          <!-- Vehicle Information -->
+          <div class="form-section">
+            <h3>Vehicle Information</h3>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-vehicle-year">Year *</label>
+                <input
+                  type="number"
+                  id="edit-vehicle-year"
+                  min="1900"
+                  max="2099"
+                  required
+                  placeholder="2024"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="edit-vehicle-make">Make *</label>
+                <input
+                  type="text"
+                  id="edit-vehicle-make"
+                  required
+                  placeholder="Toyota"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-vehicle-model">Model *</label>
+                <input
+                  type="text"
+                  id="edit-vehicle-model"
+                  required
+                  placeholder="Camry"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="edit-vehicle-trim">Trim</label>
+                <input
+                  type="text"
+                  id="edit-vehicle-trim"
+                  placeholder="XLE"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-vehicle-vin">VIN</label>
+                <input
+                  type="text"
+                  id="edit-vehicle-vin"
+                  placeholder="1HGBH41JXMN109186"
+                  maxlength="17"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="edit-vehicle-mileage">Mileage</label>
+                <input
+                  type="number"
+                  id="edit-vehicle-mileage"
+                  min="0"
+                  placeholder="25000"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Condition & Value -->
+          <div class="form-section">
+            <h3>Condition & Value</h3>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-vehicle-condition">Condition</label>
+                <select id="edit-vehicle-condition">
+                  <option value="">Select condition</option>
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                  <option value="poor">Poor</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="edit-vehicle-value">Estimated Value</label>
+                <input
+                  type="number"
+                  id="edit-vehicle-value"
+                  min="0"
+                  step="0.01"
+                  placeholder="25000.00"
+                />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group">
+                <label for="edit-vehicle-payoff">Payoff Amount</label>
+                <input
+                  type="number"
+                  id="edit-vehicle-payoff"
+                  min="0"
+                  step="0.01"
+                  placeholder="15000.00"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="edit-vehicle-photo">Photo URL</label>
+                <input
+                  type="url"
+                  id="edit-vehicle-photo"
+                  placeholder="https://example.com/photo.jpg"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="form-section">
+            <h3>Notes</h3>
+
+            <div class="form-group">
+              <label for="edit-vehicle-notes">Additional Notes</label>
+              <textarea
+                id="edit-vehicle-notes"
+                rows="3"
+                placeholder="Any additional information about this vehicle..."
+              ></textarea>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="garage-form-actions">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onclick="closeEditSavedVehicleModal()"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="saveSavedVehicleChanges()"
+            >
+              <svg
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M5 13l4 4L19 7"
+                ></path>
+              </svg>
+              Save Changes
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Submit Offer Modal -->
     <div id="submit-offer-modal" class="modal" style="display: none">
       <div class="modal-overlay" onclick="closeSubmitOfferModal()"></div>
