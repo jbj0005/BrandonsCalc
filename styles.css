@@ -57,6 +57,16 @@
   --transition-base: 300ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 500ms cubic-bezier(0.4, 0, 0.2, 1);
   --transition-bounce: 600ms cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* iOS/Apple-inspired surface tokens */
+  --ios-surface: #ffffff;
+  --ios-surface-elevated: linear-gradient(180deg, #ffffff 0%, #f7f8fa 100%);
+  --ios-hairline: rgba(60, 60, 67, 0.18);
+  --ios-hairline-strong: rgba(60, 60, 67, 0.28);
+  --ios-pill: rgba(0, 0, 0, 0.04);
+  --ios-shadow: 0 8px 28px rgba(0, 0, 0, 0.08);
+  --ios-shadow-hover: 0 12px 32px rgba(0, 0, 0, 0.12);
+  --ios-blur: saturate(180%) blur(16px);
 }
 
 * {
@@ -784,21 +794,22 @@ body {
   top: calc(100% + 0.5rem);
   left: 0;
   right: 0;
-  background: white;
-  border: 2px solid rgba(203, 213, 225, 0.5);
-  border-radius: var(--radius-md);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+  background: var(--ios-surface-elevated);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 14px;
+  box-shadow: var(--ios-shadow);
   max-height: 300px;
   overflow-y: auto;
   z-index: 10;
   animation: slideDown 0.2s var(--transition-base);
+  backdrop-filter: var(--ios-blur);
 }
 
 .saved-vehicle-item {
   padding: var(--spacing-sm) var(--spacing-md);
   cursor: pointer;
   transition: background var(--transition-fast);
-  border-bottom: 1px solid rgba(203, 213, 225, 0.2);
+  border-bottom: 1px solid var(--ios-hairline);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -810,7 +821,7 @@ body {
 }
 
 .saved-vehicle-item:hover {
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .saved-vehicle-item__content {
@@ -955,7 +966,8 @@ body {
   overflow: hidden;
   background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
   border: 2px solid rgba(59, 130, 246, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 -15px 30px -15px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1),
+    inset 0 -15px 30px -15px rgba(0, 0, 0, 0.05);
 }
 
 .your-vehicle-card__image {
@@ -1193,19 +1205,22 @@ body {
 .your-vehicle-card--quick {
   position: relative;
   --vehicle-accent: var(--primary-start);
-  background: #ffffff;
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  background: var(--ios-surface-elevated);
+  border: 1px solid var(--ios-hairline);
   padding: var(--spacing-xl);
-  border-radius: 26px;
-  box-shadow: 0 30px 48px -32px rgba(15, 23, 42, 0.35);
+  border-radius: 24px;
+  box-shadow: var(--ios-shadow);
+  backdrop-filter: var(--ios-blur);
   transition: transform var(--transition-fast),
     box-shadow var(--transition-fast), border-color var(--transition-fast);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter,
+    system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .your-vehicle-card--quick:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 36px 58px -30px rgba(30, 64, 175, 0.38);
-  border-color: rgba(59, 130, 246, 0.22);
+  transform: translateY(-4px);
+  box-shadow: var(--ios-shadow-hover);
+  border-color: var(--ios-hairline-strong);
 }
 
 .your-vehicle-card--quick::before {
@@ -1213,7 +1228,8 @@ body {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  /* subtle top highlight */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
   z-index: 0;
 }
 
@@ -1234,13 +1250,14 @@ body {
 }
 
 .your-vehicle-card--quick .your-vehicle-card__badge {
-  top: -47px;
-  padding: 10px 1.5rem;
-  font-size: 0.8125rem;
-  letter-spacing: 0.6px;
+  top: -44px;
+  padding: 10px 1.25rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.5px;
   text-transform: uppercase;
-  background: black;
-  box-shadow: 0 18px 32px -18px rgba(59, 130, 246, 0.4);
+  background: #000; /* pure, Apple-like pill */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.45);
   animation: none;
 }
 
@@ -1255,10 +1272,10 @@ body {
   flex: 0 0 240px;
   max-width: 240px;
   width: 100%;
-  border-radius: 22px;
+  border-radius: 20px;
   padding: 12px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: #f2f2f7;
+  border: 1px solid var(--ios-hairline);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1296,24 +1313,24 @@ body {
 .your-vehicle-card--quick .your-vehicle-card__title {
   margin: 0;
   text-align: left;
-  font-size: 1.5rem;
+  font-size: 1.45rem;
   letter-spacing: -0.01em;
   font-weight: 700;
-  color: var(--vehicle-accent);
-  line-height: 1.5;
+  color: var(--text-primary);
+  line-height: 1.45;
   flex: 1 1 auto;
 }
 
 .your-vehicle-card--quick .your-vehicle-card__price {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--vehicle-accent);
-  line-height: 1.5;
+  line-height: 1.45;
   white-space: nowrap;
-  padding: 8px 16px;
+  padding: 8px 14px;
   border-radius: 999px;
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.24);
+  background: var(--ios-pill);
+  border: 1px solid var(--ios-hairline);
 }
 
 .your-vehicle-card--quick .your-vehicle-card__meta-grid {
@@ -1328,10 +1345,10 @@ body {
   flex-direction: column;
   gap: 4px;
   padding: 14px 16px;
-  border-radius: 18px;
-  background: rgba(248, 250, 252, 0.9);
-  border: 1px solid rgba(148, 163, 184, 0.12);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  border-radius: 16px;
+  background: var(--ios-surface-elevated);
+  border: 1px solid var(--ios-hairline);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
   align-items: center;
   text-align: center;
 }
@@ -1340,7 +1357,7 @@ body {
   font-size: 0.7rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: rgba(71, 85, 105, 0.7);
+  color: rgba(60, 60, 67, 0.6);
   font-weight: 700;
 }
 
@@ -1374,8 +1391,8 @@ body {
   gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: var(--ios-pill);
+  border: 1px solid var(--ios-hairline);
   color: var(--vehicle-accent);
   font-size: 0.9rem;
   font-weight: 600;
@@ -1875,9 +1892,9 @@ body {
 }
 
 .vehicle-card {
-  background: white;
-  border: 2px solid rgba(203, 213, 225, 0.3);
-  border-radius: var(--radius-md);
+  background: var(--ios-surface-elevated);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 16px;
   padding: var(--spacing-md);
   cursor: pointer;
   transition: all var(--transition-base);
@@ -1887,17 +1904,20 @@ body {
   max-width: 300px;
   flex-shrink: 0;
   scroll-snap-align: start;
+  box-shadow: var(--ios-shadow);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter,
+    system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .vehicle-card:hover {
-  border-color: var(--primary-start);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.2);
+  border-color: var(--ios-hairline-strong);
+  transform: translateY(-3px);
+  box-shadow: var(--ios-shadow-hover);
 }
 
 .vehicle-card.selected {
   border-color: var(--success);
-  background: rgba(16, 185, 129, 0.05);
+  background: linear-gradient(180deg, #ffffff, #f5fff9);
 }
 
 .vehicle-card__badge {
@@ -1943,25 +1963,27 @@ body {
   width: 100%;
   height: 220px;
   object-fit: contain;
-  border-radius: var(--radius-sm);
+  border-radius: 12px;
   margin-bottom: var(--spacing-sm);
-  background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
+  background: #f2f2f7;
   padding: 16px;
-  filter: brightness(1.05) contrast(1.08) saturate(1.12);
+  filter: brightness(1.03) contrast(1.05) saturate(1.06);
   transition: filter var(--transition-base), transform var(--transition-base);
   box-shadow: inset 0 -20px 40px -20px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--ios-hairline);
 }
 
 .vehicle-card:hover .vehicle-card__image {
-  filter: brightness(1.08) contrast(1.1) saturate(1.15);
-  transform: scale(1.02);
+  filter: brightness(1.08) contrast(1.08) saturate(1.1);
+  transform: scale(1.015);
 }
 
 .vehicle-card__title {
   font-weight: 700;
-  color: #1e293b;
+  color: #0f172a;
   margin-bottom: 0.25rem;
   font-size: 1rem;
+  letter-spacing: -0.01em;
 }
 
 .vehicle-card__details {
@@ -1969,7 +1991,7 @@ body {
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-sm);
   font-size: 0.875rem;
-  color: #64748b;
+  color: #6e6e73;
 }
 
 .vehicle-card__detail {
@@ -1996,7 +2018,8 @@ body {
   margin-top: 0.25rem;
 }
 
-.vehicle-card__vin {
+.vehicle-card__vin,
+.vehicle-vin {
   font-family: var(--font-mono);
   font-size: 0.75rem;
   color: #cbd5e1;
@@ -2018,13 +2041,13 @@ body {
 .selected-vehicle-card {
   display: flex;
   gap: var(--spacing-md);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop);
-  border: 2px solid var(--success);
-  border-radius: var(--radius-lg);
+  background: var(--ios-surface-elevated);
+  backdrop-filter: var(--ios-blur);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 20px;
   padding: var(--spacing-md);
   position: relative;
-  box-shadow: 0 4px 20px rgba(16, 185, 129, 0.15);
+  box-shadow: var(--ios-shadow);
   overflow: hidden;
 }
 
@@ -2043,13 +2066,14 @@ body {
   flex-shrink: 0;
   width: 180px;
   height: 135px;
-  background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
-  border-radius: var(--radius-md);
+  background: #f2f2f7;
+  border-radius: 14px;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: inset 0 -15px 30px -15px rgba(0, 0, 0, 0.05);
+  border: 1px solid var(--ios-hairline);
 }
 
 .selected-vehicle-card__image-container.no-image {
@@ -2101,10 +2125,7 @@ body {
 .selected-vehicle-card__price {
   font-size: 1.25rem;
   font-weight: 800;
-  background: linear-gradient(135deg, var(--success), var(--secondary-start));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: var(--success);
   white-space: nowrap;
 }
 
@@ -2553,6 +2574,7 @@ body {
 .vin-display,
 .vehicle-card__vin,
 .saved-vehicle-item__vin,
+.vehicle-vin,
 .selected-vehicle-info span[style*="font-family"] {
   font-family: var(--font-mono) !important;
   font-weight: 500;
@@ -3103,7 +3125,7 @@ body {
 }
 
 .review-hero__vin {
-  font-family: "Courier New", monospace;
+  font-family: var(--font-mono);
   font-size: 14px;
   opacity: 0.8;
   margin-bottom: var(--spacing-md);
@@ -6309,17 +6331,22 @@ body {
 }
 
 .garage-vehicle-card {
-  background: rgba(255, 255, 255, 0.8);
-  border: 2px solid rgba(0, 0, 0, 0.06);
-  border-radius: 12px;
+  background: var(--ios-surface-elevated);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 16px;
   padding: 16px;
   margin-bottom: 12px;
   transition: all 0.2s ease;
+  box-shadow: var(--ios-shadow);
+  backdrop-filter: var(--ios-blur);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter,
+    system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
 .garage-vehicle-card:hover {
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+  transform: translateY(-2px);
+  border-color: var(--ios-hairline-strong);
+  box-shadow: var(--ios-shadow-hover);
 }
 
 .garage-vehicle-header {
@@ -6328,7 +6355,7 @@ body {
   align-items: center;
   margin-bottom: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  border-bottom: 1px solid var(--ios-hairline);
 }
 
 .garage-vehicle-checkbox {
@@ -6359,17 +6386,18 @@ body {
 
 .garage-action-btn {
   padding: 8px;
-  background: transparent;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 6px;
+  background: var(--ios-surface);
+  border: 1px solid var(--ios-hairline);
+  border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
   color: var(--text-secondary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
 
 .garage-action-btn:hover {
-  background: rgba(59, 130, 246, 0.1);
-  border-color: var(--primary);
+  background: rgba(0, 0, 0, 0.04);
+  border-color: var(--ios-hairline-strong);
   color: var(--primary);
 }
 
@@ -6425,11 +6453,12 @@ body {
 .garage-badge {
   display: inline-block;
   padding: 4px 10px;
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--ios-pill);
   color: var(--primary);
-  border-radius: 12px;
+  border: 1px solid var(--ios-hairline);
+  border-radius: 999px;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 /* === Vehicle Price Styling === */
@@ -8085,7 +8114,8 @@ body {
 #reviewHeroVin,
 .contract-vin,
 .saved-vehicle-item__vin,
-.vehicle-card__vin {
+.vehicle-card__vin,
+.vehicle-vin {
   font-family: var(--font-mono) !important;
   letter-spacing: 0.05em;
 }
