@@ -953,15 +953,17 @@ body {
   margin: 0 auto;
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
   border: 2px solid rgba(59, 130, 246, 0.2);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1), inset 0 -15px 30px -15px rgba(0, 0, 0, 0.05);
 }
 
 .your-vehicle-card__image {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 16px;
+  filter: brightness(1.05) contrast(1.08) saturate(1.12);
 }
 
 .your-vehicle-card__image-placeholder {
@@ -1943,7 +1945,16 @@ body {
   object-fit: contain;
   border-radius: var(--radius-sm);
   margin-bottom: var(--spacing-sm);
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
+  padding: 16px;
+  filter: brightness(1.05) contrast(1.08) saturate(1.12);
+  transition: filter var(--transition-base), transform var(--transition-base);
+  box-shadow: inset 0 -20px 40px -20px rgba(0, 0, 0, 0.05);
+}
+
+.vehicle-card:hover .vehicle-card__image {
+  filter: brightness(1.08) contrast(1.1) saturate(1.15);
+  transform: scale(1.02);
 }
 
 .vehicle-card__title {
@@ -2032,12 +2043,13 @@ body {
   flex-shrink: 0;
   width: 180px;
   height: 135px;
-  background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+  background: radial-gradient(ellipse at center, #ffffff 0%, #f1f5f9 100%);
   border-radius: var(--radius-md);
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  box-shadow: inset 0 -15px 30px -15px rgba(0, 0, 0, 0.05);
 }
 
 .selected-vehicle-card__image-container.no-image {
@@ -2052,6 +2064,8 @@ body {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  padding: 12px;
+  filter: brightness(1.05) contrast(1.08) saturate(1.12);
 }
 
 .selected-vehicle-card__image-placeholder {
