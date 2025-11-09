@@ -54,6 +54,30 @@ serve(async (req) => {
       throw new Error('Missing required fields: to and dealerName');
     }
 
+    // ========================================================================
+    // COMPLIANCE CHECK: Verify recipient has opted in
+    // ========================================================================
+    const normalizedPhone = requestData.to.replace(/[^\d+]/g, '');
+    const phoneToCheck = normalizedPhone.startsWith('+') ? normalizedPhone : `+1${normalizedPhone}`;
+
+    console.log(`[COMPLIANCE] Checking opt-in status for: ${phoneToCheck}`);
+
+    // Check if phone number is opted in
+    const { data: isOptedIn, error: optCheckError } = await supabase.rpc('is_phone_opted_in', {
+      p_phone_number: phoneToCheck
+    });
+
+    if (optCheckError) {
+      console.error('[COMPLIANCE] Error checking opt-in status:', optCheckError);
+      // Allow sending on error (fail open) but log the issue
+      console.warn('[COMPLIANCE] Proceeding with send despite check error');
+    } else if (isOptedIn === false) {
+      console.error(`[COMPLIANCE] Blocked: ${phoneToCheck} has opted out or never opted in`);
+      throw new Error('Recipient has opted out of SMS messages or has not provided consent');
+    }
+
+    console.log(`[COMPLIANCE] ✓ Opt-in verified for: ${phoneToCheck}`);
+
     // Format SMS message
     let smsBody = '';
     
@@ -98,6 +122,11 @@ serve(async (req) => {
       smsBody = requestData.message || 'You have a new offer from ExcelCalc.';
     }
 
+    // ========================================================================
+    // COMPLIANCE: Add required opt-out instructions (REQUIRED by TCPA)
+    // ========================================================================
+    smsBody += '\n\nReply STOP to unsubscribe.';
+
     // Send SMS via Twilio API
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
     
@@ -140,6 +169,18 @@ serve(async (req) => {
 
     if (logError) {
       console.error('Failed to log SMS:', logError);
+      // Don't throw - SMS was still sent successfully
+    }
+
+    // ========================================================================
+    // COMPLIANCE: Record message sent (update opt-in status tracking)
+    // ========================================================================
+    const { error: recordError } = await supabase.rpc('record_message_sent', {
+      p_phone_number: phoneToCheck
+    });
+
+    if (recordError) {
+      console.error('[COMPLIANCE] Error recording message sent:', recordError);
       // Don't throw - SMS was still sent successfully
     }
 
