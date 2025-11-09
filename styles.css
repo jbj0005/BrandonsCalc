@@ -451,7 +451,7 @@ body {
   justify-content: center;
   font-weight: 600;
   font-size: 1rem;
-  color: #94a3b8;
+  color: #4794ff;
   transition: all var(--transition-base);
 }
 
@@ -612,7 +612,7 @@ body {
 }
 
 .form-input::placeholder {
-  color: #94a3b8;
+  color: #4794ff;
 }
 
 .form-hint {
@@ -634,7 +634,7 @@ body {
   transform: translateY(-50%);
   width: 20px;
   height: 20px;
-  color: #94a3b8;
+  color: var(--primary); /* match location icon token */
   pointer-events: none;
 }
 
@@ -851,7 +851,7 @@ body {
 .saved-vehicle-item__vin {
   font-family: var(--font-mono);
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #4794ff;
   margin-top: 0.25rem;
 }
 
@@ -984,7 +984,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: #4794ff;
 }
 
 .your-vehicle-card__image-placeholder svg {
@@ -1248,19 +1248,6 @@ body {
   position: relative;
   z-index: 1;
 }
-
-.your-vehicle-card--quick .your-vehicle-card__badge {
-  top: -44px;
-  padding: 10px 1.25rem;
-  font-size: 0.8rem;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  background: #000; /* pure, Apple-like pill */
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 10px 22px -14px rgba(0, 0, 0, 0.45);
-  animation: none;
-}
-
 .your-vehicle-card--quick .your-vehicle-card__layout {
   display: flex;
   gap: var(--spacing-xl);
@@ -1304,9 +1291,9 @@ body {
 
 .your-vehicle-card--quick .your-vehicle-card__title-row {
   display: flex;
+  flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  gap: var(--spacing-md);
   flex-wrap: wrap;
 }
 
@@ -1322,15 +1309,16 @@ body {
 }
 
 .your-vehicle-card--quick .your-vehicle-card__price {
-  font-size: 1.15rem;
+  font-size: 1.2rem;
+  font-family: montserrat;
   font-weight: 700;
-  color: var(--vehicle-accent);
+  color: var(--success);
   line-height: 1.45;
   white-space: nowrap;
-  padding: 8px 14px;
-  border-radius: 999px;
-  background: var(--ios-pill);
-  border: 1px solid var(--ios-hairline);
+  padding: 2px 12px;
+  background-color: rgba(16, 185, 129, 0.1);
+  border-radius: var(--radius-lg);
+  margin: 0.2rem;
 }
 
 .your-vehicle-card--quick .your-vehicle-card__meta-grid {
@@ -1367,6 +1355,42 @@ body {
   color: #1e293b;
 }
 
+.your-vehicle-card--quick .your-vehicle-card__info-card--dealer {
+  align-items: flex-start;
+  text-align: left;
+  gap: 6px;
+}
+
+.your-vehicle-card--quick .your-vehicle-card__info-value--dealer {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.your-vehicle-card__info-subtext {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.your-vehicle-card__info-link {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--primary-start);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.your-vehicle-card__info-link:hover {
+  text-decoration: underline;
+}
+
 .your-vehicle-card--quick .your-vehicle-card__info-value--mono {
   font-family: var(--font-mono);
   font-size: 0.9rem;
@@ -1386,17 +1410,17 @@ body {
 }
 
 .your-vehicle-card--quick .your-vehicle-card__distance-chip {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: var(--ios-pill);
-  border: 1px solid var(--ios-hairline);
+  /* background: var(--ios-pill); */
+  /* border: 1px solid var(--ios-hairline); */
   color: var(--vehicle-accent);
   font-size: 0.9rem;
   font-weight: 600;
-  white-space: nowrap;
+  /* white-space: nowrap; */
 }
 
 .your-vehicle-card--quick .your-vehicle-card__distance-icon {
@@ -1647,7 +1671,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: #4794ff;
 }
 
 .manual-preview__image-placeholder svg {
@@ -2014,7 +2038,7 @@ body {
 
 .vehicle-card__location {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #4794ff;
   margin-top: 0.25rem;
 }
 
@@ -2321,7 +2345,7 @@ body {
 
 .smart-offer-stat-label {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #4794ff;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.25rem;
@@ -2410,7 +2434,7 @@ body {
 
 .mileage-impact-stat-label {
   font-size: 0.75rem;
-  color: #94a3b8;
+  color: #4794ff;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 0.25rem;
@@ -6276,6 +6300,259 @@ body {
   }
 }
 
+/* Compact Saved Vehicles Modal - Tight spacing for mobile/desktop */
+@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap");
+
+.edit-vehicle-modal {
+  max-width: 700px;
+  max-height: 90vh;
+  overflow-y: auto;
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.edit-vehicle-modal .garage-header {
+  padding: 16px 20px 12px;
+  text-align: left;
+}
+
+.edit-vehicle-modal .garage-title {
+  font-family: "Roboto", sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.edit-vehicle-modal .garage-subtitle {
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.3;
+}
+
+.edit-vehicle-modal .garage-body {
+  padding: 16px 20px;
+}
+
+.edit-vehicle-modal .form-section {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+}
+
+.edit-vehicle-modal .form-section h3 {
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-secondary);
+}
+
+.edit-vehicle-modal .form-row {
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.edit-vehicle-modal .form-group label {
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+.edit-vehicle-modal .form-group input,
+.edit-vehicle-modal .form-group select,
+.edit-vehicle-modal .form-group textarea {
+  font-family: "Roboto", sans-serif;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.4;
+  border-radius: 6px;
+}
+
+.edit-vehicle-modal .garage-form-actions {
+  margin-top: 16px;
+  padding-top: 16px;
+  gap: 10px;
+}
+
+.edit-vehicle-modal .btn {
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: "Roboto", sans-serif;
+  letter-spacing: 0.01em;
+}
+
+/* Compact vehicle cards in saved vehicles list */
+.saved-vehicle-card {
+  font-family: "Roboto", sans-serif;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 12px;
+}
+
+.saved-vehicle-title {
+  font-family: "Roboto", sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+.saved-vehicle-details {
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 6px;
+  gap: 8px;
+}
+
+.saved-vehicle-price {
+  margin-top: 6px;
+}
+
+.saved-vehicle-dealer {
+  font-size: 12px;
+  margin-top: 6px;
+  line-height: 1.3;
+}
+
+.saved-vehicle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.saved-vehicle-actions .btn-sm {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-family: "Roboto", sans-serif;
+  font-weight: 500;
+  flex: 1 1 auto;
+  white-space: nowrap;
+}
+
+.saved-vehicle-actions .btn-success {
+  flex: 1 1 100%;
+}
+
+/* My Saved Vehicles Modal */
+#my-saved-vehicles-modal .garage-header {
+  padding: 16px 20px 12px;
+}
+
+#my-saved-vehicles-modal .garage-title {
+  font-family: "Roboto", sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+#my-saved-vehicles-modal .garage-subtitle {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+#my-saved-vehicles-modal .garage-body {
+  padding: 16px 20px;
+}
+
+/* Mobile optimizations - Even tighter spacing */
+@media (max-width: 640px) {
+  .edit-vehicle-modal .garage-header {
+    padding: 12px 16px 10px;
+  }
+
+  .edit-vehicle-modal .garage-title {
+    font-size: 18px;
+  }
+
+  .edit-vehicle-modal .garage-subtitle {
+    font-size: 12px;
+  }
+
+  .edit-vehicle-modal .garage-body {
+    padding: 12px 16px;
+  }
+
+  .edit-vehicle-modal .form-section {
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+  }
+
+  .edit-vehicle-modal .form-section h3 {
+    font-size: 13px;
+    margin: 0 0 8px;
+  }
+
+  .edit-vehicle-modal .form-row {
+    gap: 10px;
+    margin-bottom: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  .edit-vehicle-modal .form-group label {
+    font-size: 11px;
+    margin-bottom: 3px;
+  }
+
+  .edit-vehicle-modal .form-group input,
+  .edit-vehicle-modal .form-group select {
+    padding: 7px 9px;
+    font-size: 13px;
+  }
+
+  .edit-vehicle-modal .garage-form-actions {
+    margin-top: 12px;
+    padding-top: 12px;
+    gap: 8px;
+  }
+
+  .edit-vehicle-modal .btn {
+    padding: 8px 14px;
+    font-size: 12px;
+  }
+
+  #my-saved-vehicles-modal .garage-header {
+    padding: 12px 16px 10px;
+  }
+
+  #my-saved-vehicles-modal .garage-body {
+    padding: 12px 16px;
+  }
+
+  .saved-vehicle-card {
+    padding: 10px;
+    margin-bottom: 8px;
+  }
+
+  .saved-vehicle-title {
+    font-size: 14px;
+  }
+
+  .saved-vehicle-details,
+  .saved-vehicle-dealer {
+    font-size: 11px;
+  }
+
+  .saved-vehicle-actions .btn-sm {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+
+  .saved-vehicle-actions {
+    flex-direction: column;
+  }
+
+  .saved-vehicle-actions .btn-sm {
+    flex: 1 1 100%;
+  }
+}
+
 /* Customer Profile Modal */
 .customer-profile-modal {
   max-width: 600px;
@@ -6464,9 +6741,48 @@ body {
   height: 40px;
 }
 
-#garageVin {
-  font-family: "IBM Plex Mono", monospace;
+/* All VIN fields and displays use monospace font for better readability */
+#garageVin,
+#quick-vin,
+#editVin,
+#edit-vehicle-vin,
+#contractVIN,
+#reviewHeroVin,
+input[id*="vin" i],
+input[name*="vin" i],
+.contract-vin,
+.vin-display,
+.vehicle-vin {
+  font-family: "IBM Plex Mono", "Courier New", monospace !important;
   letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* VIN display styling - no label needed, visually distinct */
+.vin-display,
+.vehicle-vin,
+.vehicle-card__vin,
+.saved-vehicle-item__vin,
+.your-vehicle-card__meta .vin-display {
+  display: inline-block;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.detail-item.vin-display {
+  font-size: 11px;
+  padding: 2px 6px;
+}
+
+/* Contract VIN styling */
+.contract-vin {
+  display: block !important;
+  padding: 4px 8px !important;
+  margin-top: 4px;
 }
 
 .garage-title {
@@ -6677,7 +6993,7 @@ body {
   -webkit-background-clip: unset;
   -webkit-text-fill-color: unset;
   background-clip: unset;
-  color: #94a3b8;
+  color: #4794ff;
   font-weight: 500;
   font-size: 0.875rem;
 }

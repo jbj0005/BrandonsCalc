@@ -2187,7 +2187,7 @@ function showSavedVehiclesDropdown() {
       <div class="saved-vehicle-item__details">${capitalizeWords(
         vehicle.trim || ""
       )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(
+      <div class="saved-vehicle-item__vin">${formatVIN(
         vehicle.vin || "N/A"
       )}</div>
     `;
@@ -2230,7 +2230,7 @@ function filterSavedVehicles(searchTerm) {
       <div class="saved-vehicle-item__details">${vehicle.trim || ""} • ${
       vehicle.mileage?.toLocaleString() || "N/A"
     } miles</div>
-      <div class="saved-vehicle-item__vin">VIN: ${formatVIN(vehicle.vin || "N/A")}</div>
+      <div class="saved-vehicle-item__vin">${formatVIN(vehicle.vin || "N/A")}</div>
     `;
     item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
@@ -2243,8 +2243,14 @@ function filterSavedVehicles(searchTerm) {
  * Select a saved vehicle
  */
 function selectSavedVehicle(vehicle) {
-  document.getElementById("vin-input").value = vehicle.vin || "";
-  document.getElementById("saved-vehicles-dropdown").style.display = "none";
+  const vinInput = document.getElementById("quick-vin") || document.getElementById("vin-input");
+  if (vinInput) {
+    vinInput.value = vehicle.vin || "";
+  }
+  const dropdown = document.getElementById("saved-vehicles-dropdown");
+  if (dropdown) {
+    dropdown.style.display = "none";
+  }
   if (vehicle.vin) {
     searchVehicleByVIN(vehicle.vin, vehicle);
   }
@@ -2282,7 +2288,7 @@ function showUnavailableVehicleModal(vehicle) {
           )} miles</div>`
         : ""
     }
-    <div class="vehicle-info">VIN: ${formatVIN(vehicle.vin || "N/A")}</div>
+    <div class="vehicle-info">${formatVIN(vehicle.vin || "N/A")}</div>
   `;
 
   modal.classList.add("active");
@@ -2478,8 +2484,12 @@ async function removeSavedVehicleByVin(vin) {
  * @param {object} savedVehicle - Optional saved vehicle data (if loading from saved vehicles)
  */
 async function searchVehicleByVIN(vin, savedVehicle = null) {
-  const vinInput = document.getElementById("vin-input");
-  const loading = document.getElementById("vin-loading");
+  const vinInput =
+    document.getElementById("vin-input") ||
+    document.getElementById("quick-vin");
+  const loading =
+    document.getElementById("vin-loading") ||
+    document.getElementById("quick-vin-loading");
   const similarSection = document.getElementById("similar-vehicles-section");
   const similarGrid = document.getElementById("similar-vehicles-grid");
 
@@ -2494,13 +2504,16 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     alert(
       "Please enter your location first.\n\nYour location is needed to:\n• Calculate distance from dealer\n• Find similar vehicles nearby\n• Generate Smart Offer pricing"
     );
-    document.getElementById("user-location").focus();
+    const locationInput = document.getElementById("user-location") || document.getElementById("quick-location");
+    if (locationInput) {
+      locationInput.focus();
+    }
     return;
   }
 
-  loading.style.display = "block";
-  vinInput.disabled = true;
-  similarSection.style.display = "none";
+  if (loading) loading.style.display = "block";
+  if (vinInput) vinInput.disabled = true;
+  if (similarSection) similarSection.style.display = "none";
 
   try {
     let vehicleDetails = null;
@@ -2573,7 +2586,12 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     );
 
     // 5. Display the user's vehicle with Smart Offer
-    displayYourVehicle(vehicleDetails, smartOfferData);
+    // Use displayQuickVehicleCard for quick calculator, displayYourVehicle for wizard
+    if (typeof displayQuickVehicleCard === 'function') {
+      displayQuickVehicleCard(vehicleDetails);
+    } else if (document.getElementById("your-vehicle-card")) {
+      displayYourVehicle(vehicleDetails, smartOfferData);
+    }
 
     // 6. Prioritize vehicles by trim match quality
     similarVehicles = prioritizeVehiclesByTrim(
@@ -2620,8 +2638,8 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
     }
     // For saved vehicles, the validation toast has already been shown by checkVehicleListingStatus()
   } finally {
-    loading.style.display = "none";
-    vinInput.disabled = false;
+    if (loading) loading.style.display = "none";
+    if (vinInput) vinInput.disabled = false;
   }
 }
 
@@ -2937,7 +2955,7 @@ function displayYourVehicle(vehicle, smartOfferData = null) {
         ${smartOfferHtml}
 
         <div class="your-vehicle-card__vin">
-          <span class="label">VIN:</span> ${formatVIN(vehicle.vin)}
+          ${formatVIN(vehicle.vin)}
         </div>
       </div>
     </div>
@@ -3001,6 +3019,9 @@ function prioritizeVehiclesByTrim(vehicles, originalVehicle) {
  */
 function displaySimilarVehicles(vehicles, originalVehicle) {
   const grid = document.getElementById("similar-vehicles-grid");
+  if (!grid) {
+    return;
+  }
   grid.innerHTML = "";
 
   vehicles.forEach((vehicle, index) => {
@@ -3079,7 +3100,7 @@ function displaySimilarVehicles(vehicles, originalVehicle) {
             )}, ${vehicle.dealer_state}</div>`
           : ""
       }
-      <div class="vehicle-card__vin">VIN: ${formatVIN(vehicle.vin)}</div>
+      <div class="vehicle-card__vin">${formatVIN(vehicle.vin)}</div>
     `;
 
     card.addEventListener("click", () => selectVehicleCard(index));
@@ -3231,12 +3252,25 @@ async function selectVehicleFromSearch(vehicle) {
 function clearSelectedVehicle() {
   selectedVehicle = null;
   // Hide your-vehicle-section instead of deprecated selected-vehicle-display
-  document.getElementById("your-vehicle-section").style.display = "none";
-  document.getElementById("smart-offer-display").style.display = "none";
-  document.getElementById("similar-vehicles-section").style.display = "none";
-  document.getElementById("manual-entry-fields").style.display = "block";
-  document.getElementById("vin-input").value = "";
-  document.getElementById("vin-input").focus();
+  const yourVehicleSection = document.getElementById("your-vehicle-section");
+  if (yourVehicleSection) yourVehicleSection.style.display = "none";
+
+  const smartOfferDisplay = document.getElementById("smart-offer-display");
+  if (smartOfferDisplay) smartOfferDisplay.style.display = "none";
+
+  const similarSection = document.getElementById("similar-vehicles-section");
+  if (similarSection) similarSection.style.display = "none";
+
+  const manualFields = document.getElementById("manual-entry-fields");
+  if (manualFields) manualFields.style.display = "block";
+
+  const vinInput =
+    document.getElementById("vin-input") ||
+    document.getElementById("quick-vin");
+  if (vinInput) {
+    vinInput.value = "";
+    vinInput.focus();
+  }
 }
 
 /**
@@ -4579,6 +4613,13 @@ function getCachedAprInfo(condition = "new") {
 async function loadLenders() {
   try {
     const response = await fetch("/config/lenders.json");
+
+    if (!response.ok) {
+      console.warn(`[lenders] Config not found (${response.status}), using empty lenders list`);
+      lendersConfig = [];
+      return;
+    }
+
     const lenders = await response.json();
     lendersConfig = lenders.filter((l) => l.enabled !== false);
 
@@ -5522,7 +5563,7 @@ function populateReviewSection(reviewData) {
   setText("reviewHeroTrim", wizardData.vehicle.trim);
   setText(
     "reviewHeroVin",
-    wizardData.vehicle.vin ? `VIN: ${wizardData.vehicle.vin}` : ""
+    wizardData.vehicle.vin ? wizardData.vehicle.vin.toUpperCase() : ""
   );
   setText("reviewHeroPrice", formatCurrency(cashPrice));
 
@@ -5668,7 +5709,7 @@ function populateReviewVehicleCard(reviewData) {
       <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
       ${
         vehicle.vin
-          ? `<div class="your-vehicle-card__meta">VIN: ${formatVIN(
+          ? `<div class="your-vehicle-card__meta">${formatVIN(
               vehicle.vin
             )}</div>`
           : ""
@@ -6350,7 +6391,6 @@ async function proceedToReviewModal() {
                 }</span>
               </div>
               <div class="contract-row">
-                <span class="contract-label">VIN:</span>
                 <span class="contract-value contract-vin">${
                   vehicle.vin ? formatVIN(vehicle.vin) : "Not specified"
                 }</span>
@@ -6822,37 +6862,43 @@ async function autoPopulateLocationFromProfile() {
     // If profile has address information, populate the main location field
     if (profile.city && profile.state_code) {
       const quickLocation = document.getElementById("quick-location");
-      if (quickLocation && !quickLocation.value) {
-        // Format location string with FULL street address for Google Maps distance calculations
-        const locationString = profile.street_address
-          ? `${profile.street_address}, ${profile.city}, ${profile.state_code}${
-              profile.zip_code ? " " + profile.zip_code : ""
-            }`
-          : `${profile.city}, ${profile.state_code}${
-              profile.zip_code ? " " + profile.zip_code : ""
-            }`;
 
+      // Always set wizardData.location from profile, even if field already has value
+      const shouldPopulateField = quickLocation && !quickLocation.value;
+
+      // Format location string with FULL street address for Google Maps distance calculations
+      const locationString = profile.street_address
+        ? `${profile.street_address}, ${profile.city}, ${profile.state_code}${
+            profile.zip_code ? " " + profile.zip_code : ""
+          }`
+        : `${profile.city}, ${profile.state_code}${
+            profile.zip_code ? " " + profile.zip_code : ""
+          }`;
+
+      // Only populate the field if it's empty
+      if (shouldPopulateField) {
         quickLocation.value = locationString;
+      }
 
-        // Geocode the address to get lat/lng coordinates for distance calculations
-        if (google?.maps?.Geocoder) {
-          const geocoder = new google.maps.Geocoder();
+      // Always geocode and set wizardData.location, even if field was already populated
+      if (google?.maps?.Geocoder) {
+        const geocoder = new google.maps.Geocoder();
 
-          try {
-            const results = await new Promise((resolve, reject) => {
-              geocoder.geocode(
-                { address: locationString },
-                (results, status) => {
-                  if (status === "OK" && results?.length) {
-                    resolve(results);
-                  } else {
-                    reject(new Error(`Geocoding failed: ${status}`));
-                  }
+        try {
+          const results = await new Promise((resolve, reject) => {
+            geocoder.geocode(
+              { address: locationString },
+              (results, status) => {
+                if (status === "OK" && results?.length) {
+                  resolve(results);
+                } else {
+                  reject(new Error(`Geocoding failed: ${status}`));
                 }
-              );
-            });
+              }
+            );
+          });
 
-            if (results && results[0]) {
+          if (results && results[0]) {
               const place = results[0];
               const locale = extractLocaleFromComponents(
                 place.address_components ?? []
@@ -6959,7 +7005,6 @@ async function autoPopulateLocationFromProfile() {
           };
         }
       }
-    }
   } catch (error) {
     console.error("Error auto-populating location:", error);
   }
@@ -9554,6 +9599,7 @@ async function openMySavedVehiclesModal() {
     return;
   }
 
+  modal.classList.add('active');
   modal.style.display = "flex";
 
   // Load vehicles
@@ -9566,9 +9612,65 @@ async function openMySavedVehiclesModal() {
 function closeMySavedVehiclesModal() {
   const modal = document.getElementById("my-saved-vehicles-modal");
   if (modal) {
+    modal.classList.remove('active');
     modal.style.display = "none";
   }
 }
+
+/**
+ * Use a vehicle from saved list - populate form and close modal
+ */
+window.useVehicleFromSavedList = async function(vehicleId) {
+  // Find the vehicle in the saved vehicles list
+  const vehicle = savedVehicles.find(v => v.id === vehicleId);
+
+  if (!vehicle) {
+    showToast("Vehicle not found", "error");
+    return;
+  }
+
+  // Close the saved vehicles modal
+  closeMySavedVehiclesModal();
+
+  // Check if location is populated, if not, wait for auto-population
+  if (!wizardData.location?.zip) {
+    console.log("[Select Vehicle] Location not yet populated, attempting auto-population...");
+    try {
+      await autoPopulateLocationFromProfile();
+
+      // Check if auto-population succeeded
+      if (!wizardData.location?.zip) {
+        console.warn("[Select Vehicle] Auto-population did not set location");
+        showToast("Please enter your location first", "error");
+        const locationInput = document.getElementById("user-location") || document.getElementById("quick-location");
+        if (locationInput) {
+          locationInput.focus();
+        }
+        return;
+      }
+    } catch (error) {
+      console.error("[Select Vehicle] Auto-population failed:", error);
+      showToast("Please enter your location first", "error");
+      return;
+    }
+  }
+
+  // Populate UI with vehicle selection depending on mode
+  const quickVinInput = document.getElementById("quick-vin");
+  try {
+    if (quickVinInput) {
+      await selectQuickSavedVehicle(vehicle);
+    } else {
+      selectSavedVehicle(vehicle);
+    }
+  } catch (error) {
+    console.error("[Select Vehicle] Failed to apply vehicle selection:", error);
+    showToast("Unable to select vehicle. Please try again.", "error");
+    return;
+  }
+
+  showToast("Vehicle selected successfully", "success");
+};
 
 /**
  * Load all vehicles from Supabase and display them
@@ -9584,12 +9686,39 @@ async function loadSavedVehiclesList() {
   }
 
   try {
-    // Fetch vehicles from garage_vehicles table
+    // Fetch vehicles from vehicles table (same method as dropdown)
     const { data: vehicles, error } = await supabase
-      .from("garage_vehicles")
-      .select("*")
+      .from("vehicles")
+      .select(
+        `
+        id,
+        user_id,
+        vin,
+        year,
+        make,
+        model,
+        trim,
+        mileage,
+        condition,
+        heading,
+        asking_price,
+        dealer_name,
+        dealer_street,
+        dealer_city,
+        dealer_state,
+        dealer_zip,
+        dealer_phone,
+        dealer_lat,
+        dealer_lng,
+        listing_id,
+        listing_source,
+        listing_url,
+        photo_url,
+        inserted_at
+      `
+      )
       .eq("user_id", currentUserId)
-      .order("created_at", { ascending: false });
+      .order("inserted_at", { ascending: false });
 
     if (error) {
       console.error("❌ [Load Saved Vehicles] Error fetching vehicles:", error);
@@ -9607,35 +9736,36 @@ async function loadSavedVehiclesList() {
     // Hide empty state
     if (emptyState) emptyState.style.display = "none";
 
-    // Build vehicle cards
+    // Build vehicle cards for saved search vehicles
     listContainer.innerHTML = vehicles
       .map(
         (vehicle) => `
       <div class="saved-vehicle-card" data-vehicle-id="${vehicle.id}">
         <div class="saved-vehicle-info">
           <h3 class="saved-vehicle-title">
-            ${vehicle.year} ${vehicle.make} ${vehicle.model}${vehicle.trim ? " " + vehicle.trim : ""}
+            ${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}${vehicle.trim ? " " + vehicle.trim : ""}
           </h3>
           <div class="saved-vehicle-details">
-            ${vehicle.vin ? `<span class="detail-item">VIN: ${vehicle.vin}</span>` : ""}
+            ${vehicle.vin ? `<span class="detail-item vin-display">${vehicle.vin}</span>` : ""}
             ${vehicle.mileage ? `<span class="detail-item">${formatNumber(vehicle.mileage)} miles</span>` : ""}
             ${vehicle.condition ? `<span class="detail-item">Condition: ${capitalizeFirst(vehicle.condition)}</span>` : ""}
           </div>
-          <div class="saved-vehicle-values">
-            ${
-              vehicle.estimated_value
-                ? `<span class="value-item">Value: ${formatCurrency(vehicle.estimated_value)}</span>`
-                : ""
-            }
-            ${
-              vehicle.payoff_amount
-                ? `<span class="value-item">Payoff: ${formatCurrency(vehicle.payoff_amount)}</span>`
-                : ""
-            }
+          <div class="saved-vehicle-price">
+            ${vehicle.asking_price ? `<span class="price-tag">💰 ${formatCurrency(vehicle.asking_price)}</span>` : ""}
           </div>
-          ${vehicle.notes ? `<p class="saved-vehicle-notes">${vehicle.notes}</p>` : ""}
+          ${vehicle.dealer_name ? `<p class="saved-vehicle-dealer">📍 ${vehicle.dealer_name}${vehicle.dealer_city ? ', ' + vehicle.dealer_city : ''}</p>` : ""}
         </div>
         <div class="saved-vehicle-actions">
+          <button
+            class="btn btn-success btn-sm"
+            onclick="useVehicleFromSavedList('${vehicle.id}')"
+            title="Select this vehicle for calculation"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            Select Vehicle
+          </button>
           <button
             class="btn btn-secondary btn-sm"
             onclick="openEditSavedVehicleModal('${vehicle.id}')"
@@ -9647,14 +9777,26 @@ async function loadSavedVehiclesList() {
             Edit
           </button>
           <button
+            class="btn btn-primary btn-sm"
+            onclick="addSavedVehicleToGarage('${vehicle.id}')"
+            title="Add to My Garage for trade-in"
+          >
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            Add to Garage
+          </button>
+          <button
             class="btn btn-danger btn-sm"
-            onclick="deleteSavedVehicle('${vehicle.id}')"
-            title="Delete vehicle"
+            onclick="deleteSavedSearchVehicle('${vehicle.id}')"
+            title="Remove from saved vehicles"
           >
             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Delete
+            Remove
           </button>
         </div>
       </div>
@@ -9668,7 +9810,125 @@ async function loadSavedVehiclesList() {
 }
 
 /**
- * Open edit modal for a specific vehicle
+ * Delete a saved search vehicle (from vehicles table)
+ */
+async function deleteSavedSearchVehicle(vehicleId) {
+  if (!confirm("Remove this vehicle from your saved searches?")) {
+    return;
+  }
+
+  try {
+    const { error } = await supabase
+      .from("vehicles")
+      .delete()
+      .eq("id", vehicleId)
+      .eq("user_id", currentUserId);
+
+    if (error) {
+      console.error("❌ [Delete Saved Vehicle] Error:", error);
+      showToast("Failed to remove vehicle", "error");
+      return;
+    }
+
+    showToast("Vehicle removed from saved searches", "success");
+
+    // Reload the list
+    await loadSavedVehiclesList();
+
+    // Also reload the saved vehicles cache for the VIN dropdown
+    await loadSavedVehicles();
+  } catch (error) {
+    console.error("❌ [Delete Saved Vehicle] Unexpected error:", error);
+    showToast("Failed to remove vehicle", "error");
+  }
+}
+
+// Store original vehicle data for conflict detection
+let originalVehicleData = null;
+
+/**
+ * Show conflict resolution modal when Supabase data has changed
+ * @param {Array} conflicts - Array of conflict objects with {field, original, current}
+ * @returns {Promise<boolean>} - true if user wants to overwrite, false if cancel
+ */
+async function showConflictResolutionModal(conflicts) {
+  return new Promise((resolve) => {
+    const conflictHTML = conflicts.map(c => {
+      const fieldName = c.field.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      return `
+        <tr>
+          <td><strong>${fieldName}</strong></td>
+          <td>${c.original ?? '<em>empty</em>'}</td>
+          <td>${c.current ?? '<em>empty</em>'}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const modalHTML = `
+      <div id="conflict-resolution-modal" class="modal active" style="display: flex; z-index: 10000;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content" style="max-width: 700px;">
+          <div class="garage-header">
+            <h2 class="garage-title">⚠️ Data Conflict Detected</h2>
+            <p class="garage-subtitle">The vehicle data in Supabase has changed since you opened the editor.</p>
+          </div>
+
+          <div style="margin: 20px 0;">
+            <p><strong>The following fields have been modified in Supabase:</strong></p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+              <thead>
+                <tr style="background-color: #f5f5f5;">
+                  <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Field</th>
+                  <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">When You Opened</th>
+                  <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Current in Supabase</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${conflictHTML}
+              </tbody>
+            </table>
+          </div>
+
+          <div style="margin: 20px 0; padding: 15px; background-color: #fff3cd; border-left: 4px solid #ffc107;">
+            <p style="margin: 0;"><strong>What would you like to do?</strong></p>
+            <ul style="margin: 10px 0 0 20px;">
+              <li><strong>Overwrite:</strong> Save your changes and replace the Supabase data</li>
+              <li><strong>Cancel:</strong> Close this editor without saving (you can reopen to see the latest data)</li>
+            </ul>
+          </div>
+
+          <div class="garage-form-actions">
+            <button type="button" class="btn btn-secondary" id="conflict-cancel-btn">
+              Cancel - Don't Save
+            </button>
+            <button type="button" class="btn btn-danger" id="conflict-overwrite-btn">
+              Overwrite - Save My Changes
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Add modal to body
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = modalHTML;
+    document.body.appendChild(tempDiv.firstElementChild);
+
+    // Add event listeners
+    document.getElementById('conflict-cancel-btn').addEventListener('click', () => {
+      document.getElementById('conflict-resolution-modal').remove();
+      resolve(false);
+    });
+
+    document.getElementById('conflict-overwrite-btn').addEventListener('click', () => {
+      document.getElementById('conflict-resolution-modal').remove();
+      resolve(true);
+    });
+  });
+}
+
+/**
+ * Open edit modal for a specific saved vehicle from vehicles table
  */
 async function openEditSavedVehicleModal(vehicleId) {
   const modal = document.getElementById("edit-saved-vehicle-modal");
@@ -9680,10 +9940,37 @@ async function openEditSavedVehicleModal(vehicleId) {
   currentEditVehicleId = vehicleId;
 
   try {
-    // Fetch vehicle data
+    // Fetch vehicle data from vehicles table (same columns as dropdown query)
     const { data: vehicle, error } = await supabase
-      .from("garage_vehicles")
-      .select("*")
+      .from("vehicles")
+      .select(
+        `
+        id,
+        user_id,
+        vin,
+        year,
+        make,
+        model,
+        trim,
+        mileage,
+        condition,
+        heading,
+        asking_price,
+        dealer_name,
+        dealer_street,
+        dealer_city,
+        dealer_state,
+        dealer_zip,
+        dealer_phone,
+        dealer_lat,
+        dealer_lng,
+        listing_id,
+        listing_source,
+        listing_url,
+        photo_url,
+        inserted_at
+      `
+      )
       .eq("id", vehicleId)
       .single();
 
@@ -9693,20 +9980,41 @@ async function openEditSavedVehicleModal(vehicleId) {
       return;
     }
 
-    // Populate form fields
+    // Store original vehicle data for conflict detection
+    originalVehicleData = { ...vehicle };
+
+    // Populate form fields matching vehicles table schema
+    // Vehicle Information
     document.getElementById("edit-vehicle-year").value = vehicle.year || "";
     document.getElementById("edit-vehicle-make").value = vehicle.make || "";
     document.getElementById("edit-vehicle-model").value = vehicle.model || "";
     document.getElementById("edit-vehicle-trim").value = vehicle.trim || "";
     document.getElementById("edit-vehicle-vin").value = vehicle.vin || "";
     document.getElementById("edit-vehicle-mileage").value = vehicle.mileage || "";
-    document.getElementById("edit-vehicle-condition").value = vehicle.condition || "";
-    document.getElementById("edit-vehicle-value").value = vehicle.estimated_value || "";
-    document.getElementById("edit-vehicle-payoff").value = vehicle.payoff_amount || "";
-    document.getElementById("edit-vehicle-photo").value = vehicle.photo_url || "";
-    document.getElementById("edit-vehicle-notes").value = vehicle.notes || "";
 
-    // Show modal
+    // Condition & Pricing
+    document.getElementById("edit-vehicle-condition").value = vehicle.condition || "";
+    document.getElementById("edit-vehicle-asking-price").value = vehicle.asking_price || "";
+
+    // Listing Information
+    document.getElementById("edit-vehicle-heading").value = vehicle.heading || "";
+    document.getElementById("edit-vehicle-listing-source").value = vehicle.listing_source || "";
+    document.getElementById("edit-vehicle-listing-id").value = vehicle.listing_id || "";
+    document.getElementById("edit-vehicle-listing-url").value = vehicle.listing_url || "";
+    document.getElementById("edit-vehicle-photo").value = vehicle.photo_url || "";
+
+    // Dealer Information
+    document.getElementById("edit-vehicle-dealer-name").value = vehicle.dealer_name || "";
+    document.getElementById("edit-vehicle-dealer-phone").value = vehicle.dealer_phone || "";
+    document.getElementById("edit-vehicle-dealer-street").value = vehicle.dealer_street || "";
+    document.getElementById("edit-vehicle-dealer-city").value = vehicle.dealer_city || "";
+    document.getElementById("edit-vehicle-dealer-state").value = vehicle.dealer_state || "";
+    document.getElementById("edit-vehicle-dealer-zip").value = vehicle.dealer_zip || "";
+    document.getElementById("edit-vehicle-dealer-lat").value = vehicle.dealer_lat || "";
+    document.getElementById("edit-vehicle-dealer-lng").value = vehicle.dealer_lng || "";
+
+    // Show modal with active class
+    modal.classList.add("active");
     modal.style.display = "flex";
   } catch (error) {
     console.error("❌ [Edit Saved Vehicle] Unexpected error:", error);
@@ -9720,13 +10028,14 @@ async function openEditSavedVehicleModal(vehicleId) {
 function closeEditSavedVehicleModal() {
   const modal = document.getElementById("edit-saved-vehicle-modal");
   if (modal) {
+    modal.classList.remove("active");
     modal.style.display = "none";
   }
   currentEditVehicleId = null;
 }
 
 /**
- * Save changes to edited vehicle
+ * Save changes to edited saved vehicle (vehicles table)
  */
 async function saveSavedVehicleChanges() {
   if (!currentEditVehicleId) {
@@ -9734,7 +10043,8 @@ async function saveSavedVehicleChanges() {
     return;
   }
 
-  // Get form values
+  // Get form values matching vehicles table schema
+  // Vehicle Information
   const year = parseInt(document.getElementById("edit-vehicle-year").value);
   const make = document.getElementById("edit-vehicle-make").value.trim();
   const model = document.getElementById("edit-vehicle-model").value.trim();
@@ -9743,15 +10053,33 @@ async function saveSavedVehicleChanges() {
   const mileage = document.getElementById("edit-vehicle-mileage").value
     ? parseInt(document.getElementById("edit-vehicle-mileage").value)
     : null;
+
+  // Condition & Pricing
   const condition = document.getElementById("edit-vehicle-condition").value;
-  const estimated_value = document.getElementById("edit-vehicle-value").value
-    ? parseFloat(document.getElementById("edit-vehicle-value").value)
+  const asking_price = document.getElementById("edit-vehicle-asking-price").value
+    ? parseFloat(document.getElementById("edit-vehicle-asking-price").value)
     : null;
-  const payoff_amount = document.getElementById("edit-vehicle-payoff").value
-    ? parseFloat(document.getElementById("edit-vehicle-payoff").value)
-    : null;
+
+  // Listing Information
+  const heading = document.getElementById("edit-vehicle-heading").value.trim();
+  const listing_source = document.getElementById("edit-vehicle-listing-source").value.trim();
+  const listing_id = document.getElementById("edit-vehicle-listing-id").value.trim();
+  const listing_url = document.getElementById("edit-vehicle-listing-url").value.trim();
   const photo_url = document.getElementById("edit-vehicle-photo").value.trim();
-  const notes = document.getElementById("edit-vehicle-notes").value.trim();
+
+  // Dealer Information
+  const dealer_name = document.getElementById("edit-vehicle-dealer-name").value.trim();
+  const dealer_phone = document.getElementById("edit-vehicle-dealer-phone").value.trim();
+  const dealer_street = document.getElementById("edit-vehicle-dealer-street").value.trim();
+  const dealer_city = document.getElementById("edit-vehicle-dealer-city").value.trim();
+  const dealer_state = document.getElementById("edit-vehicle-dealer-state").value.trim();
+  const dealer_zip = document.getElementById("edit-vehicle-dealer-zip").value.trim();
+  const dealer_lat = document.getElementById("edit-vehicle-dealer-lat").value
+    ? parseFloat(document.getElementById("edit-vehicle-dealer-lat").value)
+    : null;
+  const dealer_lng = document.getElementById("edit-vehicle-dealer-lng").value
+    ? parseFloat(document.getElementById("edit-vehicle-dealer-lng").value)
+    : null;
 
   // Validate required fields
   if (!year || !make || !model) {
@@ -9760,9 +10088,83 @@ async function saveSavedVehicleChanges() {
   }
 
   try {
-    // Update vehicle in Supabase
+    // Check for conflicts before saving
+    const { data: currentVehicle, error: fetchError } = await supabase
+      .from("vehicles")
+      .select(
+        `
+        id,
+        user_id,
+        vin,
+        year,
+        make,
+        model,
+        trim,
+        mileage,
+        condition,
+        heading,
+        asking_price,
+        dealer_name,
+        dealer_street,
+        dealer_city,
+        dealer_state,
+        dealer_zip,
+        dealer_phone,
+        dealer_lat,
+        dealer_lng,
+        listing_id,
+        listing_source,
+        listing_url,
+        photo_url,
+        inserted_at
+      `
+      )
+      .eq("id", currentEditVehicleId)
+      .single();
+
+    if (fetchError) {
+      console.error("❌ [Save Vehicle Changes] Error fetching current vehicle:", fetchError);
+      showToast("Failed to check for conflicts: " + fetchError.message, "error");
+      return;
+    }
+
+    // Detect conflicts by comparing current data with original
+    if (originalVehicleData) {
+      const conflicts = [];
+      const fieldsToCheck = ['year', 'make', 'model', 'trim', 'vin', 'mileage', 'condition', 'heading',
+                             'asking_price', 'dealer_name', 'dealer_phone', 'dealer_street', 'dealer_city',
+                             'dealer_state', 'dealer_zip', 'dealer_lat', 'dealer_lng',
+                             'listing_id', 'listing_source', 'listing_url', 'photo_url'];
+
+      for (const field of fieldsToCheck) {
+        const originalValue = originalVehicleData[field];
+        const currentValue = currentVehicle[field];
+
+        // Compare values (handle null/undefined/empty string as equivalent)
+        const normalizeValue = (val) => val === null || val === undefined || val === '' ? null : val;
+        if (normalizeValue(originalValue) !== normalizeValue(currentValue)) {
+          conflicts.push({
+            field,
+            original: originalValue,
+            current: currentValue
+          });
+        }
+      }
+
+      // If conflicts detected, show conflict resolution modal
+      if (conflicts.length > 0) {
+        const shouldOverwrite = await showConflictResolutionModal(conflicts);
+        if (!shouldOverwrite) {
+          showToast("Save cancelled - data has changed in Supabase", "info");
+          return;
+        }
+        // If user chose to overwrite, continue with save
+      }
+    }
+
+    // Update vehicle in vehicles table with all fields
     const { data, error } = await supabase
-      .from("garage_vehicles")
+      .from("vehicles")
       .update({
         year,
         make,
@@ -9771,11 +10173,20 @@ async function saveSavedVehicleChanges() {
         vin: vin || null,
         mileage,
         condition: condition || null,
-        estimated_value,
-        payoff_amount,
+        heading: heading || null,
+        asking_price,
+        dealer_name: dealer_name || null,
+        dealer_phone: dealer_phone || null,
+        dealer_street: dealer_street || null,
+        dealer_city: dealer_city || null,
+        dealer_state: dealer_state || null,
+        dealer_zip: dealer_zip || null,
+        dealer_lat,
+        dealer_lng,
+        listing_id: listing_id || null,
+        listing_source: listing_source || null,
+        listing_url: listing_url || null,
         photo_url: photo_url || null,
-        notes: notes || null,
-        updated_at: new Date().toISOString(),
       })
       .eq("id", currentEditVehicleId)
       .eq("user_id", currentUserId)
@@ -9847,6 +10258,12 @@ async function deleteSavedVehicle(vehicleId) {
 function capitalizeFirst(str) {
   if (!str) return "";
   return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+// Helper function to format numbers with commas
+function formatNumber(num) {
+  if (num == null || num === "") return "";
+  return Number(num).toLocaleString("en-US");
 }
 
 /* ============================================================================
@@ -12712,8 +13129,14 @@ async function selectQuickSavedVehicle(vehicle) {
   const quickVin = document.getElementById("quick-vin");
   const dropdown = document.getElementById("quick-saved-vehicles-dropdown");
 
+  if (!quickVin) {
+    throw new Error("Quick VIN input not available");
+  }
+
   quickVin.value = vehicle.vin || "";
-  dropdown.style.display = "none";
+  if (dropdown) {
+    dropdown.style.display = "none";
+  }
 
   // Ensure sale condition is set correctly based on year (back-compat: also set legacy condition)
   if (!vehicle.saleCondition && (!vehicle.condition || vehicle.condition === "")) {
@@ -12834,6 +13257,23 @@ function displayQuickVehicleCard(vehicle) {
   )} ${capitalizeWords(cleanedModel || "")}${
     vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : ""
   }`;
+  const dealerDisplayName = vehicle.dealer_name
+    ? capitalizeWords(vehicle.dealer_name)
+    : "";
+  const dealerLocationParts = [];
+  if (vehicle.dealer_city) {
+    dealerLocationParts.push(capitalizeWords(vehicle.dealer_city));
+  }
+  if (vehicle.dealer_state) {
+    dealerLocationParts.push(String(vehicle.dealer_state).toUpperCase());
+  }
+  const dealerLocation = dealerLocationParts.join(", ");
+  const listingUrl =
+    vehicle.listing_url ||
+    vehicle.listingUrl ||
+    vehicle.dealer_website ||
+    vehicle.url ||
+    "";
 
   const imageContent = vehicle.photo_url
     ? `<img src="${vehicle.photo_url}" alt="${vehicleDetailsText}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
@@ -12895,6 +13335,36 @@ function displayQuickVehicleCard(vehicle) {
           `
               : ""
           }
+          ${
+            dealerDisplayName || dealerLocation || listingUrl
+              ? `
+            <div class="your-vehicle-card__info-card your-vehicle-card__info-card--dealer">
+              <span class="your-vehicle-card__info-label">Dealer</span>
+              <span class="your-vehicle-card__info-value your-vehicle-card__info-value--dealer">
+                ${
+                  dealerDisplayName
+                    ? `<span>${escapeHtml(dealerDisplayName)}</span>`
+                    : `<span class="your-vehicle-card__info-value--placeholder">Not provided</span>`
+                }
+                ${
+                  dealerLocation
+                    ? `<span class="your-vehicle-card__info-subtext">${escapeHtml(
+                        dealerLocation
+                      )}</span>`
+                    : ""
+                }
+              </span>
+              ${
+                listingUrl
+                  ? `<a class="your-vehicle-card__info-link" href="${escapeHtml(
+                      listingUrl
+                    )}" target="_blank" rel="noopener noreferrer">View listing</a>`
+                  : ""
+              }
+            </div>
+          `
+              : ""
+          }
           <div class="your-vehicle-card__info-card your-vehicle-card__info-card--distance" id="vehicle-distance-info">
             <span class="your-vehicle-card__info-label">Distance to Dealer</span>
             <span class="your-vehicle-card__info-value your-vehicle-card__info-value--placeholder">Add your location</span>
@@ -12915,7 +13385,7 @@ function displayQuickVehicleCard(vehicle) {
     typeof vehicle.dealer_lat === "number" &&
     typeof vehicle.dealer_lng === "number"
   ) {
-    const dealerName = vehicle.dealer_name || "Dealer";
+    const dealerName = dealerDisplayName || "Dealer";
 
     // Get driving distance from Google Distance Matrix API
     getDrivingDistance(userLat, userLon, vehicle.dealer_lat, vehicle.dealer_lng)
@@ -13222,7 +13692,7 @@ async function getDrivingDistance(originLat, originLon, destLat, destLon) {
           const element = response.rows[0].elements[0];
           resolve({
             distance: element.distance.text, // e.g., "10.5 mi"
-            duration: element.duration.text, // e.g., "15 mins"
+            duration: formatDistanceDuration(element.duration.text),
             distanceMiles: element.distance.value / 1609.34, // Convert meters to miles
           });
         } else {
@@ -13234,6 +13704,20 @@ async function getDrivingDistance(originLat, originLon, destLat, destLon) {
     console.error("[distance-api] Error getting distance:", error);
     return null;
   }
+}
+
+/**
+ * Shorten verbose duration strings for compact display
+ * @param {string} durationText
+ * @returns {string}
+ */
+function formatDistanceDuration(durationText = "") {
+  if (!durationText) {
+    return "";
+  }
+  return durationText
+    .replace(/hours|hour|hrs|hr/gi, "hrs")
+    .replace(/minutes|minute|mins/gi, "min");
 }
 
 /**

@@ -21,6 +21,10 @@ export default defineConfig({
         target: 'http://localhost:3002',
         changeOrigin: true,
       },
+      '/config': {
+        target: 'http://localhost:3002',
+        changeOrigin: true,
+      },
     },
   },
   resolve: {

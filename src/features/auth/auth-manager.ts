@@ -29,7 +29,32 @@ declare global {
 export class AuthManager {
   private static instance: AuthManager;
   private profileSubscription: any = null;
-  
+  private listenersAttached: boolean = false;
+  private boundHandlers = {
+    signInClick: () => this.showAuthModal('signin'),
+    profileMenuClick: (e: Event) => {
+      e.stopPropagation();
+      document.getElementById('profile-menu')?.classList.toggle('active');
+    },
+    outsideClick: () => {
+      document.getElementById('profile-menu')?.classList.remove('active');
+    },
+    menuClick: (e: Event) => {
+      const target = e.target as HTMLElement;
+      const action = target.closest('[data-action]')?.getAttribute('data-action');
+      if (action) {
+        e.preventDefault();
+        this.handleMenuAction(action);
+      }
+    },
+    fieldModification: (e: Event) => {
+      const target = e.target as HTMLInputElement;
+      if (target.dataset.autoFilled === 'true') {
+        target.dataset.userModified = 'true';
+      }
+    }
+  };
+
   private constructor() {}
   
   /**
@@ -304,11 +329,16 @@ export class AuthManager {
 
       if (header) {
         header.insertAdjacentHTML('beforeend', this.getProfileDropdownHTML());
-        this.attachDropdownListeners();
       } else {
         console.error('❌ [Auth Manager] Header element not found! Cannot inject profile dropdown');
+        return;
       }
-    } else {
+    }
+
+    // Always attach listeners if not already attached
+    if (!this.listenersAttached) {
+      this.attachDropdownListeners();
+      this.listenersAttached = true;
     }
 
     this.updateProfileDropdownUI();
@@ -457,52 +487,38 @@ export class AuthManager {
   private attachDropdownListeners(): void {
     // Sign in button
     const signInBtn = document.getElementById('btn-sign-in');
-    signInBtn?.addEventListener('click', () => this.showAuthModal('signin'));
-    
+    signInBtn?.removeEventListener('click', this.boundHandlers.signInClick);
+    signInBtn?.addEventListener('click', this.boundHandlers.signInClick);
+
     // Profile menu trigger
     const profileMenuBtn = document.getElementById('btn-profile-menu');
     const profileMenu = document.getElementById('profile-menu');
-    
-    profileMenuBtn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      profileMenu?.classList.toggle('active');
-    });
-    
-    // Close menu on outside click
-    document.addEventListener('click', () => {
-      profileMenu?.classList.remove('active');
-    });
-    
-    // Menu actions
-    profileMenu?.addEventListener('click', (e) => {
-      const target = e.target as HTMLElement;
-      const action = target.closest('[data-action]')?.getAttribute('data-action');
 
-      if (action) {
-        e.preventDefault();
-        this.handleMenuAction(action);
-      }
-    });
-    
+    profileMenuBtn?.removeEventListener('click', this.boundHandlers.profileMenuClick);
+    profileMenuBtn?.addEventListener('click', this.boundHandlers.profileMenuClick);
+
+    // Close menu on outside click
+    document.removeEventListener('click', this.boundHandlers.outsideClick);
+    document.addEventListener('click', this.boundHandlers.outsideClick);
+
+    // Menu actions - THIS IS THE KEY LISTENER FOR MODAL OPENING
+    if (profileMenu) {
+      profileMenu.removeEventListener('click', this.boundHandlers.menuClick);
+      profileMenu.addEventListener('click', this.boundHandlers.menuClick);
+    }
+
+    // Track field modifications
+    document.removeEventListener('input', this.boundHandlers.fieldModification);
+    document.addEventListener('input', this.boundHandlers.fieldModification);
+
     // Auth modal
     this.setupAuthModal();
-    
-    // Track field modifications
-    this.trackFieldModifications();
   }
   
   /**
    * Track when user manually modifies fields
+   * NOTE: This is now handled directly via boundHandlers.fieldModification in attachDropdownListeners
    */
-  private trackFieldModifications(): void {
-    document.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement;
-      
-      if (target.dataset.autoFilled === 'true') {
-        target.dataset.userModified = 'true';
-      }
-    });
-  }
   
   /**
    * Setup auth modal
@@ -645,31 +661,27 @@ export class AuthManager {
       case 'profile':
         if (typeof window.openCustomerProfileModal === 'function') {
           window.openCustomerProfileModal();
-        } else {
         }
         break;
 
       case 'garage':
         if (typeof window.openMyGarageModal === 'function') {
           window.openMyGarageModal();
-        } else {
         }
         break;
 
       case 'saved-vehicles':
         if (typeof window.openMySavedVehiclesModal === 'function') {
           window.openMySavedVehiclesModal();
-        } else {
         }
         break;
 
       case 'offers':
         if (typeof window.openMyOffersModal === 'function') {
           window.openMyOffersModal();
-        } else {
         }
         break;
-        
+
       case 'sign-out':
         await this.signOut();
         break;
