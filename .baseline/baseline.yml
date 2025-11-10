@@ -1,0 +1,53 @@
+# Single source of truth AI tools can parse.
+project:
+  name: "<PROJECT_NAME>"
+  type: "web-app"
+  languages: ["typescript"]
+  frameworks: ["react"]
+  build: ["vite"]
+standards:
+  api:
+    contract: "openapi@3.1"
+    error_format: "application/problem+json" # RFC 9457
+    versioning: "url" # "url" | "header" | "media-type"
+    retries:
+      strategy: "exponential-backoff-jitter"
+      max_attempts: 3
+      retry_on: [429, 503, "network"]
+      respect_retry_after: true
+    timeouts_ms:
+      connect: 5000
+      total: 15000
+    idempotency:
+      use_idempotency_key: true
+      header: "Idempotency-Key"
+      methods: ["POST", "PATCH"]
+    headers:
+      send_correlation_id: true
+      correlation_id_header: "X-Request-ID"
+  ui:
+    design_tokens: "./design-tokens.json"
+    a11y: ["wcag-2.2-aa", "aria-apg"]
+    components:
+      toast:
+        {
+          max_on_screen: 3,
+          default_ttl_ms: 4000,
+          role: "alert",
+          polite_for_info: true,
+        }
+      modal: { focus_trap: true, close_on_esc: true, labelledby_required: true }
+      card: { elevation_steps: [0, 1, 2, 3] }
+    motion:
+      prefers_reduced_motion_respected: true
+      durations_ms: { xfast: 100, fast: 150, base: 200, slow: 300 }
+  security:
+    owasp_asvs_level: "L2"
+    secret_management: ["env", "vault"]
+    dependency_pinning: true
+    lint_rules: ["no-any", "no-unsafe"]
+  quality:
+    lint: ["eslint", "prettier"]
+    commits: "conventional-commits"
+    semver: "2.0.0"
+    coverage_min: { lines: 0.8, branches: 0.7 }

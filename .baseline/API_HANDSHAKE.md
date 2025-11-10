@@ -1,0 +1,6 @@
+- Contract-first APIs: OpenAPI 3.1. Use schema validation on the client. [oai_citation:15‡OpenAPI Initiative](https://www.openapis.org/blog/2021/02/18/openapi-specification-3-1-released?utm_source=chatgpt.com)
+- Errors: `application/problem+json` (RFC 9457) with fields: type, title, status, detail, instance. [oai_citation:16‡IETF Datatracker](https://datatracker.ietf.org/doc/rfc9457/?utm_source=chatgpt.com)
+- Timeouts: fail fast using AbortController (or `AbortSignal.timeout`). [oai_citation:17‡MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/API/AbortSignal/timeout_static?utm_source=chatgpt.com)
+- Retries: exponential backoff with jitter for 429/503/network; respect `Retry-After`. [oai_citation:18‡MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Retry-After?utm_source=chatgpt.com)
+- Idempotency: send `Idempotency-Key` for POST/PATCH; use UUID v4. [oai_citation:19‡Stripe Docs](https://docs.stripe.com/api/idempotent_requests?utm_source=chatgpt.com)
+- Versioning: default to URL versioning `/v1/...` unless the backend dictates headers. [oai_citation:20‡Microsoft GitHub](https://microsoft.github.io/code-with-engineering-playbook/design/design-patterns/rest-api-design-guidance/?utm_source=chatgpt.com)

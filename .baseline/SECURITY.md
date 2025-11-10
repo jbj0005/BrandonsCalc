@@ -1,0 +1,4 @@
+- Use OWASP ASVS v5.0 as a checklist baseline (target L2). Track requirement IDs in PRs. [oai_citation:26‡OWASP Foundation](https://owasp.org/www-project-application-security-verification-standard/?utm_source=chatgpt.com)
+- No secrets in repo; use .env + secret manager (Vault, AWS SM).
+- Enforce strong passwords/passphrases where applicable, aligned to NIST SP 800‑63B‑4 (2025). [oai_citation:27‡NIST Pages](https://pages.nist.gov/800-63-4/sp800-63b.html?utm_source=chatgpt.com)
+- Pin dependencies & lockfiles; run dependency audit in CI.

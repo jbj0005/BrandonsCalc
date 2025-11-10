@@ -1,0 +1,5 @@
+- JSON errors use RFC 9457 Problem Details (content-type: application/problem+json).
+- Include: type (URL), title, status, detail, instance, plus extensions { code, correlationId }.
+- Map server categories → UI:
+  - 4xx validation → inline + info toast; 401/403 → auth flow; 429 → auto-retry respecting Retry-After.
+  - 5xx → toast + retry/backoff; show correlation ID for support.

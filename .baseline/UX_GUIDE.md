@@ -1,0 +1,4 @@
+- Icons: prefer a single set (e.g., Lucide/Phosphor) to avoid style drift.
+- Spacing & typographic scale: use tokens only; no hard-coded px.
+- Motion: use Motion (Framer Motion) or CSS transitions; respect `prefers-reduced-motion`. Hover/focus states always present; keyboard operable. [oai_citation:32‡Motion](https://motion.dev/?utm_source=chatgpt.com)
+- Components: favor accessible headless primitives (Radix/Headless UI) when not hand-rolling. [oai_citation:33‡Radix UI](https://www.radix-ui.com/primitives/docs/overview/introduction?utm_source=chatgpt.com)

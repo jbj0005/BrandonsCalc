@@ -1,0 +1,8 @@
+- Use toasts for ephemeral success/info. Errors that block progress → dialog or inline banner.
+- A11y:
+  - For destructive/error toasts: `role="alert"` (assertive). For info/success: `aria-live="polite"`. [oai_citation:22‡W3C](https://www.w3.org/WAI/ARIA/apg/?utm_source=chatgpt.com)
+  - Do not steal keyboard focus. Provide close button, ESC to dismiss.
+  - Respect `prefers-reduced-motion` for entrance/exit animations. [oai_citation:23‡MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/At-rules/%40media/prefers-reduced-motion?utm_source=chatgpt.com)
+- Behavior:
+  - Max 3 concurrent toasts; debounce duplicates within 2s.
+  - Default auto-dismiss 4s; **errors** require manual dismiss or longer timeout.

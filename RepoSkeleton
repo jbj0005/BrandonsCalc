@@ -1,0 +1,30 @@
+.baseline/
+baseline.yaml # Machine-readable “project contract” for AI & humans
+design-tokens.json # Colors, spacing, fonts, radii, motions, z-index, etc.
+AI_CONTEXT.md # Short, strict rules for AI codegen to follow
+ARCHITECTURE.md # High-level system and UI composition map
+API_HANDSHAKE.md # How clients talk to servers (timeouts, retries, IDs, auth)
+NOTIFICATIONS.md # Toasts, banners, dialogs: usage & accessibility rules
+ERRORS.md # Error taxonomy + RFC 9457 “problem+json”
+SECURITY.md # OWASP ASVS mapping, secrets handling, auth basics
+TESTING.md # Unit/integ/e2e pyramid and coverage targets
+UX_GUIDE.md # Motion, hovers, iconography, spacing, content rules
+COMPONENTS_MAP.md # Tree of modules/sections/modals/cards
+ADR/ # Architecture Decision Records (one decision per file)
+
+.config/
+.editorconfig
+eslint.config.mjs
+.prettierrc.json
+commitlint.config.cjs
+
+.github/
+PULL_REQUEST_TEMPLATE.md
+ISSUE_TEMPLATE/bug_report.md
+ISSUE_TEMPLATE/feature_request.md
+
+src/
+api/client.ts # Typed client with timeouts/retries/idempotency & Problem Details
+ui/components/Toast.tsx # Accessible toast system
+ui/components/Card.tsx
+ui/components/Modal.tsx
