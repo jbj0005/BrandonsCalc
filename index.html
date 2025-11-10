@@ -26,10 +26,7 @@
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <!-- Google Maps API (loaded dynamically from meta tag or config) -->
-    <script>
-      // Will be loaded dynamically after getting API key from meta tags or Supabase
-    </script>
+    <!-- Google Maps API - Loaded dynamically by React app -->
   </head>
   <body>
     <!-- React App Root -->
@@ -3232,7 +3229,8 @@
     <!-- JavaScript -->
     <script type="module" src="/src/features/vehicles/saved-vehicles-cache.js"></script>
     <script type="module" src="/src/features/vehicles/marketcheck-cache.js"></script>
-    <script type="module" src="app.js"></script>
+    <!-- Old vanilla JS - disabled in favor of React app -->
+    <!-- <script type="module" src="app.js"></script> -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -94,11 +94,10 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
     <Card
       variant={selected ? 'elevated' : 'default'}
       padding="none"
-      hoverable={!!onSelect}
-      onClick={onSelect ? () => onSelect(vehicle) : undefined}
       className={`
         transition-all duration-200
         ${selected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
+        ${onSelect ? 'cursor-pointer hover:shadow-lg' : ''}
         ${className}
       `}
     >

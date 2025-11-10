@@ -18,6 +18,12 @@ export type { SelectProps, SelectOption } from './Select';
 export { Slider } from './Slider';
 export type { SliderProps } from './Slider';
 
+export { EnhancedSlider } from './EnhancedSlider';
+export type { EnhancedSliderProps } from './EnhancedSlider';
+
+export { EnhancedControl } from './EnhancedControl';
+export type { EnhancedControlProps } from './EnhancedControl';
+
 export { Label } from './Label';
 export type { LabelProps } from './Label';
 
@@ -75,3 +81,7 @@ export type { VehicleEditorModalProps } from './VehicleEditorModal';
 
 export { ConfirmationDialog } from './ConfirmationDialog';
 export type { ConfirmationDialogProps } from './ConfirmationDialog';
+
+// TIL Components
+export { TilControl } from './TilControl';
+export type { TilControlProps } from './TilControl';

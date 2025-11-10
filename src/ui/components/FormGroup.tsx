@@ -55,7 +55,7 @@ export const FormGroup: React.FC<FormGroupProps> = ({
         {React.Children.map(children, (child) => {
           if (React.isValidElement(child)) {
             // Pass down ID and ARIA attributes to child components
-            return React.cloneElement(child as React.ReactElement<any>, {
+            const additionalProps = {
               id: groupId,
               'aria-invalid': hasError,
               'aria-describedby': error
@@ -63,8 +63,8 @@ export const FormGroup: React.FC<FormGroupProps> = ({
                 : helperText
                 ? `${groupId}-helper`
                 : undefined,
-              ...child.props,
-            });
+            };
+            return React.cloneElement(child as React.ReactElement<any>, additionalProps);
           }
           return child;
         })}

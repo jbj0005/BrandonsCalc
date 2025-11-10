@@ -1,11 +1,27 @@
-import React, { useState, useEffect } from 'react';
-import { Input, Select, Slider, Button, Card, Badge } from './ui/components';
+import React, { useState, useEffect, useRef } from 'react';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
+import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
+import { fetchLenderRates, calculateAPR, creditScoreToValue, type LenderRate } from './services/lenderRates';
+import { DealerMap } from './components/DealerMap';
+import { OfferPreviewModal } from './components/OfferPreviewModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import type { LeadData } from './services/leadSubmission';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
 import marketCheckCache from './features/vehicles/marketcheck-cache.js';
+
+// Import SavedVehiclesCache for saved vehicles
+// @ts-ignore - JS module
+import savedVehiclesCache from './features/vehicles/saved-vehicles-cache.js';
+
+// Import AuthManager and Supabase
+// @ts-ignore - TS module
+import authManager from './features/auth/auth-manager';
+// @ts-ignore - TS module
+import { supabase } from './lib/supabase';
 
 /**
  * CalculatorApp - Main auto loan calculator application
@@ -16,17 +32,56 @@ import marketCheckCache from './features/vehicles/marketcheck-cache.js';
 export const CalculatorApp: React.FC = () => {
   const toast = useToast();
 
+  // Refs
+  const locationInputRef = useRef<HTMLInputElement>(null);
+
   // Location & Vehicle State
   const [location, setLocation] = useState('');
+  const [locationDetails, setLocationDetails] = useState<PlaceDetails | null>(null);
   const [vin, setVin] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
   const [vinError, setVinError] = useState('');
+  const [skipVinLookup, setSkipVinLookup] = useState(false);
+
+  // Google Maps Autocomplete
+  const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(locationInputRef as React.RefObject<HTMLInputElement>, {
+    onPlaceSelected: (place: PlaceDetails) => {
+      setLocation(place.address);
+      setLocationDetails(place);
+      console.log('[Location Selected]', place);
+    },
+    types: ['address'],
+    componentRestrictions: { country: 'us' },
+  });
+
+  // Saved Vehicles State
+  const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const [isLoadingSavedVehicles, setIsLoadingSavedVehicles] = useState(false);
+  const [showManageVehiclesModal, setShowManageVehiclesModal] = useState(false);
+  const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
+
+  // Auth State
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Offer Preview Modal State
+  const [showOfferPreviewModal, setShowOfferPreviewModal] = useState(false);
+  const [leadDataForSubmission, setLeadDataForSubmission] = useState<LeadData>({});
+
+  // User Profile Modal State
+  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
+  const [profileInitialTab, setProfileInitialTab] = useState<'garage' | 'offers'>('garage');
 
   // Financing State
-  const [lender, setLender] = useState('lowest');
+  const [lender, setLender] = useState('nfcu');
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
+  const [vehicleCondition, setVehicleCondition] = useState<'new' | 'used'>('used');
+  const [lenderRates, setLenderRates] = useState<LenderRate[]>([]);
+  const [isLoadingRates, setIsLoadingRates] = useState(false);
 
   // Slider State (all in dollars except term)
   const [salePrice, setSalePrice] = useState(30000);
@@ -43,12 +98,19 @@ export const CalculatorApp: React.FC = () => {
   const [financeCharge, setFinanceCharge] = useState(0);
   const [totalOfPayments, setTotalOfPayments] = useState(0);
 
-  // Lender options (will be populated from real data)
+  // Lender options from config/lenders.json
   const lenderOptions: SelectOption[] = [
-    { value: 'lowest', label: 'Lowest Price by APR' },
     { value: 'nfcu', label: 'Navy Federal Credit Union' },
-    { value: 'dcu', label: 'DCU' },
-    { value: 'launch', label: 'Launch FCU' },
+    { value: 'sccu', label: 'Space Coast Credit Union' },
+    { value: 'penfed', label: 'Pentagon Federal Credit Union' },
+    { value: 'dcu', label: 'Digital Federal Credit Union' },
+    { value: 'launchcu', label: 'Launch Federal Credit Union' },
+  ];
+
+  // Vehicle condition options
+  const vehicleConditionOptions: SelectOption[] = [
+    { value: 'new', label: 'New Vehicle' },
+    { value: 'used', label: 'Used Vehicle' },
   ];
 
   // Loan term options
@@ -68,10 +130,124 @@ export const CalculatorApp: React.FC = () => {
     { value: 'poor', label: 'Building Credit (< 650)' },
   ];
 
+  // Fetch lender rates when lender changes
+  useEffect(() => {
+    const loadRates = async () => {
+      if (!lender) return;
+
+      setIsLoadingRates(true);
+      try {
+        const response = await fetchLenderRates(lender);
+        setLenderRates(response.rates);
+        console.log(`[Calculator] Loaded ${response.rates.length} rates for ${response.lenderName}`);
+      } catch (error: any) {
+        console.error('[Calculator] Failed to load rates:', error);
+        setLenderRates([]);
+        toast.push({
+          kind: 'warning',
+          title: 'Rates Unavailable',
+          detail: 'Using default APR. Rates may not be accurate.',
+        });
+      } finally {
+        setIsLoadingRates(false);
+      }
+    };
+
+    loadRates();
+  }, [lender]);
+
+  // Calculate APR based on credit score, term, and vehicle condition
+  useEffect(() => {
+    if (lenderRates.length === 0) {
+      // No rates available - keep default APR
+      return;
+    }
+
+    const creditScoreValue = creditScoreToValue(creditScore);
+    const calculatedAPR = calculateAPR(lenderRates, creditScoreValue, loanTerm, vehicleCondition);
+
+    if (calculatedAPR !== null) {
+      setApr(calculatedAPR);
+      console.log(`[Calculator] APR updated to ${calculatedAPR}% (score=${creditScoreValue}, term=${loanTerm}, condition=${vehicleCondition})`);
+    } else {
+      console.warn('[Calculator] No matching rate found, keeping current APR');
+    }
+  }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
+
   // Calculate loan on any change
   useEffect(() => {
     calculateLoan();
   }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr]);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    // Check initial auth state
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUser(session.user);
+      }
+    };
+    checkAuth();
+
+    // Subscribe to auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        setCurrentUser(session.user);
+        // Reload saved vehicles after sign in
+        await reloadSavedVehicles();
+        toast.push({
+          kind: 'success',
+          title: 'Welcome back!',
+          detail: 'You are now signed in',
+        });
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setSavedVehicles([]);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Initialize savedVehiclesCache with supabase and userId
+  useEffect(() => {
+    if (currentUser && supabase) {
+      // Subscribe to saved vehicles for this user
+      savedVehiclesCache.subscribe(currentUser.id, supabase);
+    }
+  }, [currentUser]);
+
+  // Load saved vehicles on mount and when user changes
+  useEffect(() => {
+    const loadSavedVehicles = async () => {
+      if (!currentUser) {
+        setSavedVehicles([]);
+        return;
+      }
+
+      setIsLoadingSavedVehicles(true);
+      try {
+        const vehicles = await savedVehiclesCache.getVehicles({ forceRefresh: true });
+        setSavedVehicles(vehicles || []);
+      } catch (error: any) {
+        console.error('Failed to load saved vehicles:', error);
+        // Don't show error toast if user is not authenticated
+        if (!error.message?.includes('No Supabase client') && !error.message?.includes('user ID')) {
+          toast.push({
+            kind: 'error',
+            title: 'Failed to Load Vehicles',
+            detail: 'Could not load your saved vehicles',
+          });
+        }
+      } finally {
+        setIsLoadingSavedVehicles(false);
+      }
+    };
+    loadSavedVehicles();
+  }, [currentUser]);
 
   const calculateLoan = () => {
     // Calculate amount financed
@@ -101,24 +277,137 @@ export const CalculatorApp: React.FC = () => {
     setFinanceCharge(total - financed);
   };
 
-  const handleAprChange = (delta: number) => {
-    const newApr = Math.max(0, Math.min(99.99, apr + delta));
-    setApr(parseFloat(newApr.toFixed(2)));
-  };
-
-  const handleTermChange = (delta: number) => {
-    const terms = [36, 48, 60, 72, 84];
-    const currentIndex = terms.indexOf(loanTerm);
-    const newIndex = Math.max(0, Math.min(terms.length - 1, currentIndex + delta));
-    setLoanTerm(terms[newIndex]);
-  };
-
   const handleSubmit = () => {
+    // Check if user is authenticated
+    if (!currentUser) {
+      toast.push({
+        kind: 'warning',
+        title: 'Sign In Required',
+        detail: 'Please sign in to save and submit your offer',
+      });
+      setAuthMode('signin');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Build lead data from current calculator state
+    const leadData: LeadData = {
+      // Vehicle details
+      vehicleYear: selectedVehicle?.year || undefined,
+      vehicleMake: selectedVehicle?.make || undefined,
+      vehicleModel: selectedVehicle?.model || undefined,
+      vehicleTrim: selectedVehicle?.trim || undefined,
+      vehicleVIN: selectedVehicle?.vin || vin || undefined,
+      vehicleMileage: selectedVehicle?.mileage || undefined,
+      vehicleCondition: vehicleCondition,
+      vehiclePrice: salePrice || undefined,
+
+      // Dealer details
+      dealerName: selectedVehicle?.dealer_name || undefined,
+      dealerPhone: selectedVehicle?.dealer_phone || undefined,
+      dealerAddress: selectedVehicle?.dealer_address
+        ? `${selectedVehicle.dealer_address}, ${selectedVehicle.dealer_city || ''}, ${selectedVehicle.dealer_state || ''} ${selectedVehicle.dealer_zip || ''}`.trim()
+        : undefined,
+
+      // Financing details
+      apr: apr,
+      termMonths: loanTerm,
+      monthlyPayment: monthlyPayment,
+      downPayment: cashDown,
+
+      // Trade-in
+      tradeValue: tradeAllowance || undefined,
+      tradePayoff: tradePayoff || undefined,
+
+      // Fees
+      dealerFees: dealerFees || undefined,
+      customerAddons: customerAddons || undefined,
+
+      // Generate offer name
+      offerName: selectedVehicle
+        ? `${selectedVehicle.year || ''} ${selectedVehicle.make || ''} ${selectedVehicle.model || ''}`.trim()
+        : 'Vehicle Offer',
+    };
+
+    setLeadDataForSubmission(leadData);
+    setShowOfferPreviewModal(true);
+  };
+
+  // Filter saved vehicles based on VIN input
+  const filteredVehicles = savedVehicles.filter((vehicle) => {
+    if (!vin) return true; // Show all if no search term
+    const searchTerm = vin.toLowerCase();
+    const vehicleText = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.trim || ''} ${vehicle.vin || ''}`.toLowerCase();
+    return vehicleText.includes(searchTerm);
+  });
+
+  // Handle selecting a saved vehicle from dropdown
+  const handleSelectSavedVehicle = (vehicle: any) => {
+    setSelectedVehicle(vehicle);
+    setSkipVinLookup(true); // Skip MarketCheck lookup for saved vehicles
+    setVin(vehicle.vin || '');
+    setShowVehicleDropdown(false);
+
+    // Populate form with vehicle data
+    if (vehicle.estimated_value) {
+      setSalePrice(vehicle.estimated_value);
+    }
+    if (vehicle.payoff_amount) {
+      setTradePayoff(vehicle.payoff_amount);
+    }
+
     toast.push({
       kind: 'success',
-      title: 'Offer Submitted!',
-      detail: 'Your loan application has been submitted successfully.',
+      title: 'Vehicle Selected!',
+      detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
     });
+  };
+
+  // Handle vehicle save/update from modal
+  const handleVehicleSave = async () => {
+    // Reload saved vehicles
+    try {
+      const vehicles = await savedVehiclesCache.getVehicles();
+      setSavedVehicles(vehicles || []);
+      toast.push({
+        kind: 'success',
+        title: 'Vehicle Saved!',
+        detail: 'Your saved vehicles have been updated',
+      });
+    } catch (error) {
+      console.error('Failed to reload vehicles:', error);
+    }
+    setShowManageVehiclesModal(false);
+    setVehicleToEdit(null);
+  };
+
+  // Authentication handlers
+  const handleSignIn = async (email: string, password: string) => {
+    await authManager.signIn({ email, password });
+    // Reload saved vehicles after sign in
+    await reloadSavedVehicles();
+  };
+
+  const handleSignUp = async (email: string, password: string, fullName?: string, phone?: string) => {
+    await authManager.signUp({ email, password, fullName, phone });
+    // Reload saved vehicles after sign up
+    await reloadSavedVehicles();
+  };
+
+  const handleSignOut = async () => {
+    await authManager.signOut();
+    setSavedVehicles([]);
+    setCurrentUser(null);
+  };
+
+  // Reload saved vehicles helper
+  const reloadSavedVehicles = async () => {
+    try {
+      const vehicles = await savedVehiclesCache.getVehicles();
+      setSavedVehicles(vehicles || []);
+    } catch (error) {
+      console.error('Failed to reload saved vehicles:', error);
+    }
   };
 
   // VIN Lookup Handler
@@ -151,9 +440,11 @@ export const CalculatorApp: React.FC = () => {
 
     try {
       const result = await marketCheckCache.getVehicleData(cleanVIN, {
+        forceRefresh: false,
         zip: location || '32901', // Use entered location or default
         radius: 100,
-      });
+        pick: 'all',
+      }) as any;
 
       if (result && result.listing) {
         setSelectedVehicle(result.listing);
@@ -191,12 +482,18 @@ export const CalculatorApp: React.FC = () => {
   useEffect(() => {
     if (!vin) return;
 
+    // Skip lookup if this VIN came from selecting a saved vehicle
+    if (skipVinLookup) {
+      setSkipVinLookup(false); // Reset flag for next time
+      return;
+    }
+
     const timer = setTimeout(() => {
       handleVINLookup(vin);
     }, 800); // Wait 800ms after user stops typing
 
     return () => clearTimeout(timer);
-  }, [vin]);
+  }, [vin, skipVinLookup]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -211,13 +508,57 @@ export const CalculatorApp: React.FC = () => {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Brandon's Calculator
-          </h1>
-          <p className="text-lg text-gray-600">
-            Find the best auto loan rates in seconds
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex-1 text-center">
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">
+              Brandon's Calculator
+            </h1>
+            <p className="text-lg text-gray-600">
+              Find the best auto loan rates in seconds
+            </p>
+          </div>
+          <div className="absolute right-4 top-4 flex items-center gap-2">
+            {currentUser ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setProfileInitialTab('garage');
+                    setShowUserProfileModal(true);
+                  }}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                  My Profile
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSignOut}
+                >
+                  Sign Out
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setAuthMode('signin');
+                  setShowAuthModal(true);
+                }}
+              >
+                Sign In
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Main Grid - Left column (inputs) + Right column (summary) */}
@@ -234,6 +575,7 @@ export const CalculatorApp: React.FC = () => {
 
               <div className="space-y-4">
                 <Input
+                  ref={locationInputRef}
                   label="Your Location"
                   type="text"
                   placeholder="Enter your address or ZIP code..."
@@ -245,31 +587,112 @@ export const CalculatorApp: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   }
+                  helperText={mapsError ? 'Google Maps not available - manual entry only' : mapsLoaded ? 'Start typing for suggestions' : 'Loading location services...'}
                   fullWidth
                 />
 
-                <Input
-                  label="VIN or Search Saved Vehicles"
-                  type="text"
-                  placeholder="Paste VIN or select saved vehicle..."
-                  value={vin}
-                  onChange={(e) => setVin(e.target.value)}
-                  error={vinError}
-                  success={selectedVehicle && !isLoadingVIN}
-                  icon={
-                    isLoadingVIN ? (
-                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                    )
-                  }
-                  helperText={isLoadingVIN ? 'Looking up VIN...' : 'Enter a VIN or click to search your saved vehicles'}
-                  fullWidth
-                />
+                <div className="relative">
+                  <Input
+                    label="VIN or Search Saved Vehicles"
+                    type="text"
+                    placeholder="Paste VIN or select saved vehicle..."
+                    value={vin}
+                    onChange={(e) => setVin(e.target.value)}
+                    onFocus={() => setShowVehicleDropdown(true)}
+                    error={vinError}
+                    success={selectedVehicle && !isLoadingVIN}
+                    icon={
+                      isLoadingVIN ? (
+                        <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                      )
+                    }
+                    helperText={isLoadingVIN ? 'Looking up VIN...' : `Enter a VIN or search ${savedVehicles.length} saved vehicles`}
+                    fullWidth
+                  />
+
+                  {/* Saved Vehicles Dropdown */}
+                  {showVehicleDropdown && savedVehicles.length > 0 && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                      <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">
+                          {isLoadingSavedVehicles ? 'Loading...' : `${filteredVehicles.length} vehicles`}
+                        </span>
+                        <button
+                          onClick={() => setShowVehicleDropdown(false)}
+                          className="text-gray-400 hover:text-gray-600"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      {filteredVehicles.length === 0 ? (
+                        <div className="p-4 text-center text-gray-500">
+                          No vehicles match your search
+                        </div>
+                      ) : (
+                        <div className="divide-y">
+                          {filteredVehicles.map((vehicle) => (
+                            <button
+                              key={vehicle.id}
+                              onClick={() => handleSelectSavedVehicle(vehicle)}
+                              className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <div className="font-semibold text-gray-900">
+                                    {vehicle.year} {vehicle.make} {vehicle.model}
+                                    {vehicle.trim && ` ${vehicle.trim}`}
+                                  </div>
+                                  {vehicle.vin && (
+                                    <div className="text-xs text-gray-500 font-mono mt-1">
+                                      VIN: {vehicle.vin}
+                                    </div>
+                                  )}
+                                </div>
+                                {vehicle.estimated_value && (
+                                  <div className="text-sm font-semibold text-green-600">
+                                    {formatCurrency(vehicle.estimated_value)}
+                                  </div>
+                                )}
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* My Saved Vehicles Button */}
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    fullWidth
+                    onClick={() => {
+                      setShowManageVehiclesModal(true);
+                      setVehicleToEdit(null);
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="mr-2">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    My Saved Vehicles ({savedVehicles.length})
+                  </Button>
+                  {savedVehicles.length === 0 && !isLoadingSavedVehicles && (
+                    <p className="text-xs text-gray-500 mt-1 text-center">
+                      Sign in to save and manage vehicles
+                    </p>
+                  )}
+                </div>
 
                 {/* Vehicle Display Card */}
                 {selectedVehicle && (
@@ -322,6 +745,23 @@ export const CalculatorApp: React.FC = () => {
                     </div>
                   </div>
                 )}
+
+                {/* Dealer Map */}
+                {selectedVehicle && (selectedVehicle.dealer_name || selectedVehicle.dealer_city) && (
+                  <div className="mt-4">
+                    <DealerMap
+                      dealerName={selectedVehicle.dealer_name}
+                      dealerAddress={selectedVehicle.dealer_address}
+                      dealerCity={selectedVehicle.dealer_city}
+                      dealerState={selectedVehicle.dealer_state}
+                      dealerZip={selectedVehicle.dealer_zip}
+                      dealerLat={selectedVehicle.dealer_latitude}
+                      dealerLng={selectedVehicle.dealer_longitude}
+                      userLocation={locationDetails || undefined}
+                      showRoute={!!locationDetails}
+                    />
+                  </div>
+                )}
               </div>
             </Card>
 
@@ -337,6 +777,16 @@ export const CalculatorApp: React.FC = () => {
                   value={lender}
                   onChange={(e) => setLender(e.target.value)}
                   options={lenderOptions}
+                  helperText={isLoadingRates ? 'Loading rates...' : lenderRates.length > 0 ? `${lenderRates.length} rates loaded` : 'No rates available'}
+                  fullWidth
+                />
+
+                <Select
+                  label="Vehicle Condition"
+                  value={vehicleCondition}
+                  onChange={(e) => setVehicleCondition(e.target.value as 'new' | 'used')}
+                  options={vehicleConditionOptions}
+                  helperText="New vehicles may qualify for lower rates"
                   fullWidth
                 />
 
@@ -353,6 +803,7 @@ export const CalculatorApp: React.FC = () => {
                   value={creditScore}
                   onChange={(e) => setCreditScore(e.target.value)}
                   options={creditScoreOptions}
+                  helperText="Higher scores typically get better rates"
                   fullWidth
                 />
               </div>
@@ -384,69 +835,38 @@ export const CalculatorApp: React.FC = () => {
                   </h3>
 
                   {/* APR with +/- controls */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-sm font-medium text-gray-600 mb-2">
-                      Annual Percentage Rate
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleAprChange(-0.01)}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors"
-                        aria-label="Decrease APR"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M2 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                      <div className="text-3xl font-bold text-gray-900 min-w-[120px] text-center">
-                        {apr.toFixed(2)}%
-                      </div>
-                      <button
-                        onClick={() => handleAprChange(0.01)}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors"
-                        aria-label="Increase APR"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="text-xs text-gray-500 text-center mt-1">
-                      Cost of credit as yearly rate
-                    </div>
+                  <EnhancedControl
+                    value={apr}
+                    label="Annual Percentage Rate"
+                    onChange={(newApr) => setApr(parseFloat(newApr.toFixed(2)))}
+                    step={0.01}
+                    min={0}
+                    max={99.99}
+                    formatValue={(val) => `${val.toFixed(2)}%`}
+                  />
+                  <div className="text-xs text-gray-500 text-center mt-1">
+                    Cost of credit as yearly rate
                   </div>
 
                   {/* Term with +/- controls */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <div className="text-sm font-medium text-gray-600 mb-2">
-                      Term (Months)
-                    </div>
-                    <div className="flex items-center justify-center gap-2">
-                      <button
-                        onClick={() => handleTermChange(-1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors"
-                        aria-label="Decrease term"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M2 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                      <div className="text-3xl font-bold text-gray-900 min-w-[120px] text-center">
-                        {loanTerm}
-                      </div>
-                      <button
-                        onClick={() => handleTermChange(1)}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-white border border-gray-300 hover:bg-gray-100 transition-colors"
-                        aria-label="Increase term"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor">
-                          <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                    </div>
-                    <div className="text-xs text-gray-500 text-center mt-1">
-                      Length of loan agreement
-                    </div>
+                  <EnhancedControl
+                    value={loanTerm}
+                    label="Term (Months)"
+                    onChange={(newTerm) => {
+                      const terms = [36, 48, 60, 72, 84];
+                      // Find closest term
+                      const closest = terms.reduce((prev, curr) =>
+                        Math.abs(curr - newTerm) < Math.abs(prev - newTerm) ? curr : prev
+                      );
+                      setLoanTerm(closest);
+                    }}
+                    step={12}
+                    min={36}
+                    max={84}
+                    formatValue={(val) => val.toString()}
+                  />
+                  <div className="text-xs text-gray-500 text-center mt-1">
+                    Length of loan agreement
                   </div>
 
                   {/* Other TIL values */}
@@ -494,7 +914,7 @@ export const CalculatorApp: React.FC = () => {
             </h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Slider
+              <EnhancedSlider
                 label="Sale Price"
                 min={0}
                 max={150000}
@@ -502,10 +922,14 @@ export const CalculatorApp: React.FC = () => {
                 value={salePrice}
                 onChange={(e) => setSalePrice(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setSalePrice(selectedVehicle?.price || 30000)}
                 fullWidth
               />
 
-              <Slider
+              <EnhancedSlider
                 label="Cash Down"
                 min={0}
                 max={50000}
@@ -513,10 +937,14 @@ export const CalculatorApp: React.FC = () => {
                 value={cashDown}
                 onChange={(e) => setCashDown(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setCashDown(5000)}
                 fullWidth
               />
 
-              <Slider
+              <EnhancedSlider
                 label="Trade-In Allowance"
                 min={0}
                 max={75000}
@@ -525,10 +953,14 @@ export const CalculatorApp: React.FC = () => {
                 onChange={(e) => setTradeAllowance(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Value of your trade-in vehicle"
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setTradeAllowance(0)}
                 fullWidth
               />
 
-              <Slider
+              <EnhancedSlider
                 label="Trade-In Payoff"
                 min={0}
                 max={75000}
@@ -537,10 +969,14 @@ export const CalculatorApp: React.FC = () => {
                 onChange={(e) => setTradePayoff(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Amount owed on trade-in"
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setTradePayoff(0)}
                 fullWidth
               />
 
-              <Slider
+              <EnhancedSlider
                 label="Total Dealer Fees"
                 min={0}
                 max={5000}
@@ -549,10 +985,14 @@ export const CalculatorApp: React.FC = () => {
                 onChange={(e) => setDealerFees(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Doc fees, title, registration"
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setDealerFees(0)}
                 fullWidth
               />
 
-              <Slider
+              <EnhancedSlider
                 label="Total Customer Add-ons"
                 min={0}
                 max={10000}
@@ -561,6 +1001,10 @@ export const CalculatorApp: React.FC = () => {
                 onChange={(e) => setCustomerAddons(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Warranties, protection packages"
+                monthlyPayment={monthlyPayment}
+                showTooltip={true}
+                showReset={true}
+                onReset={() => setCustomerAddons(0)}
                 fullWidth
               />
             </div>
@@ -568,6 +1012,61 @@ export const CalculatorApp: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Vehicle Editor Modal */}
+      {showManageVehiclesModal && (
+        <VehicleEditorModal
+          isOpen={showManageVehiclesModal}
+          onClose={() => {
+            setShowManageVehiclesModal(false);
+            setVehicleToEdit(null);
+          }}
+          onSave={handleVehicleSave}
+          vehicle={vehicleToEdit}
+        />
+      )}
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        initialMode={authMode}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
+        onForgotPassword={async (email) => {
+          toast.push({
+            kind: 'info',
+            title: 'Password Reset',
+            detail: `Reset link sent to ${email}`,
+          });
+        }}
+      />
+
+      {/* Offer Preview Modal */}
+      <OfferPreviewModal
+        isOpen={showOfferPreviewModal}
+        onClose={() => setShowOfferPreviewModal(false)}
+        leadData={leadDataForSubmission}
+        onSuccess={(offerId) => {
+          console.log('[OfferSubmitted] Offer ID:', offerId);
+          toast.push({
+            kind: 'success',
+            title: 'Offer Saved!',
+            detail: 'Your offer has been submitted and saved to your account',
+          });
+          setShowOfferPreviewModal(false);
+        }}
+      />
+
+      {/* User Profile Modal */}
+      {currentUser && (
+        <UserProfileModal
+          isOpen={showUserProfileModal}
+          onClose={() => setShowUserProfileModal(false)}
+          currentUser={currentUser}
+          initialTab={profileInitialTab}
+        />
+      )}
     </div>
   );
 };

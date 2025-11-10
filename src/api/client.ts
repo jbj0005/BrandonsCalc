@@ -53,8 +53,8 @@ export class ApiClient {
       Accept: "application/json",
       "Content-Type": "application/json",
       "X-Request-ID": this.opts.requestId?.() ?? crypto.randomUUID(),
-      ...this.opts.defaultHeaders,
-      ...headers,
+      ...(this.opts.defaultHeaders || {}),
+      ...(headers as Record<string, string>),
     };
 
     // Idempotency for mutating calls

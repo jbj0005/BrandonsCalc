@@ -20,6 +20,7 @@
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",
     "@supabase/supabase-js": "^2.45.0",
+    "@vis.gl/react-google-maps": "^1.7.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.1.0",
@@ -30,9 +31,11 @@
     "react-dom": "^19.2.0",
     "twilio": "^5.10.4",
     "undici": "^7.16.0",
+    "zod": "^4.1.12",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.58.1",
     "@types/node": "^20.0.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",

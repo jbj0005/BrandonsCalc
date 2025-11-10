@@ -23,7 +23,7 @@
       "@/features/*": ["./src/features/*"],
       "@/lib/*": ["./src/lib/*"]
     },
-    "types": ["vite/client"]
+    "types": ["vite/client", "google.maps"]
   },
   "include": [
     "src/**/*.ts",

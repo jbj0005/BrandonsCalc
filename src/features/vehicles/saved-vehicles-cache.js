@@ -43,6 +43,10 @@ class SavedVehiclesCache {
 
     // Error state
     this.lastError = null;
+
+    // Track pending mutations to deduplicate realtime events
+    // Map<vehicleId, { action: 'add'|'update'|'delete', timestamp: number }>
+    this.pendingMutations = new Map();
   }
 
   /**
@@ -190,11 +194,17 @@ class SavedVehiclesCache {
 
       if (error) throw error;
 
+      // Mark as pending to ignore realtime duplicate
+      this.pendingMutations.set(data.id, { action: 'add', timestamp: Date.now() });
+
       // Replace temp vehicle with real one
       this.cache.delete(tempId);
       this.cache.set(data.id, data);
       this.lastFetchTime = Date.now(); // Reset TTL
       this.emit('change', Array.from(this.cache.values()));
+
+      // Clear pending after 2 seconds (realtime should fire within this window)
+      setTimeout(() => this.pendingMutations.delete(data.id), 2000);
 
       return data;
     } catch (error) {
@@ -234,10 +244,16 @@ class SavedVehiclesCache {
 
       if (error) throw error;
 
+      // Mark as pending to ignore realtime duplicate
+      this.pendingMutations.set(id, { action: 'update', timestamp: Date.now() });
+
       // Update with server response
       this.cache.set(id, data);
       this.lastFetchTime = Date.now(); // Reset TTL
       this.emit('change', Array.from(this.cache.values()));
+
+      // Clear pending after 2 seconds (realtime should fire within this window)
+      setTimeout(() => this.pendingMutations.delete(id), 2000);
 
       return data;
     } catch (error) {
@@ -262,6 +278,9 @@ class SavedVehiclesCache {
       throw new Error(`Vehicle ${id} not found in cache`);
     }
 
+    // Mark as pending to ignore realtime duplicate
+    this.pendingMutations.set(id, { action: 'delete', timestamp: Date.now() });
+
     // Optimistic: Remove from cache immediately
     this.cache.delete(id);
     this.emit('change', Array.from(this.cache.values()));
@@ -277,9 +296,13 @@ class SavedVehiclesCache {
       this.lastFetchTime = Date.now(); // Reset TTL
       // No need to emit change again, already done optimistically
 
+      // Clear pending after 2 seconds (realtime should fire within this window)
+      setTimeout(() => this.pendingMutations.delete(id), 2000);
+
       return true;
     } catch (error) {
       // Rollback: Restore deleted vehicle
+      this.pendingMutations.delete(id); // Clear pending on error
       this.cache.set(id, backup);
       this.emit('change', Array.from(this.cache.values()));
       throw error;
@@ -342,6 +365,19 @@ class SavedVehiclesCache {
    * Handle realtime postgres_changes events
    */
   _handleRealtimeEvent(payload) {
+    const vehicleId = payload.new?.id || payload.old?.id;
+
+    // Skip if this is a duplicate of a local mutation we just made
+    if (vehicleId && this.pendingMutations.has(vehicleId)) {
+      const pending = this.pendingMutations.get(vehicleId);
+      const eventTypeMap = { INSERT: 'add', UPDATE: 'update', DELETE: 'delete' };
+
+      if (eventTypeMap[payload.eventType] === pending.action) {
+        console.log(`[SavedVehiclesCache] Ignoring duplicate realtime ${payload.eventType} event for vehicle ${vehicleId} (local mutation already applied)`);
+        return;
+      }
+    }
+
     if (payload.eventType === 'INSERT') {
       // Add new vehicle to cache
       this.cache.set(payload.new.id, payload.new);

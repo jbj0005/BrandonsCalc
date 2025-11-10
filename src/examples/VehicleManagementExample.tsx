@@ -152,8 +152,9 @@ export const VehicleManagementExample: React.FC = () => {
   };
 
   // Handle select vehicle (e.g., for use in calculator)
-  const handleSelectVehicle = (vehicle: GarageVehicle) => {
-    setSelectedVehicleId(vehicle.id);
+  const handleSelectVehicle = (vehicle: GarageVehicle | any) => {
+    const id = 'id' in vehicle ? vehicle.id : undefined;
+    setSelectedVehicleId(id || null);
 
     // Dispatch event for other parts of app to listen
     window.dispatchEvent(
