@@ -13,6 +13,9 @@ import { VehicleCardSkeleton } from '../ui/components/VehicleCardSkeleton';
 import { AuthModal } from '../ui/components/AuthModal';
 import { VehicleEditorModal } from '../ui/components/VehicleEditorModal';
 import { ConfirmationDialog } from '../ui/components/ConfirmationDialog';
+import { Tabs } from '../ui/components/Tabs';
+import { Dropdown } from '../ui/components/Dropdown';
+import { Tooltip } from '../ui/components/Tooltip';
 import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
@@ -748,6 +751,186 @@ export const ComponentDemo: React.FC = () => {
             </Card>
           </div>
         </div>
+
+        {/* Utility Components Demo Section */}
+        <Card variant="elevated" padding="lg">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            Utility Components
+          </h2>
+
+          <div className="space-y-8">
+            {/* Tabs */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tabs</h3>
+
+              <div className="space-y-6">
+                {/* Line Tabs */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Line Variant (Default)</p>
+                  <Tabs
+                    variant="line"
+                    tabs={[
+                      {
+                        id: 'overview',
+                        label: 'Overview',
+                        content: (
+                          <div className="text-gray-600">
+                            <p>This is the overview tab content. Line tabs use an underline to indicate the active tab.</p>
+                          </div>
+                        ),
+                      },
+                      {
+                        id: 'details',
+                        label: 'Details',
+                        badge: 3,
+                        content: (
+                          <div className="text-gray-600">
+                            <p>Details tab with a badge showing 3 items.</p>
+                          </div>
+                        ),
+                      },
+                      {
+                        id: 'settings',
+                        label: 'Settings',
+                        icon: (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        ),
+                        content: (
+                          <div className="text-gray-600">
+                            <p>Settings tab with an icon.</p>
+                          </div>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+
+                {/* Pills Tabs */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Pills Variant</p>
+                  <Tabs
+                    variant="pills"
+                    tabs={[
+                      { id: 'all', label: 'All', badge: 12, content: <p className="text-gray-600">All items view</p> },
+                      { id: 'active', label: 'Active', badge: 8, content: <p className="text-gray-600">Active items only</p> },
+                      { id: 'archived', label: 'Archived', badge: 4, content: <p className="text-gray-600">Archived items</p> },
+                    ]}
+                  />
+                </div>
+
+                {/* Enclosed Tabs */}
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Enclosed Variant</p>
+                  <Tabs
+                    variant="enclosed"
+                    tabs={[
+                      { id: 'info', label: 'Information', content: <p className="text-gray-600">Information content with bordered container</p> },
+                      { id: 'history', label: 'History', content: <p className="text-gray-600">History content</p> },
+                    ]}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Dropdown */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Dropdown</h3>
+              <div className="flex gap-4">
+                <Dropdown
+                  trigger={
+                    <Button variant="outline">
+                      Actions
+                      <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </Button>
+                  }
+                  items={[
+                    {
+                      id: 'edit',
+                      label: 'Edit',
+                      icon: (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      ),
+                      onClick: () => toast.push({ kind: 'info', title: 'Edit clicked' }),
+                    },
+                    {
+                      id: 'duplicate',
+                      label: 'Duplicate',
+                      icon: (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      ),
+                      onClick: () => toast.push({ kind: 'info', title: 'Duplicate clicked' }),
+                    },
+                    { id: 'divider1', label: '', divider: true },
+                    {
+                      id: 'delete',
+                      label: 'Delete',
+                      danger: true,
+                      icon: (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      ),
+                      onClick: () => toast.push({ kind: 'warning', title: 'Delete clicked' }),
+                    },
+                  ]}
+                  position="right"
+                />
+
+                <Dropdown
+                  trigger={
+                    <Button variant="ghost">
+                      More Options
+                    </Button>
+                  }
+                  items={[
+                    { id: 'share', label: 'Share', onClick: () => toast.push({ kind: 'info', title: 'Share' }) },
+                    { id: 'export', label: 'Export', onClick: () => toast.push({ kind: 'info', title: 'Export' }) },
+                    { id: 'disabled', label: 'Disabled Option', disabled: true },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* Tooltip */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tooltip</h3>
+              <div className="flex gap-6">
+                <Tooltip content="This tooltip appears on top" position="top">
+                  <Button variant="outline" size="sm">Hover (Top)</Button>
+                </Tooltip>
+                <Tooltip content="This tooltip appears on bottom" position="bottom">
+                  <Button variant="outline" size="sm">Hover (Bottom)</Button>
+                </Tooltip>
+                <Tooltip content="This tooltip appears on left" position="left">
+                  <Button variant="outline" size="sm">Hover (Left)</Button>
+                </Tooltip>
+                <Tooltip content="This tooltip appears on right" position="right">
+                  <Button variant="outline" size="sm">Hover (Right)</Button>
+                </Tooltip>
+                <Tooltip
+                  content={
+                    <div>
+                      <p className="font-semibold mb-1">Rich Content</p>
+                      <p className="text-xs">Tooltips can contain any React element!</p>
+                    </div>
+                  }
+                  position="top"
+                >
+                  <Badge variant="info">Hover for rich content</Badge>
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+        </Card>
 
         {/* Footer */}
         <div className="text-center text-gray-500 text-sm pt-8">

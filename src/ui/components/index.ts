@@ -38,6 +38,16 @@ export type { ModalProps } from './Modal';
 export { Toast, ToastProvider, useToast } from './Toast';
 export type { ToastMessage } from './Toast';
 
+// Utility Components
+export { Tabs } from './Tabs';
+export type { TabsProps, TabItem } from './Tabs';
+
+export { Dropdown } from './Dropdown';
+export type { DropdownProps, DropdownItem } from './Dropdown';
+
+export { Tooltip } from './Tooltip';
+export type { TooltipProps } from './Tooltip';
+
 // Vehicle Components
 export { VehicleCard } from './VehicleCard';
 export type { VehicleCardProps } from './VehicleCard';
