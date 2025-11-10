@@ -1,7 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ToastProvider } from './ui/components/Toast';
-import ComponentDemo from './examples/ComponentDemo';
+import CalculatorApp from './CalculatorApp';
+// import ComponentDemo from './examples/ComponentDemo';
 
 // Mount React component to #react-root
 const rootElement = document.getElementById('react-root');
@@ -11,7 +12,7 @@ if (rootElement) {
   root.render(
     <React.StrictMode>
       <ToastProvider>
-        <ComponentDemo />
+        <CalculatorApp />
       </ToastProvider>
     </React.StrictMode>
   );
