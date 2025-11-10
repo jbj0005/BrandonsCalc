@@ -2,9 +2,9 @@
 
 A comprehensive, production-ready React + TypeScript component library built with Tailwind CSS for Brandon's Calculator.
 
-## 📦 Component Inventory (18 Components)
+## 📦 Component Inventory (22 Components)
 
-### Foundation Components (7)
+### Foundation Components (11)
 
 #### Button
 5 variants, 3 sizes, loading states, icon support
@@ -76,6 +76,51 @@ Wrapper component combining label + control + error
 </FormGroup>
 ```
 
+#### Checkbox
+Checkbox input with indeterminate state support
+```tsx
+<Checkbox
+  label="I accept the terms"
+  checked={accepted}
+  onChange={(e) => setAccepted(e.target.checked)}
+  helperText="Required to continue"
+/>
+```
+**Sizes**: `sm` | `md` | `lg`
+**Features**: Indeterminate state, error/helper text, disabled state
+
+#### Radio & RadioGroup
+Radio button with group management
+```tsx
+<RadioGroup
+  label="Payment Method"
+  name="payment"
+  value={paymentMethod}
+  onChange={setPaymentMethod}
+  options={[
+    { value: 'credit', label: 'Credit Card' },
+    { value: 'debit', label: 'Debit Card' },
+  ]}
+/>
+```
+**Orientations**: `vertical` | `horizontal`
+**Sizes**: `sm` | `md` | `lg`
+**Features**: Helper text per option, disabled options, error state
+
+#### Switch
+Toggle switch component
+```tsx
+<Switch
+  label="Enable notifications"
+  checked={enabled}
+  onChange={(e) => setEnabled(e.target.checked)}
+  labelPosition="right"
+/>
+```
+**Sizes**: `sm` | `md` | `lg`
+**Label positions**: `left` | `right`
+**Features**: Smooth animations, disabled state, error state
+
 ---
 
 ### Layout Components (2)
@@ -139,7 +184,7 @@ Reusable confirmation modal
 
 ---
 
-### Utility Components (3)
+### Utility Components (4)
 
 #### Tabs
 Tabbed navigation with 3 variants
@@ -180,6 +225,22 @@ Hover tooltips with 4 positions
 **Positions**: `top` | `bottom` | `left` | `right`
 **Features**: Configurable delay, rich content support
 **z-index**: 400
+
+#### Accordion
+Collapsible content panels
+```tsx
+<Accordion
+  items={[
+    { id: '1', title: 'Section 1', content: <div>Content</div> },
+    { id: '2', title: 'Section 2', content: <div>Content</div> },
+  ]}
+  variant="bordered"
+  allowMultiple
+  defaultExpanded={['1']}
+/>
+```
+**Variants**: `default` | `bordered` | `separated`
+**Features**: Icons, disabled items, controlled/uncontrolled, smooth animations
 
 ---
 
@@ -250,16 +311,23 @@ import {
   Button,
   Input,
   Select,
+  Checkbox,
+  Radio,
+  RadioGroup,
+  Switch,
   Modal,
   Toast,
   VehicleCard,
   Tabs,
   Dropdown,
   Tooltip,
+  Accordion,
 } from './src/ui/components';
 
 // Or import individually
 import { Button } from './src/ui/components/Button';
+import { Checkbox } from './src/ui/components/Checkbox';
+import { RadioGroup } from './src/ui/components/Radio';
 ```
 
 ### Toast Provider Setup
@@ -361,6 +429,9 @@ src/
 │       ├── Label.tsx
 │       ├── Badge.tsx
 │       ├── FormGroup.tsx
+│       ├── Checkbox.tsx
+│       ├── Radio.tsx
+│       ├── Switch.tsx
 │       ├── Card.tsx
 │       ├── Modal.tsx
 │       ├── Toast.tsx
@@ -368,6 +439,7 @@ src/
 │       ├── Tabs.tsx
 │       ├── Dropdown.tsx
 │       ├── Tooltip.tsx
+│       ├── Accordion.tsx
 │       ├── VehicleCard.tsx
 │       ├── VehicleCardSkeleton.tsx
 │       ├── AuthModal.tsx
@@ -385,7 +457,7 @@ src/
 
 ## ✨ Features
 
-- ✅ 18 production-ready components
+- ✅ 22 production-ready components
 - ✅ Full TypeScript support
 - ✅ Accessible (ARIA attributes, keyboard navigation)
 - ✅ Responsive and mobile-friendly
@@ -406,7 +478,7 @@ src/
 1. **Connect to Real Data** - Integrate with Supabase and SavedVehiclesCache
 2. **Add Tests** - Write unit tests with Vitest/React Testing Library
 3. **Add Storybook** - Create interactive component documentation
-4. **Add More Components** - Accordion, DatePicker, Checkbox, Radio, etc.
+4. **Add More Components** - DatePicker, TimePicker, FileUpload, ProgressBar, etc.
 5. **Add Animations** - Integrate Framer Motion for smooth transitions
 6. **Create Design Tokens** - Extract colors, spacing, etc. to config
 

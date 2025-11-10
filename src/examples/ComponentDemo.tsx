@@ -16,6 +16,10 @@ import { ConfirmationDialog } from '../ui/components/ConfirmationDialog';
 import { Tabs } from '../ui/components/Tabs';
 import { Dropdown } from '../ui/components/Dropdown';
 import { Tooltip } from '../ui/components/Tooltip';
+import { Checkbox } from '../ui/components/Checkbox';
+import { Radio, RadioGroup } from '../ui/components/Radio';
+import { Switch } from '../ui/components/Switch';
+import { Accordion } from '../ui/components/Accordion';
 import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
@@ -35,6 +39,13 @@ export const ComponentDemo: React.FC = () => {
   const [loanTerm, setLoanTerm] = useState(60);
   const [vehicleCondition, setVehicleCondition] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // New form component state
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [newsletter, setNewsletter] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState('credit');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkMode, setDarkMode] = useState(false);
 
   // Vehicle demo state
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>('veh-1');
@@ -545,6 +556,211 @@ export const ComponentDemo: React.FC = () => {
                     placeholder="(555) 123-4567"
                   />
                 </FormGroup>
+              </div>
+            </div>
+
+            {/* Checkboxes */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Checkboxes</h3>
+              <div className="space-y-3">
+                <Checkbox
+                  label="I accept the terms and conditions"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  helperText="You must accept to continue"
+                />
+                <Checkbox
+                  label="Subscribe to newsletter"
+                  checked={newsletter}
+                  onChange={(e) => setNewsletter(e.target.checked)}
+                  helperText="Receive weekly updates about new features"
+                />
+                <Checkbox
+                  label="Indeterminate example (select all)"
+                  indeterminate={true}
+                />
+                <div className="flex gap-4">
+                  <Checkbox label="Small" size="sm" />
+                  <Checkbox label="Medium" size="md" defaultChecked />
+                  <Checkbox label="Large" size="lg" />
+                </div>
+                <Checkbox
+                  label="Disabled checkbox"
+                  disabled
+                  defaultChecked
+                />
+                <Checkbox
+                  label="Checkbox with error"
+                  error="This field is required"
+                />
+              </div>
+            </div>
+
+            {/* Radio Buttons */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Radio Buttons</h3>
+              <div className="space-y-6">
+                <RadioGroup
+                  label="Payment Method"
+                  name="payment"
+                  value={paymentMethod}
+                  onChange={setPaymentMethod}
+                  options={[
+                    { value: 'credit', label: 'Credit Card', helperText: 'Visa, Mastercard, Amex' },
+                    { value: 'debit', label: 'Debit Card' },
+                    { value: 'bank', label: 'Bank Transfer', helperText: 'ACH or wire transfer' },
+                    { value: 'cash', label: 'Cash', disabled: true },
+                  ]}
+                  helperText="Choose your preferred payment method"
+                />
+                <RadioGroup
+                  label="Orientation: Horizontal"
+                  name="delivery"
+                  orientation="horizontal"
+                  options={[
+                    { value: 'standard', label: 'Standard (5-7 days)' },
+                    { value: 'express', label: 'Express (2-3 days)' },
+                    { value: 'overnight', label: 'Overnight' },
+                  ]}
+                />
+                <RadioGroup
+                  label="Radio with error"
+                  name="errorExample"
+                  error="Please select an option"
+                  options={[
+                    { value: 'option1', label: 'Option 1' },
+                    { value: 'option2', label: 'Option 2' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            {/* Switches */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Switches</h3>
+              <div className="space-y-4">
+                <Switch
+                  label="Enable notifications"
+                  checked={notificationsEnabled}
+                  onChange={(e) => setNotificationsEnabled(e.target.checked)}
+                  helperText="Receive push notifications for updates"
+                />
+                <Switch
+                  label="Dark mode"
+                  checked={darkMode}
+                  onChange={(e) => setDarkMode(e.target.checked)}
+                  labelPosition="left"
+                />
+                <div className="flex gap-6">
+                  <Switch label="Small" size="sm" defaultChecked />
+                  <Switch label="Medium" size="md" defaultChecked />
+                  <Switch label="Large" size="lg" defaultChecked />
+                </div>
+                <Switch
+                  label="Disabled switch"
+                  disabled
+                  defaultChecked
+                />
+                <Switch
+                  label="Switch with error"
+                  error="This setting is required"
+                />
+              </div>
+            </div>
+
+            {/* Accordion */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Accordion</h3>
+              <div className="space-y-6">
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Default variant (allow multiple):</p>
+                  <Accordion
+                    items={[
+                      {
+                        id: '1',
+                        title: 'What is Brandon\'s Calculator?',
+                        content: (
+                          <div className="space-y-2">
+                            <p>Brandon's Calculator is a comprehensive auto loan calculator that helps you find the best financing options for your vehicle purchase.</p>
+                            <p>It compares rates from multiple credit unions and provides instant quotes.</p>
+                          </div>
+                        ),
+                      },
+                      {
+                        id: '2',
+                        title: 'How do I save my vehicle information?',
+                        content: 'Simply create an account, fill in your vehicle details, and click Save. Your vehicles will be stored securely and available across all your devices.',
+                      },
+                      {
+                        id: '3',
+                        title: 'What payment methods are accepted?',
+                        content: 'We accept credit cards, debit cards, and bank transfers for premium features. Basic features are completely free.',
+                      },
+                    ]}
+                    defaultExpanded={['1']}
+                    allowMultiple
+                  />
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Bordered variant (single item):</p>
+                  <Accordion
+                    variant="bordered"
+                    items={[
+                      {
+                        id: 'b1',
+                        title: 'Account Settings',
+                        content: 'Manage your account preferences, email, and password settings here.',
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        id: 'b2',
+                        title: 'Notifications',
+                        content: 'Configure email, SMS, and push notification preferences.',
+                        icon: (
+                          <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        id: 'b3',
+                        title: 'Privacy (Disabled)',
+                        content: 'This section is currently unavailable.',
+                        disabled: true,
+                      },
+                    ]}
+                  />
+                </div>
+
+                <div>
+                  <p className="text-sm text-gray-600 mb-3">Separated variant:</p>
+                  <Accordion
+                    variant="separated"
+                    items={[
+                      {
+                        id: 's1',
+                        title: 'Loan Calculator',
+                        content: 'Calculate monthly payments, total interest, and compare loan terms.',
+                      },
+                      {
+                        id: 's2',
+                        title: 'Trade-In Value',
+                        content: 'Get instant trade-in value estimates for your current vehicle.',
+                      },
+                      {
+                        id: 's3',
+                        title: 'Credit Score Impact',
+                        content: 'Understand how different loan terms affect your credit score.',
+                      },
+                    ]}
+                    defaultExpanded={['s1']}
+                  />
+                </div>
               </div>
             </div>
           </div>
