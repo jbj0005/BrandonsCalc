@@ -10,10 +10,13 @@ import { Badge } from '../ui/components/Badge';
 import { FormGroup } from '../ui/components/FormGroup';
 import { VehicleCard } from '../ui/components/VehicleCard';
 import { VehicleCardSkeleton } from '../ui/components/VehicleCardSkeleton';
+import { AuthModal } from '../ui/components/AuthModal';
 import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
   const toast = useToast();
 
@@ -504,13 +507,55 @@ export const ComponentDemo: React.FC = () => {
                 </button>
               ))}
             </div>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium"
-            >
-              Open Modal
-            </button>
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setModalOpen(true)}
+                className="px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium"
+              >
+                Open Generic Modal
+              </button>
+              <button
+                onClick={() => {
+                  setAuthMode('signin');
+                  setAuthModalOpen(true);
+                }}
+                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors font-medium"
+              >
+                Open Sign In Modal
+              </button>
+              <button
+                onClick={() => {
+                  setAuthMode('signup');
+                  setAuthModalOpen(true);
+                }}
+                className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-medium"
+              >
+                Open Sign Up Modal
+              </button>
+            </div>
           </div>
+
+          {/* AuthModal Demo */}
+          <AuthModal
+            isOpen={authModalOpen}
+            onClose={() => setAuthModalOpen(false)}
+            initialMode={authMode}
+            onSignIn={async (email, password) => {
+              // Simulate API call
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log('Sign in:', email, password);
+            }}
+            onSignUp={async (email, password, fullName, phone) => {
+              // Simulate API call
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log('Sign up:', { email, password, fullName, phone });
+            }}
+            onForgotPassword={async (email) => {
+              // Simulate API call
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log('Forgot password:', email);
+            }}
+          />
 
           <Modal
             isOpen={modalOpen}
