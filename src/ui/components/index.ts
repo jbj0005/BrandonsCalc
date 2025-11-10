@@ -104,3 +104,7 @@ export type { EmailHandshakeModalProps, EmailHandshakeStage } from './EmailHands
 
 export { SendModeModal } from './SendModeModal';
 export type { SendModeModalProps, SendMode, SendChannel } from './SendModeModal';
+
+// User Profile Components
+export { UserProfileDropdown } from './UserProfileDropdown';
+export type { UserProfileDropdownProps } from './UserProfileDropdown';

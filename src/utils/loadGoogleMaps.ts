@@ -47,18 +47,15 @@ export const loadGoogleMapsScript = (): Promise<void> => {
 
     // Create and load script
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&loading=async`;
     script.async = true;
     script.defer = true;
 
     script.onload = () => {
-      console.log('[Google Maps] Script loaded, waiting for Places API...');
-
       // Wait for google.maps.places to be available
       const checkPlaces = setInterval(() => {
         if (window.google && window.google.maps && window.google.maps.places) {
           clearInterval(checkPlaces);
-          console.log('[Google Maps] Places API ready');
           resolve();
         }
       }, 100);

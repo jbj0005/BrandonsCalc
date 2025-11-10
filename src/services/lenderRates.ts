@@ -37,12 +37,10 @@ export const fetchLenderRates = async (lenderSource: string): Promise<RatesRespo
   // Check cache
   const cached = ratesCache.get(cacheKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`[Rates] Using cached rates for ${lenderSource}`);
     return cached.data;
   }
 
   // Fetch from API
-  console.log(`[Rates] Fetching rates for ${lenderSource}...`);
   const response = await fetch(`/api/rates?source=${encodeURIComponent(lenderSource)}`);
 
   if (!response.ok) {
@@ -77,7 +75,6 @@ export const calculateAPR = (
   });
 
   if (matchingRates.length === 0) {
-    console.warn(`[Rates] No matching rates found for term=${term}, score=${creditScore}, condition=${vehicleCondition}`);
     return null;
   }
 
@@ -112,5 +109,4 @@ export const creditScoreToValue = (creditRange: string): number => {
  */
 export const clearRatesCache = (): void => {
   ratesCache.clear();
-  console.log('[Rates] Cache cleared');
 };

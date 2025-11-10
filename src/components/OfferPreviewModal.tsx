@@ -5,6 +5,7 @@ import { Input } from '../ui/components/Input';
 import { Card } from '../ui/components/Card';
 import { submitLead, generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useToast } from '../ui/components/Toast';
+import { formatPhoneNumber } from '../utils/formatters';
 
 export interface OfferPreviewModalProps {
   isOpen: boolean;
@@ -23,7 +24,9 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [customerName, setCustomerName] = useState(leadData.customerName || '');
   const [customerEmail, setCustomerEmail] = useState(leadData.customerEmail || '');
-  const [customerPhone, setCustomerPhone] = useState(leadData.customerPhone || '');
+  const [customerPhone, setCustomerPhone] = useState(
+    formatPhoneNumber(leadData.customerPhone || '')
+  );
 
   const offerText = generateOfferText(leadData);
 
@@ -118,7 +121,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
               label="Phone Number"
               type="tel"
               value={customerPhone}
-              onChange={(e) => setCustomerPhone(e.target.value)}
+              onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
               placeholder="(555) 123-4567"
             />
           </div>

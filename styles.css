@@ -779,6 +779,11 @@ body {
   position: relative;
 }
 
+/* Ensure VIN inputs with leading icons have room for the icon */
+.vin-autocomplete .form-input {
+  padding-left: calc(var(--spacing-md) * 2 + 20px);
+}
+
 /* VIN input fields should use monospace font for better readability */
 #quick-vin,
 #garageVin {
@@ -793,6 +798,31 @@ body {
   transform: translateY(-50%);
   color: var(--primary-start);
   pointer-events: none;
+}
+
+/* Garage photo previews */
+.garage-photo-preview {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  margin-top: var(--spacing-sm);
+}
+
+.garage-photo-preview img {
+  width: 96px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--ios-hairline);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.garage-photo-preview .garage-photo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-light);
 }
 
 .saved-vehicles-dropdown {

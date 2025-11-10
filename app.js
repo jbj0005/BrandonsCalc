@@ -181,8 +181,11 @@ let sendModeModalUI = null;
 // Google Places
 let placesAutocomplete = null;
 let quickLocationAutocomplete = null;
+let profileAddressAutocomplete = null;
 let googleMapsLoaded = false;
 let quickLocationManualHandlerAttached = false;
+const GARAGE_PHOTO_BUCKET = "garage-vehicle-photos";
+const MAX_GARAGE_PHOTO_SIZE = 5 * 1024 * 1024;
 
 // Google Maps - Dealer Map
 let dealerMap = null;
@@ -1276,6 +1279,52 @@ async function loadGoogleMaps() {
   }
 }
 
+function resetFileInput(input) {
+  if (!input) return;
+  input.value = "";
+}
+
+async function uploadGarageVehiclePhoto(file, userId, { vehicleId = "", vin = "" } = {}) {
+  if (!file) return null;
+  if (file.size > MAX_GARAGE_PHOTO_SIZE) {
+    throw new Error("Photo must be 5 MB or smaller");
+  }
+  if (!supabase?.storage) {
+    throw new Error("Storage client unavailable");
+  }
+
+  const bucket = supabase.storage.from(GARAGE_PHOTO_BUCKET);
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+  const safeVin = (vin || "").replace(/[^A-Z0-9]/gi, "").slice(0, 17);
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  const baseName = (vehicleId || safeVin || "vehicle").replace(/[^a-zA-Z0-9_-]/g, "");
+  const path = `${userId}/${baseName}-${Date.now()}-${randomSuffix}.${ext}`;
+  const contentType =
+    file.type || (ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext}`);
+
+  const { error } = await bucket.upload(path, file, {
+    cacheControl: "3600",
+    upsert: false,
+    contentType,
+  });
+
+  if (error) throw error;
+  const { data } = bucket.getPublicUrl(path);
+  return {
+    photo_url: data?.publicUrl || null,
+    photo_storage_path: path,
+  };
+}
+
+async function deleteGarageVehiclePhoto(storagePath) {
+  if (!storagePath || !supabase?.storage) return;
+  try {
+    await supabase.storage.from(GARAGE_PHOTO_BUCKET).remove([storagePath]);
+  } catch (error) {
+    console.warn("[garage-photo] Unable to delete photo:", error);
+  }
+}
+
 /**
  * Setup Google Places autocomplete on location input
  */
@@ -1284,11 +1333,16 @@ function setupPlacesAutocomplete() {
   const g = typeof window !== "undefined" ? window.google : undefined;
   if (!locationInput || !g || !g.maps || !g.maps.places) return;
 
+  if (placesAutocomplete) {
+    return true;
+  }
+
   try {
     placesAutocomplete = new g.maps.places.Autocomplete(locationInput, {
       types: ["address"],
       componentRestrictions: { country: "us" },
     });
+    locationInput.dataset.autocompleteInitialized = "true";
 
     placesAutocomplete.addListener("place_changed", async () => {
       const place = placesAutocomplete.getPlace();
@@ -1831,8 +1885,8 @@ function displayManualVehiclePreview(vehicle) {
   // Store the selection for use in next step
   selectedVehicle = {
     ...vehicle,
-    condition: vehicle.condition || "Used", // back-compat
-    saleCondition: (vehicle.condition || "Used"),
+    condition: vehicle.condition || "New", // back-compat
+    saleCondition: (vehicle.condition || "New"),
   };
 }
 
@@ -3182,6 +3236,16 @@ async function selectVehicleCard(index) {
 }
 
 /**
+ * Show the selected vehicle section
+ */
+function showSelectedVehicle() {
+  const yourVehicleSection = document.getElementById("your-vehicle-section");
+  if (yourVehicleSection) {
+    yourVehicleSection.style.display = "block";
+  }
+}
+
+/**
  * Select vehicle from VIN lookup
  */
 function selectVehicleFromVIN(vehicleDetails) {
@@ -3216,8 +3280,8 @@ async function selectVehicleFromSearch(vehicle) {
       model: vehicle.model,
       trim: vehicle.trim || "",
       mileage: vehicle.mileage || 0,
-      condition: vehicle.condition || "Used", // back-compat
-      saleCondition: vehicle.saleCondition || vehicle.condition || "Used",
+      condition: vehicle.condition || "New", // back-compat
+      saleCondition: vehicle.saleCondition || vehicle.condition || "New",
       heading:
         vehicle.heading || `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
       asking_price: vehicle.asking_price || null,
@@ -4400,7 +4464,7 @@ function saveStepData(step) {
           model: document.getElementById("model-input").value,
           trim: document.getElementById("trim-input").value || null,
           // Treat form "condition" as sale condition (New/Used/CPO)
-          saleCondition: document.getElementById("condition-input").value || "Used",
+          saleCondition: document.getElementById("condition-input").value || "New",
         };
       }
       break;
@@ -6691,66 +6755,95 @@ try {
   }
 } catch {}
 
+let cachedCustomerProfile = null;
+let customerProfilePromise = null;
+
+function applyProfileDataToUI(profile) {
+  if (!profile) return;
+
+  const profileFullName = document.getElementById("profileFullName");
+  if (profileFullName) {
+    profileFullName.value = profile.full_name || "";
+    document.getElementById("profileEmail").value = profile.email || "";
+    document.getElementById("profilePhone").value = profile.phone || "";
+    document.getElementById("profileAddress").value =
+      profile.street_address || "";
+    document.getElementById("profileCity").value = profile.city || "";
+    document.getElementById("profileState").value = profile.state_code || "";
+    document.getElementById("profileZip").value = profile.zip_code || "";
+    document.getElementById("profileCreditScore").value =
+      profile.credit_score_range || "";
+
+    document.getElementById("profileDownPayment").value =
+      profile.preferred_down_payment
+        ? formatCurrency(profile.preferred_down_payment)
+        : "";
+  }
+
+  const firstName = profile.full_name
+    ? profile.full_name.split(" ")[0]
+    : "Profile";
+  const profileLabel = document.getElementById("customerProfileLabel");
+  if (profileLabel) {
+    profileLabel.textContent = firstName;
+  }
+}
+
 /**
- * Load customer profile from Supabase
+ * Load customer profile from Supabase (deduplicated)
  */
-async function loadCustomerProfileData() {
+async function loadCustomerProfileData(forceRefresh = false) {
   try {
     const authStore = useAuthStore.getState();
-    if (!authStore.user) {
+    const userId = authStore.user?.id;
+    if (!userId) {
+      cachedCustomerProfile = null;
+      customerProfilePromise = null;
       return null;
     }
 
-    const { data: profile, error } = await supabase
-      .from("customer_profiles")
-      .select("*")
-      .eq("user_id", authStore.user.id)
-      .single();
-
-    if (error) {
-      console.error("Error loading customer profile:", error);
-      return null;
+    if (forceRefresh) {
+      cachedCustomerProfile = null;
+      customerProfilePromise = null;
     }
 
-    if (profile) {
-      // Populate form fields if modal is open
-      const profileFullName = document.getElementById("profileFullName");
-      if (profileFullName) {
-        profileFullName.value = profile.full_name || "";
-        document.getElementById("profileEmail").value = profile.email || "";
-        document.getElementById("profilePhone").value = profile.phone || "";
-        document.getElementById("profileAddress").value =
-          profile.street_address || "";
-        document.getElementById("profileCity").value = profile.city || "";
-        document.getElementById("profileState").value =
-          profile.state_code || "";
-        document.getElementById("profileZip").value = profile.zip_code || "";
-        document.getElementById("profileCreditScore").value =
-          profile.credit_score_range || "";
+    if (cachedCustomerProfile) {
+      applyProfileDataToUI(cachedCustomerProfile);
+      return cachedCustomerProfile;
+    }
 
-        // Populate preference fields
-        document.getElementById("profileDownPayment").value =
-          profile.preferred_down_payment
-            ? formatCurrency(profile.preferred_down_payment)
-            : "";
-        // Trade-in preferences removed - now managed through My Garage
-      }
-
-      // Update header label with user's first name
-      const firstName = profile.full_name
-        ? profile.full_name.split(" ")[0]
-        : "Profile";
-      const profileLabel = document.getElementById("customerProfileLabel");
-      if (profileLabel) {
-        profileLabel.textContent = firstName;
-      }
-
+    if (customerProfilePromise) {
+      const profile = await customerProfilePromise;
+      applyProfileDataToUI(profile);
       return profile;
     }
 
-    return null;
+    customerProfilePromise = supabase
+      .from("customer_profiles")
+      .select("*")
+      .eq("user_id", userId)
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("Error loading customer profile:", error);
+          cachedCustomerProfile = null;
+          return null;
+        }
+        cachedCustomerProfile = data || null;
+        return cachedCustomerProfile;
+      })
+      .finally(() => {
+        customerProfilePromise = null;
+      });
+
+    const profile = await customerProfilePromise;
+    if (profile) {
+      applyProfileDataToUI(profile);
+    }
+    return profile;
   } catch (error) {
     console.error("Error loading customer profile:", error);
+    customerProfilePromise = null;
     return null;
   }
 }
@@ -6827,16 +6920,20 @@ function setupProfileAddressAutocomplete() {
   const g = typeof window !== "undefined" ? window.google : undefined;
   if (!addressInput || !g || !g.maps || !g.maps.places) return;
 
-  // Create autocomplete instance
-  const autocomplete = new g.maps.places.Autocomplete(addressInput, {
+  if (profileAddressAutocomplete) {
+    return;
+  }
+
+  profileAddressAutocomplete = new g.maps.places.Autocomplete(addressInput, {
     types: ["address"],
     componentRestrictions: { country: "us" },
     fields: ["address_components", "formatted_address", "place_id"],
   });
+  addressInput.dataset.autocompleteInitialized = "true";
 
   // Listen for place selection
-  autocomplete.addListener("place_changed", () => {
-    const place = autocomplete.getPlace();
+  profileAddressAutocomplete.addListener("place_changed", () => {
+    const place = profileAddressAutocomplete.getPlace();
     if (!place || !place.address_components) return;
 
     // Extract address components
@@ -7192,6 +7289,9 @@ async function saveCustomerProfile() {
       return;
     }
 
+    cachedCustomerProfile = profile;
+    applyProfileDataToUI(profile);
+
     // Save profile ID to localStorage
     localStorage.setItem("customerProfileId", profile.id);
 
@@ -7262,6 +7362,8 @@ function closeProfileDropdown() {
  */
 function handleSignOut() {
   if (confirm("Are you sure you want to sign out?")) {
+    cachedCustomerProfile = null;
+    customerProfilePromise = null;
     // Clear customer profile ID
     localStorage.removeItem("customerProfileId");
 
@@ -8415,6 +8517,7 @@ async function addSavedVehicleToGarage(savedVehicleId) {
         : 0,
       payoff_amount: 0,
       photo_url: savedVehicle.photo_url || null,
+      photo_storage_path: null,
       notes: 'Imported from saved vehicles'
     };
 
@@ -8473,6 +8576,12 @@ async function showGarageForm(vehicleId = null) {
 
     // Store the vehicle ID in the form for later use
     form.dataset.editingVehicleId = vehicleId || "";
+    form.dataset.photoStoragePath = "";
+    form.dataset.photoUrl = "";
+    const garagePhotoInput = document.getElementById("garagePhoto");
+    if (garagePhotoInput) {
+      resetFileInput(garagePhotoInput);
+    }
 
     // If editing, load vehicle data into form
     if (vehicleId) {
@@ -8505,6 +8614,9 @@ async function showGarageForm(vehicleId = null) {
           document.getElementById("garagePayoffAmount").value =
             vehicle.payoff_amount ? formatCurrency(vehicle.payoff_amount) : "";
           document.getElementById("garageNotes").value = vehicle.notes || "";
+
+          form.dataset.photoStoragePath = vehicle.photo_storage_path || "";
+          form.dataset.photoUrl = vehicle.photo_url || "";
         }
       } catch (error) {
         console.error("Error loading vehicle for editing:", error);
@@ -8523,6 +8635,8 @@ function hideGarageForm() {
     form.style.display = "none";
     // Clear editing state
     form.dataset.editingVehicleId = "";
+    form.dataset.photoStoragePath = "";
+    form.dataset.photoUrl = "";
     // Clear form fields
     form.querySelectorAll("input, select, textarea").forEach((field) => {
       if (field.type === "checkbox") {
@@ -8531,6 +8645,10 @@ function hideGarageForm() {
         field.value = "";
       }
     });
+  }
+  const garagePhotoInput = document.getElementById("garagePhoto");
+  if (garagePhotoInput) {
+    resetFileInput(garagePhotoInput);
   }
 }
 
@@ -8577,6 +8695,30 @@ async function openEditVehicleModal(vehicleId) {
         : "";
       document.getElementById("editNotes").value = vehicle.notes || "";
 
+      const editForm = document.getElementById("edit-vehicle-form");
+      if (editForm) {
+        editForm.dataset.photoStoragePath = vehicle.photo_storage_path || "";
+        editForm.dataset.photoUrl = vehicle.photo_url || "";
+      }
+      const preview = document.getElementById("editGaragePhotoExisting");
+      const previewImg = document.getElementById("editGaragePhotoExistingImg");
+      const removeCheckbox = document.getElementById("editGarageRemovePhoto");
+      if (preview && previewImg && removeCheckbox) {
+        if (vehicle.photo_url) {
+          preview.style.display = "flex";
+          previewImg.src = vehicle.photo_url;
+          removeCheckbox.checked = false;
+        } else {
+          preview.style.display = "none";
+          previewImg.removeAttribute("src");
+          removeCheckbox.checked = false;
+        }
+      }
+      const editPhotoInput = document.getElementById("editGaragePhoto");
+      if (editPhotoInput) {
+        resetFileInput(editPhotoInput);
+      }
+
       // Show modal
       modal.classList.add("active");
       modal.style.display = "flex";
@@ -8598,6 +8740,12 @@ function closeEditVehicleModal() {
     modal.style.display = "none";
     modal.dataset.editingVehicleId = "";
 
+    const editForm = document.getElementById("edit-vehicle-form");
+    if (editForm) {
+      editForm.dataset.photoStoragePath = "";
+      editForm.dataset.photoUrl = "";
+    }
+
     // Clear form fields
     document.getElementById("editNickname").value = "";
     document.getElementById("editYear").value = "";
@@ -8610,6 +8758,16 @@ function closeEditVehicleModal() {
     document.getElementById("editEstimatedValue").value = "";
     document.getElementById("editPayoffAmount").value = "";
     document.getElementById("editNotes").value = "";
+    const editPhotoInput = document.getElementById("editGaragePhoto");
+    if (editPhotoInput) {
+      resetFileInput(editPhotoInput);
+    }
+    const preview = document.getElementById("editGaragePhotoExisting");
+    const previewImg = document.getElementById("editGaragePhotoExistingImg");
+    if (preview) preview.style.display = "none";
+    if (previewImg) previewImg.removeAttribute("src");
+    const removeCheckbox = document.getElementById("editGarageRemovePhoto");
+    if (removeCheckbox) removeCheckbox.checked = false;
   }
 }
 window.closeEditVehicleModal = closeEditVehicleModal;
@@ -8620,10 +8778,16 @@ window.closeEditVehicleModal = closeEditVehicleModal;
 async function saveEditedVehicle() {
   const modal = document.getElementById("edit-vehicle-modal");
   const vehicleId = modal?.dataset.editingVehicleId;
+  const authStore = useAuthStore.getState();
 
   if (!vehicleId) {
     console.error('❌ [saveEditedVehicle] Vehicle ID not found');
     showToast("Error: Vehicle ID not found", "error");
+    return;
+  }
+
+  if (!authStore.user) {
+    showToast("Please sign in first", "error");
     return;
   }
 
@@ -8638,6 +8802,8 @@ async function saveEditedVehicle() {
     const trim = document.getElementById("editTrim").value?.trim() || null;
     const mileage = parseInt(document.getElementById("editMileage").value) || 0;
     const condition = document.getElementById("editCondition").value || null;
+    const vin =
+      document.getElementById("editVin").value?.trim().toUpperCase() || "";
     const estimatedValue =
       parseFloat(
         document
@@ -8649,6 +8815,34 @@ async function saveEditedVehicle() {
         document.getElementById("editPayoffAmount").value?.replace(/[$,]/g, "")
       ) || 0;
     const notes = document.getElementById("editNotes").value?.trim() || null;
+    const form = document.getElementById("edit-vehicle-form");
+    const photoInput = document.getElementById("editGaragePhoto");
+    const removePhotoCheckbox = document.getElementById("editGarageRemovePhoto");
+    let photoMeta = {
+      photo_url: form?.dataset.photoUrl || null,
+      photo_storage_path: form?.dataset.photoStoragePath || null,
+    };
+
+    try {
+      if (removePhotoCheckbox?.checked && photoMeta.photo_storage_path) {
+        await deleteGarageVehiclePhoto(photoMeta.photo_storage_path);
+        photoMeta = { photo_url: null, photo_storage_path: null };
+      }
+
+      if (photoInput?.files?.length) {
+        if (photoMeta.photo_storage_path) {
+          await deleteGarageVehiclePhoto(photoMeta.photo_storage_path);
+        }
+        photoMeta = await uploadGarageVehiclePhoto(photoInput.files[0], authStore.user.id, {
+          vehicleId,
+          vin,
+        });
+      }
+    } catch (photoError) {
+      console.error("[garage-photo] Upload failed:", photoError);
+      showToast(photoError.message || "Unable to upload photo. Please try again.", "error");
+      return;
+    }
 
 
     // Validate required fields
@@ -8672,6 +8866,8 @@ async function saveEditedVehicle() {
         estimated_value: estimatedValue,
         payoff_amount: payoffAmount,
         notes,
+        photo_url: photoMeta.photo_url,
+        photo_storage_path: photoMeta.photo_storage_path,
         updated_at: new Date().toISOString(),
       })
       .eq("id", vehicleId);
@@ -8716,12 +8912,17 @@ async function deleteGarageVehicle(vehicleId) {
   }
 
   try {
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("garage_vehicles")
       .delete()
-      .eq("id", vehicleId);
+      .eq("id", vehicleId)
+      .select("photo_storage_path")
+      .single();
 
     if (error) throw error;
+    if (data?.photo_storage_path) {
+      await deleteGarageVehiclePhoto(data.photo_storage_path);
+    }
 
     // Remove from selected trade-ins if present
     selectedTradeIns = selectedTradeIns.filter((id) => id !== vehicleId);
@@ -8795,6 +8996,27 @@ async function saveGarageVehicle() {
   const estimatedValue =
     parseFloat(estimatedValueStr.replace(/[$,]/g, "")) || null;
   const payoffAmount = parseFloat(payoffAmountStr.replace(/[$,]/g, "")) || null;
+  const photoInput = document.getElementById("garagePhoto");
+  let photoMeta = {
+    photo_url: form?.dataset.photoUrl || null,
+    photo_storage_path: form?.dataset.photoStoragePath || null,
+  };
+
+  try {
+    if (photoInput?.files?.length) {
+      if (photoMeta.photo_storage_path) {
+        await deleteGarageVehiclePhoto(photoMeta.photo_storage_path);
+      }
+      photoMeta = await uploadGarageVehiclePhoto(photoInput.files[0], authStore.user.id, {
+        vehicleId: editingVehicleId || undefined,
+        vin,
+      });
+    }
+  } catch (error) {
+    console.error("[garage-photo] Upload failed:", error);
+    showToast(error.message || "Unable to upload photo. Please try again.", "error");
+    return;
+  }
 
   // Prepare vehicle data
   const vehicleData = {
@@ -8810,6 +9032,8 @@ async function saveGarageVehicle() {
     estimated_value: estimatedValue,
     payoff_amount: payoffAmount,
     notes: notes || null,
+    photo_url: photoMeta.photo_url,
+    photo_storage_path: photoMeta.photo_storage_path,
     updated_at: new Date().toISOString(),
   };
 
@@ -13646,7 +13870,7 @@ function setupQuickLocationAutocomplete() {
   }
 
   if (quickLocationAutocomplete) {
-    google.maps.event.clearInstanceListeners(quickLocationAutocomplete);
+    return true;
   }
 
   quickLocationAutocomplete = new google.maps.places.Autocomplete(
@@ -13656,6 +13880,7 @@ function setupQuickLocationAutocomplete() {
       componentRestrictions: { country: "us" },
     }
   );
+  quickLocation.dataset.autocompleteInitialized = "true";
 
   quickLocationAutocomplete.addListener("place_changed", async () => {
     const place = quickLocationAutocomplete?.getPlace();

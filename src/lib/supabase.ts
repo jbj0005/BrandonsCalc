@@ -232,14 +232,24 @@ export async function updateGarageVehicle(
  * Delete garage vehicle
  */
 export async function deleteGarageVehicle(vehicleId: string): Promise<boolean> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('garage_vehicles')
     .delete()
-    .eq('id', vehicleId);
+    .eq('id', vehicleId)
+    .select('photo_storage_path')
+    .single();
   
   if (error) {
     console.error('Error deleting garage vehicle:', error);
     throw error;
+  }
+
+  if (data?.photo_storage_path) {
+    try {
+      await supabase.storage.from('garage-vehicle-photos').remove([data.photo_storage_path]);
+    } catch (storageError) {
+      console.warn('Unable to delete garage vehicle photo:', storageError);
+    }
   }
   
   return true;

@@ -1798,6 +1798,7 @@
                 class="form-input"
                 placeholder="1HGBH41JXMN109186"
                 maxlength="17"
+                required
               />
             </div>
 
@@ -1810,6 +1811,17 @@
                 <option value="fair">Fair</option>
                 <option value="poor">Poor</option>
               </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="garagePhoto">Vehicle Photo</label>
+              <input
+                type="file"
+                id="garagePhoto"
+                class="form-input"
+                accept="image/*"
+              />
+              <small class="form-hint">Optional photo (PNG, JPG, or WebP up to 5 MB)</small>
             </div>
 
             <div class="form-row">
@@ -2007,7 +2019,29 @@
               class="form-input"
               placeholder="1HGBH41JXMN109186"
               maxlength="17"
+              required
             />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editGaragePhoto">Vehicle Photo</label>
+            <input
+              type="file"
+              id="editGaragePhoto"
+              class="form-input"
+              accept="image/*"
+            />
+            <div class="garage-photo-preview" id="editGaragePhotoExisting" style="display: none">
+              <img id="editGaragePhotoExistingImg" alt="Current vehicle photo" />
+              <div class="garage-photo-actions">
+                <span>Current photo</span>
+                <label style="display: flex; align-items: center; gap: 0.35rem;">
+                  <input type="checkbox" id="editGarageRemovePhoto" />
+                  <span>Remove this photo</span>
+                </label>
+              </div>
+            </div>
+            <small class="form-hint">PNG, JPG, or WebP up to 5 MB</small>
           </div>
 
           <div class="form-row">
@@ -2222,6 +2256,7 @@
                   id="edit-vehicle-vin"
                   placeholder="1HGBH41JXMN109186"
                   maxlength="17"
+                  required
                 />
               </div>
 

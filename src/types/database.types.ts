@@ -89,6 +89,7 @@ export interface Database {
           estimated_value: number | null
           payoff_amount: number | null
           photo_url: string | null
+          photo_storage_path: string | null
           notes: string | null
           times_used: number | null
           last_used_at: string | null
@@ -109,6 +110,7 @@ export interface Database {
           estimated_value?: number | null
           payoff_amount?: number | null
           photo_url?: string | null
+          photo_storage_path?: string | null
           notes?: string | null
           times_used?: number | null
           last_used_at?: string | null
@@ -129,6 +131,7 @@ export interface Database {
           estimated_value?: number | null
           payoff_amount?: number | null
           photo_url?: string | null
+          photo_storage_path?: string | null
           notes?: string | null
           times_used?: number | null
           last_used_at?: string | null

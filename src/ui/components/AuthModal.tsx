@@ -3,6 +3,7 @@ import { Modal } from './Modal';
 import { Input } from './Input';
 import { Button } from './Button';
 import { useToast } from './Toast';
+import { formatPhoneNumber } from '../../utils/formatters';
 
 export interface AuthModalProps {
   /** Is modal open */
@@ -291,7 +292,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               type="tel"
               placeholder="(555) 123-4567"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
               autoComplete="tel"
               helperText="We'll send you updates via SMS"
               fullWidth

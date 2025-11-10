@@ -131,6 +131,11 @@ supabase functions deploy marketcheck --project-ref your-project-ref
 
 The client automatically falls back to the Edge Functions when the Express proxy is unavailable, so GitHub Pages and other static hosts will load Google Maps and MarketCheck data without bundling secrets into the build.
 
+### Garage Vehicle Photos
+- The latest migration (`20251115_add_garage_vehicle_photos_bucket.sql`) creates a dedicated `garage-vehicle-photos` storage bucket plus row-level policies so only the vehicle owner can upload/delete images. Run `supabase db push` (or execute the SQL) before enabling photo uploads.
+- The bucket allows PNG/JPG/WebP/HEIC files up to 5 MB and is public-read so `photo_url` values can be rendered directly throughout the UI.
+- When developing locally you can also create the bucket with the Supabase CLI: `supabase db reset` will apply all migrations against the local Docker instance.
+
 ## Installation
 ```bash
 npm install

@@ -1,0 +1,3 @@
+-- Placeholder migration to match remote database
+-- This migration was already applied remotely
+-- DO NOT DELETE THIS FILE

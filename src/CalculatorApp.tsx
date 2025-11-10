@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
 import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
+import { useProfile } from './hooks/useProfile';
 import { fetchLenderRates, calculateAPR, creditScoreToValue, type LenderRate } from './services/lenderRates';
 import { DealerMap } from './components/DealerMap';
 import { OfferPreviewModal } from './components/OfferPreviewModal';
-import { UserProfileModal } from './components/UserProfileModal';
 import type { LeadData } from './services/leadSubmission';
 
 // Import MarketCheck cache for VIN lookup
@@ -42,25 +42,27 @@ export const CalculatorApp: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
   const [vinError, setVinError] = useState('');
-  const [skipVinLookup, setSkipVinLookup] = useState(false);
 
   // Google Maps Autocomplete
   const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(locationInputRef as React.RefObject<HTMLInputElement>, {
     onPlaceSelected: (place: PlaceDetails) => {
       setLocation(place.address);
       setLocationDetails(place);
-      console.log('[Location Selected]', place);
     },
     types: ['address'],
     componentRestrictions: { country: 'us' },
   });
 
-  // Saved Vehicles State
+  // Saved Vehicles State (marketplace vehicles from 'vehicles' table)
   const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
   const [isLoadingSavedVehicles, setIsLoadingSavedVehicles] = useState(false);
   const [showManageVehiclesModal, setShowManageVehiclesModal] = useState(false);
   const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
+
+  // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
+  const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
+  const [isLoadingGarageVehicles, setIsLoadingGarageVehicles] = useState(false);
 
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -82,7 +84,6 @@ export const CalculatorApp: React.FC = () => {
         savedVehiclesCache.subscribe(currentUser.id, supabase);
       }
     } catch (error) {
-      console.warn('[Calculator] Unable to initialize saved vehicles cache:', error);
       return false;
     }
 
@@ -93,9 +94,24 @@ export const CalculatorApp: React.FC = () => {
   const [showOfferPreviewModal, setShowOfferPreviewModal] = useState(false);
   const [leadDataForSubmission, setLeadDataForSubmission] = useState<LeadData>({});
 
-  // User Profile Modal State
-  const [showUserProfileModal, setShowUserProfileModal] = useState(false);
-  const [profileInitialTab, setProfileInitialTab] = useState<'garage' | 'offers'>('garage');
+  // User Profile Dropdown State
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false);
+
+  // User Profile Management
+  const {
+    profile,
+    isLoading: isLoadingProfile,
+    error: profileError,
+    loadProfile,
+    saveProfile,
+    updateField: updateProfileField,
+    isDirty: isProfileDirty,
+  } = useProfile({
+    supabase,
+    userId: currentUser?.id || null,
+    userEmail: currentUser?.email || null,
+    autoLoad: true,
+  });
 
   // Financing State
   const [lender, setLender] = useState('nfcu');
@@ -161,7 +177,6 @@ export const CalculatorApp: React.FC = () => {
       try {
         const response = await fetchLenderRates(lender);
         setLenderRates(response.rates);
-        console.log(`[Calculator] Loaded ${response.rates.length} rates for ${response.lenderName}`);
       } catch (error: any) {
         console.error('[Calculator] Failed to load rates:', error);
         setLenderRates([]);
@@ -190,9 +205,6 @@ export const CalculatorApp: React.FC = () => {
 
     if (calculatedAPR !== null) {
       setApr(calculatedAPR);
-      console.log(`[Calculator] APR updated to ${calculatedAPR}% (score=${creditScoreValue}, term=${loanTerm}, condition=${vehicleCondition})`);
-    } else {
-      console.warn('[Calculator] No matching rate found, keeping current APR');
     }
   }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
 
@@ -200,6 +212,56 @@ export const CalculatorApp: React.FC = () => {
   useEffect(() => {
     calculateLoan();
   }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr]);
+
+  // Auto-populate location from profile when profile loads
+  useEffect(() => {
+    if (!profile || !mapsLoaded) return;
+
+    // Build address string from profile
+    const addressParts = [
+      profile.street_address,
+      profile.city,
+      profile.state_code,
+      profile.zip_code,
+    ].filter(Boolean);
+
+    if (addressParts.length === 0) return;
+
+    const addressString = addressParts.join(', ');
+
+    // Only auto-fill if location field is empty
+    if (!location) {
+      setLocation(addressString);
+
+      // Geocode if Google Maps is available
+      if (window.google?.maps?.Geocoder) {
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({ address: addressString }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            const place = results[0];
+            setLocationDetails({
+              address: addressString,
+              city: profile.city || '',
+              state: profile.state_code || '',
+              zip: profile.zip_code || '',
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            } as PlaceDetails);
+          }
+        });
+      }
+    }
+  }, [profile, mapsLoaded, location]);
+
+  // Auto-populate down payment from profile when vehicle is selected
+  useEffect(() => {
+    if (!profile || !selectedVehicle || !profile.preferred_down_payment) return;
+
+    // Only auto-fill if cash down is at default (5000 is the default)
+    if (cashDown === 5000) {
+      setCashDown(profile.preferred_down_payment);
+    }
+  }, [profile, selectedVehicle, cashDown]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -242,7 +304,7 @@ export const CalculatorApp: React.FC = () => {
     }
   }, [currentUser]);
 
-  // Load saved vehicles on mount and when user changes
+  // Load saved vehicles (marketplace) on mount and when user changes
   useEffect(() => {
     const loadSavedVehicles = async () => {
       if (!currentUser) {
@@ -273,6 +335,38 @@ export const CalculatorApp: React.FC = () => {
     };
     loadSavedVehicles();
   }, [currentUser, ensureSavedVehiclesCacheReady]);
+
+  // Load garage vehicles on mount and when user changes
+  useEffect(() => {
+    const loadGarageVehicles = async () => {
+      if (!currentUser || !supabase) {
+        setGarageVehicles([]);
+        return;
+      }
+
+      setIsLoadingGarageVehicles(true);
+      try {
+        const { data, error } = await supabase
+          .from('garage_vehicles')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setGarageVehicles(data || []);
+      } catch (error: any) {
+        console.error('Failed to load garage vehicles:', error);
+        toast.push({
+          kind: 'error',
+          title: 'Failed to Load Garage',
+          detail: 'Could not load your garage vehicles',
+        });
+      } finally {
+        setIsLoadingGarageVehicles(false);
+      }
+    };
+    loadGarageVehicles();
+  }, [currentUser, supabase]);
 
   const calculateLoan = () => {
     // Calculate amount financed
@@ -358,18 +452,21 @@ export const CalculatorApp: React.FC = () => {
     setShowOfferPreviewModal(true);
   };
 
-  // Filter saved vehicles based on VIN input
-  const filteredVehicles = savedVehicles.filter((vehicle) => {
-    if (!vin) return true; // Show all if no search term
+  const filterBySearch = (vehicle: any) => {
+    if (!vin) return true;
     const searchTerm = vin.toLowerCase();
     const vehicleText = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.trim || ''} ${vehicle.vin || ''}`.toLowerCase();
     return vehicleText.includes(searchTerm);
-  });
+  };
+
+  const filteredSavedVehicles = savedVehicles.filter(filterBySearch);
+  const filteredGarageVehicles = garageVehicles.filter(filterBySearch);
+  const totalStoredVehicles = savedVehicles.length + garageVehicles.length;
+  const filteredStoredCount = filteredSavedVehicles.length + filteredGarageVehicles.length;
 
   // Handle selecting a saved vehicle from dropdown
   const handleSelectSavedVehicle = (vehicle: any) => {
     setSelectedVehicle(vehicle);
-    setSkipVinLookup(true); // Skip MarketCheck lookup for saved vehicles
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
 
@@ -386,6 +483,33 @@ export const CalculatorApp: React.FC = () => {
       title: 'Vehicle Selected!',
       detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
     });
+  };
+
+  const handleSelectGarageVehicle = (vehicle: any) => {
+    setSelectedVehicle(vehicle);
+    setVin(vehicle.vin || '');
+    setShowVehicleDropdown(false);
+
+    if (vehicle.estimated_value != null) {
+      setTradeAllowance(Number(vehicle.estimated_value) || 0);
+    }
+    if (vehicle.payoff_amount != null) {
+      setTradePayoff(Number(vehicle.payoff_amount) || 0);
+    }
+
+    toast.push({
+      kind: 'success',
+      title: 'Garage Vehicle Selected!',
+      detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+    });
+  };
+
+  // Handle edit vehicle from VIN dropdown
+  const handleEditVehicle = (e: React.MouseEvent, vehicle: any) => {
+    e.stopPropagation(); // Prevent vehicle selection
+    setVehicleToEdit(vehicle);
+    setShowManageVehiclesModal(true);
+    setShowVehicleDropdown(false); // Close dropdown
   };
 
   // Handle vehicle save/update from modal
@@ -411,7 +535,7 @@ export const CalculatorApp: React.FC = () => {
     try {
       await reloadSavedVehicles();
     } catch (error) {
-      console.warn('Unable to refresh saved vehicles after sign in:', error);
+      // Silent fail - not critical
     }
   };
 
@@ -421,7 +545,7 @@ export const CalculatorApp: React.FC = () => {
     try {
       await reloadSavedVehicles();
     } catch (error) {
-      console.warn('Unable to refresh saved vehicles after sign up:', error);
+      // Silent fail - not critical
     }
   };
 
@@ -502,35 +626,54 @@ export const CalculatorApp: React.FC = () => {
       }
     } catch (error: any) {
       console.error('VIN lookup error:', error);
-      setVinError(error.message || 'Failed to look up VIN');
-      setSelectedVehicle(null);
 
-      toast.push({
-        kind: 'error',
-        title: 'VIN Lookup Failed',
-        detail: error.message || 'Could not find vehicle information',
-      });
+      // Distinguish between API errors (quota, network) and "not found"
+      const isQuotaError = error.message?.toLowerCase().includes('quota') ||
+                          error.message?.toLowerCase().includes('rate limit') ||
+                          error.message?.toLowerCase().includes('429');
+      const isNetworkError = error.message?.toLowerCase().includes('network') ||
+                            error.message?.toLowerCase().includes('fetch');
+      const isServerError = error.message?.toLowerCase().includes('server error') ||
+                           error.message?.toLowerCase().includes('500') ||
+                           error.message?.toLowerCase().includes('503');
+
+      // For API/network/quota errors, don't clear selectedVehicle
+      // This prevents saved vehicles from appearing to "disappear"
+      if (isQuotaError) {
+        setVinError('API quota exceeded - try again later');
+        toast.push({
+          kind: 'warning',
+          title: 'Lookup Temporarily Unavailable',
+          detail: 'MarketCheck API quota exceeded. Saved vehicles are still available.',
+        });
+      } else if (isNetworkError || isServerError) {
+        setVinError('Service temporarily unavailable');
+        toast.push({
+          kind: 'warning',
+          title: 'Lookup Temporarily Unavailable',
+          detail: 'Unable to connect to vehicle lookup service. Try again in a moment.',
+        });
+      } else {
+        // Other errors (like "not found") should clear selectedVehicle
+        setVinError(error.message || 'Failed to look up VIN');
+        setSelectedVehicle(null);
+        toast.push({
+          kind: 'error',
+          title: 'VIN Lookup Failed',
+          detail: error.message || 'Could not find vehicle information',
+        });
+      }
     } finally {
       setIsLoadingVIN(false);
     }
   };
 
-  // Debounce VIN lookup
-  useEffect(() => {
-    if (!vin) return;
-
-    // Skip lookup if this VIN came from selecting a saved vehicle
-    if (skipVinLookup) {
-      setSkipVinLookup(false); // Reset flag for next time
-      return;
-    }
-
-    const timer = setTimeout(() => {
+  // Manual VIN lookup - only called when user explicitly requests it
+  const handleManualVINLookup = () => {
+    if (vin) {
       handleVINLookup(vin);
-    }, 800); // Wait 800ms after user stops typing
-
-    return () => clearTimeout(timer);
-  }, [vin, skipVinLookup]);
+    }
+  };
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -542,61 +685,29 @@ export const CalculatorApp: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div className="flex-1 text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">
-              Brandon's Calculator
-            </h1>
-            <p className="text-lg text-gray-600">
-              Find the best auto loan rates in seconds
-            </p>
-          </div>
-          <div className="absolute right-4 top-4 flex items-center gap-2">
-            {currentUser ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setProfileInitialTab('garage');
-                    setShowUserProfileModal(true);
-                  }}
-                >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                    />
-                  </svg>
-                  My Profile
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSignOut}
-                >
-                  Sign Out
-                </Button>
-              </>
-            ) : (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setAuthMode('signin');
-                  setShowAuthModal(true);
-                }}
-              >
-                Sign In
-              </Button>
-            )}
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Dark Header */}
+      <header className="bg-gray-900 shadow-lg sticky top-0 z-400">
+        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-white">Brandon's Calculator</h1>
+          <button
+            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors text-white text-sm font-medium"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+              />
+            </svg>
+            {currentUser ? (profile?.full_name || currentUser.email?.split('@')[0] || 'Account') : 'Sign In'}
+          </button>
         </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
 
         {/* Main Grid - Left column (inputs) + Right column (summary) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -605,7 +716,7 @@ export const CalculatorApp: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
 
             {/* Location & Vehicle Section */}
-            <Card variant="elevated" padding="lg">
+            <Card variant="elevated" padding="lg" className="overflow-visible">
               <h2 className="text-2xl font-semibold text-gray-900 mb-6">
                 Location & Vehicle
               </h2>
@@ -628,18 +739,13 @@ export const CalculatorApp: React.FC = () => {
                   fullWidth
                 />
 
-                <div className="relative">
-                  <Input
-                    label="VIN or Search Saved Vehicles"
-                    type="text"
-                    placeholder="Paste VIN or select saved vehicle..."
-                    value={vin}
-                    onChange={(e) => setVin(e.target.value)}
-                    onFocus={() => setShowVehicleDropdown(true)}
-                    error={vinError}
-                    success={selectedVehicle && !isLoadingVIN}
-                    icon={
-                      isLoadingVIN ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    VIN or Search Saved Vehicles
+                  </label>
+                  <div className="relative overflow-hidden">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                      {isLoadingVIN ? (
                         <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                         </svg>
@@ -647,18 +753,56 @@ export const CalculatorApp: React.FC = () => {
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
-                      )
-                    }
-                    helperText={isLoadingVIN ? 'Looking up VIN...' : `Enter a VIN or search ${savedVehicles.length} saved vehicles`}
-                    fullWidth
-                  />
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      value={vin}
+                      onChange={(e) => setVin(e.target.value.toUpperCase())}
+                      onFocus={() => setShowVehicleDropdown(true)}
+                      placeholder="Paste VIN or select saved vehicle..."
+                      className={`w-full rounded-lg border py-2 pl-[2.75rem] pr-[2.75rem] bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
+                        vinError
+                          ? 'border-red-500 focus:ring-red-500'
+                          : selectedVehicle && !isLoadingVIN
+                          ? 'border-green-500 focus:ring-green-500'
+                          : 'border-gray-300 focus:ring-blue-500'
+                      }`}
+                      maxLength={17}
+                      aria-invalid={vinError ? 'true' : 'false'}
+                    />
+                    {selectedVehicle && !isLoadingVIN && !vinError && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                  {vinError ? (
+                    <p className="mt-1.5 text-sm text-red-600">{vinError}</p>
+                  ) : (
+                    <p className="mt-1.5 text-sm text-gray-500">
+                      {isLoadingVIN
+                        ? 'Looking up VIN...'
+                        : totalStoredVehicles > 0
+                        ? `Search ${totalStoredVehicles} stored vehicles (My Garage + Saved) or enter a VIN manually`
+                        : 'Enter a VIN or sign in to add vehicles to your library'}
+                    </p>
+                  )}
 
-                  {/* Saved Vehicles Dropdown */}
-                  {showVehicleDropdown && savedVehicles.length > 0 && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                  {/* Stored Vehicles Dropdown */}
+                  {showVehicleDropdown && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                       <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">
-                          {isLoadingSavedVehicles ? 'Loading...' : `${filteredVehicles.length} vehicles`}
+                          {isLoadingSavedVehicles || isLoadingGarageVehicles
+                            ? 'Loading...'
+                            : filteredStoredCount > 0
+                            ? `${filteredStoredCount} vehicle${filteredStoredCount === 1 ? '' : 's'}`
+                            : totalStoredVehicles === 0
+                            ? 'No stored vehicles yet'
+                            : 'No vehicles match your search'}
                         </span>
                         <button
                           onClick={() => setShowVehicleDropdown(false)}
@@ -670,66 +814,153 @@ export const CalculatorApp: React.FC = () => {
                         </button>
                       </div>
 
-                      {filteredVehicles.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500">
-                          No vehicles match your search
+                      {isLoadingSavedVehicles || isLoadingGarageVehicles ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">Loading stored vehicles...</div>
+                      ) : filteredStoredCount === 0 ? (
+                        <div className="p-4 text-center text-gray-500 text-sm">
+                          {totalStoredVehicles === 0
+                            ? 'Sign in to build your garage and saved vehicle library.'
+                            : 'No vehicles match your search'}
                         </div>
                       ) : (
                         <div className="divide-y">
-                          {filteredVehicles.map((vehicle) => (
-                            <button
-                              key={vehicle.id}
-                              onClick={() => handleSelectSavedVehicle(vehicle)}
-                              className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <div className="font-semibold text-gray-900">
-                                    {vehicle.year} {vehicle.make} {vehicle.model}
-                                    {vehicle.trim && ` ${vehicle.trim}`}
-                                  </div>
-                                  {vehicle.vin && (
-                                    <div className="text-xs text-gray-500 font-mono mt-1">
-                                      VIN: {vehicle.vin}
-                                    </div>
-                                  )}
-                                </div>
-                                {vehicle.estimated_value && (
-                                  <div className="text-sm font-semibold text-green-600">
-                                    {formatCurrency(vehicle.estimated_value)}
-                                  </div>
-                                )}
+                          {filteredGarageVehicles.length > 0 && (
+                            <div>
+                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
+                                My Garage
                               </div>
-                            </button>
-                          ))}
+                              {filteredGarageVehicles.map((vehicle) => (
+                                <button
+                                  key={vehicle.id}
+                                  onClick={() => handleSelectGarageVehicle(vehicle)}
+                                  className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-gray-900">
+                                        {vehicle.year} {vehicle.make} {vehicle.model}
+                                        {vehicle.trim && ` ${vehicle.trim}`}
+                                      </div>
+                                      {vehicle.vin && (
+                                        <div className="text-xs text-gray-500 font-mono mt-1">
+                                          VIN: {vehicle.vin}
+                                        </div>
+                                      )}
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        Trade Estimate: {formatCurrency(vehicle.estimated_value || 0)}
+                                        {vehicle.payoff_amount ? ` • Payoff: ${formatCurrency(vehicle.payoff_amount)}` : ''}
+                                      </div>
+                                    </div>
+                                    <div
+                                      onClick={(e) => handleEditVehicle(e, vehicle)}
+                                      className="ml-2 p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                      title="Edit vehicle"
+                                      role="button"
+                                      tabIndex={0}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleEditVehicle(e, vehicle);
+                                        }
+                                      }}
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {filteredSavedVehicles.length > 0 && (
+                            <div>
+                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
+                                Saved Vehicles
+                              </div>
+                              {filteredSavedVehicles.map((vehicle) => (
+                                <button
+                                  key={vehicle.id}
+                                  onClick={() => handleSelectSavedVehicle(vehicle)}
+                                  className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex-1">
+                                      <div className="font-semibold text-gray-900">
+                                        {vehicle.year} {vehicle.make} {vehicle.model}
+                                        {vehicle.trim && ` ${vehicle.trim}`}
+                                      </div>
+                                      {vehicle.vin && (
+                                        <div className="text-xs text-gray-500 font-mono mt-1">
+                                          VIN: {vehicle.vin}
+                                        </div>
+                                      )}
+                                      {vehicle.asking_price || vehicle.estimated_value ? (
+                                        <div className="text-sm font-semibold text-green-600 mt-1">
+                                          {formatCurrency(vehicle.asking_price || vehicle.estimated_value)}
+                                        </div>
+                                      ) : null}
+                                    </div>
+                                    <div
+                                      onClick={(e) => handleEditVehicle(e, vehicle)}
+                                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                      title="Edit vehicle"
+                                      role="button"
+                                      tabIndex={0}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          handleEditVehicle(e, vehicle);
+                                        }
+                                      }}
+                                    >
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </div>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* My Saved Vehicles Button */}
-                <div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    fullWidth
-                    onClick={() => {
-                      setShowManageVehiclesModal(true);
-                      setVehicleToEdit(null);
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="mr-2">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    My Saved Vehicles ({savedVehicles.length})
-                  </Button>
-                  {savedVehicles.length === 0 && !isLoadingSavedVehicles && (
+                {/* Lookup VIN Button - Only shown when VIN is entered but not selected */}
+                {vin && !selectedVehicle && vin.replace(/[^A-HJ-NPR-Z0-9]/gi, '').length >= 11 && (
+                  <div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      fullWidth
+                      onClick={handleManualVINLookup}
+                      disabled={isLoadingVIN}
+                    >
+                      {isLoadingVIN ? (
+                        <>
+                          <svg className="animate-spin mr-2" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                          </svg>
+                          Looking up VIN...
+                        </>
+                      ) : (
+                        <>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="mr-2">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          Lookup VIN with MarketCheck
+                        </>
+                      )}
+                    </Button>
                     <p className="text-xs text-gray-500 mt-1 text-center">
-                      Sign in to save and manage vehicles
+                      Optional: Find vehicle details and pricing
                     </p>
-                  )}
-                </div>
+                  </div>
+                )}
 
                 {/* Vehicle Display Card */}
                 {selectedVehicle && (
@@ -1085,7 +1316,6 @@ export const CalculatorApp: React.FC = () => {
         onClose={() => setShowOfferPreviewModal(false)}
         leadData={leadDataForSubmission}
         onSuccess={(offerId) => {
-          console.log('[OfferSubmitted] Offer ID:', offerId);
           toast.push({
             kind: 'success',
             title: 'Offer Saved!',
@@ -1095,15 +1325,60 @@ export const CalculatorApp: React.FC = () => {
         }}
       />
 
-      {/* User Profile Modal */}
-      {currentUser && (
-        <UserProfileModal
-          isOpen={showUserProfileModal}
-          onClose={() => setShowUserProfileModal(false)}
-          currentUser={currentUser}
-          initialTab={profileInitialTab}
-        />
-      )}
+      {/* User Profile Dropdown */}
+      <UserProfileDropdown
+        isOpen={showProfileDropdown}
+        onClose={() => setShowProfileDropdown(false)}
+        profile={profile}
+        onSaveProfile={saveProfile}
+        onUpdateField={updateProfileField}
+        garageVehicles={garageVehicles}
+        savedVehicles={savedVehicles}
+        onSelectVehicle={handleSelectSavedVehicle}
+        onEditGarageVehicle={(vehicle) => {
+          setVehicleToEdit(vehicle);
+          setShowManageVehiclesModal(true);
+        }}
+        onEditSavedVehicle={(vehicle) => {
+          setVehicleToEdit(vehicle);
+          setShowManageVehiclesModal(true);
+        }}
+        onDeleteGarageVehicle={async (vehicle) => {
+          if (!confirm(`Delete ${vehicle.year} ${vehicle.make} ${vehicle.model}?`)) return;
+          try {
+            const { data, error } = await supabase
+              .from('garage_vehicles')
+              .delete()
+              .eq('id', vehicle.id)
+              .select('photo_storage_path')
+              .single();
+            if (error) throw error;
+            if (data?.photo_storage_path) {
+              await supabase.storage.from('garage-vehicle-photos').remove([data.photo_storage_path]);
+            }
+            setGarageVehicles(garageVehicles.filter(v => v.id !== vehicle.id));
+            toast.push({ kind: 'success', title: 'Vehicle Deleted' });
+          } catch (error) {
+            toast.push({ kind: 'error', title: 'Failed to Delete Vehicle' });
+          }
+        }}
+        onRemoveSavedVehicle={async (vehicle) => {
+          if (!confirm(`Remove ${vehicle.year} ${vehicle.make} ${vehicle.model}?`)) return;
+          try {
+            await savedVehiclesCache.deleteVehicle(vehicle.id);
+            toast.push({ kind: 'success', title: 'Vehicle Removed' });
+          } catch (error) {
+            toast.push({ kind: 'error', title: 'Failed to Remove Vehicle' });
+          }
+        }}
+        onSignOut={currentUser ? handleSignOut : undefined}
+        onSignIn={!currentUser ? () => {
+          setAuthMode('signin');
+          setShowAuthModal(true);
+        } : undefined}
+        supabase={supabase}
+        isDirty={isProfileDirty}
+      />
     </div>
   );
 };

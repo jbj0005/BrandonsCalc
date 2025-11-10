@@ -19,10 +19,34 @@ export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElem
   fullWidth?: boolean;
 }
 
-const sizeClasses = {
-  sm: 'px-3 py-1.5 text-sm',
-  md: 'px-4 py-2 text-base',
-  lg: 'px-5 py-3 text-lg',
+const sizeBaseClasses = {
+  sm: 'py-1.5 text-sm',
+  md: 'py-2 text-base',
+  lg: 'py-3 text-lg',
+};
+
+const defaultLeftPadding = {
+  sm: 'pl-3',
+  md: 'pl-4',
+  lg: 'pl-5',
+};
+
+const defaultRightPadding = {
+  sm: 'pr-3',
+  md: 'pr-4',
+  lg: 'pr-5',
+};
+
+const iconLeftPadding = {
+  sm: 'pl-10',
+  md: 'pl-12',
+  lg: 'pl-14',
+};
+
+const iconRightPadding = {
+  sm: 'pr-9',
+  md: 'pr-10',
+  lg: 'pr-12',
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -52,6 +76,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
       : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
 
+    const leftPaddingClass = icon ? iconLeftPadding[size] : defaultLeftPadding[size];
+    const rightPaddingClass = iconRight ? iconRightPadding[size] : defaultRightPadding[size];
+
     return (
       <div className={`${fullWidth ? 'w-full' : ''}`}>
         {label && (
@@ -76,9 +103,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             disabled={disabled}
             className={`
               block w-full rounded-lg border
-              ${sizeClasses[size]}
-              ${icon ? 'pl-10' : ''}
-              ${iconRight ? 'pr-10' : ''}
+              ${sizeBaseClasses[size]}
+              ${leftPaddingClass}
+              ${rightPaddingClass}
               ${borderColor}
               bg-white
               text-gray-900 placeholder-gray-400

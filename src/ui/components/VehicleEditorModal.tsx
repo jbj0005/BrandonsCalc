@@ -6,6 +6,12 @@ import { Button } from './Button';
 import { FormGroup } from './FormGroup';
 import { useToast } from './Toast';
 import type { Vehicle, GarageVehicle } from '../../types';
+import { formatCurrencyInput, formatCurrencyValue } from '../../utils/formatters';
+import { ConflictResolutionModal, type FieldConflict } from './ConflictResolutionModal';
+
+// Import MarketCheck cache for VIN lookup
+// @ts-ignore - JS module
+import marketCheckCache from '../../features/vehicles/marketcheck-cache.js';
 
 export interface VehicleEditorModalProps {
   /** Is modal open */
@@ -53,6 +59,12 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   const [modelError, setModelError] = useState('');
   const [vinError, setVinError] = useState('');
 
+  // Conflict detection
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflicts, setConflicts] = useState<FieldConflict[]>([]);
+  const [freshMarketCheckData, setFreshMarketCheckData] = useState<any>(null);
+  const [pendingSaveData, setPendingSaveData] = useState<Partial<Vehicle | GarageVehicle> | null>(null);
+
   // Load vehicle data when modal opens or vehicle changes
   useEffect(() => {
     if (isOpen && vehicle) {
@@ -64,8 +76,16 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
       setVin(vehicle.vin || '');
       setMileage(vehicle.mileage?.toString() || '');
       setCondition(vehicle.condition || '');
-      setEstimatedValue(vehicle.estimated_value?.toString() || '');
-      setPayoffAmount(vehicle.payoff_amount?.toString() || '');
+      setEstimatedValue(
+        vehicle.estimated_value != null
+          ? formatCurrencyValue(vehicle.estimated_value)
+          : ''
+      );
+      setPayoffAmount(
+        vehicle.payoff_amount != null
+          ? formatCurrencyValue(vehicle.payoff_amount)
+          : ''
+      );
       setPhotoUrl(vehicle.photo_url || '');
       setNotes(vehicle.notes || '');
     }
@@ -135,12 +155,144 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
 
   // Validate VIN (optional but format check if provided)
   const validateVin = (): boolean => {
-    if (vin && vin.length !== 17) {
+    const trimmed = vin.trim().toUpperCase();
+    if (!trimmed) {
+      setVinError('VIN is required');
+      return false;
+    }
+    if (trimmed.length !== 17) {
       setVinError('VIN must be 17 characters');
       return false;
     }
+    setVin(trimmed);
     setVinError('');
     return true;
+  };
+
+  // Detect conflicts between user edits and fresh MarketCheck data
+  const detectConflicts = (userEdits: Partial<Vehicle | GarageVehicle>, freshData: any): FieldConflict[] => {
+    const conflicts: FieldConflict[] = [];
+
+    // Fields to check for conflicts
+    const fieldsToCheck = [
+      { field: 'year', label: 'Year' },
+      { field: 'make', label: 'Make' },
+      { field: 'model', label: 'Model' },
+      { field: 'trim', label: 'Trim' },
+      { field: 'mileage', label: 'Mileage', formatter: (v: any) => v ? v.toLocaleString() + ' mi' : 'Not set' },
+      { field: 'estimated_value', label: 'Estimated Value', formatter: (v: any) => v ? `$${v.toLocaleString()}` : 'Not set' },
+      { field: 'condition', label: 'Condition' },
+    ];
+
+    for (const { field, label, formatter } of fieldsToCheck) {
+      const userValue = userEdits[field as keyof typeof userEdits];
+      const freshValue = freshData[field];
+
+      // Skip if both are null/undefined
+      if (userValue == null && freshValue == null) continue;
+
+      // Check if values differ
+      if (userValue != freshValue && freshValue != null) {
+        conflicts.push({
+          field,
+          label,
+          currentValue: userValue,
+          serverValue: freshValue,
+          formatter,
+        });
+      }
+    }
+
+    return conflicts;
+  };
+
+  // Fetch fresh MarketCheck data for VIN
+  const fetchFreshMarketCheckData = async (vinToFetch: string): Promise<any | null> => {
+    try {
+      const freshData = await marketCheckCache.lookupVIN(vinToFetch, { force: true });
+      if (freshData) {
+        return freshData;
+      }
+      return null;
+    } catch (error) {
+      console.error('Error fetching fresh MarketCheck data:', error);
+      return null;
+    }
+  };
+
+  // Handle conflict resolution - use fresh MarketCheck data
+  const handleUseFreshData = async () => {
+    if (!freshMarketCheckData || !pendingSaveData) return;
+
+    setShowConflictModal(false);
+    setLoading(true);
+
+    try {
+      // Merge fresh MarketCheck data with user's non-conflicting edits
+      const mergedData: Partial<Vehicle | GarageVehicle> = {
+        ...pendingSaveData,
+        // Override with fresh MarketCheck data (MarketCheck wins)
+        year: freshMarketCheckData.year,
+        make: freshMarketCheckData.make,
+        model: freshMarketCheckData.model,
+        trim: freshMarketCheckData.trim || pendingSaveData.trim,
+        mileage: freshMarketCheckData.mileage || pendingSaveData.mileage,
+        estimated_value: freshMarketCheckData.estimated_value || pendingSaveData.estimated_value,
+        condition: freshMarketCheckData.condition || pendingSaveData.condition,
+      };
+
+      await onSave?.(mergedData);
+
+      toast.push({
+        kind: 'success',
+        title: 'Vehicle updated with fresh data!',
+        detail: `${mergedData.year} ${mergedData.make} ${mergedData.model}`,
+      });
+
+      resetForm();
+      onClose();
+    } catch (error: any) {
+      toast.push({
+        kind: 'error',
+        title: 'Failed to update vehicle',
+        detail: error.message,
+      });
+    } finally {
+      setLoading(false);
+      setFreshMarketCheckData(null);
+      setPendingSaveData(null);
+    }
+  };
+
+  // Handle conflict resolution - keep user's edits
+  const handleKeepUserEdits = async () => {
+    if (!pendingSaveData) return;
+
+    setShowConflictModal(false);
+    setLoading(true);
+
+    try {
+      await onSave?.(pendingSaveData);
+
+      toast.push({
+        kind: 'success',
+        title: mode === 'add' ? 'Vehicle added!' : 'Vehicle updated!',
+        detail: `${pendingSaveData.year} ${pendingSaveData.make} ${pendingSaveData.model}`,
+      });
+
+      resetForm();
+      onClose();
+    } catch (error: any) {
+      toast.push({
+        kind: 'error',
+        title: mode === 'add' ? 'Failed to add vehicle' : 'Failed to update vehicle',
+        detail: error.message,
+      });
+    } finally {
+      setLoading(false);
+      setFreshMarketCheckData(null);
+      setPendingSaveData(null);
+    }
   };
 
   // Handle save
@@ -178,6 +330,27 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         (vehicleData as Partial<GarageVehicle>).nickname = nickname.trim() || undefined;
       }
 
+      // MarketCheck conflict detection: if VIN exists, fetch fresh data
+      if (vin && vin.trim().length === 17) {
+        const freshData = await fetchFreshMarketCheckData(vin.trim());
+
+        if (freshData) {
+          // Detect conflicts between user edits and fresh MarketCheck data
+          const detectedConflicts = detectConflicts(vehicleData, freshData);
+
+          if (detectedConflicts.length > 0) {
+            // Conflicts detected - show resolution modal
+            setPendingSaveData(vehicleData);
+            setFreshMarketCheckData(freshData);
+            setConflicts(detectedConflicts);
+            setShowConflictModal(true);
+            setLoading(false);
+            return; // Exit early - user will choose via modal
+          }
+        }
+      }
+
+      // No conflicts or no VIN - proceed with save
       await onSave?.(vehicleData);
 
       toast.push({
@@ -221,12 +394,13 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   ];
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={handleClose}
-      title={mode === 'add' ? 'Add Vehicle' : 'Edit Vehicle'}
-      size="md"
-    >
+    <>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleClose}
+        title={mode === 'add' ? 'Add Vehicle' : 'Edit Vehicle'}
+        size="md"
+      >
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
         {/* Nickname (optional, for garage vehicles) */}
         <Input
@@ -296,7 +470,7 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
 
         {/* VIN */}
         <Input
-          label="VIN (Optional)"
+          label="VIN *"
           type="text"
           placeholder="17-character VIN"
           value={vin}
@@ -309,6 +483,7 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           helperText="Vehicle Identification Number"
           maxLength={17}
           fullWidth
+          required
         />
 
         {/* Mileage and Condition Row */}
@@ -337,46 +512,42 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Estimated Value (Optional)"
-            type="number"
-            placeholder="25000"
+            type="text"
+            placeholder="$25,000"
             value={estimatedValue}
-            onChange={(e) => setEstimatedValue(e.target.value)}
+            onChange={(e) => setEstimatedValue(formatCurrencyInput(e.target.value))}
             helperText="Current market value"
-            icon={
-              <span className="text-gray-400">$</span>
-            }
             fullWidth
           />
 
           <Input
             label="Payoff Amount (Optional)"
-            type="number"
-            placeholder="18000"
+            type="text"
+            placeholder="$18,000"
             value={payoffAmount}
-            onChange={(e) => setPayoffAmount(e.target.value)}
+            onChange={(e) => setPayoffAmount(formatCurrencyInput(e.target.value))}
             helperText="Remaining loan balance"
-            icon={
-              <span className="text-gray-400">$</span>
-            }
             fullWidth
           />
         </div>
 
         {/* Equity Display (if both values provided) */}
-        {estimatedValue && payoffAmount && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-blue-900">Estimated Equity:</span>
-              <span className={`text-lg font-bold ${
-                parseFloat(estimatedValue) - parseFloat(payoffAmount) >= 0
-                  ? 'text-green-600'
-                  : 'text-red-600'
-              }`}>
-                ${(parseFloat(estimatedValue) - parseFloat(payoffAmount)).toLocaleString()}
-              </span>
+        {estimatedValue && payoffAmount && (() => {
+          const estimatedNumeric = parseCurrencyString(estimatedValue);
+          const payoffNumeric = parseCurrencyString(payoffAmount);
+          if (!estimatedNumeric && !payoffNumeric) return null;
+          const equity = estimatedNumeric - payoffNumeric;
+          return (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-blue-900">Estimated Equity:</span>
+                <span className={`text-lg font-bold ${equity >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {`${equity >= 0 ? '' : '-'}$${Math.abs(equity).toLocaleString()}`}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Photo URL */}
         <Input
@@ -421,7 +592,24 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           </Button>
         </div>
       </div>
-    </Modal>
+      </Modal>
+      {/* Conflict Resolution Modal */}
+      {showConflictModal && (
+        <ConflictResolutionModal
+          isOpen={showConflictModal}
+          onClose={() => setShowConflictModal(false)}
+          conflicts={conflicts}
+          onCancel={() => {
+            // Cancel = go back to editing
+            setShowConflictModal(false);
+            setConflicts([]);
+            setFreshMarketCheckData(null);
+            setPendingSaveData(null);
+          }}
+          onOverwrite={handleKeepUserEdits}
+        />
+      )}
+    </>
   );
 };
 

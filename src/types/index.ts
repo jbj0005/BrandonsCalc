@@ -90,6 +90,7 @@ export interface GarageVehicle {
   payoff_amount?: number;
   asking_price?: number;
   photo_url?: string;
+  photo_storage_path?: string | null;
   notes?: string;
   times_used?: number;
   last_used_at?: string;
