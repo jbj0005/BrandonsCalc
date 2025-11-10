@@ -11,12 +11,15 @@ import { FormGroup } from '../ui/components/FormGroup';
 import { VehicleCard } from '../ui/components/VehicleCard';
 import { VehicleCardSkeleton } from '../ui/components/VehicleCardSkeleton';
 import { AuthModal } from '../ui/components/AuthModal';
+import { VehicleEditorModal } from '../ui/components/VehicleEditorModal';
 import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
+  const [vehicleEditorOpen, setVehicleEditorOpen] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<GarageVehicle | null>(null);
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
   const toast = useToast();
 
@@ -148,16 +151,33 @@ export const ComponentDemo: React.FC = () => {
                 Display saved vehicles, trade-ins, and search results
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setShowVehicleSkeleton(true);
-                setTimeout(() => setShowVehicleSkeleton(false), 2000);
-              }}
-            >
-              Show Loading State
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setEditingVehicle(null);
+                  setVehicleEditorOpen(true);
+                }}
+                icon={
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                }
+              >
+                Add Vehicle
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowVehicleSkeleton(true);
+                  setTimeout(() => setShowVehicleSkeleton(false), 2000);
+                }}
+              >
+                Show Loading State
+              </Button>
+            </div>
           </div>
 
           {/* Detailed Variant */}
@@ -184,11 +204,8 @@ export const ComponentDemo: React.FC = () => {
                       });
                     }}
                     onEdit={(v) => {
-                      toast.push({
-                        kind: 'info',
-                        title: 'Edit Vehicle',
-                        detail: `Editing ${v.year} ${v.make} ${v.model}`,
-                      });
+                      setEditingVehicle(v as GarageVehicle);
+                      setVehicleEditorOpen(true);
                     }}
                     onDelete={(v) => {
                       toast.push({
@@ -268,6 +285,22 @@ export const ComponentDemo: React.FC = () => {
               </li>
             </ul>
           </div>
+
+          {/* VehicleEditorModal */}
+          <VehicleEditorModal
+            isOpen={vehicleEditorOpen}
+            onClose={() => {
+              setVehicleEditorOpen(false);
+              setEditingVehicle(null);
+            }}
+            vehicle={editingVehicle}
+            mode={editingVehicle ? 'edit' : 'add'}
+            onSave={async (vehicleData) => {
+              // Simulate API call
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log(editingVehicle ? 'Updating vehicle:' : 'Adding vehicle:', vehicleData);
+            }}
+          />
         </Card>
 
         {/* Form Components Demo Section */}
