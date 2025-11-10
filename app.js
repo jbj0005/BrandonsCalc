@@ -46,6 +46,8 @@ const wizardData = {
 
 let latestReviewData = null;
 
+const QUICK_LOAN_TERM_OPTIONS = [36, 48, 60, 72, 84];
+
 const TAX_RATE_CONFIG = {
   FL: {
     stateRate: 0.06,
@@ -772,6 +774,47 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Initialize Authentication Manager (after event listeners are set up)
   await AuthManager.initialize();
 
+  // Setup saved vehicles cache change listener
+  if (window.savedVehiclesCache) {
+    window.savedVehiclesCache.on('change', (vehicles) => {
+      console.log('[SavedVehiclesCache] Change event:', vehicles.length, 'vehicles');
+
+      // Update legacy savedVehicles array for backward compatibility
+      savedVehicles = vehicles;
+
+      // Update all UI components that depend on savedVehicles
+      if (typeof updateVehicleSelectorDropdown === 'function') {
+        updateVehicleSelectorDropdown();
+      }
+
+      // If saved vehicles dropdown is currently visible, refresh it
+      const savedDropdown = document.getElementById('saved-vehicles-dropdown');
+      if (savedDropdown && savedDropdown.style.display !== 'none') {
+        showSavedVehiclesDropdown();
+      }
+
+      // If quick saved vehicles dropdown is visible, refresh it
+      const quickDropdown = document.getElementById('quick-saved-dropdown');
+      if (quickDropdown && quickDropdown.style.display !== 'none') {
+        displayQuickSavedVehicles();
+      }
+    });
+
+    // Setup error listener
+    window.savedVehiclesCache.on('error', (error) => {
+      console.error('[SavedVehiclesCache] Error:', error);
+      if (window.showToast) {
+        showToast('Failed to load saved vehicles. Please try again.', 'error');
+      }
+    });
+
+    // Setup loading listener
+    window.savedVehiclesCache.on('loading', (isLoading) => {
+      console.log('[SavedVehiclesCache] Loading:', isLoading);
+      // Could add loading spinner to modals here if needed
+    });
+  }
+
   // Helper function to load user's garage vehicles
   async function loadUserGarageVehicles() {
     const authStore = useAuthStore.getState();
@@ -1091,16 +1134,12 @@ async function initializeSupabase() {
     const { data, error } = await supabase.auth.getSession();
 
     currentUserId = data?.session?.user?.id ?? null;
-    if (currentUserId) {
-      await loadSavedVehicles();
-    }
 
     // Listen for auth state changes
     supabase.auth.onAuthStateChange((_event, session) => {
       const newUserId = session?.user?.id ?? null;
       if (newUserId !== currentUserId) {
         currentUserId = newUserId;
-        loadSavedVehicles();
         updateLoginButton();
       }
     });
@@ -1389,111 +1428,31 @@ function setupLocationInput() {
 }
 
 /**
- * Load saved vehicles from Supabase
+ * Load saved vehicles from cache
+ * @deprecated Use window.savedVehiclesCache.getVehicles() directly
+ * This function is kept for backward compatibility
  */
 async function loadSavedVehicles() {
   try {
-
-    if (!supabase) {
-      return;
-    }
-
-    if (!currentUserId) {
+    if (!window.savedVehiclesCache || !currentUserId) {
       savedVehicles = [];
       return;
     }
 
-    // Query vehicles table with specific columns (using inserted_at like main app)
-    const { data, error } = await supabase
-      .from("vehicles")
-      .select(
-        `
-        id,
-        user_id,
-        vin,
-        year,
-        make,
-        model,
-        trim,
-        mileage,
-        condition,
-        heading,
-        asking_price,
-        dealer_name,
-        dealer_street,
-        dealer_city,
-        dealer_state,
-        dealer_zip,
-        dealer_phone,
-        dealer_lat,
-        dealer_lng,
-        listing_id,
-        listing_source,
-        listing_url,
-        photo_url,
-        inserted_at
-      `
-      )
-      .eq("user_id", currentUserId)
-      .order("inserted_at", { ascending: false });
+    // Get vehicles from cache (will use TTL, dedupe concurrent requests, etc.)
+    const vehicles = await window.savedVehiclesCache.getVehicles();
 
-    if (error) {
-      console.error("[vehicles] Error loading saved vehicles:", error);
-      savedVehicles = [];
-      return;
-    }
-
-    savedVehicles = (data || []).map((vehicle) => {
-      const parsedLat =
-        typeof vehicle.dealer_lat === "number"
-          ? vehicle.dealer_lat
-          : vehicle.dealer_lat != null
-          ? Number.parseFloat(vehicle.dealer_lat)
-          : null;
-      const parsedLng =
-        typeof vehicle.dealer_lng === "number"
-          ? vehicle.dealer_lng
-          : vehicle.dealer_lng != null
-          ? Number.parseFloat(vehicle.dealer_lng)
-          : null;
-
-      // Normalize saleCondition: auto-detect based on year if missing or incorrect
-      const currentYear = new Date().getFullYear();
-      let saleCondition = vehicle.condition ? String(vehicle.condition).toLowerCase() : "";
-      if (
-        !saleCondition ||
-        !(
-          saleCondition === "new" ||
-          saleCondition === "used" ||
-          saleCondition === "cpo" ||
-          saleCondition.startsWith("certified")
-        )
-      ) {
-        saleCondition = parseInt(vehicle.year) >= currentYear ? "new" : "used";
-      } else if (saleCondition.startsWith("certified") || saleCondition === "cpo") {
-        saleCondition = "cpo";
-      }
-
-      return {
-        ...vehicle,
-        dealer_lat: Number.isFinite(parsedLat) ? parsedLat : null,
-        dealer_lng: Number.isFinite(parsedLng) ? parsedLng : null,
-        condition: saleCondition, // Back-compat: legacy field
-        saleCondition: saleCondition,
-      };
-    });
-
+    // Update legacy savedVehicles array
+    savedVehicles = vehicles;
 
     // Update the vehicle selector dropdown with saved vehicles
-    // Check if updateVehicleSelectorDropdown is available (it's defined in event listener setup)
     if (typeof updateVehicleSelectorDropdown === 'function') {
       updateVehicleSelectorDropdown();
     }
 
-    // Note: Dropdown will be populated when user focuses on VIN field
-    // via setupQuickSavedVehicles() event listeners - don't show it automatically
+    console.log('[loadSavedVehicles] Loaded', vehicles.length, 'vehicles from cache');
   } catch (error) {
-    console.error("[vehicles] Error loading saved vehicles:", error);
+    console.error("[loadSavedVehicles] Error loading saved vehicles:", error);
     savedVehicles = [];
   }
 }
@@ -2518,29 +2477,89 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
   try {
     let vehicleDetails = null;
     let allSimilarVehicles = [];
+    let vehicleSource = null; // Track where vehicle data came from
 
-    // 1. Try to get vehicle details by VIN from MarketCheck
-    let vinData = null;
-    try {
-      const vinResponse = await fetch(
-        `${API_BASE}/api/mc/by-vin/${vin}?zip=${userZip}&radius=100`
-      );
+    // 1. First check Supabase for this VIN
+    if (supabase && currentUserId) {
+      try {
+        const { data: supabaseVehicles, error: supabaseError } = await supabase
+          .from("vehicles")
+          .select(`
+            id, user_id, vin, year, make, model, trim, mileage, condition,
+            heading, asking_price, dealer_name, dealer_street, dealer_city,
+            dealer_state, dealer_zip, dealer_phone, dealer_lat, dealer_lng,
+            listing_id, listing_source, listing_url, photo_url, inserted_at
+          `)
+          .eq("user_id", currentUserId)
+          .eq("vin", vin)
+          .limit(1);
 
-      if (vinResponse.ok) {
-        vinData = await vinResponse.json();
-
-        // Check listing status and show appropriate toast (only for saved vehicles)
-        const validationResult = checkVehicleListingStatus(vinData, savedVehicle);
-
-        if (validationResult.shouldContinue && validationResult.useData) {
-          vehicleDetails = validationResult.useData;
+        if (!supabaseError && supabaseVehicles && supabaseVehicles.length > 0) {
+          vehicleDetails = supabaseVehicles[0];
+          vehicleSource = "supabase";
+          console.log("[search-vehicle] Found vehicle in Supabase");
         }
+      } catch (supabaseError) {
+        console.error("[search-vehicle] Supabase lookup error:", supabaseError);
       }
-    } catch (mcError) {
-      console.error("[search-vehicle] MarketCheck error:", mcError);
     }
 
-    // 2. If MarketCheck failed and we have saved vehicle data, use it
+    // 2. If not found in Supabase, try MarketCheck API
+    if (!vehicleDetails) {
+      let vinData = null;
+      try {
+        // Use MarketCheckCache (3-layer caching: client → server memory → database)
+        vinData = await window.marketCheckCache.getVehicleData(vin, {
+          zip: userZip,
+          radius: 100,
+          pick: 'nearest'
+        });
+
+        if (vinData) {
+          vehicleSource = "marketcheck";
+
+          // Check listing status and show appropriate toast (only for saved vehicles)
+          const validationResult = checkVehicleListingStatus(vinData, savedVehicle);
+
+          if (validationResult.shouldContinue && validationResult.useData) {
+            vehicleDetails = validationResult.useData;
+          }
+        }
+      } catch (mcError) {
+        console.error("[search-vehicle] MarketCheck cache error:", mcError);
+
+        // Parse error message to show appropriate toast
+        const errorMsg = mcError.message || String(mcError);
+
+        if (errorMsg.includes("404") || errorMsg.includes("not found")) {
+          showToast(
+            "VIN not found in MarketCheck database. Please verify the VIN or enter vehicle details manually.",
+            "error",
+            7000
+          );
+        } else if (errorMsg.includes("429") || errorMsg.includes("quota")) {
+          showToast(
+            "⚠️ MarketCheck API quota reached. Please try again later or upgrade your account for more requests.",
+            "error",
+            8000
+          );
+        } else if (errorMsg.includes("401") || errorMsg.includes("403") || errorMsg.includes("authentication")) {
+          showToast(
+            "MarketCheck API authentication failed. Please contact support.",
+            "error",
+            7000
+          );
+        } else {
+          showToast(
+            "Unable to fetch vehicle data. Please try again or enter vehicle details manually.",
+            "error",
+            6000
+          );
+        }
+      }
+    }
+
+    // 3. If MarketCheck failed and we have saved vehicle data, use it
     if (!vehicleDetails && savedVehicle) {
       // Show toast that we're using saved data due to API failure
       showToast(
@@ -2549,14 +2568,15 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
         6000
       );
       vehicleDetails = savedVehicle;
+      vehicleSource = "saved";
     }
 
     // If we still don't have vehicle details, throw error
     if (!vehicleDetails) {
-      throw new Error("VIN not found");
+      throw new Error("VIN not found in any source");
     }
 
-    // 3. Try to search for similar vehicles from MarketCheck
+    // 4. Try to search for similar vehicles from MarketCheck
     try {
       const searchParams = new URLSearchParams({
         year: vehicleDetails.year,
@@ -2578,14 +2598,14 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
       // Continue with empty similar vehicles array
     }
 
-    // 4. Calculate Smart Offer for display in "Your Vehicle" card
+    // 5. Calculate Smart Offer for display in "Your Vehicle" card
     // This will use saved vehicles even if MarketCheck is unavailable
     const smartOfferData = calculateQuickSmartOffer(
       allSimilarVehicles,
       vehicleDetails
     );
 
-    // 5. Display the user's vehicle with Smart Offer
+    // 6. Display the user's vehicle with Smart Offer
     // Use displayQuickVehicleCard for quick calculator, displayYourVehicle for wizard
     if (typeof displayQuickVehicleCard === 'function') {
       displayQuickVehicleCard(vehicleDetails);
@@ -2593,13 +2613,13 @@ async function searchVehicleByVIN(vin, savedVehicle = null) {
       displayYourVehicle(vehicleDetails, smartOfferData);
     }
 
-    // 6. Prioritize vehicles by trim match quality
+    // 7. Prioritize vehicles by trim match quality
     similarVehicles = prioritizeVehiclesByTrim(
       allSimilarVehicles,
       vehicleDetails
     );
 
-    // 7. Auto-select the vehicle (whether or not similar vehicles are found)
+    // 8. Auto-select the vehicle (whether or not similar vehicles are found)
     selectedVehicle = {
       ...vehicleDetails,
       condition:
@@ -3180,34 +3200,21 @@ async function selectVehicleFromSearch(vehicle) {
     };
 
     // Save to Supabase if user is signed in
-    if (supabase && currentUserId) {
-      // Check if vehicle already exists
-      const { data: existingVehicles } = await supabase
-        .from("vehicles")
-        .select("id")
-        .eq("user_id", currentUserId)
-        .eq("vin", selectedVehicle.vin)
-        .limit(1);
+    if (window.savedVehiclesCache && currentUserId && selectedVehicle.vin) {
+      // Check if vehicle already exists in cache
+      const existingVehicles = await window.savedVehiclesCache.getVehicles();
+      const alreadyExists = existingVehicles.some(v => v.vin === selectedVehicle.vin);
 
-      if (!existingVehicles || existingVehicles.length === 0) {
-        // Insert new vehicle
-        const { data, error } = await supabase
-          .from("vehicles")
-          .insert([
-            {
-              user_id: currentUserId,
-              ...selectedVehicle,
-            },
-          ])
-          .select();
-
-        if (error) {
+      if (!alreadyExists) {
+        try {
+          // Use cache's optimistic add method
+          // UI updates immediately, rollback if error
+          await window.savedVehiclesCache.addVehicle(selectedVehicle);
+          console.log("[vehicle-select] Vehicle added to saved list");
+          // Note: UI auto-updates via cache 'change' event listener
+        } catch (error) {
           console.error("[vehicle-select] Error saving vehicle:", error);
-        } else {
-          // Reload saved vehicles to update the dropdown
-          await loadSavedVehicles();
         }
-      } else {
       }
     }
 
@@ -8274,15 +8281,11 @@ async function addSavedVehicleToGarage(savedVehicleId) {
     // Show loading state
     showToast('Adding vehicle to garage...', 'info');
 
-    // 1. Fetch the saved vehicle
-    const { data: savedVehicle, error: fetchError } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('id', savedVehicleId)
-      .single();
+    // 1. Fetch the saved vehicle from cache
+    const savedVehicle = window.savedVehiclesCache.getVehicle(savedVehicleId);
 
-    if (fetchError || !savedVehicle) {
-      console.error('[addSavedVehicleToGarage] Error fetching saved vehicle:', fetchError);
+    if (!savedVehicle) {
+      console.error('[addSavedVehicleToGarage] Vehicle not found in cache');
       showToast('Unable to find saved vehicle', 'error');
       return;
     }
@@ -8374,22 +8377,15 @@ async function addSavedVehicleToGarage(savedVehicleId) {
       return;
     }
 
-    // 5. Remove from saved vehicles
-    const { error: deleteError } = await supabase
-      .from('vehicles')
-      .delete()
-      .eq('id', savedVehicleId)
-      .eq('user_id', currentUserId);
-
-    if (deleteError) {
+    // 5. Remove from saved vehicles using cache's optimistic delete
+    try {
+      await window.savedVehiclesCache.deleteVehicle(savedVehicleId);
+    } catch (deleteError) {
       console.error('[addSavedVehicleToGarage] Error removing from saved vehicles:', deleteError);
-      console.error('[addSavedVehicleToGarage] Delete error details:', deleteError.message, deleteError.details);
       // Don't fail the operation, just log it - vehicle was added to garage successfully
-    } else {
     }
 
-    // 6. Refresh both lists
-    await loadSavedVehicles();
+    // 6. Refresh garage list (saved vehicles auto-refresh via cache 'change' event)
     await loadUserGarageVehicles();
 
     // 7. Refresh the unified vehicle selector dropdown if it's currently visible
@@ -9679,57 +9675,20 @@ async function loadSavedVehiclesList() {
   const listContainer = document.getElementById("saved-vehicles-edit-list");
   const emptyState = document.getElementById("saved-vehicles-empty-state");
 
-  if (!currentUserId) {
-    console.error("❌ [Load Saved Vehicles] No user logged in");
+  if (!currentUserId || !window.savedVehiclesCache) {
+    console.error("❌ [Load Saved Vehicles] No user logged in or cache not available");
     if (emptyState) emptyState.style.display = "flex";
     return;
   }
 
   try {
-    // Fetch vehicles from vehicles table (same method as dropdown)
-    const { data: vehicles, error } = await supabase
-      .from("vehicles")
-      .select(
-        `
-        id,
-        user_id,
-        vin,
-        year,
-        make,
-        model,
-        trim,
-        mileage,
-        condition,
-        heading,
-        asking_price,
-        dealer_name,
-        dealer_street,
-        dealer_city,
-        dealer_state,
-        dealer_zip,
-        dealer_phone,
-        dealer_lat,
-        dealer_lng,
-        listing_id,
-        listing_source,
-        listing_url,
-        photo_url,
-        inserted_at
-      `
-      )
-      .eq("user_id", currentUserId)
-      .order("inserted_at", { ascending: false });
-
-    if (error) {
-      console.error("❌ [Load Saved Vehicles] Error fetching vehicles:", error);
-      showToast("Failed to load saved vehicles", "error");
-      return;
-    }
+    // Fetch vehicles from cache (uses TTL, deduplication, realtime sync)
+    const vehicles = await window.savedVehiclesCache.getVehicles();
 
     if (!vehicles || vehicles.length === 0) {
       if (emptyState) emptyState.style.display = "flex";
       listContainer.innerHTML = "";
-      listContainer.appendChild(emptyState);
+      if (emptyState) listContainer.appendChild(emptyState);
       return;
     }
 
@@ -9811,6 +9770,7 @@ async function loadSavedVehiclesList() {
 
 /**
  * Delete a saved search vehicle (from vehicles table)
+ * Uses optimistic updates via cache
  */
 async function deleteSavedSearchVehicle(vehicleId) {
   if (!confirm("Remove this vehicle from your saved searches?")) {
@@ -9818,27 +9778,16 @@ async function deleteSavedSearchVehicle(vehicleId) {
   }
 
   try {
-    const { error } = await supabase
-      .from("vehicles")
-      .delete()
-      .eq("id", vehicleId)
-      .eq("user_id", currentUserId);
-
-    if (error) {
-      console.error("❌ [Delete Saved Vehicle] Error:", error);
-      showToast("Failed to remove vehicle", "error");
-      return;
-    }
+    // Use cache's optimistic delete method
+    // UI updates immediately, rollback if error
+    await window.savedVehiclesCache.deleteVehicle(vehicleId);
 
     showToast("Vehicle removed from saved searches", "success");
 
-    // Reload the list
-    await loadSavedVehiclesList();
-
-    // Also reload the saved vehicles cache for the VIN dropdown
-    await loadSavedVehicles();
+    // Note: UI auto-updates via cache 'change' event listener
+    // No need to manually call loadSavedVehiclesList()
   } catch (error) {
-    console.error("❌ [Delete Saved Vehicle] Unexpected error:", error);
+    console.error("❌ [Delete Saved Vehicle] Error:", error);
     showToast("Failed to remove vehicle", "error");
   }
 }
@@ -10162,41 +10111,34 @@ async function saveSavedVehicleChanges() {
       }
     }
 
-    // Update vehicle in vehicles table with all fields
-    const { data, error } = await supabase
-      .from("vehicles")
-      .update({
-        year,
-        make,
-        model,
-        trim: trim || null,
-        vin: vin || null,
-        mileage,
-        condition: condition || null,
-        heading: heading || null,
-        asking_price,
-        dealer_name: dealer_name || null,
-        dealer_phone: dealer_phone || null,
-        dealer_street: dealer_street || null,
-        dealer_city: dealer_city || null,
-        dealer_state: dealer_state || null,
-        dealer_zip: dealer_zip || null,
-        dealer_lat,
-        dealer_lng,
-        listing_id: listing_id || null,
-        listing_source: listing_source || null,
-        listing_url: listing_url || null,
-        photo_url: photo_url || null,
-      })
-      .eq("id", currentEditVehicleId)
-      .eq("user_id", currentUserId)
-      .select();
+    // Prepare update object
+    const updates = {
+      year,
+      make,
+      model,
+      trim: trim || null,
+      vin: vin || null,
+      mileage,
+      condition: condition || null,
+      heading: heading || null,
+      asking_price,
+      dealer_name: dealer_name || null,
+      dealer_phone: dealer_phone || null,
+      dealer_street: dealer_street || null,
+      dealer_city: dealer_city || null,
+      dealer_state: dealer_state || null,
+      dealer_zip: dealer_zip || null,
+      dealer_lat,
+      dealer_lng,
+      listing_id: listing_id || null,
+      listing_source: listing_source || null,
+      listing_url: listing_url || null,
+      photo_url: photo_url || null,
+    };
 
-    if (error) {
-      console.error("❌ [Save Vehicle Changes] Error updating vehicle:", error);
-      showToast("Failed to save changes: " + error.message, "error");
-      return;
-    }
+    // Use cache's optimistic update method
+    // UI updates immediately, rollback if error
+    await window.savedVehiclesCache.updateVehicle(currentEditVehicleId, updates);
 
     // Success!
     showToast("✓ Vehicle updated successfully", "success");
@@ -10204,10 +10146,10 @@ async function saveSavedVehicleChanges() {
     // Close edit modal
     closeEditSavedVehicleModal();
 
-    // Reload vehicle list
-    await loadSavedVehiclesList();
+    // Note: UI auto-updates via cache 'change' event listener
+    // No need to manually call loadSavedVehiclesList()
 
-    // Also reload garage vehicles if the garage modal is open
+    // Also reload garage vehicles if the garage modal is open (separate cache)
     if (typeof loadGarageVehicles === "function") {
       await loadGarageVehicles();
     }
@@ -10746,7 +10688,145 @@ https://github.com/jbj0005/BrandonsCalc
 /**
  * Open Submit Offer modal
  */
+/**
+ * Verify vehicle data before submission
+ * Force-refreshes MarketCheck data to ensure vehicle is still available
+ * and pricing hasn't changed significantly
+ */
+async function verifyVehicleBeforeSubmit() {
+  const currentVehicle = wizardData.vehicleDetails;
+
+  if (!currentVehicle || !currentVehicle.vin) {
+    return { success: true, message: 'No VIN to verify' };
+  }
+
+  const userZip = wizardData.location?.zip;
+  if (!userZip) {
+    return { success: true, message: 'No location for verification' };
+  }
+
+  try {
+    // Show verification toast
+    showToast('Verifying vehicle data...', 'info', 3000);
+
+    // Force-refresh vehicle data (bypass all cache layers)
+    const freshData = await window.marketCheckCache.getVehicleData(currentVehicle.vin, {
+      zip: userZip,
+      radius: 100,
+      pick: 'nearest',
+      forceRefresh: true
+    });
+
+    // Check if vehicle was found
+    if (!freshData || !freshData.found) {
+      return {
+        success: false,
+        title: 'Vehicle No Longer Available',
+        message: 'This vehicle listing is no longer active in the MarketCheck database. The vehicle may have been sold or removed.',
+        severity: 'error'
+      };
+    }
+
+    const freshVehicle = freshData.payload;
+    if (!freshVehicle) {
+      return {
+        success: false,
+        title: 'Unable to Verify Vehicle',
+        message: 'Could not retrieve fresh vehicle data. Please try again.',
+        severity: 'error'
+      };
+    }
+
+    // Compare prices (if available)
+    const currentPrice = currentVehicle.asking_price || currentVehicle.price;
+    const freshPrice = freshVehicle.asking_price || freshVehicle.price;
+
+    if (currentPrice && freshPrice && currentPrice !== freshPrice) {
+      const priceDiff = freshPrice - currentPrice;
+      const percentDiff = Math.abs((priceDiff / currentPrice) * 100).toFixed(1);
+
+      return {
+        success: false,
+        title: 'Price Changed',
+        message: `The vehicle price has changed from ${formatCurrency(currentPrice)} to ${formatCurrency(freshPrice)} (${priceDiff > 0 ? '+' : ''}${formatCurrency(priceDiff)}, ${percentDiff}%). Would you like to update your calculations with the new price?`,
+        severity: 'warning',
+        allowContinue: true,
+        freshData: freshVehicle
+      };
+    }
+
+    // Check if mileage changed significantly
+    if (currentVehicle.mileage && freshVehicle.mileage) {
+      const mileageDiff = Math.abs(freshVehicle.mileage - currentVehicle.mileage);
+      if (mileageDiff > 1000) {
+        return {
+          success: false,
+          title: 'Mileage Changed',
+          message: `The vehicle mileage has changed from ${currentVehicle.mileage.toLocaleString()} to ${freshVehicle.mileage.toLocaleString()} miles. Would you like to update your calculations?`,
+          severity: 'warning',
+          allowContinue: true,
+          freshData: freshVehicle
+        };
+      }
+    }
+
+    // All checks passed
+    return {
+      success: true,
+      message: 'Vehicle data verified',
+      freshData: freshVehicle
+    };
+
+  } catch (error) {
+    console.error('[verify-vehicle] Verification error:', error);
+
+    // If verification fails, allow user to continue but show warning
+    return {
+      success: false,
+      title: 'Unable to Verify Vehicle',
+      message: 'Could not verify current vehicle data. You may continue with cached data, but the vehicle listing may have changed.',
+      severity: 'warning',
+      allowContinue: true
+    };
+  }
+}
+
 async function openSubmitOfferModal() {
+  // Verify vehicle data before showing modal
+  const verification = await verifyVehicleBeforeSubmit();
+
+  if (!verification.success) {
+    // Show verification result to user
+    const proceed = await new Promise((resolve) => {
+      if (verification.severity === 'error' && !verification.allowContinue) {
+        // Hard error - don't allow submission
+        showToast(verification.message, 'error', 8000);
+        alert(`${verification.title}\n\n${verification.message}`);
+        resolve(false);
+      } else if (verification.allowContinue) {
+        // Warning - ask user if they want to continue
+        const userChoice = confirm(`${verification.title}\n\n${verification.message}\n\nClick OK to continue anyway, or Cancel to go back.`);
+
+        // If user chose to continue and we have fresh data, update wizardData
+        if (userChoice && verification.freshData) {
+          wizardData.vehicleDetails = verification.freshData;
+          showToast('Vehicle data updated', 'success', 3000);
+        }
+
+        resolve(userChoice);
+      } else {
+        resolve(false);
+      }
+    });
+
+    if (!proceed) {
+      return; // User cancelled
+    }
+  } else {
+    // Verification successful
+    showToast('✓ Vehicle verified', 'success', 2000);
+  }
+
   // Close the review contract modal first if it's open
   const reviewModal = document.getElementById("review-contract-modal");
   if (reviewModal) {
@@ -13275,18 +13355,20 @@ function displayQuickVehicleCard(vehicle) {
     vehicle.url ||
     "";
 
-  const imageContent = vehicle.photo_url
+  const hasVehiclePhoto = Boolean(vehicle.photo_url);
+  const imageContent = hasVehiclePhoto
     ? `<img src="${vehicle.photo_url}" alt="${vehicleDetailsText}" class="your-vehicle-card__image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
         <div class="your-vehicle-card__image-placeholder" style="display: none;">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
           </svg>
         </div>`
-    : `<div class="your-vehicle-card__image-placeholder">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-          </svg>
-        </div>`;
+    : "";
+  const mediaSection = hasVehiclePhoto
+    ? `<div class="your-vehicle-card__media">
+        ${imageContent}
+      </div>`
+    : "";
 
   // Get user location coordinates
   const userLat = wizardData.location?.lat;
@@ -13296,9 +13378,7 @@ function displayQuickVehicleCard(vehicle) {
   card.innerHTML = `
     <div class="your-vehicle-card__badge">Selected Vehicle</div>
     <div class="your-vehicle-card__layout">
-      <div class="your-vehicle-card__media">
-        ${imageContent}
-      </div>
+      ${mediaSection}
       <div class="your-vehicle-card__body">
         <div class="your-vehicle-card__title-row">
           <div class="your-vehicle-card__title">${vehicleDetailsText}</div>
@@ -13910,7 +13990,7 @@ function setupQuickAutoCalculation() {
   });
 
   // Non-currency inputs (dropdowns)
-  const selectInputs = ["quick-loan-term", "quick-credit-score"];
+  const selectInputs = ["quick-credit-score"];
   selectInputs.forEach((id) => {
     const element = document.getElementById(id);
     if (element) {
@@ -14245,24 +14325,40 @@ function setupTermEditing() {
   const termValue = document.getElementById("quickTilTerm");
   const termArrowLeft = document.getElementById("termArrowLeft");
   const termArrowRight = document.getElementById("termArrowRight");
+  const termDropdown = document.getElementById("quick-loan-term");
 
   if (!termValue || !termArrowLeft || !termArrowRight) {
     return;
   }
 
+  const termOptions = QUICK_LOAN_TERM_OPTIONS;
+  const defaultTerm = termOptions.includes(72) ? 72 : termOptions[termOptions.length - 1];
+
+  const clampToNearestTerm = (value) => {
+    if (termOptions.includes(value)) return value;
+    if (value <= termOptions[0]) return termOptions[0];
+    if (value >= termOptions[termOptions.length - 1]) return termOptions[termOptions.length - 1];
+    return termOptions.reduce((prev, curr) =>
+      Math.abs(curr - value) < Math.abs(prev - value) ? curr : prev
+    );
+  };
+
+  const getCurrentTerm = () => {
+    const parsed = parseInt(termValue.textContent.trim(), 10);
+    if (termOptions.includes(parsed)) return parsed;
+    const dropdownValue = termDropdown ? parseInt(termDropdown.value, 10) : NaN;
+    if (termOptions.includes(dropdownValue)) return dropdownValue;
+    const wizardTerm = wizardData.financing?.term;
+    if (termOptions.includes(wizardTerm)) return wizardTerm;
+    return defaultTerm;
+  };
+
   // Setup tooltip first and get the update function
   let updateTooltip = null;
 
-  // Get current term value
-  const getCurrentTerm = () => {
-    const text = termValue.textContent.trim();
-    return parseInt(text) || 0;
-  };
-
   // Update term and trigger recalculation
-  const updateTerm = async (newTerm) => {
-    // Clamp to reasonable range (12 to 84 months)
-    newTerm = Math.max(12, Math.min(84, newTerm));
+  const updateTerm = async (requestedTerm) => {
+    let newTerm = clampToNearestTerm(requestedTerm || defaultTerm);
 
     // Update display immediately
     termValue.textContent = newTerm.toString();
@@ -14273,7 +14369,6 @@ function setupTermEditing() {
     }
 
     // Update the dropdown as well
-    const termDropdown = document.getElementById("quick-loan-term");
     if (termDropdown) {
       termDropdown.value = newTerm.toString();
     }
@@ -14293,32 +14388,44 @@ function setupTermEditing() {
     return salePrice > 0;
   };
 
-  // Increment term by 6 months
+  const getNextTerm = (direction = 1) => {
+    const currentTerm = getCurrentTerm();
+    const currentIndex = termOptions.indexOf(currentTerm);
+    if (currentIndex === -1) {
+      return direction > 0 ? defaultTerm : termOptions[0];
+    }
+    const newIndex = direction > 0
+      ? Math.min(termOptions.length - 1, currentIndex + 1)
+      : Math.max(0, currentIndex - 1);
+    return termOptions[newIndex];
+  };
+
+  // Increment term to the next allowed option
   const incrementTerm = async () => {
     if (!canAdjustFinancing()) {
       // Show visual feedback that control is disabled
-      termValue.style.animation = 'shake 0.3s';
-      setTimeout(() => { termValue.style.animation = ''; }, 300);
+      termValue.style.animation = "shake 0.3s";
+      setTimeout(() => {
+        termValue.style.animation = "";
+      }, 300);
       return;
     }
-    const currentTerm = getCurrentTerm();
-    if (currentTerm > 0) {
-      await updateTerm(currentTerm + 6);
-    }
+    const newTerm = getNextTerm(1);
+    await updateTerm(newTerm);
   };
 
-  // Decrement term by 6 months
+  // Decrement term to the previous allowed option
   const decrementTerm = async () => {
     if (!canAdjustFinancing()) {
       // Show visual feedback that control is disabled
-      termValue.style.animation = 'shake 0.3s';
-      setTimeout(() => { termValue.style.animation = ''; }, 300);
+      termValue.style.animation = "shake 0.3s";
+      setTimeout(() => {
+        termValue.style.animation = "";
+      }, 300);
       return;
     }
-    const currentTerm = getCurrentTerm();
-    if (currentTerm > 0) {
-      await updateTerm(currentTerm - 6);
-    }
+    const newTerm = getNextTerm(-1);
+    await updateTerm(newTerm);
   };
 
   // Click handlers for arrow buttons
@@ -14372,6 +14479,16 @@ function setupTermEditing() {
       await incrementTerm();
     }
   });
+
+  // Sync dropdown changes with TIL term display
+  if (termDropdown) {
+    termDropdown.addEventListener("change", async (e) => {
+      const parsed = parseInt(e.target.value, 10);
+      if (Number.isFinite(parsed)) {
+        await updateTerm(parsed);
+      }
+    });
+  }
 
   // Keyboard arrow support when term value is focused
   termValue.addEventListener("keydown", async (e) => {

@@ -19,6 +19,7 @@ declare global {
     openMyGarageModal?: () => void;
     openMyOffersModal?: () => void;
     openMySavedVehiclesModal?: () => void;
+    savedVehiclesCache?: any; // SavedVehiclesCache instance
   }
 }
 
@@ -126,7 +127,14 @@ export class AuthManager {
       authStore.setProfile(profile);
       this.autoPopulateFields(profile);
       this.subscribeToProfileChanges(normalizedUser.id);
-      
+
+      // Subscribe to saved vehicles cache realtime updates
+      if (window.savedVehiclesCache) {
+        window.savedVehiclesCache.subscribe(normalizedUser.id, supabase);
+        // Fetch initial vehicles to populate cache
+        await window.savedVehiclesCache.getVehicles();
+      }
+
       // Dispatch event for other modules
       window.dispatchEvent(new CustomEvent('profile-loaded', {
         detail: { profile }
@@ -167,15 +175,20 @@ export class AuthManager {
    */
   private handleSignOut(): void {
     const authStore = useAuthStore.getState();
-    
+
     authStore.reset();
     this.clearAutoPopulatedFields();
-    
+
     if (this.profileSubscription) {
       this.profileSubscription.unsubscribe();
       this.profileSubscription = null;
     }
-    
+
+    // Unsubscribe and clear saved vehicles cache
+    if (window.savedVehiclesCache) {
+      window.savedVehiclesCache.clear();
+    }
+
     // Dispatch event
     window.dispatchEvent(new CustomEvent('user-signed-out'));
   }

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import twilio from 'twilio';
 import sgMail from '@sendgrid/mail';
+import { createClient } from '@supabase/supabase-js';
 import {
   MARKETCHECK_ENDPOINTS,
   VIN_ENRICHMENT_ENDPOINTS,
@@ -80,8 +81,112 @@ if (!MARKETCHECK_API_KEY) {
   }
 }
 
-const cache = new NodeCache({ stdTTL: 60 });
+const cache = new NodeCache({ stdTTL: 300 }); // 5 minutes for MarketCheck API responses
 const secretCache = new NodeCache({ stdTTL: 300 });
+
+// Initialize Supabase client for MarketCheck cache (database layer)
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+  : null;
+
+if (supabase) {
+  console.log('[mc-cache] Database cache enabled (Supabase connected)');
+} else {
+  console.warn('[mc-cache] Database cache disabled (Supabase not configured)');
+}
+
+/**
+ * Check database cache for MarketCheck VIN response
+ * @param {string} vin - Vehicle Identification Number
+ * @returns {Promise<Object|null>} Cached response or null
+ */
+async function checkMarketCheckCache(vin) {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('marketcheck_cache')
+      .select('*')
+      .eq('vin', vin)
+      .single();
+
+    if (error) {
+      // Not found is expected, don't log as error
+      if (error.code === 'PGRST116') {
+        console.log(`[mc-cache] Cache MISS for VIN: ${vin}`);
+        return null;
+      }
+      console.warn('[mc-cache] Database read error:', error.message);
+      return null;
+    }
+
+    // Check if cache is expired
+    if (data && new Date(data.expires_at) < new Date()) {
+      console.log(`[mc-cache] Cache EXPIRED for VIN: ${vin}`);
+      return null;
+    }
+
+    // Increment cache hits counter
+    if (data) {
+      await supabase
+        .from('marketcheck_cache')
+        .update({
+          api_calls_saved: (data.api_calls_saved || 0) + 1,
+          last_verified_at: new Date().toISOString()
+        })
+        .eq('vin', vin);
+
+      console.log(`[mc-cache] Cache HIT for VIN: ${vin} (saved ${data.api_calls_saved + 1} API calls)`);
+    }
+
+    return data;
+  } catch (error) {
+    console.error('[mc-cache] Database cache check failed:', error);
+    return null;
+  }
+}
+
+/**
+ * Write MarketCheck response to database cache
+ * @param {Object} cacheData - Cache entry data
+ * @param {string} cacheData.vin - Vehicle Identification Number
+ * @param {Object} cacheData.mc_response - Full MarketCheck API response
+ * @param {string} cacheData.mc_listing_id - Listing ID if found
+ * @param {string} cacheData.mc_search_source - Search source (active/historical/summary)
+ * @param {number} cacheData.ttl_days - Cache TTL in days (7 for active, 30 for historical)
+ */
+async function writeMarketCheckCache(cacheData) {
+  if (!supabase) return;
+
+  try {
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + (cacheData.ttl_days || 7) * 24 * 60 * 60 * 1000);
+
+    const { error } = await supabase
+      .from('marketcheck_cache')
+      .upsert({
+        vin: cacheData.vin,
+        mc_response: cacheData.mc_response,
+        mc_listing_id: cacheData.mc_listing_id,
+        mc_search_source: cacheData.mc_search_source,
+        cached_at: now.toISOString(),
+        last_verified_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        is_active: true,
+        api_calls_saved: 0
+      }, {
+        onConflict: 'vin'
+      });
+
+    if (error) {
+      console.error('[mc-cache] Database cache write failed:', error.message);
+    } else {
+      console.log(`[mc-cache] Cached response for VIN: ${cacheData.vin} (expires in ${cacheData.ttl_days} days)`);
+    }
+  } catch (error) {
+    console.error('[mc-cache] Database cache write error:', error);
+  }
+}
 
 app.use(express.json());
 app.use(
@@ -723,6 +828,13 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
     let searchSource = null;
     const context = { vin, zip, radius };
 
+    // Check database cache first (Layer 3: Persistent Cache)
+    const cachedEntry = await checkMarketCheckCache(vin);
+    if (cachedEntry && cachedEntry.mc_response) {
+      console.log(`[mc-cache] Returning cached response for VIN: ${vin}`);
+      return res.json(cachedEntry.mc_response);
+    }
+
     for (const attempt of VIN_SEARCH_ORDER) {
       if (typeof attempt?.condition === "function" && !attempt.condition(context)) {
         continue;
@@ -835,14 +947,32 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
       payload_source: payloadSource,
     };
 
-    return res.json({
+    const responseData = {
       ok: true,
       found: Boolean(payload),
       vin,
       listing_id: payload?.listing_id ?? best?.id ?? null,
       payload: payload ?? null,
       extras,
+    };
+
+    // Write to database cache (Layer 3: Persistent Cache)
+    // Determine TTL based on search source: 7 days for active, 30 days for historical/summary
+    const isActiveListing = searchSource && (
+      searchSource.toLowerCase().includes('active') ||
+      searchSource.toLowerCase().includes('fsbo')
+    );
+    const ttlDays = isActiveListing ? 7 : 30;
+
+    await writeMarketCheckCache({
+      vin,
+      mc_response: responseData,
+      mc_listing_id: responseData.listing_id,
+      mc_search_source: searchSource || 'unknown',
+      ttl_days: ttlDays
     });
+
+    return res.json(responseData);
   } catch (err) {
     console.error("[/by-vin] error:", err);
     const status =
