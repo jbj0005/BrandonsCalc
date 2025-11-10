@@ -51,3 +51,6 @@ export type { AuthModalProps } from './AuthModal';
 
 export { VehicleEditorModal } from './VehicleEditorModal';
 export type { VehicleEditorModalProps } from './VehicleEditorModal';
+
+export { ConfirmationDialog } from './ConfirmationDialog';
+export type { ConfirmationDialogProps } from './ConfirmationDialog';

@@ -12,6 +12,7 @@ import { VehicleCard } from '../ui/components/VehicleCard';
 import { VehicleCardSkeleton } from '../ui/components/VehicleCardSkeleton';
 import { AuthModal } from '../ui/components/AuthModal';
 import { VehicleEditorModal } from '../ui/components/VehicleEditorModal';
+import { ConfirmationDialog } from '../ui/components/ConfirmationDialog';
 import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
@@ -20,6 +21,8 @@ export const ComponentDemo: React.FC = () => {
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [vehicleEditorOpen, setVehicleEditorOpen] = useState(false);
   const [editingVehicle, setEditingVehicle] = useState<GarageVehicle | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deletingVehicle, setDeletingVehicle] = useState<GarageVehicle | null>(null);
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
   const toast = useToast();
 
@@ -208,11 +211,8 @@ export const ComponentDemo: React.FC = () => {
                       setVehicleEditorOpen(true);
                     }}
                     onDelete={(v) => {
-                      toast.push({
-                        kind: 'warning',
-                        title: 'Delete Vehicle',
-                        detail: `Are you sure you want to delete ${v.year} ${v.make} ${v.model}?`,
-                      });
+                      setDeletingVehicle(v as GarageVehicle);
+                      setConfirmDeleteOpen(true);
                     }}
                   />
                 ))}
@@ -300,6 +300,35 @@ export const ComponentDemo: React.FC = () => {
               await new Promise((resolve) => setTimeout(resolve, 1500));
               console.log(editingVehicle ? 'Updating vehicle:' : 'Adding vehicle:', vehicleData);
             }}
+          />
+
+          {/* ConfirmationDialog */}
+          <ConfirmationDialog
+            isOpen={confirmDeleteOpen}
+            onClose={() => {
+              setConfirmDeleteOpen(false);
+              setDeletingVehicle(null);
+            }}
+            onConfirm={async () => {
+              // Simulate API call
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              console.log('Deleting vehicle:', deletingVehicle);
+              toast.push({
+                kind: 'success',
+                title: 'Vehicle Deleted',
+                detail: deletingVehicle
+                  ? `${deletingVehicle.year} ${deletingVehicle.make} ${deletingVehicle.model}`
+                  : 'Vehicle successfully deleted',
+              });
+            }}
+            title="Delete Vehicle"
+            message={
+              deletingVehicle
+                ? `Are you sure you want to delete "${deletingVehicle.nickname || `${deletingVehicle.year} ${deletingVehicle.make} ${deletingVehicle.model}`}"? This action cannot be undone.`
+                : 'Are you sure you want to delete this vehicle? This action cannot be undone.'
+            }
+            confirmText="Delete"
+            confirmVariant="danger"
           />
         </Card>
 
