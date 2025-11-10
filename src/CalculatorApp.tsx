@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Input, Select, Slider, Button, Card } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
+
+// Import MarketCheck cache for VIN lookup
+// @ts-ignore - JS module
+import { marketCheckCache } from './features/vehicles/marketcheck-cache.js';
 
 /**
  * CalculatorApp - Main auto loan calculator application
@@ -16,6 +20,8 @@ export const CalculatorApp: React.FC = () => {
   const [location, setLocation] = useState('');
   const [vin, setVin] = useState('');
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [isLoadingVIN, setIsLoadingVIN] = useState(false);
+  const [vinError, setVinError] = useState('');
 
   // Financing State
   const [lender, setLender] = useState('lowest');
@@ -115,6 +121,83 @@ export const CalculatorApp: React.FC = () => {
     });
   };
 
+  // VIN Lookup Handler
+  const handleVINLookup = async (vinValue: string) => {
+    // Clean and validate VIN
+    const cleanVIN = vinValue.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
+
+    if (!cleanVIN) {
+      setSelectedVehicle(null);
+      setVinError('');
+      return;
+    }
+
+    // VIN must be 11-17 characters
+    if (cleanVIN.length < 11) {
+      setVinError('VIN must be at least 11 characters');
+      setSelectedVehicle(null);
+      return;
+    }
+
+    if (cleanVIN.length > 17) {
+      setVinError('VIN cannot be more than 17 characters');
+      setSelectedVehicle(null);
+      return;
+    }
+
+    // Valid VIN - attempt lookup
+    setIsLoadingVIN(true);
+    setVinError('');
+
+    try {
+      const result = await marketCheckCache.getVehicleData(cleanVIN, {
+        zip: location || '32901', // Use entered location or default
+        radius: 100,
+      });
+
+      if (result && result.listing) {
+        setSelectedVehicle(result.listing);
+
+        // Pre-fill sale price from vehicle
+        if (result.listing.price) {
+          setSalePrice(result.listing.price);
+        }
+
+        toast.push({
+          kind: 'success',
+          title: 'Vehicle Found!',
+          detail: `${result.listing.year} ${result.listing.make} ${result.listing.model}`,
+        });
+      } else {
+        setVinError('No vehicle found for this VIN');
+        setSelectedVehicle(null);
+      }
+    } catch (error: any) {
+      console.error('VIN lookup error:', error);
+      setVinError(error.message || 'Failed to look up VIN');
+      setSelectedVehicle(null);
+
+      toast.push({
+        kind: 'error',
+        title: 'VIN Lookup Failed',
+        detail: error.message || 'Could not find vehicle information',
+      });
+    } finally {
+      setIsLoadingVIN(false);
+    }
+  };
+
+  // Debounce VIN lookup
+  useEffect(() => {
+    if (!vin) return;
+
+    const timer = setTimeout(() => {
+      handleVINLookup(vin);
+    }, 800); // Wait 800ms after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [vin]);
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -171,14 +254,74 @@ export const CalculatorApp: React.FC = () => {
                   placeholder="Paste VIN or select saved vehicle..."
                   value={vin}
                   onChange={(e) => setVin(e.target.value)}
+                  error={vinError}
+                  success={selectedVehicle && !isLoadingVIN}
                   icon={
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
+                    isLoadingVIN ? (
+                      <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                      </svg>
+                    ) : (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    )
                   }
-                  helperText="Enter a VIN or click to search your saved vehicles"
+                  helperText={isLoadingVIN ? 'Looking up VIN...' : 'Enter a VIN or click to search your saved vehicles'}
                   fullWidth
                 />
+
+                {/* Vehicle Display Card */}
+                {selectedVehicle && (
+                  <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <Badge variant="info">SELECTED VEHICLE</Badge>
+                      <button
+                        onClick={() => {
+                          setSelectedVehicle(null);
+                          setVin('');
+                        }}
+                        className="text-sm text-gray-500 hover:text-gray-700"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <h3 className="text-2xl font-bold text-blue-600 mb-2">
+                      {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
+                      {selectedVehicle.trim && ` - ${selectedVehicle.trim}`}
+                    </h3>
+                    {selectedVehicle.price && (
+                      <div className="text-3xl font-bold text-green-600 mb-3">
+                        ${selectedVehicle.price.toLocaleString()}
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      {selectedVehicle.vin && (
+                        <div className="bg-gray-50 p-2 rounded">
+                          <div className="text-gray-600 text-xs">VIN</div>
+                          <div className="font-mono font-semibold">{selectedVehicle.vin}</div>
+                        </div>
+                      )}
+                      {selectedVehicle.miles && (
+                        <div className="bg-gray-50 p-2 rounded">
+                          <div className="text-gray-600 text-xs">MILEAGE</div>
+                          <div className="font-semibold">{selectedVehicle.miles.toLocaleString()} miles</div>
+                        </div>
+                      )}
+                      {selectedVehicle.dealer_name && (
+                        <div className="bg-gray-50 p-2 rounded col-span-2">
+                          <div className="text-gray-600 text-xs">DEALER</div>
+                          <div className="font-semibold">{selectedVehicle.dealer_name}</div>
+                          {selectedVehicle.dealer_city && selectedVehicle.dealer_state && (
+                            <div className="text-gray-600 text-xs mt-1">
+                              {selectedVehicle.dealer_city}, {selectedVehicle.dealer_state}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
 
