@@ -597,9 +597,9 @@ body {
   background: rgba(255, 255, 255, 0.9);
   border: 2px solid rgba(203, 213, 225, 0.5);
   border-radius: var(--radius-md);
-  font-family: var(--font-body);
+  font-family: IBM Plex Mono, monospace;
   font-size: 1rem;
-  color: #1e293b;
+  color: #5182d3;
   transition: all var(--transition-base);
   outline: none;
 }
@@ -916,7 +916,7 @@ body {
 
 .your-vehicle-card__badge {
   position: absolute;
-  top: -18px;
+  top: -10px;
   left: 50%;
   transform: translateX(-50%);
   display: inline-flex;
@@ -2049,7 +2049,6 @@ body {
   color: #cbd5e1;
   margin-top: var(--spacing-xs);
   padding-top: var(--spacing-xs);
-  border-top: 1px solid rgba(203, 213, 225, 0.2);
 }
 
 /* ===================================
@@ -2119,7 +2118,7 @@ body {
 .selected-vehicle-card__image-placeholder {
   width: 60px;
   height: 60px;
-  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%2394a3b8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>')
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="%2394a3b8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>')
     center/contain no-repeat;
 }
 
@@ -6301,7 +6300,6 @@ body {
 }
 
 /* Compact Saved Vehicles Modal - Tight spacing for mobile/desktop */
-@import url("https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap");
 
 .edit-vehicle-modal {
   max-width: 700px;
@@ -6765,12 +6763,9 @@ input[name*="vin" i],
 .saved-vehicle-item__vin,
 .your-vehicle-card__meta .vin-display {
   display: inline-block;
-  padding: 2px 6px;
-  background: rgba(0, 0, 0, 0.04);
   border-radius: 4px;
   font-size: 11px;
   color: var(--text-secondary);
-  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .detail-item.vin-display {
