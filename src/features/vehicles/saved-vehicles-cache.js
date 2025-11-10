@@ -57,13 +57,11 @@ class SavedVehiclesCache {
 
     // Use cache if fresh, not empty, and not forcing refresh
     if (!forceRefresh && isFresh && this.cache.size > 0) {
-      console.log('[SavedVehiclesCache] Returning cached vehicles:', this.cache.size);
       return Array.from(this.cache.values());
     }
 
     // Deduplicate concurrent requests - return existing promise
     if (this.activeFetchPromise) {
-      console.log('[SavedVehiclesCache] Deduplicating fetch request');
       return this.activeFetchPromise;
     }
 
@@ -81,7 +79,6 @@ class SavedVehiclesCache {
         this.lastFetchTime = Date.now();
         this.lastError = null;
 
-        console.log('[SavedVehiclesCache] Cache updated with', vehicles.length, 'vehicles');
         this.emit('change', Array.from(this.cache.values()));
       }
 
@@ -318,8 +315,6 @@ class SavedVehiclesCache {
     // Unsubscribe existing subscription first
     this.unsubscribe();
 
-    console.log('[SavedVehiclesCache] Subscribing to realtime updates for user:', userId);
-
     this.subscription = client
       .channel(`saved-vehicles-${userId}`)
       .on(
@@ -335,8 +330,6 @@ class SavedVehiclesCache {
         }
       )
       .subscribe((status) => {
-        console.log('[SavedVehiclesCache] Subscription status:', status);
-
         if (status === 'SUBSCRIBED') {
           this.emit('subscribed');
         } else if (status === 'CHANNEL_ERROR') {
@@ -349,8 +342,6 @@ class SavedVehiclesCache {
    * Handle realtime postgres_changes events
    */
   _handleRealtimeEvent(payload) {
-    console.log('[SavedVehiclesCache] Realtime event:', payload.eventType, payload);
-
     if (payload.eventType === 'INSERT') {
       // Add new vehicle to cache
       this.cache.set(payload.new.id, payload.new);
@@ -380,7 +371,6 @@ class SavedVehiclesCache {
    */
   unsubscribe() {
     if (this.subscription) {
-      console.log('[SavedVehiclesCache] Unsubscribing from realtime updates');
       this.subscription.unsubscribe();
       this.subscription = null;
     }
@@ -390,7 +380,6 @@ class SavedVehiclesCache {
    * Clear cache and reset state
    */
   clear() {
-    console.log('[SavedVehiclesCache] Clearing cache');
     this.cache.clear();
     this.lastFetchTime = null;
     this.userId = null;

@@ -56,10 +56,8 @@ class MarketCheckCache {
       if (cached) {
         const age = Date.now() - cached.timestamp;
         if (age < this.ttl) {
-          console.log(`[MarketCheckCache] Cache HIT for VIN: ${normalizedVIN} (age: ${Math.round(age / 1000)}s)`);
           return cached.response;
         } else {
-          console.log(`[MarketCheckCache] Cache EXPIRED for VIN: ${normalizedVIN} (age: ${Math.round(age / 1000)}s)`);
           this.cache.delete(normalizedVIN);
         }
       }
@@ -67,7 +65,6 @@ class MarketCheckCache {
 
     // Deduplicate concurrent requests
     if (this.activeFetches.has(normalizedVIN)) {
-      console.log(`[MarketCheckCache] Deduplicating request for VIN: ${normalizedVIN}`);
       return this.activeFetches.get(normalizedVIN);
     }
 
@@ -84,7 +81,6 @@ class MarketCheckCache {
         timestamp: Date.now()
       });
 
-      console.log(`[MarketCheckCache] Cached response for VIN: ${normalizedVIN}`);
       this.emit('change', { vin: normalizedVIN, response });
 
       return response;
@@ -110,8 +106,6 @@ class MarketCheckCache {
     if (pick) params.append('pick', pick);
 
     const url = `/api/mc/by-vin/${vin}${params.toString() ? '?' + params.toString() : ''}`;
-
-    console.log(`[MarketCheckCache] Fetching from server: ${url}`);
 
     const response = await fetch(url);
 
@@ -156,10 +150,8 @@ class MarketCheckCache {
     if (vin) {
       const normalizedVIN = vin.toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '');
       this.cache.delete(normalizedVIN);
-      console.log(`[MarketCheckCache] Cleared cache for VIN: ${normalizedVIN}`);
     } else {
       this.cache.clear();
-      console.log('[MarketCheckCache] Cleared all cache entries');
     }
     this.emit('change', { cleared: true, vin });
   }

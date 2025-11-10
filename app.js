@@ -592,6 +592,39 @@ function capitalizeWords(text) {
     .join(" ");
 }
 
+function hasDisplayValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") {
+    return value.trim().length > 0;
+  }
+  return true;
+}
+
+function buildVehicleTitleText(vehicle) {
+  if (!vehicle) return "";
+  const parts = [];
+  if (hasDisplayValue(vehicle.year)) parts.push(String(vehicle.year).trim());
+  if (hasDisplayValue(vehicle.make)) parts.push(capitalizeWords(String(vehicle.make)));
+  if (hasDisplayValue(vehicle.model)) parts.push(capitalizeWords(String(vehicle.model)));
+  return parts.join(" ").replace(/\s+/g, " ").trim();
+}
+
+function getVehicleTitleWithFallback(vehicle) {
+  if (!vehicle) return "Vehicle";
+  const baseTitle = buildVehicleTitleText(vehicle);
+  if (baseTitle) return baseTitle;
+  if (hasDisplayValue(vehicle.heading)) return String(vehicle.heading).trim();
+  if (hasDisplayValue(vehicle.nickname)) return String(vehicle.nickname).trim();
+  if (hasDisplayValue(vehicle.vin)) return `VIN ${String(vehicle.vin).toUpperCase()}`;
+  return "Vehicle";
+}
+
+function getMileageDisplayText(value) {
+  if (!hasDisplayValue(value)) return "";
+  const formatted = formatMileage(value);
+  return formatted ? `${formatted} miles` : "";
+}
+
 /**
  * Format VIN for display (uppercase, monospace)
  * @param {string} vin - The VIN to format
@@ -777,8 +810,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Setup saved vehicles cache change listener
   if (window.savedVehiclesCache) {
     window.savedVehiclesCache.on('change', (vehicles) => {
-      console.log('[SavedVehiclesCache] Change event:', vehicles.length, 'vehicles');
-
       // Update legacy savedVehicles array for backward compatibility
       savedVehicles = vehicles;
 
@@ -810,7 +841,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Setup loading listener
     window.savedVehiclesCache.on('loading', (isLoading) => {
-      console.log('[SavedVehiclesCache] Loading:', isLoading);
       // Could add loading spinner to modals here if needed
     });
   }
@@ -1449,8 +1479,6 @@ async function loadSavedVehicles() {
     if (typeof updateVehicleSelectorDropdown === 'function') {
       updateVehicleSelectorDropdown();
     }
-
-    console.log('[loadSavedVehicles] Loaded', vehicles.length, 'vehicles from cache');
   } catch (error) {
     console.error("[loadSavedVehicles] Error loading saved vehicles:", error);
     savedVehicles = [];
@@ -2137,19 +2165,7 @@ function showSavedVehiclesDropdown() {
   savedVehicles.forEach((vehicle, index) => {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
-    item.innerHTML = `
-      <div class="saved-vehicle-item__title">${
-        vehicle.year || ""
-      } ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(
-      vehicle.model || ""
-    )}</div>
-      <div class="saved-vehicle-item__details">${capitalizeWords(
-        vehicle.trim || ""
-      )} • ${formatMileage(vehicle.mileage || 0)} miles</div>
-      <div class="saved-vehicle-item__vin">${formatVIN(
-        vehicle.vin || "N/A"
-      )}</div>
-    `;
+    item.innerHTML = buildSavedVehicleDropdownMarkup(vehicle);
     item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
@@ -2182,20 +2198,40 @@ function filterSavedVehicles(searchTerm) {
   filtered.forEach((vehicle) => {
     const item = document.createElement("div");
     item.className = "saved-vehicle-item";
-    item.innerHTML = `
-      <div class="saved-vehicle-item__title">${vehicle.year || ""} ${
-      vehicle.make || ""
-    } ${vehicle.model || ""}</div>
-      <div class="saved-vehicle-item__details">${vehicle.trim || ""} • ${
-      vehicle.mileage?.toLocaleString() || "N/A"
-    } miles</div>
-      <div class="saved-vehicle-item__vin">${formatVIN(vehicle.vin || "N/A")}</div>
-    `;
+    item.innerHTML = buildSavedVehicleDropdownMarkup(vehicle);
     item.addEventListener("click", () => selectSavedVehicle(vehicle));
     dropdown.appendChild(item);
   });
 
   dropdown.style.display = "block";
+}
+
+function buildSavedVehicleDropdownMarkup(vehicle) {
+  const titleText = (getVehicleTitleWithFallback(vehicle) || "").trim() || "Saved Vehicle";
+  const detailParts = [];
+
+  if (hasDisplayValue(vehicle?.trim)) {
+    detailParts.push(escapeHtml(capitalizeWords(String(vehicle.trim))));
+  }
+
+  const mileageText = getMileageDisplayText(vehicle?.mileage);
+  if (mileageText) {
+    detailParts.push(escapeHtml(mileageText));
+  }
+
+  const detailsHtml = detailParts.length
+    ? `<div class="saved-vehicle-item__details">${detailParts.join(" • ")}</div>`
+    : "";
+
+  const vinHtml = hasDisplayValue(vehicle?.vin)
+    ? `<div class="saved-vehicle-item__vin">${formatVIN(vehicle.vin)}</div>`
+    : "";
+
+  return `
+      <div class="saved-vehicle-item__title">${escapeHtml(titleText)}</div>
+      ${detailsHtml}
+      ${vinHtml}
+    `;
 }
 
 /**
@@ -7450,31 +7486,49 @@ function deriveSaleCondition(vehicle) {
 }
 
 function buildVehicleSummaryMarkup(vehicle) {
-  const priceText = getVehiclePriceText(vehicle);
+  const priceText = escapeHtml(getVehiclePriceText(vehicle));
   const gradeText = getVehicleGradeText(deriveVehicleGrade(vehicle));
   const saleText = gradeText || getVehicleSaleConditionText(deriveSaleCondition(vehicle));
-  const trimSegment = vehicle.trim ? ` - ${capitalizeWords(vehicle.trim)}` : "";
-  const mileageText = Number.isFinite(Number(vehicle.mileage))
-    ? `${formatMileage(Number(vehicle.mileage))} miles`
-    : null;
+  const trimText = hasDisplayValue(vehicle?.trim) ? capitalizeWords(String(vehicle.trim)) : "";
+
+  const baseTitle = buildVehicleTitleText(vehicle);
+  let combinedTitle = baseTitle;
+  if (trimText) {
+    combinedTitle = combinedTitle ? `${combinedTitle} - ${trimText}` : trimText;
+  }
+  if (!combinedTitle) {
+    combinedTitle = getVehicleTitleWithFallback(vehicle);
+  }
+  const displayTitle = escapeHtml((combinedTitle || "").trim() || "Vehicle");
+
+  const mileageText = getMileageDisplayText(vehicle?.mileage);
+  const subinfoSegments = [];
+  if (mileageText) {
+    subinfoSegments.push(`<span class="vehicle-miles">${escapeHtml(mileageText)}</span>`);
+  }
+  if (saleText) {
+    subinfoSegments.push(`<span class="vehicle-condition">${escapeHtml(saleText)}</span>`);
+  }
+  const subinfoHtml = subinfoSegments.length
+    ? `<div class="vehicle-subinfo">
+        ${subinfoSegments.join("\n        ")}
+      </div>`
+    : "";
+
+  const vinHtml = hasDisplayValue(vehicle?.vin)
+    ? `<div class="vehicle-vin">${formatVIN(vehicle.vin)}</div>`
+    : "";
 
   return `
     <div class="vehicle-card">
       <div class="vehicle-header">
         <div class="vehicle-title">
-          ${vehicle.year || ""} ${capitalizeWords(vehicle.make || "")} ${capitalizeWords(vehicle.model || "")}${trimSegment}
+          ${displayTitle}
         </div>
         <div class="vehicle-price">${priceText}</div>
       </div>
-      <div class="vehicle-subinfo">
-        ${mileageText ? `<span class="vehicle-miles">${mileageText}</span>` : ""}
-        ${saleText ? `<span class="vehicle-condition">${saleText}</span>` : ""}
-      </div>
-      ${
-        vehicle.vin
-          ? `<div class="vehicle-vin">${formatVIN(vehicle.vin)}</div>`
-          : ""
-      }
+      ${subinfoHtml}
+      ${vinHtml}
     </div>
   `;
 }
