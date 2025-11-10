@@ -178,6 +178,14 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
 
         {/* Details Grid */}
         <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+          {/* Asking Price (for saved vehicles) */}
+          {vehicle.asking_price != null && (
+            <div>
+              <p className="text-gray-500 text-xs mb-0.5">Asking Price</p>
+              <p className="font-semibold text-blue-600">{formatCurrency(vehicle.asking_price)}</p>
+            </div>
+          )}
+
           {/* Mileage */}
           {vehicle.mileage != null && (
             <div>
@@ -186,7 +194,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
             </div>
           )}
 
-          {/* Estimated Value */}
+          {/* Estimated Value (for garage vehicles) */}
           {vehicle.estimated_value != null && (
             <div>
               <p className="text-gray-500 text-xs mb-0.5">Est. Value</p>

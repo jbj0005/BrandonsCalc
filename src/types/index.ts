@@ -58,8 +58,21 @@ export interface Vehicle {
   condition?: CreditScore;
   estimated_value?: number;
   payoff_amount?: number;
+  asking_price?: number;
   photo_url?: string;
   notes?: string;
+  // Dealer info for saved vehicles
+  dealer_name?: string;
+  dealer_street?: string;
+  dealer_city?: string;
+  dealer_state?: string;
+  dealer_zip?: string;
+  dealer_phone?: string;
+  dealer_lat?: number;
+  dealer_lng?: number;
+  listing_id?: string;
+  listing_source?: string;
+  listing_url?: string;
 }
 
 export interface GarageVehicle {
@@ -75,6 +88,7 @@ export interface GarageVehicle {
   condition?: CreditScore | string;
   estimated_value?: number;
   payoff_amount?: number;
+  asking_price?: number;
   photo_url?: string;
   notes?: string;
   times_used?: number;
