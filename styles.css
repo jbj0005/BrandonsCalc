@@ -6191,9 +6191,126 @@ body {
 
 .saved-vehicle-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 8px;
   flex-shrink: 0;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+}
+
+.saved-vehicle-card:hover .saved-vehicle-actions {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Icon-only action buttons */
+.saved-vehicle-action-icon {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.05);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.saved-vehicle-action-icon:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.saved-vehicle-action-icon svg {
+  flex-shrink: 0;
+}
+
+/* Specific icon colors */
+.saved-vehicle-action-select {
+  background: rgba(16, 185, 129, 0.1);
+  color: rgb(16, 185, 129);
+}
+
+.saved-vehicle-action-select:hover {
+  background: rgb(16, 185, 129);
+  color: white;
+}
+
+.saved-vehicle-action-edit {
+  background: rgba(100, 116, 139, 0.1);
+  color: rgb(100, 116, 139);
+}
+
+.saved-vehicle-action-edit:hover {
+  background: rgb(100, 116, 139);
+  color: white;
+}
+
+.saved-vehicle-action-garage {
+  background: rgba(59, 130, 246, 0.1);
+  color: rgb(59, 130, 246);
+}
+
+.saved-vehicle-action-garage:hover {
+  background: rgb(59, 130, 246);
+  color: white;
+}
+
+.saved-vehicle-action-remove {
+  background: rgba(239, 68, 68, 0.1);
+  color: rgb(239, 68, 68);
+}
+
+.saved-vehicle-action-remove:hover {
+  background: rgb(239, 68, 68);
+  color: white;
+}
+
+/* Tooltips for action icons */
+.saved-vehicle-action-icon::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.saved-vehicle-action-icon::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-2px);
+  border: 5px solid transparent;
+  border-top-color: rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+.saved-vehicle-action-icon:hover::after,
+.saved-vehicle-action-icon:hover::before {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
 }
 
 .btn-sm {
@@ -6417,24 +6534,26 @@ body {
   line-height: 1.3;
 }
 
-.saved-vehicle-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
+/* Mobile/compact responsive styles for action icons */
+@media (max-width: 768px) {
+  .saved-vehicle-actions {
+    /* Show by default on mobile */
+    opacity: 1;
+    visibility: visible;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
 
-.saved-vehicle-actions .btn-sm {
-  padding: 6px 10px;
-  font-size: 12px;
-  font-family: "Roboto", sans-serif;
-  font-weight: 500;
-  flex: 1 1 auto;
-  white-space: nowrap;
-}
+  .saved-vehicle-action-icon {
+    width: 32px;
+    height: 32px;
+  }
 
-.saved-vehicle-actions .btn-success {
-  flex: 1 1 100%;
+  .saved-vehicle-action-icon svg {
+    width: 18px;
+    height: 18px;
+  }
 }
 
 /* My Saved Vehicles Modal */
