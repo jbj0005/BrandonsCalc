@@ -8,6 +8,9 @@ import { Select } from '../ui/components/Select';
 import { Slider } from '../ui/components/Slider';
 import { Badge } from '../ui/components/Badge';
 import { FormGroup } from '../ui/components/FormGroup';
+import { VehicleCard } from '../ui/components/VehicleCard';
+import { VehicleCardSkeleton } from '../ui/components/VehicleCardSkeleton';
+import type { GarageVehicle } from '../types';
 
 export const ComponentDemo: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -20,6 +23,70 @@ export const ComponentDemo: React.FC = () => {
   const [loanTerm, setLoanTerm] = useState(60);
   const [vehicleCondition, setVehicleCondition] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Vehicle demo state
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>('veh-1');
+  const [showVehicleSkeleton, setShowVehicleSkeleton] = useState(false);
+
+  // Sample vehicles
+  const sampleVehicles: GarageVehicle[] = [
+    {
+      id: 'veh-1',
+      user_id: 'user-123',
+      nickname: 'My Daily Driver',
+      year: 2022,
+      make: 'Honda',
+      model: 'Civic',
+      trim: 'Sport',
+      vin: '2HGFC2F59NH123456',
+      mileage: 15420,
+      condition: 'excellent',
+      estimated_value: 24500,
+      payoff_amount: 18000,
+      photo_url: 'https://images.unsplash.com/photo-1590362891991-f776e747a588?w=800&auto=format&fit=crop',
+      notes: 'Great fuel economy, well maintained, regular oil changes',
+      times_used: 5,
+      last_used_at: '2025-01-08T10:30:00Z',
+      created_at: '2024-06-15T08:00:00Z',
+      updated_at: '2025-01-08T10:30:00Z',
+    },
+    {
+      id: 'veh-2',
+      user_id: 'user-123',
+      year: 2019,
+      make: 'Toyota',
+      model: 'RAV4',
+      trim: 'XLE',
+      vin: '2T3P1RFV8KC123789',
+      mileage: 42350,
+      condition: 'good',
+      estimated_value: 28000,
+      payoff_amount: 22500,
+      notes: 'Family SUV, great for road trips',
+      times_used: 3,
+      last_used_at: '2024-12-20T14:15:00Z',
+      created_at: '2024-03-10T12:00:00Z',
+      updated_at: '2024-12-20T14:15:00Z',
+    },
+    {
+      id: 'veh-3',
+      user_id: 'user-123',
+      nickname: 'Weekend Truck',
+      year: 2021,
+      make: 'Ford',
+      model: 'F-150',
+      trim: 'Lariat',
+      vin: '1FTEW1EP5MKF12345',
+      mileage: 28900,
+      condition: 'excellent',
+      estimated_value: 45000,
+      payoff_amount: 38000,
+      photo_url: 'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?w=800&auto=format&fit=crop',
+      times_used: 2,
+      created_at: '2024-08-22T16:45:00Z',
+      updated_at: '2025-01-01T09:00:00Z',
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -64,6 +131,139 @@ export const ComponentDemo: React.FC = () => {
             >
               Show Error Toast
             </button>
+          </div>
+        </Card>
+
+        {/* Vehicle Cards Demo Section */}
+        <Card variant="elevated" padding="lg">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-2xl font-semibold text-gray-900">
+                Vehicle Cards
+              </h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Display saved vehicles, trade-ins, and search results
+              </p>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setShowVehicleSkeleton(true);
+                setTimeout(() => setShowVehicleSkeleton(false), 2000);
+              }}
+            >
+              Show Loading State
+            </Button>
+          </div>
+
+          {/* Detailed Variant */}
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Detailed View</h3>
+            {showVehicleSkeleton ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <VehicleCardSkeleton variant="detailed" count={3} />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {sampleVehicles.map((vehicle) => (
+                  <VehicleCard
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    variant="detailed"
+                    selected={selectedVehicleId === vehicle.id}
+                    onSelect={(v) => {
+                      setSelectedVehicleId(v.id!);
+                      toast.push({
+                        kind: 'success',
+                        title: 'Vehicle Selected',
+                        detail: `${v.year} ${v.make} ${v.model}`,
+                      });
+                    }}
+                    onEdit={(v) => {
+                      toast.push({
+                        kind: 'info',
+                        title: 'Edit Vehicle',
+                        detail: `Editing ${v.year} ${v.make} ${v.model}`,
+                      });
+                    }}
+                    onDelete={(v) => {
+                      toast.push({
+                        kind: 'warning',
+                        title: 'Delete Vehicle',
+                        detail: `Are you sure you want to delete ${v.year} ${v.make} ${v.model}?`,
+                      });
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Compact Variant */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Compact View</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {sampleVehicles.slice(0, 2).map((vehicle) => (
+                <VehicleCard
+                  key={vehicle.id}
+                  vehicle={vehicle}
+                  variant="compact"
+                  showActions={false}
+                  onSelect={(v) => {
+                    setSelectedVehicleId(v.id!);
+                    toast.push({
+                      kind: 'success',
+                      title: 'Vehicle Selected',
+                      detail: `${v.year} ${v.make} ${v.model}`,
+                    });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Features List */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="font-semibold text-blue-900 mb-2">Features:</h4>
+            <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-blue-800">
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Photo display with fallback
+              </li>
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Condition badges with color coding
+              </li>
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Equity calculation (value - payoff)
+              </li>
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Selection state with visual indicator
+              </li>
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Usage statistics for garage vehicles
+              </li>
+              <li className="flex items-center gap-2">
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Skeleton loading states
+              </li>
+            </ul>
           </div>
         </Card>
 
