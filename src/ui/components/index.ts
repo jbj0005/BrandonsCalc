@@ -44,8 +44,7 @@ export { Modal } from './Modal';
 export type { ModalProps } from './Modal';
 
 // Feedback Components
-export { Toast, ToastProvider, useToast } from './Toast';
-export type { ToastMessage } from './Toast';
+export { ToastProvider, useToast } from './Toast';
 
 // Utility Components
 export { Tabs } from './Tabs';
