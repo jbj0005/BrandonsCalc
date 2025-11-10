@@ -6288,7 +6288,7 @@ body {
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 99999;
 }
 
 .saved-vehicle-action-icon::before {
@@ -6303,7 +6303,7 @@ body {
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease;
   pointer-events: none;
-  z-index: 1000;
+  z-index: 99999;
 }
 
 .saved-vehicle-action-icon:hover::after,
