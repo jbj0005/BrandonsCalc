@@ -9864,7 +9864,7 @@ async function showConflictResolutionModal(conflicts) {
     }).join('');
 
     const modalHTML = `
-      <div id="conflict-resolution-modal" class="modal active" style="display: flex; z-index: 10000;">
+      <div id="conflict-resolution-modal" class="modal active" style="display: flex; z-index: 500;">
         <div class="modal-overlay"></div>
         <div class="modal-content" style="max-width: 700px;">
           <div class="garage-header">

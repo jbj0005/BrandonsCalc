@@ -520,7 +520,7 @@ const additionalStyles = `
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 10000;
+  z-index: 800;
   pointer-events: none;
 }
 
@@ -613,7 +613,7 @@ const additionalStyles = `
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-  z-index: 9999;
+  z-index: 600;
   min-width: 400px;
 }
 

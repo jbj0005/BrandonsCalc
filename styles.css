@@ -103,7 +103,7 @@ body {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 10000;
+  z-index: 800;
   min-width: 280px;
   max-width: 420px;
   padding: 16px 20px;
@@ -340,7 +340,7 @@ body {
   position: absolute;
   top: var(--spacing-lg);
   right: var(--spacing-lg);
-  z-index: 10;
+  z-index: 100;
   padding: var(--spacing-sm) var(--spacing-lg);
   background: var(--glass-bg);
   backdrop-filter: var(--glass-backdrop);
@@ -800,7 +800,7 @@ body {
   box-shadow: var(--ios-shadow);
   max-height: 300px;
   overflow-y: auto;
-  z-index: 10;
+  z-index: 200;
   animation: slideDown 0.2s var(--transition-base);
   backdrop-filter: var(--ios-blur);
 }
@@ -2663,7 +2663,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10000;
+  z-index: 500;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2690,7 +2690,7 @@ body {
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
-  z-index: 10001;
+  z-index: 600;
 }
 
 .modal-close {
@@ -2708,7 +2708,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: all var(--transition-base);
-  z-index: 10002;
+  z-index: 700;
 }
 
 .modal-close:hover {
@@ -4058,7 +4058,7 @@ body {
   top: -8px;
   left: 50%;
   transform: translateX(-50%) translateY(-100%);
-  z-index: 9999;
+  z-index: 400;
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(5px) saturate(180%);
   -webkit-backdrop-filter: blur(5px) saturate(180%);
@@ -4186,7 +4186,7 @@ body {
   background: #ffffff;
   border-color: rgba(14, 165, 233, 0.4);
   box-shadow: 0 8px 24px rgba(14, 165, 233, 0.15), 0 4px 8px rgba(0, 0, 0, 0.1);
-  z-index: 10;
+  z-index: 100;
   position: relative;
 }
 
@@ -4617,7 +4617,7 @@ body {
 /* Floating Payment Tooltip */
 .slider-payment-tooltip {
   position: fixed;
-  z-index: 9999;
+  z-index: 400;
   background: rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(2px) saturate(180%);
   -webkit-backdrop-filter: blur(2px) saturate(180%);
@@ -5930,7 +5930,7 @@ tr.contract-header .contract-item-value {
   align-items: center;
   justify-content: flex-end;
   padding: 0 24px;
-  z-index: 1000;
+  z-index: 300;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -5976,7 +5976,7 @@ tr.contract-header .contract-item-value {
 /* Profile Dropdown */
 .profile-dropdown {
   position: relative;
-  z-index: 1002;
+  z-index: 202;
 }
 
 .profile-dropdown__trigger {
@@ -6037,7 +6037,7 @@ tr.contract-header .contract-item-value {
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 8px 0;
-  z-index: 1001;
+  z-index: 203;
   animation: dropdownFadeIn 0.2s ease;
 }
 
@@ -6288,7 +6288,7 @@ body {
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease;
   pointer-events: none;
-  z-index: 99999;
+  z-index: 400;
 }
 
 .saved-vehicle-action-icon::before {
@@ -6303,7 +6303,7 @@ body {
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease;
   pointer-events: none;
-  z-index: 99999;
+  z-index: 400;
 }
 
 .saved-vehicle-action-icon:hover::after,
@@ -8096,7 +8096,7 @@ input[name*="vin" i],
   position: fixed;
   top: 20px;
   right: 20px;
-  z-index: 10000;
+  z-index: 800;
   pointer-events: none;
 }
 
@@ -8191,7 +8191,7 @@ input[name*="vin" i],
   position: relative;
   display: flex;
   align-items: center;
-  z-index: 1002;
+  z-index: 202;
 }
 
 /* Profile trigger button (signed in state) */
@@ -8267,7 +8267,7 @@ input[name*="vin" i],
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 0;
-  z-index: 1003;
+  z-index: 204;
   opacity: 0;
   visibility: hidden;
   transform: translateY(-10px);
@@ -8386,7 +8386,7 @@ input[name*="vin" i],
   left: 0;
   width: 100%;
   height: 100%;
-  z-index: 10000;
+  z-index: 500;
   display: none;
   align-items: center;
   justify-content: center;
@@ -8610,7 +8610,7 @@ input[name*="vin" i],
   /* Fit within the viewport */
   max-height: calc(100vh - 180px);
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 200;
 }
 
 .vehicle-selector-header {
