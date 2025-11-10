@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ===================================
    EXPRESS MODE - MODERN GLASSMORPHIC DESIGN
    =================================== */
