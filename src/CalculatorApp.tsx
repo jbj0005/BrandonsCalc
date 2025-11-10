@@ -5,7 +5,7 @@ import type { SelectOption } from './ui/components/Select';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
-import { marketCheckCache } from './features/vehicles/marketcheck-cache.js';
+import marketCheckCache from './features/vehicles/marketcheck-cache.js';
 
 /**
  * CalculatorApp - Main auto loan calculator application
