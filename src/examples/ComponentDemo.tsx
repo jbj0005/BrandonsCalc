@@ -2,11 +2,24 @@ import React, { useState } from 'react';
 import { Modal } from '../ui/components/Modal';
 import { Card } from '../ui/components/Card';
 import { useToast } from '../ui/components/Toast';
+import { Button } from '../ui/components/Button';
+import { Input } from '../ui/components/Input';
+import { Select } from '../ui/components/Select';
+import { Slider } from '../ui/components/Slider';
+import { Badge } from '../ui/components/Badge';
+import { FormGroup } from '../ui/components/FormGroup';
 
 export const ComponentDemo: React.FC = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [size, setSize] = useState<'sm' | 'md' | 'lg' | 'xl'>('md');
   const toast = useToast();
+
+  // Form demo state
+  const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [loanTerm, setLoanTerm] = useState(60);
+  const [vehicleCondition, setVehicleCondition] = useState('');
+  const [loading, setLoading] = useState(false);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -17,7 +30,7 @@ export const ComponentDemo: React.FC = () => {
             React Component Library
           </h1>
           <p className="text-gray-600">
-            Modal, Card, and Toast components with Tailwind CSS
+            Form components, Modals, Cards, and Toast notifications with Tailwind CSS
           </p>
         </div>
 
@@ -51,6 +64,221 @@ export const ComponentDemo: React.FC = () => {
             >
               Show Error Toast
             </button>
+          </div>
+        </Card>
+
+        {/* Form Components Demo Section */}
+        <Card variant="elevated" padding="lg">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            Form Components
+          </h2>
+
+          <div className="space-y-8">
+            {/* Buttons */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Buttons</h3>
+              <div className="flex flex-wrap gap-3 mb-4">
+                <Button variant="primary" onClick={() => toast.push({ kind: 'info', title: 'Primary button clicked' })}>
+                  Primary
+                </Button>
+                <Button variant="secondary" onClick={() => toast.push({ kind: 'info', title: 'Secondary button clicked' })}>
+                  Secondary
+                </Button>
+                <Button variant="outline">
+                  Outline
+                </Button>
+                <Button variant="ghost">
+                  Ghost
+                </Button>
+                <Button variant="danger">
+                  Danger
+                </Button>
+              </div>
+
+              <div className="flex flex-wrap gap-3 mb-4">
+                <Button size="sm">Small</Button>
+                <Button size="md">Medium</Button>
+                <Button size="lg">Large</Button>
+              </div>
+
+              <div className="flex flex-wrap gap-3 mb-4">
+                <Button
+                  variant="primary"
+                  loading={loading}
+                  onClick={() => {
+                    setLoading(true);
+                    setTimeout(() => setLoading(false), 2000);
+                  }}
+                >
+                  {loading ? 'Loading...' : 'Load Data'}
+                </Button>
+                <Button variant="primary" disabled>
+                  Disabled
+                </Button>
+                <Button
+                  variant="primary"
+                  icon={
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 0a1 1 0 011 1v6h6a1 1 0 110 2H9v6a1 1 0 11-2 0V9H1a1 1 0 110-2h6V1a1 1 0 011-1z" />
+                    </svg>
+                  }
+                >
+                  With Icon
+                </Button>
+              </div>
+            </div>
+
+            {/* Badges */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Badges</h3>
+              <div className="flex flex-wrap gap-3">
+                <Badge variant="default">Default</Badge>
+                <Badge variant="success">Success</Badge>
+                <Badge variant="warning">Warning</Badge>
+                <Badge variant="danger">Danger</Badge>
+                <Badge variant="info">Info</Badge>
+                <Badge variant="success" size="sm">Small</Badge>
+                <Badge variant="warning" size="lg">Large</Badge>
+              </div>
+            </div>
+
+            {/* Inputs */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Inputs</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input
+                  label="Email Address"
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    setEmailError('');
+                  }}
+                  onBlur={() => {
+                    if (email && !email.includes('@')) {
+                      setEmailError('Please enter a valid email address');
+                    }
+                  }}
+                  error={emailError}
+                  helperText="We'll never share your email"
+                  fullWidth
+                />
+                <Input
+                  label="Password"
+                  type="password"
+                  placeholder="Enter password"
+                  success={true}
+                  helperText="Strong password!"
+                  fullWidth
+                />
+                <Input
+                  label="Search"
+                  type="text"
+                  placeholder="Search vehicles..."
+                  icon={
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                      <path fillRule="evenodd" d="M10.442 10.442a1 1 0 011.415 0l3.85 3.85a1 1 0 01-1.414 1.415l-3.85-3.85a1 1 0 010-1.415z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M6.5 12a5.5 5.5 0 100-11 5.5 5.5 0 000 11zM13 6.5a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z" clipRule="evenodd" />
+                    </svg>
+                  }
+                  fullWidth
+                />
+                <Input
+                  label="Disabled Input"
+                  type="text"
+                  value="Cannot edit"
+                  disabled
+                  fullWidth
+                />
+              </div>
+            </div>
+
+            {/* Select */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Dropdown</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Select
+                  label="Vehicle Condition"
+                  placeholder="Select condition..."
+                  value={vehicleCondition}
+                  onChange={(e) => setVehicleCondition(e.target.value)}
+                  options={[
+                    { value: 'new', label: 'New' },
+                    { value: 'used', label: 'Used' },
+                    { value: 'certified', label: 'Certified Pre-Owned' },
+                  ]}
+                  helperText="Choose your vehicle condition"
+                  fullWidth
+                />
+                <Select
+                  label="Loan Term"
+                  value="60"
+                  options={[
+                    { value: '36', label: '36 months' },
+                    { value: '48', label: '48 months' },
+                    { value: '60', label: '60 months' },
+                    { value: '72', label: '72 months' },
+                  ]}
+                  fullWidth
+                />
+              </div>
+            </div>
+
+            {/* Slider */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Slider</h3>
+              <div className="space-y-4">
+                <Slider
+                  label="Loan Term (months)"
+                  min={12}
+                  max={84}
+                  step={12}
+                  value={loanTerm}
+                  onChange={(e) => setLoanTerm(Number(e.target.value))}
+                  formatValue={(val) => `${val} months`}
+                  helperText="Select your preferred loan term"
+                  fullWidth
+                />
+                <Slider
+                  label="Down Payment"
+                  min={0}
+                  max={50000}
+                  step={1000}
+                  defaultValue={5000}
+                  formatValue={(val) => `$${val.toLocaleString()}`}
+                  fullWidth
+                />
+              </div>
+            </div>
+
+            {/* FormGroup */}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Form Group (Wrapper)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <FormGroup
+                  label="Full Name"
+                  required
+                  helperText="Enter your first and last name"
+                >
+                  <input
+                    type="text"
+                    className="block w-full rounded-lg border border-gray-300 px-4 py-2 text-base focus:border-blue-500 focus:ring-blue-500 focus:outline-none focus:ring-2"
+                    placeholder="John Doe"
+                  />
+                </FormGroup>
+                <FormGroup
+                  label="Phone Number"
+                  error="Please enter a valid phone number"
+                >
+                  <input
+                    type="tel"
+                    className="block w-full rounded-lg border border-red-500 px-4 py-2 text-base focus:border-red-500 focus:ring-red-500 focus:outline-none focus:ring-2"
+                    placeholder="(555) 123-4567"
+                  />
+                </FormGroup>
+              </div>
+            </div>
           </div>
         </Card>
 
