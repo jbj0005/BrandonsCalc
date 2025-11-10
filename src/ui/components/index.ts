@@ -85,3 +85,22 @@ export type { ConfirmationDialogProps } from './ConfirmationDialog';
 // TIL Components
 export { TilControl } from './TilControl';
 export type { TilControlProps } from './TilControl';
+
+// Additional Modal Components
+export { UnavailableVehicleModal } from './UnavailableVehicleModal';
+export type { UnavailableVehicleModalProps } from './UnavailableVehicleModal';
+
+export { AprConfirmationModal } from './AprConfirmationModal';
+export type { AprConfirmationModalProps } from './AprConfirmationModal';
+
+export { DuplicateVehicleModal } from './DuplicateVehicleModal';
+export type { DuplicateVehicleModalProps } from './DuplicateVehicleModal';
+
+export { ConflictResolutionModal } from './ConflictResolutionModal';
+export type { ConflictResolutionModalProps, FieldConflict } from './ConflictResolutionModal';
+
+export { EmailHandshakeModal } from './EmailHandshakeModal';
+export type { EmailHandshakeModalProps, EmailHandshakeStage } from './EmailHandshakeModal';
+
+export { SendModeModal } from './SendModeModal';
+export type { SendModeModalProps, SendMode, SendChannel } from './SendModeModal';
