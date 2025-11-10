@@ -6,6 +6,14 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        vin: ['"IBM Plex Mono"', 'Courier New', 'monospace'],
+        mono: ['"IBM Plex Mono"', 'Courier New', 'monospace'],
+      },
+      letterSpacing: {
+        'vin': '0.15em',
+        'vin-compact': '0.08em',
+      },
       zIndex: {
         // Layer system matching styles.css
         '100': '100',  // Layer 1: Interactive elements

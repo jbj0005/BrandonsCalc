@@ -162,7 +162,7 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
 
             {/* VIN (compact display) */}
             {vehicle.vin && variant === 'compact' && (
-              <p className="text-xs text-gray-500 font-mono mt-1 truncate">
+              <p className="text-xs text-gray-500 font-vin tracking-vin-compact mt-1 truncate uppercase">
                 VIN: {vehicle.vin}
               </p>
             )}
@@ -228,8 +228,8 @@ export const VehicleCard: React.FC<VehicleCardProps> = ({
         {/* VIN (detailed display) */}
         {vehicle.vin && variant === 'detailed' && (
           <div className="mb-4">
-            <p className="text-xs text-gray-500 mb-0.5">VIN</p>
-            <p className="text-sm font-mono text-gray-700 truncate">{vehicle.vin}</p>
+            <p className="text-xs text-gray-500 mb-0.5 font-vin tracking-vin-compact">VIN</p>
+            <p className="text-sm font-vin tracking-vin text-gray-700 truncate uppercase">{vehicle.vin}</p>
           </div>
         )}
 

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8806,4 +8808,64 @@ input[name*="vin" i],
 /* Position the VIN input container relatively for dropdown */
 #quick-vin {
   position: relative;
+}
+
+/* ===================================
+   VIN STYLING - Factory Font Look
+   =================================== */
+
+/* VIN utility class for inputs and labels */
+.vin-text,
+input[name*="vin" i],
+input[id*="vin" i],
+input[placeholder*="VIN" i],
+input[type="text"][placeholder*="vin" i],
+label[for*="vin" i],
+.vin-label,
+.vin-display {
+  font-family: 'IBM Plex Mono', 'Courier New', monospace !important;
+  letter-spacing: 0.15em !important;
+  text-transform: uppercase !important;
+  font-weight: 500 !important;
+}
+
+/* VIN input specific styles */
+input[name*="vin" i],
+input[id*="vin" i],
+input[placeholder*="VIN" i],
+input[type="text"][placeholder*="vin" i] {
+  font-size: 0.95em;
+  padding: 0.75rem 1rem;
+}
+
+/* VIN label specific styles */
+label[for*="vin" i],
+.vin-label {
+  font-size: 0.85em;
+  font-weight: 600 !important;
+  letter-spacing: 0.1em !important;
+}
+
+/* VIN display text (read-only, cards, etc.) */
+.vin-display {
+  font-size: 0.9em;
+  letter-spacing: 0.12em !important;
+  color: var(--text-primary);
+}
+
+/* Tailwind utility classes for VIN */
+@layer utilities {
+  .font-vin {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  .font-vin-compact {
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
 }

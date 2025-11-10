@@ -157,7 +157,7 @@ export const UnavailableVehicleModal: React.FC<UnavailableVehicleModalProps> = (
               </div>
             )}
 
-            <div className="vehicle-info text-sm text-gray-600 font-mono">
+            <div className="vehicle-info text-sm text-gray-600 font-vin tracking-vin uppercase">
               VIN: {formatVIN(vehicle.vin)}
             </div>
           </div>

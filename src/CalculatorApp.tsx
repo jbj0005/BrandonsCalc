@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
@@ -66,6 +66,28 @@ export const CalculatorApp: React.FC = () => {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const ensureSavedVehiclesCacheReady = useCallback(() => {
+    if (!currentUser || !savedVehiclesCache) {
+      return false;
+    }
+
+    try {
+      const stats =
+        typeof savedVehiclesCache.getStats === 'function'
+          ? savedVehiclesCache.getStats()
+          : null;
+
+      if (!stats || stats.userId !== currentUser.id || !stats.isSubscribed) {
+        savedVehiclesCache.subscribe(currentUser.id, supabase);
+      }
+    } catch (error) {
+      console.warn('[Calculator] Unable to initialize saved vehicles cache:', error);
+      return false;
+    }
+
+    return true;
+  }, [currentUser]);
 
   // Offer Preview Modal State
   const [showOfferPreviewModal, setShowOfferPreviewModal] = useState(false);
@@ -228,13 +250,16 @@ export const CalculatorApp: React.FC = () => {
         return;
       }
 
+      if (!ensureSavedVehiclesCacheReady()) {
+        return;
+      }
+
       setIsLoadingSavedVehicles(true);
       try {
         const vehicles = await savedVehiclesCache.getVehicles({ forceRefresh: true });
         setSavedVehicles(vehicles || []);
       } catch (error: any) {
         console.error('Failed to load saved vehicles:', error);
-        // Don't show error toast if user is not authenticated
         if (!error.message?.includes('No Supabase client') && !error.message?.includes('user ID')) {
           toast.push({
             kind: 'error',
@@ -247,7 +272,7 @@ export const CalculatorApp: React.FC = () => {
       }
     };
     loadSavedVehicles();
-  }, [currentUser]);
+  }, [currentUser, ensureSavedVehiclesCacheReady]);
 
   const calculateLoan = () => {
     // Calculate amount financed
@@ -365,10 +390,8 @@ export const CalculatorApp: React.FC = () => {
 
   // Handle vehicle save/update from modal
   const handleVehicleSave = async () => {
-    // Reload saved vehicles
     try {
-      const vehicles = await savedVehiclesCache.getVehicles();
-      setSavedVehicles(vehicles || []);
+      await reloadSavedVehicles();
       toast.push({
         kind: 'success',
         title: 'Vehicle Saved!',
@@ -385,13 +408,21 @@ export const CalculatorApp: React.FC = () => {
   const handleSignIn = async (email: string, password: string) => {
     await authManager.signIn({ email, password });
     // Reload saved vehicles after sign in
-    await reloadSavedVehicles();
+    try {
+      await reloadSavedVehicles();
+    } catch (error) {
+      console.warn('Unable to refresh saved vehicles after sign in:', error);
+    }
   };
 
   const handleSignUp = async (email: string, password: string, fullName?: string, phone?: string) => {
     await authManager.signUp({ email, password, fullName, phone });
     // Reload saved vehicles after sign up
-    await reloadSavedVehicles();
+    try {
+      await reloadSavedVehicles();
+    } catch (error) {
+      console.warn('Unable to refresh saved vehicles after sign up:', error);
+    }
   };
 
   const handleSignOut = async () => {
@@ -401,12 +432,18 @@ export const CalculatorApp: React.FC = () => {
   };
 
   // Reload saved vehicles helper
-  const reloadSavedVehicles = async () => {
+  const reloadSavedVehicles = async (options: { forceRefresh?: boolean } = {}) => {
+    if (!ensureSavedVehiclesCacheReady()) {
+      return [];
+    }
+
     try {
-      const vehicles = await savedVehiclesCache.getVehicles();
+      const vehicles = await savedVehiclesCache.getVehicles({ forceRefresh: options.forceRefresh || false });
       setSavedVehicles(vehicles || []);
+      return vehicles;
     } catch (error) {
       console.error('Failed to reload saved vehicles:', error);
+      throw error;
     }
   };
 
