@@ -243,7 +243,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const [lender, setLender] = useState('nfcu');
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
-  const [vehicleCondition, setVehicleCondition] = useState<'new' | 'used'>('used');
+  const [vehicleCondition, setVehicleCondition] = useState<'new' | 'used'>('new');
   const [lenderRates, setLenderRates] = useState<LenderRate[]>([]);
   const [isLoadingRates, setIsLoadingRates] = useState(false);
 
