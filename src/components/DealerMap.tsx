@@ -77,6 +77,10 @@ export const DealerMap: React.FC<DealerMapProps> = ({
     if (dealerLat && dealerLng) {
       const position = { lat: dealerLat, lng: dealerLng };
 
+      // NOTE: google.maps.Marker is deprecated as of February 2024
+      // TODO: Migrate to google.maps.marker.AdvancedMarkerElement
+      // Migration guide: https://developers.google.com/maps/documentation/javascript/advanced-markers/migration
+      // Current API will continue to receive bug fixes; 12+ months notice before discontinuation
       dealerMarker.current = new google.maps.Marker({
         position,
         map,
@@ -116,6 +120,8 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       if (status === 'OK' && results && results[0]) {
         const position = results[0].geometry.location;
 
+        // NOTE: google.maps.Marker is deprecated as of February 2024
+        // TODO: Migrate to google.maps.marker.AdvancedMarkerElement
         dealerMarker.current = new google.maps.Marker({
           position,
           map,

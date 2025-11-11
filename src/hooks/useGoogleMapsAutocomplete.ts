@@ -69,6 +69,10 @@ export const useGoogleMapsAutocomplete = (
     if (autocompleteRef.current) return;
 
     // Initialize autocomplete
+    // NOTE: google.maps.places.Autocomplete is deprecated as of March 2025
+    // TODO: Migrate to google.maps.places.PlaceAutocompleteElement (web component)
+    // Migration guide: https://developers.google.com/maps/documentation/javascript/places-migration-overview
+    // Current API will continue to receive bug fixes; 12+ months notice before discontinuation
     autocompleteRef.current = new google.maps.places.Autocomplete(inputRef.current, {
       types,
       componentRestrictions,

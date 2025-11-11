@@ -302,6 +302,15 @@ export interface CountySurtaxWindow {
 }
 
 // ========================================
+// Positive Equity Types
+// ========================================
+export interface EquityDecision {
+  action: 'apply' | 'cashout' | 'split';
+  appliedAmount: number;
+  cashoutAmount: number;
+}
+
+// ========================================
 // Slider Types
 // ========================================
 export interface SliderConfig {

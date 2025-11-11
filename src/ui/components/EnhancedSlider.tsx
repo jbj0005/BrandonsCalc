@@ -102,12 +102,17 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const diffFromBaseline =
       baselineForDiff != null ? currentValue - baselineForDiff : 0;
 
+    const latestPaymentRef = useRef(monthlyPayment);
+    useEffect(() => {
+      latestPaymentRef.current = monthlyPayment;
+    }, [monthlyPayment]);
+
     // Update baseline if baselineValue prop changes
     useEffect(() => {
       if (baselineValue !== undefined) {
-        updateBaseline(baselineValue, monthlyPayment);
+        updateBaseline(baselineValue, latestPaymentRef.current);
       }
-    }, [baselineValue, monthlyPayment, updateBaseline]);
+    }, [baselineValue, updateBaseline]);
 
     // Update tooltip position
     const updateTooltipPosition = () => {

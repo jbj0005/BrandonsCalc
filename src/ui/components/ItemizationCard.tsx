@@ -18,6 +18,10 @@ export interface ItemizationCardProps {
   cashDue: number;
   stateName?: string;
   countyName?: string;
+  // Positive equity handling
+  tradeInApplied?: number;
+  tradeInCashout?: number;
+  cashoutAmount?: number;
 }
 
 /**
@@ -49,9 +53,13 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   cashDue,
   stateName,
   countyName,
+  tradeInApplied,
+  tradeInCashout,
+  cashoutAmount,
 }) => {
   const netTradeIn = tradeAllowance - tradePayoff;
   const otherCharges = dealerFees + customerAddons; // Note: Gov't fees = 0 for now
+  const hasSplitEquity = tradeInApplied !== undefined && tradeInCashout !== undefined && tradeInCashout > 0;
 
   return (
     <div className="space-y-4">
@@ -80,7 +88,9 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
           {/* LESS Net Trade-In */}
           <div>
             <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-              <span className="text-base font-semibold text-gray-900">LESS Net Trade-In</span>
+              <span className="text-base font-semibold text-gray-900">
+                {netTradeIn >= 0 ? 'LESS' : 'PLUS'} Net Trade-In
+              </span>
               <span className="text-base font-bold text-gray-900">
                 {formatNegativeParens(netTradeIn)}
               </span>
@@ -96,6 +106,21 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                 <span className="text-gray-600">Trade-In Payoff</span>
                 <span className="text-gray-900">{formatCurrencyExact(tradePayoff)}</span>
               </div>
+
+              {/* Show equity split breakdown if applicable */}
+              {hasSplitEquity && (
+                <>
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-green-700 font-medium">Applied to Balance</span>
+                    <span className="text-green-700 font-semibold">{formatCurrencyExact(tradeInApplied!)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-blue-700 font-medium">Cash to You</span>
+                    <span className="text-blue-700 font-semibold">{formatCurrencyExact(tradeInCashout!)}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -132,6 +157,16 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
               </div>
             </div>
           </div>
+
+          {/* PLUS Cash Advance to Customer (only if cashout exists) */}
+          {cashoutAmount && cashoutAmount > 0 && (
+            <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
+              <span className="text-base font-semibold text-gray-900">PLUS Cash Advance to Customer</span>
+              <span className="text-base font-bold text-blue-600">
+                {formatCurrencyExact(cashoutAmount)}
+              </span>
+            </div>
+          )}
 
           {/* PLUS Sales Tax */}
           <div>

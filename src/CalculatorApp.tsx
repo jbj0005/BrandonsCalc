@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
 import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
@@ -11,6 +11,7 @@ import { OfferPreviewModal } from './components/OfferPreviewModal';
 import type { LeadData, SubmissionProgress } from './services/leadSubmission';
 import { submitOfferWithProgress } from './services/leadSubmission';
 import { lookupTaxRates } from './services/taxRatesService';
+import type { EquityDecision } from './types';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
@@ -170,6 +171,14 @@ export const CalculatorApp: React.FC = () => {
   const [showOfferPreviewModal, setShowOfferPreviewModal] = useState(false);
   const [leadDataForSubmission, setLeadDataForSubmission] = useState<LeadData>({});
 
+  // Positive Equity Modal State
+  const [showPositiveEquityModal, setShowPositiveEquityModal] = useState(false);
+  const [equityDecision, setEquityDecision] = useState<EquityDecision>({
+    action: 'apply',
+    appliedAmount: 0,
+    cashoutAmount: 0,
+  });
+
   // Submission Progress Modal State
   const [showProgressModal, setShowProgressModal] = useState(false);
   const [progressStage, setProgressStage] = useState<SubmissionProgress['stage']>('validating');
@@ -249,6 +258,12 @@ export const CalculatorApp: React.FC = () => {
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
   const [totalOfPayments, setTotalOfPayments] = useState(0);
+  const baselineMonthlyPayment =
+    baselines.totalPayments != null &&
+    baselines.term != null &&
+    baselines.term > 0
+      ? baselines.totalPayments / baselines.term
+      : undefined;
 
   // Tax State (FL defaults)
   const [stateTaxRate, setStateTaxRate] = useState(6.0); // 6% FL state tax
@@ -359,10 +374,10 @@ export const CalculatorApp: React.FC = () => {
     }
   }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
 
-  // Calculate loan on any change
+  // Calculate loan on any change (including equity decision)
   useEffect(() => {
     calculateLoan();
-  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate]);
+  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate, equityDecision]);
 
   // Auto-populate location from profile when profile loads
   useEffect(() => {
@@ -529,13 +544,29 @@ export const CalculatorApp: React.FC = () => {
   const calculateLoan = () => {
     // Calculate net trade equity
     const netTradeEquity = tradeAllowance - tradePayoff;
+    const positiveEquity = Math.max(0, netTradeEquity);
+    const negativeEquity = Math.abs(Math.min(0, netTradeEquity));
+
+    // Determine how much equity is applied to balance vs cashed out
+    let appliedToBalance = 0;
+    let cashoutAmount = 0;
+
+    if (positiveEquity > 0) {
+      // Use equity decision if positive equity exists
+      appliedToBalance = equityDecision.appliedAmount;
+      cashoutAmount = equityDecision.cashoutAmount;
+    } else {
+      // Negative equity: all goes to unpaid balance (increases loan)
+      appliedToBalance = -negativeEquity;
+      cashoutAmount = 0;
+    }
 
     // Calculate unpaid balance (before fees/taxes)
-    const unpaid = salePrice - cashDown - netTradeEquity;
+    const unpaid = salePrice - cashDown - appliedToBalance;
     setUnpaidBalance(unpaid);
 
-    // Calculate taxes (FL tax law)
-    const taxableBase = (salePrice - netTradeEquity) + dealerFees + customerAddons;
+    // Calculate taxes (based on sale price minus applied trade-in equity)
+    const taxableBase = (salePrice - appliedToBalance) + dealerFees + customerAddons;
     const stateTax = taxableBase * (stateTaxRate / 100);
     const countyTax = Math.min(taxableBase, 5000) * (countyTaxRate / 100); // FL caps county tax at $5k
     const totalTax = stateTax + countyTax;
@@ -544,10 +575,10 @@ export const CalculatorApp: React.FC = () => {
     setCountyTaxAmount(countyTax);
     setTotalTaxes(totalTax);
 
-    // Calculate amount financed (includes fees and taxes)
+    // Calculate amount financed (includes fees, taxes, and cashout)
     const totalPrice = salePrice + dealerFees + customerAddons + totalTax;
-    const downPayment = cashDown + netTradeEquity;
-    const financed = totalPrice - downPayment;
+    const downPayment = cashDown + appliedToBalance;
+    const financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
     setAmountFinanced(financed);
 
     // Calculate cash due at signing (for now, just cash down - will expand later)
@@ -643,6 +674,40 @@ export const CalculatorApp: React.FC = () => {
     const leadData = prepareLeadData();
     setLeadDataForSubmission(leadData);
 
+    // Calculate positive equity
+    const netTradeEquity = tradeAllowance - tradePayoff;
+    const positiveEquity = Math.max(0, netTradeEquity);
+
+    // Check if positive equity exists and user hasn't made a decision yet
+    // (i.e., equity decision has default values)
+    const hasPositiveEquity = positiveEquity > 0;
+    const hasDecision = equityDecision.appliedAmount > 0 || equityDecision.cashoutAmount > 0;
+
+    if (hasPositiveEquity && !hasDecision) {
+      // Show positive equity modal first
+      setShowPositiveEquityModal(true);
+      return;
+    }
+
+    // Check for APR override before showing offer preview
+    if (lenderBaselineApr !== null && Math.abs(apr - lenderBaselineApr) >= 0.01) {
+      // User has overridden the APR - show confirmation modal
+      setShowAprConfirmModal(true);
+    } else {
+      // No override or no baseline - proceed directly to offer preview
+      setShowOfferPreviewModal(true);
+    }
+  };
+
+  // Positive Equity Modal handler
+  const handleEquityDecision = (decision: EquityDecision) => {
+    // Update equity decision
+    setEquityDecision(decision);
+
+    // Close positive equity modal
+    setShowPositiveEquityModal(false);
+
+    // Continue with the offer preview flow
     // Check for APR override before showing offer preview
     if (lenderBaselineApr !== null && Math.abs(apr - lenderBaselineApr) >= 0.01) {
       // User has overridden the APR - show confirmation modal
@@ -851,6 +916,25 @@ export const CalculatorApp: React.FC = () => {
     toast.push({
       kind: 'success',
       title: 'Garage Vehicle Selected!',
+      detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+    });
+  };
+
+  const handleApplyGarageVehicleAsTrade = (vehicle: any) => {
+    const tradeValue = parseNumericValue(vehicle.estimated_value) ?? 0;
+    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? 0;
+
+    setTradeAllowance(tradeValue);
+    setTradePayoff(payoffValue);
+    updateSliderBaseline('tradeAllowance', tradeValue);
+    updateSliderBaseline('tradePayoff', payoffValue);
+    setShowVehicleDropdown(false);
+
+    setTimeout(() => calculateLoan(), 0);
+
+    toast.push({
+      kind: 'success',
+      title: 'Trade Values Applied',
       detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
     });
   };
@@ -1189,7 +1273,16 @@ export const CalculatorApp: React.FC = () => {
                               {filteredGarageVehicles.map((vehicle) => (
                                 <div
                                   key={vehicle.id}
-                                  className="p-3 hover:bg-blue-50 transition-colors"
+                                  className="p-3 hover:bg-blue-50 focus-within:ring-2 focus-within:ring-blue-200 focus-within:ring-offset-2 focus-within:ring-offset-white rounded-lg transition-colors cursor-pointer"
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => handleSelectGarageVehicle(vehicle)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      handleSelectGarageVehicle(vehicle);
+                                    }
+                                  }}
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1">
@@ -1209,7 +1302,10 @@ export const CalculatorApp: React.FC = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                       <button
-                                        onClick={() => handleSelectGarageVehicle(vehicle)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleApplyGarageVehicleAsTrade(vehicle);
+                                        }}
                                         className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
                                         title="Use as trade-in"
                                       >
@@ -1496,14 +1592,19 @@ export const CalculatorApp: React.FC = () => {
                           max={99.99}
                           formatValue={(val) => `${val.toFixed(2)}%`}
                           monthlyPayment={monthlyPayment}
-                          baselinePayment={baselines.totalPayments && baselines.term ? baselines.totalPayments / baselines.term : undefined}
+                          baselinePayment={baselineMonthlyPayment}
                           className="w-full"
                           showKeyboardHint={false}
                           unstyled={true}
                         />
-                        {diffs.apr && diffs.apr.isSignificant && (
-                          <div className={`text-xs font-semibold mt-2 ${diffs.apr.isPositive ? 'text-green-600' : 'text-red-500'}`}>
-                            {diffs.apr.isPositive ? '↓' : '↑'} {diffs.apr.formatted}
+                        {baselineMonthlyPayment != null && (
+                          <div
+                            className={`text-xs font-semibold mt-2 ${
+                              monthlyPayment - baselineMonthlyPayment < 0 ? 'text-green-600' : 'text-red-500'
+                            }`}
+                          >
+                            {monthlyPayment - baselineMonthlyPayment < 0 ? '↓' : '↑'}{' '}
+                            {formatCurrency(Math.abs(monthlyPayment - baselineMonthlyPayment))} vs baseline payment
                           </div>
                         )}
                         <div className="mt-2 text-xs text-slate-500">Cost of credit as yearly rate</div>
@@ -1527,7 +1628,7 @@ export const CalculatorApp: React.FC = () => {
                           max={84}
                           formatValue={(val) => val.toString()}
                           monthlyPayment={monthlyPayment}
-                          baselinePayment={baselines.totalPayments && baselines.term ? baselines.totalPayments / baselines.term : undefined}
+                          baselinePayment={baselineMonthlyPayment}
                           className="w-full"
                           showKeyboardHint={false}
                           unstyled={true}
@@ -1733,6 +1834,11 @@ export const CalculatorApp: React.FC = () => {
               unpaidBalance={unpaidBalance}
               amountFinanced={amountFinanced}
               cashDue={cashDue}
+              stateName={stateName}
+              countyName={countyName}
+              tradeInApplied={equityDecision.appliedAmount}
+              tradeInCashout={equityDecision.cashoutAmount}
+              cashoutAmount={equityDecision.cashoutAmount}
             />
           </Card>
         </div>
@@ -1819,6 +1925,15 @@ export const CalculatorApp: React.FC = () => {
           onConfirm={handleKeepCustomApr}
         />
       )}
+
+      {/* Positive Equity Modal */}
+      <PositiveEquityModal
+        isOpen={showPositiveEquityModal}
+        onClose={() => setShowPositiveEquityModal(false)}
+        positiveEquity={Math.max(0, tradeAllowance - tradePayoff)}
+        onApply={handleEquityDecision}
+        initialDecision={equityDecision}
+      />
 
       {/* User Profile Dropdown */}
       <UserProfileDropdown
