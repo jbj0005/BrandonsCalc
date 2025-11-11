@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input } from './';
+import { ItemizationCard } from './ItemizationCard';
 import { formatCurrencyExact } from '../../utils/formatters';
 import type { EquityDecision } from '../../types';
 
@@ -9,6 +10,17 @@ export interface PositiveEquityModalProps {
   positiveEquity: number;
   onApply: (decision: EquityDecision) => void;
   initialDecision?: EquityDecision;
+  // Calculation data for preview
+  salePrice: number;
+  cashDown: number;
+  tradeAllowance: number;
+  tradePayoff: number;
+  dealerFees: number;
+  customerAddons: number;
+  stateTaxRate: number;
+  countyTaxRate: number;
+  stateName?: string;
+  countyName?: string;
 }
 
 /**
@@ -25,6 +37,16 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   positiveEquity,
   onApply,
   initialDecision,
+  salePrice,
+  cashDown,
+  tradeAllowance,
+  tradePayoff,
+  dealerFees,
+  customerAddons,
+  stateTaxRate,
+  countyTaxRate,
+  stateName,
+  countyName,
 }) => {
   const [selectedAction, setSelectedAction] = useState<'apply' | 'cashout' | 'split'>(
     initialDecision?.action || 'apply'
@@ -111,8 +133,20 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   const isValid = finalApplied >= 0 && finalCashout >= 0 &&
                   Math.abs((finalApplied + finalCashout) - positiveEquity) < 0.01;
 
+  // Calculate preview values for ItemizationCard
+  const unpaidBalance = salePrice - cashDown - finalApplied;
+
+  // Tax calculation (same as in CalculatorApp)
+  const taxableBase = (salePrice - finalApplied) + dealerFees + customerAddons;
+  const stateTaxAmount = taxableBase * (stateTaxRate / 100);
+  const countyTaxAmount = Math.min(taxableBase, 5000) * (countyTaxRate / 100);
+  const totalTaxes = stateTaxAmount + countyTaxAmount;
+
+  const amountFinanced = unpaidBalance + dealerFees + customerAddons + totalTaxes + finalCashout;
+  const cashDue = cashDown; // Simplified for preview
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="space-y-6">
         {/* Header */}
         <div className="text-center">
@@ -279,6 +313,34 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
               </div>
             </label>
           </div>
+        </div>
+
+        {/* Preview Itemization */}
+        <div className="border-t pt-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+            Preview with Selected Option
+          </h3>
+          <ItemizationCard
+            salePrice={salePrice}
+            cashDown={cashDown}
+            tradeAllowance={tradeAllowance}
+            tradePayoff={tradePayoff}
+            dealerFees={dealerFees}
+            customerAddons={customerAddons}
+            stateTaxRate={stateTaxRate}
+            countyTaxRate={countyTaxRate}
+            stateTaxAmount={stateTaxAmount}
+            countyTaxAmount={countyTaxAmount}
+            totalTaxes={totalTaxes}
+            unpaidBalance={unpaidBalance}
+            amountFinanced={amountFinanced}
+            cashDue={cashDue}
+            stateName={stateName}
+            countyName={countyName}
+            tradeInApplied={finalApplied}
+            tradeInCashout={finalCashout}
+            cashoutAmount={finalCashout > 0 ? finalCashout : undefined}
+          />
         </div>
 
         {/* Action Buttons */}

@@ -418,11 +418,38 @@ export const CalculatorApp: React.FC = () => {
               lng: place.geometry.location.lng(),
             };
             setLocationDetails(inferredPlace);
+
+            // Load tax rates from profile location
+            if (profile.state_code && profile.county && profile.state) {
+              lookupTaxRates(profile.state_code, profile.county, profile.state)
+                .then((taxData) => {
+                  if (taxData && !isTaxRateManuallySet) {
+                    setStateTaxRate(taxData.stateTaxRate);
+                    setCountyTaxRate(taxData.countyTaxRate);
+                    setStateName(taxData.stateName);
+                    setCountyName(taxData.countyName);
+                    toast.push({
+                      kind: 'success',
+                      title: 'Tax Rates Loaded',
+                      detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`
+                    });
+                  } else if (!taxData && !isTaxRateManuallySet) {
+                    toast.push({
+                      kind: 'warning',
+                      title: 'Tax Rates Not Found',
+                      detail: `No rates found for ${profile.state}, ${profile.county}. Using defaults.`
+                    });
+                  }
+                })
+                .catch((err) => {
+                  console.error('[CalculatorApp] Tax lookup error from profile:', err);
+                });
+            }
           }
         });
       }
     }
-  }, [profile, mapsLoaded, location]);
+  }, [profile, mapsLoaded, location, isTaxRateManuallySet]);
 
   // Auto-populate down payment from profile when vehicle is selected
   useEffect(() => {
@@ -1933,6 +1960,16 @@ export const CalculatorApp: React.FC = () => {
         positiveEquity={Math.max(0, tradeAllowance - tradePayoff)}
         onApply={handleEquityDecision}
         initialDecision={equityDecision}
+        salePrice={salePrice}
+        cashDown={cashDown}
+        tradeAllowance={tradeAllowance}
+        tradePayoff={tradePayoff}
+        dealerFees={dealerFees}
+        customerAddons={customerAddons}
+        stateTaxRate={stateTaxRate}
+        countyTaxRate={countyTaxRate}
+        stateName={stateName}
+        countyName={countyName}
       />
 
       {/* User Profile Dropdown */}

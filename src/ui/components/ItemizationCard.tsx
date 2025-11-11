@@ -59,7 +59,11 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 }) => {
   const netTradeIn = tradeAllowance - tradePayoff;
   const otherCharges = dealerFees + customerAddons; // Note: Gov't fees = 0 for now
-  const hasSplitEquity = tradeInApplied !== undefined && tradeInCashout !== undefined && tradeInCashout > 0;
+  const hasPositiveEquity = netTradeIn > 0;
+  const hasSplitEquity = hasPositiveEquity &&
+                         tradeInApplied !== undefined &&
+                         tradeInCashout !== undefined &&
+                         (tradeInApplied > 0 || tradeInCashout > 0);
 
   return (
     <div className="space-y-4">
@@ -159,7 +163,7 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
           </div>
 
           {/* PLUS Cash Advance to Customer (only if cashout exists) */}
-          {cashoutAmount && cashoutAmount > 0 && (
+          {cashoutAmount !== undefined && cashoutAmount > 0 && (
             <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
               <span className="text-base font-semibold text-gray-900">PLUS Cash Advance to Customer</span>
               <span className="text-base font-bold text-blue-600">
