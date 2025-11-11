@@ -36,7 +36,7 @@ type SliderBaselineKey =
   | 'customerAddons';
 
 const DEFAULT_SALE_PRICE = 0;
-const DEFAULT_CASH_DOWN = 5000;
+const DEFAULT_CASH_DOWN = 0;
 
 const DEFAULT_SLIDER_BASELINES: Record<SliderBaselineKey, number> = {
   salePrice: DEFAULT_SALE_PRICE,
@@ -65,6 +65,7 @@ export const CalculatorApp: React.FC = () => {
 
   // Refs
   const locationInputRef = useRef<HTMLInputElement>(null);
+  const dropdownHoverTimeout = useRef<NodeJS.Timeout | null>(null);
 
   // Location & Vehicle State
   const [location, setLocation] = useState('');
@@ -131,11 +132,37 @@ export const CalculatorApp: React.FC = () => {
   });
 
   // Saved Vehicles State (marketplace vehicles from 'vehicles' table)
-  const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
-  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
-  const [isLoadingSavedVehicles, setIsLoadingSavedVehicles] = useState(false);
-  const [showManageVehiclesModal, setShowManageVehiclesModal] = useState(false);
-  const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
+const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
+const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+const [isLoadingSavedVehicles, setIsLoadingSavedVehicles] = useState(false);
+const [showManageVehiclesModal, setShowManageVehiclesModal] = useState(false);
+const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
+
+  const openVehicleDropdown = useCallback(() => {
+    if (dropdownHoverTimeout.current) {
+      clearTimeout(dropdownHoverTimeout.current);
+      dropdownHoverTimeout.current = null;
+    }
+    setShowVehicleDropdown(true);
+  }, []);
+
+  const scheduleCloseVehicleDropdown = useCallback(() => {
+    if (dropdownHoverTimeout.current) {
+      clearTimeout(dropdownHoverTimeout.current);
+    }
+    dropdownHoverTimeout.current = setTimeout(() => {
+      setShowVehicleDropdown(false);
+      dropdownHoverTimeout.current = null;
+    }, 200);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (dropdownHoverTimeout.current) {
+        clearTimeout(dropdownHoverTimeout.current);
+      }
+    };
+  }, []);
 
   // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
   const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
@@ -1216,8 +1243,8 @@ export const CalculatorApp: React.FC = () => {
 
                 <div
                   className="relative"
-                  onMouseEnter={() => setShowVehicleDropdown(true)}
-                  onMouseLeave={() => setShowVehicleDropdown(false)}
+                  onMouseEnter={openVehicleDropdown}
+                  onMouseLeave={scheduleCloseVehicleDropdown}
                 >
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     VIN or Search Saved Vehicles
@@ -1238,6 +1265,7 @@ export const CalculatorApp: React.FC = () => {
                       type="text"
                       value={vin}
                       onChange={(e) => setVin(e.target.value.toUpperCase())}
+                      onFocus={openVehicleDropdown}
                       placeholder="Paste VIN or select saved vehicle..."
                       className={`w-full rounded-lg border py-2 pr-2 pl-12 bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
                         vinError
@@ -1271,7 +1299,11 @@ export const CalculatorApp: React.FC = () => {
 
                   {/* Stored Vehicles Dropdown */}
                   {showVehicleDropdown && (
-                    <div className="absolute z-50 w-full top-full mt-0.5 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                    <div
+                      className="absolute z-50 w-full top-full mt-0.5 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto"
+                      onMouseEnter={openVehicleDropdown}
+                      onMouseLeave={scheduleCloseVehicleDropdown}
+                    >
                       <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">
                           {isLoadingSavedVehicles || isLoadingGarageVehicles
