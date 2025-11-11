@@ -11,6 +11,8 @@ export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputEle
   helperText?: string;
   /** Full width */
   fullWidth?: boolean;
+  /** Custom track gradient */
+  trackGradient?: string;
 }
 
 export const Slider = forwardRef<HTMLInputElement, SliderProps>(
@@ -29,10 +31,12 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
       value,
       defaultValue,
       onChange,
+      trackGradient,
       ...props
     },
     ref
   ) => {
+    const { style: inputStyle, ...restProps } = props;
     const sliderId = id || `slider-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const [internalValue, setInternalValue] = useState(defaultValue || min);
     const currentValue = value !== undefined ? value : internalValue;
@@ -105,9 +109,12 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
               ${className}
             `}
             style={{
-              background: `linear-gradient(to right, #2563eb 0%, #2563eb ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`,
+              background:
+                trackGradient ||
+                `linear-gradient(to right, #2563eb 0%, #2563eb ${percentage}%, #e5e7eb ${percentage}%, #e5e7eb 100%)`,
+              ...inputStyle,
             }}
-            {...props}
+            {...restProps}
           />
         </div>
 

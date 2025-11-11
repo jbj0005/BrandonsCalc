@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Brandon's Calculator - Express Mode</title>
+    <title>Brandon's Calculator</title>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -34,10 +34,10 @@
 
     <!-- OLD HTML BELOW - Hidden but preserved for reference -->
     <!-- App Header with Customer Profile (Hidden - using React) -->
-    <header class="app-header" style="display: none;"></header>
+    <header class="app-header" style="display: none"></header>
 
     <!-- Wizard Container (Hidden - using React) -->
-    <div class="wizard-container" style="display: none;">
+    <div class="wizard-container" style="display: none">
       <!-- Quick Entry Mode (Single Page) -->
       <div class="quick-entry-mode" id="quick-entry-mode">
         <!-- Main Container -->
@@ -198,7 +198,6 @@
                 </select>
               </div>
             </div>
-
           </div>
 
           <!-- Right Column: Live Summary with Sliders -->
@@ -803,109 +802,198 @@
                   <!-- Sale Price -->
                   <div class="quick-item itemization-row quick-item--header">
                     <div class="quick-item-label item-label">Sale Price</div>
-                    <div class="quick-item-value item-value" id="quickCalcSalePrice">
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcSalePrice"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- LESS Cash Down -->
-                  <div class="quick-item itemization-row quick-item--less quick-item--header">
-                    <div class="quick-item-label item-label">LESS Cash Down</div>
-                    <div class="quick-item-value item-value" id="quickCalcCashDown">
+                  <div
+                    class="quick-item itemization-row quick-item--less quick-item--header"
+                  >
+                    <div class="quick-item-label item-label">
+                      LESS Cash Down
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcCashDown"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- LESS Net Trade-In -->
-                  <div class="quick-item itemization-row quick-item--less quick-item--header">
-                    <div class="quick-item-label item-label">LESS Net Trade-In</div>
-                    <div class="quick-item-value item-value" id="quickNetTrade">$0.00</div>
+                  <div
+                    class="quick-item itemization-row quick-item--less quick-item--header"
+                  >
+                    <div class="quick-item-label item-label">
+                      LESS Net Trade-In
+                    </div>
+                    <div class="quick-item-value item-value" id="quickNetTrade">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- Trade Allowance (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label">Trade-In Allowance</div>
-                    <div class="quick-item-value item-value" id="quickCalcTradeAllowance">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div class="quick-item-label item-label">
+                      Trade-In Allowance
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcTradeAllowance"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- Trade Payoff (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label">Trade-In Payoff</div>
-                    <div class="quick-item-value item-value" id="quickCalcTradePayoff">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div class="quick-item-label item-label">
+                      Trade-In Payoff
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcTradePayoff"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- Unpaid Balance -->
                   <div class="quick-item itemization-row quick-item--header">
-                    <div class="quick-item-label item-label">Unpaid Balance</div>
-                    <div class="quick-item-value item-value" id="quickUnpaidBalance">
+                    <div class="quick-item-label item-label">
+                      Unpaid Balance
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickUnpaidBalance"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- PLUS Other Charges -->
-                  <div class="quick-item itemization-row quick-item--plus quick-item--header">
-                    <div class="quick-item-label item-label">PLUS Other Charges</div>
-                    <div class="quick-item-value item-value" id="quickOtherCharges">
+                  <div
+                    class="quick-item itemization-row quick-item--plus quick-item--header"
+                  >
+                    <div class="quick-item-label item-label">
+                      PLUS Other Charges
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickOtherCharges"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- Dealer Fees (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label">Total Dealer Fees</div>
-                    <div class="quick-item-value item-value" id="quickCalcDealerFees">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div class="quick-item-label item-label">
+                      Total Dealer Fees
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcDealerFees"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- Customer Add-ons (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label">Total Customer Add-ons</div>
-                    <div class="quick-item-value item-value" id="quickCalcCustomerAddons">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div class="quick-item-label item-label">
+                      Total Customer Add-ons
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCalcCustomerAddons"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- Gov't Fees (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label">Total Gov't Fees</div>
-                    <div class="quick-item-value item-value" id="quickGovtFees">$0.00</div>
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div class="quick-item-label item-label">
+                      Total Gov't Fees
+                    </div>
+                    <div class="quick-item-value item-value" id="quickGovtFees">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- Sales Tax (Header) -->
-                  <div class="quick-item itemization-row quick-item--plus quick-item--header">
-                    <div class="quick-item-label item-label">PLUS Sales Tax</div>
-                    <div class="quick-item-value item-value" id="quickSaleTaxTotal">
+                  <div
+                    class="quick-item itemization-row quick-item--plus quick-item--header"
+                  >
+                    <div class="quick-item-label item-label">
+                      PLUS Sales Tax
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickSaleTaxTotal"
+                    >
                       $0.00
                     </div>
                   </div>
 
                   <!-- State Tax (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label" id="quickStateTaxLabel">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div
+                      class="quick-item-label item-label"
+                      id="quickStateTaxLabel"
+                    >
                       State Taxes
                     </div>
-                    <div class="quick-item-value item-value" id="quickStateTax">$0.00</div>
+                    <div class="quick-item-value item-value" id="quickStateTax">
+                      $0.00
+                    </div>
                   </div>
 
                   <!-- County Tax (Indented) -->
-                  <div class="quick-item itemization-row quick-item--indent nested">
-                    <div class="quick-item-label item-label" id="quickCountyTaxLabel">
+                  <div
+                    class="quick-item itemization-row quick-item--indent nested"
+                  >
+                    <div
+                      class="quick-item-label item-label"
+                      id="quickCountyTaxLabel"
+                    >
                       County Taxes
                     </div>
-                    <div class="quick-item-value item-value" id="quickCountyTax">
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCountyTax"
+                    >
                       $0.00
                     </div>
-                 </div>
+                  </div>
 
                   <!-- Amount Financed (Total) -->
                   <div class="quick-item itemization-row quick-item--total">
-                    <div class="quick-item-label item-label">AMOUNT FINANCED</div>
-                    <div class="quick-item-value item-value" id="quickAmountFinancedTotal">
+                    <div class="quick-item-label item-label">
+                      AMOUNT FINANCED
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickAmountFinancedTotal"
+                    >
                       $0.00
                     </div>
                   </div>
@@ -920,8 +1008,13 @@
 
                   <!-- Cash Due at Signing -->
                   <div class="quick-item itemization-row quick-item--highlight">
-                    <div class="quick-item-label item-label">Cash Due at Signing</div>
-                    <div class="quick-item-value item-value" id="quickCashDueHighlight">
+                    <div class="quick-item-label item-label">
+                      Cash Due at Signing
+                    </div>
+                    <div
+                      class="quick-item-value item-value"
+                      id="quickCashDueHighlight"
+                    >
                       $0.00
                     </div>
                   </div>
@@ -1073,14 +1166,19 @@
             <h4>Taxes</h4>
           </div>
           <div class="fees-tax-grid">
-            <label class="fees-tax-grid__label" for="modal-state-tax" id="modalStateTaxLabel">
+            <label
+              class="fees-tax-grid__label"
+              for="modal-state-tax"
+              id="modalStateTaxLabel"
+            >
               <span>State Tax Rate</span>
               <span
                 class="tax-override-indicator"
                 id="stateTaxOverrideIndicator"
                 role="status"
                 aria-live="polite"
-              >User Tax Rate</span>
+                >User Tax Rate</span
+              >
             </label>
             <input
               type="number"
@@ -1091,14 +1189,19 @@
               class="form-input"
               value="6.00"
             />
-            <label class="fees-tax-grid__label" for="modal-county-tax" id="modalCountyTaxLabel">
+            <label
+              class="fees-tax-grid__label"
+              for="modal-county-tax"
+              id="modalCountyTaxLabel"
+            >
               <span>County Tax Rate</span>
               <span
                 class="tax-override-indicator"
                 id="countyTaxOverrideIndicator"
                 role="status"
                 aria-live="polite"
-              >User Tax Rate</span>
+                >User Tax Rate</span
+              >
             </label>
             <input
               type="number"
@@ -1127,7 +1230,11 @@
               >$0.00</span
             >
           </div>
-          <p class="fees-summary__link" style="cursor: default" id="taxSourceNote">
+          <p
+            class="fees-summary__link"
+            style="cursor: default"
+            id="taxSourceNote"
+          >
             Taxes are based on your address entered above.
           </p>
         </div>
@@ -1349,9 +1456,15 @@
             <span class="apr-detail-label">Your Custom Rate:</span>
             <span class="apr-detail-value" id="aprConfirmCustomRate">--%</span>
           </div>
-          <div class="apr-detail-row apr-detail-row--diff" id="aprConfirmDiffRow" style="display: none;">
+          <div
+            class="apr-detail-row apr-detail-row--diff"
+            id="aprConfirmDiffRow"
+            style="display: none"
+          >
             <span class="apr-detail-label">Difference:</span>
-            <span class="apr-detail-value apr-detail-diff" id="aprConfirmDiff">--</span>
+            <span class="apr-detail-value apr-detail-diff" id="aprConfirmDiff"
+              >--</span
+            >
           </div>
         </div>
         <div class="apr-confirmation-buttons">
@@ -1563,7 +1676,6 @@
               />
               <small class="form-hint">Your typical down payment amount</small>
             </div>
-            
           </div>
         </div>
 
@@ -1821,7 +1933,9 @@
                 class="form-input"
                 accept="image/*"
               />
-              <small class="form-hint">Optional photo (PNG, JPG, or WebP up to 5 MB)</small>
+              <small class="form-hint"
+                >Optional photo (PNG, JPG, or WebP up to 5 MB)</small
+              >
             </div>
 
             <div class="form-row">
@@ -1925,14 +2039,18 @@
 
         <div class="garage-header">
           <h3 class="modal-title">Edit Vehicle</h3>
-          <p class="modal-description">
-            Update your vehicle information
-          </p>
+          <p class="modal-description">Update your vehicle information</p>
         </div>
 
-        <form id="edit-vehicle-form" class="edit-vehicle-form garage-body" onsubmit="event.preventDefault(); saveEditedVehicle();">
+        <form
+          id="edit-vehicle-form"
+          class="edit-vehicle-form garage-body"
+          onsubmit="event.preventDefault(); saveEditedVehicle();"
+        >
           <div class="form-group">
-            <label class="form-label" for="editNickname">Nickname (Optional)</label>
+            <label class="form-label" for="editNickname"
+              >Nickname (Optional)</label
+            >
             <input
               type="text"
               id="editNickname"
@@ -2024,18 +2142,27 @@
           </div>
 
           <div class="form-group">
-            <label class="form-label" for="editGaragePhoto">Vehicle Photo</label>
+            <label class="form-label" for="editGaragePhoto"
+              >Vehicle Photo</label
+            >
             <input
               type="file"
               id="editGaragePhoto"
               class="form-input"
               accept="image/*"
             />
-            <div class="garage-photo-preview" id="editGaragePhotoExisting" style="display: none">
-              <img id="editGaragePhotoExistingImg" alt="Current vehicle photo" />
+            <div
+              class="garage-photo-preview"
+              id="editGaragePhotoExisting"
+              style="display: none"
+            >
+              <img
+                id="editGaragePhotoExistingImg"
+                alt="Current vehicle photo"
+              />
               <div class="garage-photo-actions">
                 <span>Current photo</span>
-                <label style="display: flex; align-items: center; gap: 0.35rem;">
+                <label style="display: flex; align-items: center; gap: 0.35rem">
                   <input type="checkbox" id="editGarageRemovePhoto" />
                   <span>Remove this photo</span>
                 </label>
@@ -2046,7 +2173,9 @@
 
           <div class="form-row">
             <div class="form-group">
-              <label class="form-label" for="editEstimatedValue">Estimated Value</label>
+              <label class="form-label" for="editEstimatedValue"
+                >Estimated Value</label
+              >
               <input
                 type="text"
                 id="editEstimatedValue"
@@ -2055,7 +2184,9 @@
               />
             </div>
             <div class="form-group">
-              <label class="form-label" for="editPayoffAmount">Payoff Amount</label>
+              <label class="form-label" for="editPayoffAmount"
+                >Payoff Amount</label
+              >
               <input
                 type="text"
                 id="editPayoffAmount"
@@ -2134,7 +2265,8 @@
           </div>
           <h2 class="garage-title">My Saved Vehicles</h2>
           <p class="garage-subtitle">
-            Vehicles you saved from searches - add them to My Garage to use for trade-ins
+            Vehicles you saved from searches - add them to My Garage to use for
+            trade-ins
           </p>
         </div>
 
@@ -2195,289 +2327,288 @@
         <div class="garage-body">
           <div class="garage-header">
             <h2 class="garage-title">Edit Saved Vehicle</h2>
-            <p class="garage-subtitle">Update information for this saved vehicle</p>
+            <p class="garage-subtitle">
+              Update information for this saved vehicle
+            </p>
           </div>
 
           <form id="edit-saved-vehicle-form" class="garage-form">
-          <!-- Vehicle Information -->
-          <div class="form-section">
-            <h3>Vehicle Information</h3>
+            <!-- Vehicle Information -->
+            <div class="form-section">
+              <h3>Vehicle Information</h3>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-year">Year *</label>
-                <input
-                  type="number"
-                  id="edit-vehicle-year"
-                  min="1900"
-                  max="2099"
-                  required
-                  placeholder="2024"
-                />
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-year">Year *</label>
+                  <input
+                    type="number"
+                    id="edit-vehicle-year"
+                    min="1900"
+                    max="2099"
+                    required
+                    placeholder="2024"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-make">Make *</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-make"
+                    required
+                    placeholder="Toyota"
+                  />
+                </div>
               </div>
 
-              <div class="form-group">
-                <label for="edit-vehicle-make">Make *</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-make"
-                  required
-                  placeholder="Toyota"
-                />
-              </div>
-            </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-model">Model *</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-model"
+                    required
+                    placeholder="Camry"
+                  />
+                </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-model">Model *</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-model"
-                  required
-                  placeholder="Camry"
-                />
+                <div class="form-group">
+                  <label for="edit-vehicle-trim">Trim</label>
+                  <input type="text" id="edit-vehicle-trim" placeholder="XLE" />
+                </div>
               </div>
 
-              <div class="form-group">
-                <label for="edit-vehicle-trim">Trim</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-trim"
-                  placeholder="XLE"
-                />
-              </div>
-            </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-vin">VIN</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-vin"
+                    placeholder="1HGBH41JXMN109186"
+                    maxlength="17"
+                    required
+                  />
+                </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-vin">VIN</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-vin"
-                  placeholder="1HGBH41JXMN109186"
-                  maxlength="17"
-                  required
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-mileage">Mileage</label>
-                <input
-                  type="number"
-                  id="edit-vehicle-mileage"
-                  min="0"
-                  placeholder="25000"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Condition & Pricing -->
-          <div class="form-section">
-            <h3>Condition & Pricing</h3>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-condition">Condition</label>
-                <select id="edit-vehicle-condition">
-                  <option value="">Select condition</option>
-                  <option value="new">New</option>
-                  <option value="used">Used</option>
-                  <option value="certified">Certified Pre-Owned</option>
-                </select>
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-asking-price">Asking Price</label>
-                <input
-                  type="number"
-                  id="edit-vehicle-asking-price"
-                  min="0"
-                  step="0.01"
-                  placeholder="25000.00"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Listing Information -->
-          <div class="form-section">
-            <h3>Listing Information</h3>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-heading">Heading</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-heading"
-                  placeholder="Vehicle listing title"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-listing-source">Source</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-listing-source"
-                  placeholder="CarGurus, AutoTrader, etc."
-                />
+                <div class="form-group">
+                  <label for="edit-vehicle-mileage">Mileage</label>
+                  <input
+                    type="number"
+                    id="edit-vehicle-mileage"
+                    min="0"
+                    placeholder="25000"
+                  />
+                </div>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-listing-id">Listing ID</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-listing-id"
-                  placeholder="External listing identifier"
-                />
-              </div>
+            <!-- Condition & Pricing -->
+            <div class="form-section">
+              <h3>Condition & Pricing</h3>
 
-              <div class="form-group">
-                <label for="edit-vehicle-listing-url">Listing URL</label>
-                <input
-                  type="url"
-                  id="edit-vehicle-listing-url"
-                  placeholder="https://..."
-                />
-              </div>
-            </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-condition">Condition</label>
+                  <select id="edit-vehicle-condition">
+                    <option value="">Select condition</option>
+                    <option value="new">New</option>
+                    <option value="used">Used</option>
+                    <option value="certified">Certified Pre-Owned</option>
+                  </select>
+                </div>
 
-            <div class="form-row">
-              <div class="form-group full-width">
-                <label for="edit-vehicle-photo">Photo URL</label>
-                <input
-                  type="url"
-                  id="edit-vehicle-photo"
-                  placeholder="https://example.com/photo.jpg"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Dealer Information -->
-          <div class="form-section">
-            <h3>Dealer Information</h3>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-name">Dealer Name</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-dealer-name"
-                  placeholder="ABC Motors"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-phone">Phone</label>
-                <input
-                  type="tel"
-                  id="edit-vehicle-dealer-phone"
-                  placeholder="(555) 123-4567"
-                />
+                <div class="form-group">
+                  <label for="edit-vehicle-asking-price">Asking Price</label>
+                  <input
+                    type="number"
+                    id="edit-vehicle-asking-price"
+                    min="0"
+                    step="0.01"
+                    placeholder="25000.00"
+                  />
+                </div>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-street">Street Address</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-dealer-street"
-                  placeholder="123 Main St"
-                />
+            <!-- Listing Information -->
+            <div class="form-section">
+              <h3>Listing Information</h3>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-heading">Heading</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-heading"
+                    placeholder="Vehicle listing title"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-listing-source">Source</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-listing-source"
+                    placeholder="CarGurus, AutoTrader, etc."
+                  />
+                </div>
               </div>
 
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-city">City</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-dealer-city"
-                  placeholder="Los Angeles"
-                />
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-listing-id">Listing ID</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-listing-id"
+                    placeholder="External listing identifier"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-listing-url">Listing URL</label>
+                  <input
+                    type="url"
+                    id="edit-vehicle-listing-url"
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group full-width">
+                  <label for="edit-vehicle-photo">Photo URL</label>
+                  <input
+                    type="url"
+                    id="edit-vehicle-photo"
+                    placeholder="https://example.com/photo.jpg"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Dealer Information -->
+            <div class="form-section">
+              <h3>Dealer Information</h3>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-name">Dealer Name</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-dealer-name"
+                    placeholder="ABC Motors"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-phone">Phone</label>
+                  <input
+                    type="tel"
+                    id="edit-vehicle-dealer-phone"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-street">Street Address</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-dealer-street"
+                    placeholder="123 Main St"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-city">City</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-dealer-city"
+                    placeholder="Los Angeles"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-state">State</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-dealer-state"
+                    placeholder="CA"
+                    maxlength="2"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-zip">ZIP Code</label>
+                  <input
+                    type="text"
+                    id="edit-vehicle-dealer-zip"
+                    placeholder="90001"
+                    maxlength="10"
+                  />
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-lat">Latitude</label>
+                  <input
+                    type="number"
+                    id="edit-vehicle-dealer-lat"
+                    step="any"
+                    placeholder="34.0522"
+                  />
+                </div>
+
+                <div class="form-group">
+                  <label for="edit-vehicle-dealer-lng">Longitude</label>
+                  <input
+                    type="number"
+                    id="edit-vehicle-dealer-lng"
+                    step="any"
+                    placeholder="-118.2437"
+                  />
+                </div>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-state">State</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-dealer-state"
-                  placeholder="CA"
-                  maxlength="2"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-zip">ZIP Code</label>
-                <input
-                  type="text"
-                  id="edit-vehicle-dealer-zip"
-                  placeholder="90001"
-                  maxlength="10"
-                />
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-lat">Latitude</label>
-                <input
-                  type="number"
-                  id="edit-vehicle-dealer-lat"
-                  step="any"
-                  placeholder="34.0522"
-                />
-              </div>
-
-              <div class="form-group">
-                <label for="edit-vehicle-dealer-lng">Longitude</label>
-                <input
-                  type="number"
-                  id="edit-vehicle-dealer-lng"
-                  step="any"
-                  placeholder="-118.2437"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- Form Actions -->
-          <div class="garage-form-actions">
-            <button
-              type="button"
-              class="btn btn-secondary"
-              onclick="closeEditSavedVehicleModal()"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              class="btn btn-primary"
-              onclick="saveSavedVehicleChanges()"
-            >
-              <svg
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <!-- Form Actions -->
+            <div class="garage-form-actions">
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick="closeEditSavedVehicleModal()"
               >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="2"
-                  d="M5 13l4 4L19 7"
-                ></path>
-              </svg>
-              Save Changes
-            </button>
-          </div>
-        </form>
-        </div><!-- End garage-body -->
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="btn btn-primary"
+                onclick="saveSavedVehicleChanges()"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M5 13l4 4L19 7"
+                  ></path>
+                </svg>
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+        <!-- End garage-body -->
       </div>
     </div>
 
@@ -2529,17 +2660,53 @@
         <div class="submit-offer-body">
           <!-- Offer Preview -->
           <div class="offer-preview-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 class="section-title" style="margin: 0;">Offer Preview</h3>
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+              "
+            >
+              <h3 class="section-title" style="margin: 0">Offer Preview</h3>
               <button
                 type="button"
                 onclick="closeSubmitOfferModal()"
-                style="padding: 8px 16px; background: linear-gradient(135deg, var(--primary-start), var(--primary-end)); border: none; border-radius: 8px; color: white; font-size: 14px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                style="
+                  padding: 8px 16px;
+                  background: linear-gradient(
+                    135deg,
+                    var(--primary-start),
+                    var(--primary-end)
+                  );
+                  border: none;
+                  border-radius: 8px;
+                  color: white;
+                  font-size: 14px;
+                  font-weight: 500;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  gap: 6px;
+                  transition: all 0.2s;
+                  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+                "
                 onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.15)'"
                 onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'"
               >
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+                <svg
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                  />
                 </svg>
                 Back to Calculator
               </button>
@@ -2555,9 +2722,7 @@
           <div class="profile-section">
             <h3 class="profile-section-title">Your Information</h3>
             <div class="form-group">
-              <label class="form-label" for="submitCustomerName"
-                >Name *</label
-              >
+              <label class="form-label" for="submitCustomerName">Name *</label>
               <input
                 type="text"
                 id="submitCustomerName"
@@ -2596,64 +2761,219 @@
 
           <!-- Dealer Information -->
           <div class="profile-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-              <h3 class="profile-section-title" style="margin: 0;">Dealer Contact</h3>
-              <button type="button" id="toggleDealerEdit" onclick="toggleDealerEditMode()" title="Edit dealer information" style="padding: 6px 10px; font-size: 14px; cursor: pointer; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 4px; display: flex; align-items: center; gap: 4px;">
-                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            <div
+              style="
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 16px;
+              "
+            >
+              <h3 class="profile-section-title" style="margin: 0">
+                Dealer Contact
+              </h3>
+              <button
+                type="button"
+                id="toggleDealerEdit"
+                onclick="toggleDealerEditMode()"
+                title="Edit dealer information"
+                style="
+                  padding: 6px 10px;
+                  font-size: 14px;
+                  cursor: pointer;
+                  background: #f3f4f6;
+                  border: 1px solid #d1d5db;
+                  border-radius: 4px;
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                "
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
                 </svg>
               </button>
             </div>
 
             <!-- View Mode (clickable links) -->
             <div id="dealerViewMode">
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Dealership</label>
-                <div id="dealerNameDisplay" style="font-size: 16px; color: #111827;">—</div>
+              <div class="form-group" style="margin-bottom: 12px">
+                <label
+                  class="form-label"
+                  style="
+                    font-weight: 600;
+                    color: #6b7280;
+                    font-size: 12px;
+                    margin-bottom: 4px;
+                  "
+                  >Dealership</label
+                >
+                <div
+                  id="dealerNameDisplay"
+                  style="font-size: 16px; color: #111827"
+                >
+                  —
+                </div>
               </div>
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Address</label>
-                <div id="dealerAddressDisplay" style="font-size: 14px; color: #374151;">—</div>
+              <div class="form-group" style="margin-bottom: 12px">
+                <label
+                  class="form-label"
+                  style="
+                    font-weight: 600;
+                    color: #6b7280;
+                    font-size: 12px;
+                    margin-bottom: 4px;
+                  "
+                  >Address</label
+                >
+                <div
+                  id="dealerAddressDisplay"
+                  style="font-size: 14px; color: #374151"
+                >
+                  —
+                </div>
               </div>
-              <div class="form-row-2col" style="margin-bottom: 12px;">
+              <div class="form-row-2col" style="margin-bottom: 12px">
                 <div class="form-group">
-                  <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Phone</label>
-                  <a id="dealerPhoneDisplay" href="#" style="font-size: 14px; color: #2563eb; text-decoration: none;">—</a>
+                  <label
+                    class="form-label"
+                    style="
+                      font-weight: 600;
+                      color: #6b7280;
+                      font-size: 12px;
+                      margin-bottom: 4px;
+                    "
+                    >Phone</label
+                  >
+                  <a
+                    id="dealerPhoneDisplay"
+                    href="#"
+                    style="
+                      font-size: 14px;
+                      color: #2563eb;
+                      text-decoration: none;
+                    "
+                    >—</a
+                  >
                 </div>
                 <div class="form-group">
-                  <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Email</label>
-                  <a id="dealerEmailDisplay" href="#" style="font-size: 14px; color: #2563eb; text-decoration: none;">—</a>
+                  <label
+                    class="form-label"
+                    style="
+                      font-weight: 600;
+                      color: #6b7280;
+                      font-size: 12px;
+                      margin-bottom: 4px;
+                    "
+                    >Email</label
+                  >
+                  <a
+                    id="dealerEmailDisplay"
+                    href="#"
+                    style="
+                      font-size: 14px;
+                      color: #2563eb;
+                      text-decoration: none;
+                    "
+                    >—</a
+                  >
                 </div>
               </div>
-              <div class="form-group" style="margin-bottom: 12px;">
-                <label class="form-label" style="font-weight: 600; color: #6b7280; font-size: 12px; margin-bottom: 4px;">Vehicle Listing</label>
-                <a id="dealerUrlDisplay" href="#" target="_blank" style="font-size: 14px; color: #2563eb; text-decoration: none; word-break: break-all;">—</a>
+              <div class="form-group" style="margin-bottom: 12px">
+                <label
+                  class="form-label"
+                  style="
+                    font-weight: 600;
+                    color: #6b7280;
+                    font-size: 12px;
+                    margin-bottom: 4px;
+                  "
+                  >Vehicle Listing</label
+                >
+                <a
+                  id="dealerUrlDisplay"
+                  href="#"
+                  target="_blank"
+                  style="
+                    font-size: 14px;
+                    color: #2563eb;
+                    text-decoration: none;
+                    word-break: break-all;
+                  "
+                  >—</a
+                >
               </div>
             </div>
 
             <!-- Edit Mode (inputs) -->
-            <div id="dealerEditMode" style="display: none;">
+            <div id="dealerEditMode" style="display: none">
               <div class="form-group">
-                <label class="form-label" for="submitDealershipName">Dealership Name</label>
-                <input type="text" id="submitDealershipName" class="form-input" placeholder="ABC Motors" />
+                <label class="form-label" for="submitDealershipName"
+                  >Dealership Name</label
+                >
+                <input
+                  type="text"
+                  id="submitDealershipName"
+                  class="form-input"
+                  placeholder="ABC Motors"
+                />
               </div>
               <div class="form-group">
-                <label class="form-label" for="submitDealerAddress">Address</label>
-                <input type="text" id="submitDealerAddress" class="form-input" placeholder="123 Main St, City, ST 12345" />
+                <label class="form-label" for="submitDealerAddress"
+                  >Address</label
+                >
+                <input
+                  type="text"
+                  id="submitDealerAddress"
+                  class="form-input"
+                  placeholder="123 Main St, City, ST 12345"
+                />
               </div>
               <div class="form-row-2col">
                 <div class="form-group">
-                  <label class="form-label" for="submitDealerPhone">Phone</label>
-                  <input type="tel" id="submitDealerPhone" class="form-input" placeholder="(555) 987-6543" />
+                  <label class="form-label" for="submitDealerPhone"
+                    >Phone</label
+                  >
+                  <input
+                    type="tel"
+                    id="submitDealerPhone"
+                    class="form-input"
+                    placeholder="(555) 987-6543"
+                  />
                 </div>
                 <div class="form-group">
-                  <label class="form-label" for="submitDealerEmail">Email</label>
-                  <input type="email" id="submitDealerEmail" class="form-input" placeholder="dealer@example.com" />
+                  <label class="form-label" for="submitDealerEmail"
+                    >Email</label
+                  >
+                  <input
+                    type="email"
+                    id="submitDealerEmail"
+                    class="form-input"
+                    placeholder="dealer@example.com"
+                  />
                 </div>
               </div>
               <div class="form-group">
-                <label class="form-label" for="submitVehicleUrl">Vehicle Listing URL</label>
-                <input type="url" id="submitVehicleUrl" class="form-input" placeholder="https://..." />
+                <label class="form-label" for="submitVehicleUrl"
+                  >Vehicle Listing URL</label
+                >
+                <input
+                  type="url"
+                  id="submitVehicleUrl"
+                  class="form-input"
+                  placeholder="https://..."
+                />
               </div>
             </div>
           </div>
@@ -2818,15 +3138,29 @@
         </div>
 
         <!-- Sending Progress Indicator (hidden by default) -->
-        <div id="offer-send-progress" class="offer-send-progress" style="display: none;">
+        <div
+          id="offer-send-progress"
+          class="offer-send-progress"
+          style="display: none"
+        >
           <div class="progress-messages">
-            <div class="progress-message" id="progress-sms" style="display: none;">
+            <div
+              class="progress-message"
+              id="progress-sms"
+              style="display: none"
+            >
               <span class="progress-icon">📱</span>
               <span id="progress-sms-text">Sending SMS to dealer...</span>
             </div>
-            <div class="progress-message" id="progress-email" style="display: none;">
+            <div
+              class="progress-message"
+              id="progress-email"
+              style="display: none"
+            >
               <span class="progress-icon">📧</span>
-              <span id="progress-email-text">Sending email confirmation...</span>
+              <span id="progress-email-text"
+                >Sending email confirmation...</span
+              >
             </div>
           </div>
           <div class="progress-bar-container">
@@ -3211,29 +3545,43 @@
     </div>
 
     <!-- Email Handshake Modal -->
-    <div id="email-handshake-modal" class="modal modal--handshake" style="display: none">
+    <div
+      id="email-handshake-modal"
+      class="modal modal--handshake"
+      style="display: none"
+    >
       <div class="modal-overlay"></div>
       <div class="modal-content handshake-modal">
         <div class="handshake-icon" id="emailHandshakeIcon"></div>
-        <h3 class="handshake-title" id="emailHandshakeTitle">Sending email...</h3>
+        <h3 class="handshake-title" id="emailHandshakeTitle">
+          Sending email...
+        </h3>
         <p class="handshake-message" id="emailHandshakeMessage">
           We’re preparing your offer and sending it via Twilio SendGrid.
         </p>
         <div class="handshake-progress">
-          <div class="handshake-progress__bar" id="emailHandshakeProgress"></div>
+          <div
+            class="handshake-progress__bar"
+            id="emailHandshakeProgress"
+          ></div>
         </div>
         <div class="handshake-actions" id="emailHandshakeActions"></div>
       </div>
     </div>
 
     <!-- Dev Send Mode Modal -->
-    <div id="send-mode-modal" class="modal send-mode-modal" style="display: none">
+    <div
+      id="send-mode-modal"
+      class="modal send-mode-modal"
+      style="display: none"
+    >
       <div class="modal-overlay"></div>
       <div class="modal-content send-mode-modal__content">
         <div class="send-mode-modal__icon">🧪</div>
         <h3 class="send-mode-modal__title">Choose Send Mode</h3>
         <p class="send-mode-modal__message" id="sendModeMessage">
-          Dev environment detected. Send this message as a simulation or via Twilio?
+          Dev environment detected. Send this message as a simulation or via
+          Twilio?
         </p>
         <div class="send-mode-modal__actions">
           <button type="button" class="btn btn-secondary" id="sendModeDevBtn">
@@ -3262,8 +3610,14 @@
     </div>
 
     <!-- JavaScript -->
-    <script type="module" src="/src/features/vehicles/saved-vehicles-cache.js"></script>
-    <script type="module" src="/src/features/vehicles/marketcheck-cache.js"></script>
+    <script
+      type="module"
+      src="/src/features/vehicles/saved-vehicles-cache.js"
+    ></script>
+    <script
+      type="module"
+      src="/src/features/vehicles/marketcheck-cache.js"
+    ></script>
     <!-- Old vanilla JS - disabled in favor of React app -->
     <!-- <script type="module" src="app.js"></script> -->
     <script type="module" src="/src/main.tsx"></script>

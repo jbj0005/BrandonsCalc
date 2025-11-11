@@ -161,6 +161,7 @@ export interface Database {
           preferred_lender_id: string | null
           preferred_term: number | null
           credit_score_range: string | null
+          display_preferences: Json | null
           created_at: string
           updated_at: string
           last_used_at: string | null
@@ -186,6 +187,7 @@ export interface Database {
           preferred_lender_id?: string | null
           preferred_term?: number | null
           credit_score_range?: string | null
+          display_preferences?: Json | null
           created_at?: string
           updated_at?: string
           last_used_at?: string | null
@@ -211,6 +213,7 @@ export interface Database {
           preferred_lender_id?: string | null
           preferred_term?: number | null
           credit_score_range?: string | null
+          display_preferences?: Json | null
           created_at?: string
           updated_at?: string
           last_used_at?: string | null
@@ -463,6 +466,47 @@ export interface Database {
           sent_at?: string
           delivered_at?: string | null
           created_at?: string
+        }
+      }
+      county_surtax_windows: {
+        Row: {
+          id: string
+          county_fips: string | null
+          state_code: string
+          county_name: string
+          component_label: 'total' | 'component'
+          rate_decimal: number
+          effective_date: string
+          expiration_date: string | null
+          source_file: string | null
+          source_version: string | null
+          inserted_at: string
+        }
+        Insert: {
+          id?: string
+          county_fips?: string | null
+          state_code: string
+          county_name: string
+          component_label: 'total' | 'component'
+          rate_decimal?: number
+          effective_date: string
+          expiration_date?: string | null
+          source_file?: string | null
+          source_version?: string | null
+          inserted_at?: string
+        }
+        Update: {
+          id?: string
+          county_fips?: string | null
+          state_code?: string
+          county_name?: string
+          component_label?: 'total' | 'component'
+          rate_decimal?: number
+          effective_date?: string
+          expiration_date?: string | null
+          source_file?: string | null
+          source_version?: string | null
+          inserted_at?: string
         }
       }
     }

@@ -32,6 +32,8 @@ export interface UserProfileDropdownProps {
   onRemoveSavedVehicle?: (vehicle: any) => void;
   onSignOut?: () => void;
   onSignIn?: () => void;
+  onOpenDisplayPreferences?: () => void;
+  onOpenMyOffers?: () => void;
   supabase: SupabaseClient | null;
   isDirty?: boolean;
 }
@@ -63,6 +65,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   onRemoveSavedVehicle,
   onSignOut,
   onSignIn,
+  onOpenDisplayPreferences,
+  onOpenMyOffers,
   supabase,
   isDirty = false,
 }) => {
@@ -338,6 +342,30 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   </svg>
                 </div>
               </button>
+
+              {/* Display Preferences Button */}
+              {onOpenDisplayPreferences && (
+                <button
+                  onClick={() => {
+                    onOpenDisplayPreferences();
+                    onClose();
+                  }}
+                  className="w-full p-4 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-purple-50/50 transition-all duration-200 flex items-center gap-4 border-b border-gray-200/50"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-md">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm text-gray-900">Display Preferences</div>
+                    <div className="text-xs text-gray-500">Customize what you see</div>
+                  </div>
+                  <svg className="ml-auto w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              )}
 
               {/* Sign In/Out Button */}
               <div className="p-5 border-t border-gray-200/50 bg-white/50">
@@ -628,6 +656,21 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
               </button>
 
               <h4 className="text-lg font-semibold text-gray-900">Saved Vehicles</h4>
+
+              {onOpenMyOffers && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  fullWidth
+                  onClick={() => {
+                    onOpenMyOffers();
+                    onClose();
+                    setActiveSection(null);
+                  }}
+                >
+                  View My Offers
+                </Button>
+              )}
 
               {savedVehicles.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">

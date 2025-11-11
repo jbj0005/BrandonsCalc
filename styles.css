@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6328,7 +6328,7 @@ body {
 }
 
 .saved-vehicle-action-icon::before {
-  content: '';
+  content: "";
   position: absolute;
   bottom: 100%;
   left: 50%;
@@ -8853,7 +8853,7 @@ input[type="text"][placeholder*="vin" i],
 label[for*="vin" i],
 .vin-label,
 .vin-display {
-  font-family: 'IBM Plex Mono', 'Courier New', monospace !important;
+  font-family: "IBM Plex Mono", "Courier New", monospace !important;
   letter-spacing: 0.15em !important;
   text-transform: uppercase !important;
   font-weight: 500 !important;
@@ -8865,7 +8865,7 @@ input[id*="vin" i],
 input[placeholder*="VIN" i],
 input[type="text"][placeholder*="vin" i] {
   font-size: 0.95em;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.5rem 0.5rem 3rem;
 }
 
 /* VIN label specific styles */
@@ -8886,14 +8886,14 @@ label[for*="vin" i],
 /* Tailwind utility classes for VIN */
 @layer utilities {
   .font-vin {
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-family: "IBM Plex Mono", "Courier New", monospace;
     letter-spacing: 0.15em;
     text-transform: uppercase;
     font-weight: 500;
   }
 
   .font-vin-compact {
-    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    font-family: "IBM Plex Mono", "Courier New", monospace;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     font-weight: 500;

@@ -6,6 +6,8 @@ export interface PlaceDetails {
   city: string;
   state: string;
   stateCode: string;
+  county: string;
+  countyName: string;
   zipCode: string;
   country: string;
   lat: number;
@@ -88,11 +90,17 @@ export const useGoogleMapsAutocomplete = (
         return component ? component[nameType] : '';
       };
 
+      // Extract county name and normalize (remove "County" or "Parish" suffix for database lookup)
+      const countyRaw = getComponent('administrative_area_level_2');
+      const countyNormalized = countyRaw.replace(/\s+(County|Parish)$/i, '').trim();
+
       const placeDetails: PlaceDetails = {
         address: place.formatted_address || '',
         city: getComponent('locality') || getComponent('sublocality'),
         state: getComponent('administrative_area_level_1'),
         stateCode: getComponent('administrative_area_level_1', 'short_name'),
+        county: countyNormalized,
+        countyName: countyRaw,
         zipCode: getComponent('postal_code'),
         country: getComponent('country'),
         lat: place.geometry.location?.lat() || 0,

@@ -55,9 +55,9 @@ CREATE TABLE IF NOT EXISTS customer_offers (
 );
 
 -- Create index for faster queries
-CREATE INDEX idx_customer_offers_profile ON customer_offers(customer_profile_id);
-CREATE INDEX idx_customer_offers_status ON customer_offers(status);
-CREATE INDEX idx_customer_offers_submitted ON customer_offers(submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_profile ON customer_offers(customer_profile_id);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_status ON customer_offers(status);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_submitted ON customer_offers(submitted_at DESC);
 
 -- Enable Row Level Security
 ALTER TABLE customer_offers ENABLE ROW LEVEL SECURITY;

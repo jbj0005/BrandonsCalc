@@ -4,6 +4,7 @@ import { Input } from './Input';
 import { Select } from './Select';
 import { Button } from './Button';
 import { FormGroup } from './FormGroup';
+import { Checkbox } from './Checkbox';
 import { useToast } from './Toast';
 import type { Vehicle, GarageVehicle } from '../../types';
 import { formatCurrencyInput, formatCurrencyValue } from '../../utils/formatters';
@@ -24,6 +25,8 @@ export interface VehicleEditorModalProps {
   onSave?: (vehicle: Partial<Vehicle | GarageVehicle>) => Promise<void>;
   /** Mode: add or edit */
   mode?: 'add' | 'edit';
+  /** Use as trade-in handler */
+  onUseAsTradeIn?: (vehicle: GarageVehicle) => void;
 }
 
 /**
@@ -35,9 +38,11 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   vehicle,
   onSave,
   mode = vehicle ? 'edit' : 'add',
+  onUseAsTradeIn,
 }) => {
   const [loading, setLoading] = useState(false);
   const toast = useToast();
+  const [useAsTradeIn, setUseAsTradeIn] = useState(false);
 
   // Form state
   const [nickname, setNickname] = useState('');
@@ -209,11 +214,16 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   // Fetch fresh MarketCheck data for VIN
   const fetchFreshMarketCheckData = async (vinToFetch: string): Promise<any | null> => {
     try {
-      const freshData = await marketCheckCache.lookupVIN(vinToFetch, { force: true });
-      if (freshData) {
-        return freshData;
+      const response: any = await marketCheckCache.getVehicleData(vinToFetch, {
+        forceRefresh: true,
+        zip: '32901',
+        radius: 100,
+        pick: 'all',
+      });
+      if (response?.listing) {
+        return response.listing;
       }
-      return null;
+      return response ?? null;
     } catch (error) {
       console.error('Error fetching fresh MarketCheck data:', error);
       return null;
@@ -533,8 +543,10 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
 
         {/* Equity Display (if both values provided) */}
         {estimatedValue && payoffAmount && (() => {
-          const estimatedNumeric = parseCurrencyString(estimatedValue);
-          const payoffNumeric = parseCurrencyString(payoffAmount);
+          const estimatedNumeric =
+            parseFloat(estimatedValue.replace(/[^0-9.-]/g, '')) || 0;
+          const payoffNumeric =
+            parseFloat(payoffAmount.replace(/[^0-9.-]/g, '')) || 0;
           if (!estimatedNumeric && !payoffNumeric) return null;
           const equity = estimatedNumeric - payoffNumeric;
           return (
@@ -570,6 +582,34 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
             rows={3}
           />
         </FormGroup>
+
+        {/* Use as Trade-In Checkbox (only for editing garage vehicles) */}
+        {mode === 'edit' && onUseAsTradeIn && (
+          <div className="pt-4 border-t border-gray-200">
+            <Checkbox
+              label="Use this vehicle as my trade-in"
+              checked={useAsTradeIn}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setUseAsTradeIn(checked);
+
+                if (checked && vehicle) {
+                  // Trigger trade-in auto-fill
+                  onUseAsTradeIn(vehicle as GarageVehicle);
+
+                  toast.push({
+                    kind: 'success',
+                    title: 'Trade-In Set',
+                    detail: 'Trade allowance and payoff have been populated',
+                  });
+                }
+              }}
+            />
+            <p className="text-xs text-gray-500 mt-1 ml-6">
+              Auto-fills trade allowance ({formatCurrencyValue(vehicle?.estimated_value || 0)}) and payoff ({formatCurrencyValue(vehicle?.payoff_amount || 0)})
+            </p>
+          </div>
+        )}
 
         {/* Action Buttons */}
         <div className="flex gap-3 pt-4 border-t border-gray-200">

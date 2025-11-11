@@ -1,175 +1,419 @@
-import React, { useState } from 'react';
-import { Modal } from '../ui/components/Modal';
-import { Button } from '../ui/components/Button';
-import { Input } from '../ui/components/Input';
-import { Card } from '../ui/components/Card';
-import { submitLead, generateOfferText, type LeadData } from '../services/leadSubmission';
-import { useToast } from '../ui/components/Toast';
-import { formatPhoneNumber } from '../utils/formatters';
+import React, { useState, useEffect } from 'react';
+import { Modal, Card, Button, Input, Checkbox } from '../ui/components';
+import { generateOfferText, type LeadData } from '../services/leadSubmission';
+import { useProfile } from '../hooks/useProfile';
+import { supabase } from '../lib/supabase';
+import { formatPhoneNumber, formatCurrencyExact } from '../utils/formatters';
 
 export interface OfferPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   leadData: LeadData;
-  onSuccess?: (offerId: string) => void;
+  onSubmit: (data: LeadData) => void;
+  onDevSubmit?: (data: LeadData) => void;
 }
 
+interface DetailRowProps {
+  label: string;
+  value: React.ReactNode;
+  bold?: boolean;
+}
+
+const DetailRow: React.FC<DetailRowProps> = ({ label, value, bold = false }) => (
+  <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
+    <span className="text-sm text-gray-600">{label}</span>
+    <span className={`text-sm text-gray-900 ${bold ? 'font-bold text-base' : ''}`}>
+      {value}
+    </span>
+  </div>
+);
+
+/**
+ * OfferPreviewModal - Preview and submit vehicle offer
+ *
+ * New layout with:
+ * - Customer Offer Hero (sale price)
+ * - Vehicle Details (with stock #)
+ * - Financing Details
+ * - Customer Contact (auto-filled from profile)
+ * - Submit button (triggers progress modal)
+ */
 export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   isOpen,
   onClose,
   leadData,
-  onSuccess,
+  onSubmit,
+  onDevSubmit,
 }) => {
-  const toast = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [customerName, setCustomerName] = useState(leadData.customerName || '');
-  const [customerEmail, setCustomerEmail] = useState(leadData.customerEmail || '');
-  const [customerPhone, setCustomerPhone] = useState(
-    formatPhoneNumber(leadData.customerPhone || '')
-  );
+  // Get current user for profile loading
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const offerText = generateOfferText(leadData);
-
-  const handleSubmit = async () => {
-    // Basic validation
-    if (!customerName.trim()) {
-      toast.push({ kind: 'error', title: 'Name Required', detail: 'Please enter your name' });
-      return;
-    }
-
-    if (!customerEmail.trim() || !customerEmail.includes('@')) {
-      toast.push({ kind: 'error', title: 'Valid Email Required', detail: 'Please enter a valid email address' });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      // Update lead data with customer info
-      const updatedLeadData: LeadData = {
-        ...leadData,
-        customerName,
-        customerEmail,
-        customerPhone,
-        offerText,
-      };
-
-      const result = await submitLead(updatedLeadData);
-
-      if (result.ok && result.offerId) {
-        toast.push({
-          kind: 'success',
-          title: 'Offer Submitted!',
-          detail: 'Your offer has been saved successfully',
-        });
-        onSuccess?.(result.offerId);
-        onClose();
-      } else {
-        toast.push({
-          kind: 'error',
-          title: 'Submission Failed',
-          detail: result.error || 'Failed to submit offer',
-        });
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUserId(session.user.id);
+        setUserEmail(session.user.email || null);
       }
-    } catch (error: any) {
-      console.error('[OfferPreview] Submit error:', error);
-      toast.push({
-        kind: 'error',
-        title: 'Unexpected Error',
-        detail: error.message || 'An unexpected error occurred',
-      });
-    } finally {
-      setIsSubmitting(false);
+    };
+    if (isOpen) {
+      getUser();
+    }
+  }, [isOpen]);
+
+  // Load user profile
+  const { profile, isLoading: profileLoading } = useProfile({
+    supabase,
+    userId,
+    userEmail,
+    autoLoad: true
+  });
+
+  // Customer info state
+  const [useProfileData, setUseProfileData] = useState(true);
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [saveToProfile, setSaveToProfile] = useState(false);
+
+  // Dealer contact info state (for sending offer to specific salesman)
+  const [dealerEmail, setDealerEmail] = useState('');
+  const [dealerPhone, setDealerPhone] = useState('');
+
+  // Auto-fill from profile when loaded
+  useEffect(() => {
+    if (profile && useProfileData && isOpen) {
+      setCustomerName(profile.full_name || '');
+      setCustomerEmail(profile.email || userEmail || '');
+      setCustomerPhone(formatPhoneNumber(profile.phone || ''));
+
+      // Build address string from components
+      const addressParts = [
+        profile.street_address,
+        profile.city,
+        profile.state,
+        profile.zip_code
+      ].filter(Boolean);
+      setCustomerAddress(addressParts.join(', '));
+    }
+  }, [profile, useProfileData, isOpen, userEmail]);
+
+  // Auto-fill dealer contact from leadData when modal opens
+  useEffect(() => {
+    if (isOpen && leadData) {
+      setDealerEmail(leadData.dealerEmail || '');
+      setDealerPhone(formatPhoneNumber(leadData.dealerPhone || ''));
+    }
+  }, [isOpen, leadData]);
+
+  // Validation
+  const isValid = customerName.trim() && customerEmail.trim() && customerEmail.includes('@');
+
+  // Format currency helper
+  const formatCurrency = (value?: number): string => {
+    if (!value) return '$0.00';
+    return formatCurrencyExact(value);
+  };
+
+  // Vehicle info string
+  const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
+
+  // Handle submit
+  const handleSubmit = () => {
+    if (!isValid) return;
+
+    // Generate offer text
+    const offerText = generateOfferText({
+      ...leadData,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerAddress,
+      dealerEmail,
+      dealerPhone
+    });
+
+    // Trigger submission with updated data
+    onSubmit({
+      ...leadData,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerAddress,
+      dealerEmail,
+      dealerPhone,
+      offerText
+    });
+  };
+
+  const handleDevSubmit = () => {
+    if (!isValid || !onDevSubmit) return;
+
+    const offerText = generateOfferText({
+      ...leadData,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerAddress,
+      dealerEmail,
+      dealerPhone
+    });
+
+    onDevSubmit({
+      ...leadData,
+      customerName,
+      customerEmail,
+      customerPhone,
+      customerAddress,
+      dealerEmail,
+      dealerPhone,
+      offerText
+    });
+  };
+
+  // Toggle profile usage
+  const handleToggleProfile = () => {
+    setUseProfileData(!useProfileData);
+    if (useProfileData) {
+      // Switching off - clear fields
+      setCustomerName('');
+      setCustomerEmail(userEmail || '');
+      setCustomerPhone('');
+      setCustomerAddress('');
     }
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title="Preview Your Offer"
-    >
-      <div className="space-y-6">
-        {/* Offer Preview */}
-        <Card padding="md">
-          <h3 className="text-lg font-semibold mb-3 text-gray-900">Offer Summary</h3>
-          <pre className="bg-gray-50 p-4 rounded-lg text-sm font-mono overflow-x-auto whitespace-pre-wrap border border-gray-200">
-            {offerText}
-          </pre>
-        </Card>
-
-        {/* Customer Information Form */}
-        <Card padding="md">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900">Your Information</h3>
-          <div className="space-y-4">
-            <Input
-              label="Full Name *"
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="John Doe"
-              required
-            />
-            <Input
-              label="Email Address *"
-              type="email"
-              value={customerEmail}
-              onChange={(e) => setCustomerEmail(e.target.value)}
-              placeholder="john.doe@example.com"
-              required
-            />
-            <Input
-              label="Phone Number"
-              type="tel"
-              value={customerPhone}
-              onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
-              placeholder="(555) 123-4567"
-            />
+    <Modal isOpen={isOpen} onClose={onClose} size="xl">
+      <div className="max-h-[80vh] overflow-y-auto">
+        {/* 1. Customer Offer Hero */}
+        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-8 rounded-t-xl text-center -mt-6 -mx-6 mb-6">
+          <div className="text-sm font-medium mb-2 opacity-90">Your Offer</div>
+          <div className="text-5xl font-bold mb-2">
+            {formatCurrency(leadData.vehiclePrice)}
           </div>
-        </Card>
+          {vehicleInfo && (
+            <div className="text-base opacity-90">{vehicleInfo}</div>
+          )}
+        </div>
 
-        {/* Action Buttons */}
-        <div className="flex justify-end gap-3">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-          >
-            {isSubmitting ? (
-              <>
-                <svg
-                  className="animate-spin -ml-1 mr-2 h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
+        <div className="space-y-4 px-1">
+          {/* 2. Vehicle Details Card */}
+          <Card padding="md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vehicle Details</h3>
+            <div className="space-y-1">
+              <DetailRow
+                label="Year / Make / Model"
+                value={vehicleInfo || 'Not specified'}
+              />
+              {leadData.vehicleTrim && (
+                <DetailRow label="Trim" value={leadData.vehicleTrim} />
+              )}
+              {leadData.vehicleVIN && (
+                <DetailRow
+                  label="VIN"
+                  value={
+                    <span className="font-mono text-xs tracking-wider">
+                      {leadData.vehicleVIN}
+                    </span>
+                  }
+                />
+              )}
+              {leadData.vehicleMileage && (
+                <DetailRow
+                  label="Mileage"
+                  value={`${leadData.vehicleMileage.toLocaleString()} miles`}
+                />
+              )}
+              {leadData.vehicleCondition && (
+                <DetailRow
+                  label="Condition"
+                  value={leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}
+                />
+              )}
+              <DetailRow
+                label="Stock #"
+                value={
+                  leadData.stockNumber ? (
+                    <span className="font-mono">{leadData.stockNumber}</span>
+                  ) : (
+                    <span className="text-gray-400 italic">Not Available</span>
+                  )
+                }
+              />
+            </div>
+          </Card>
+
+          {/* 3. Financing Details Card */}
+          <Card padding="md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Financing Details</h3>
+            <div className="space-y-1">
+              <DetailRow
+                label="Monthly Payment"
+                value={formatCurrency(leadData.monthlyPayment)}
+                bold
+              />
+              {leadData.apr && (
+                <DetailRow label="APR" value={`${leadData.apr.toFixed(2)}%`} />
+              )}
+              {leadData.termMonths && (
+                <DetailRow
+                  label="Term"
+                  value={`${leadData.termMonths} months (${(leadData.termMonths / 12).toFixed(1)} years)`}
+                />
+              )}
+              {leadData.downPayment !== undefined && (
+                <DetailRow label="Down Payment" value={formatCurrency(leadData.downPayment)} />
+              )}
+              {leadData.dealerFees !== undefined && (
+                <DetailRow label="Dealer Fees" value={formatCurrency(leadData.dealerFees)} />
+              )}
+              {leadData.customerAddons !== undefined && (
+                <DetailRow label="Customer Add-ons" value={formatCurrency(leadData.customerAddons)} />
+              )}
+            </div>
+          </Card>
+
+          {/* 4. Dealer Contact (Optional) */}
+          <Card padding="md">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Send to Dealer (Optional)</h3>
+            <p className="text-sm text-gray-600 mb-4">Enter dealer/salesman contact to send offer directly</p>
+            <div className="space-y-4">
+              <Input
+                label="Dealer Email"
+                type="email"
+                value={dealerEmail}
+                onChange={(e) => setDealerEmail(e.target.value)}
+                placeholder="salesman@dealer.com"
+              />
+              <Input
+                label="Dealer Phone"
+                type="tel"
+                value={dealerPhone}
+                onChange={(e) => setDealerPhone(formatPhoneNumber(e.target.value))}
+                placeholder="(555) 123-4567"
+              />
+            </div>
+          </Card>
+
+          {/* 5. Customer Contact Information Card */}
+          <Card padding="md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Your Contact Information</h3>
+              {profile && (
+                <button
+                  onClick={handleToggleProfile}
+                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
+                  type="button"
                 >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Submitting...
-              </>
+                  {useProfileData ? '✓ Using my profile' : 'Use my profile'}
+                </button>
+              )}
+            </div>
+
+            {profileLoading ? (
+              <div className="text-center py-4 text-gray-500">Loading profile...</div>
             ) : (
-              'Submit Offer'
+              <div className="space-y-4">
+                <Input
+                  label="Full Name *"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="John Doe"
+                  required
+                />
+                <Input
+                  label="Email Address *"
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="john.doe@example.com"
+                  required
+                />
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
+                  placeholder="(555) 123-4567"
+                />
+                <Input
+                  label="Address"
+                  value={customerAddress}
+                  onChange={(e) => setCustomerAddress(e.target.value)}
+                  placeholder="123 Main St, City, State, ZIP"
+                />
+
+                {!useProfileData && profile && (
+                  <Checkbox
+                    label="Update my profile with these changes"
+                    checked={saveToProfile}
+                    onChange={(e) => setSaveToProfile(e.target.checked)}
+                  />
+                )}
+              </div>
             )}
-          </Button>
+          </Card>
+
+          {/* 6. Notification Destinations - Show where offer will be sent */}
+          {(dealerEmail || dealerPhone) && (
+            <Card padding="md" className="bg-blue-50 border-blue-200">
+              <div className="flex items-start gap-3">
+                <div className="text-2xl">📧</div>
+                <div className="flex-1">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                    Your offer will be sent to the dealer:
+                  </h3>
+                  <div className="space-y-1.5 text-sm text-blue-800">
+                    {dealerEmail && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Email:</span>
+                        <span className="font-mono bg-white/50 px-2 py-0.5 rounded">{dealerEmail}</span>
+                      </div>
+                    )}
+                    {dealerPhone && (
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Phone:</span>
+                        <span className="font-mono bg-white/50 px-2 py-0.5 rounded">{dealerPhone}</span>
+                        <span className="text-xs text-blue-600">(SMS if available)</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* 7. Submit Buttons */}
+          <div className="pt-4 pb-2 space-y-3">
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              onClick={handleSubmit}
+              disabled={!isValid}
+            >
+              Submit Offer
+            </Button>
+            {onDevSubmit && (
+              <Button
+                variant="secondary"
+                size="lg"
+                fullWidth
+                onClick={handleDevSubmit}
+                disabled={!isValid}
+                title="Submit without sending email/SMS (dev testing)"
+              >
+                Dev Submit
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </Modal>
   );
 };
+
+export default OfferPreviewModal;

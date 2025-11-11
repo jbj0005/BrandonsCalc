@@ -36,6 +36,7 @@ export interface UserProfile {
   preferred_lender_id?: string;
   preferred_term?: number;
   credit_score_range?: string;
+  display_preferences?: DisplayPreferences;
 
   created_at: string;
   updated_at: string;
@@ -43,6 +44,67 @@ export interface UserProfile {
 }
 
 export type CreditScore = 'excellent' | 'good' | 'fair' | 'poor';
+
+// ========================================
+// Display Preferences Types
+// ========================================
+export interface VehicleCardFieldPreferences {
+  // Core fields
+  year: boolean;
+  make: boolean;
+  model: boolean;
+  trim: boolean;
+
+  // Financial fields
+  askingPrice: boolean;
+  estimatedValue: boolean;
+  payoffAmount: boolean;
+
+  // Detail fields
+  vin: boolean;
+  mileage: boolean;
+  condition: boolean;
+
+  // Dealer fields (saved vehicles only)
+  dealerName: boolean;
+  dealerCity: boolean;
+  dealerState: boolean;
+  dealerPhone: boolean;
+}
+
+export interface OfferSectionPreferences {
+  showTradeInSection: boolean;
+  showFeesSection: boolean;
+}
+
+export interface DisplayPreferences {
+  selectedVehicleCard: VehicleCardFieldPreferences;
+  previewOffer: OfferSectionPreferences;
+}
+
+// Default display preferences (essentials only)
+export const DEFAULT_DISPLAY_PREFERENCES: DisplayPreferences = {
+  selectedVehicleCard: {
+    year: true,
+    make: true,
+    model: true,
+    trim: true,
+    askingPrice: true,
+    estimatedValue: false,
+    vin: true,
+    mileage: false,
+    condition: false,
+    payoffAmount: false,
+    dealerName: false,
+    dealerCity: false,
+    dealerState: false,
+    dealerPhone: false,
+  },
+  previewOffer: {
+    showTradeInSection: false,
+    showFeesSection: false,
+  },
+};
 
 // ========================================
 // Vehicle Types
@@ -195,19 +257,48 @@ export interface CalculatorState {
   tradePayoff: number;
   apr: number;
   term: number;
-  
+
   // Fees
   dealerFees: number;
   customerAddons: number;
   stateTaxRate: number;
   countyTaxRate: number;
-  
+
+  // Tax Location (for display purposes)
+  stateName?: string;
+  countyName?: string;
+
   // Calculated Values
   monthlyPayment: number;
   totalFinanced: number;
   financeCharge: number;
   totalOfPayments: number;
   totalTax: number;
+}
+
+// ========================================
+// Tax Types
+// ========================================
+export interface TaxLocation {
+  stateName: string;
+  stateCode: string;
+  countyName: string;
+  stateTaxRate: number;
+  countyTaxRate: number;
+}
+
+export interface CountySurtaxWindow {
+  id: string;
+  county_fips?: string;
+  state_code: string;
+  county_name: string;
+  component_label: 'total' | 'component';
+  rate_decimal: number;
+  effective_date: string;
+  expiration_date?: string;
+  source_file?: string;
+  source_version?: string;
+  inserted_at: string;
 }
 
 // ========================================

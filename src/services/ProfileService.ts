@@ -5,6 +5,8 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
+import type { DisplayPreferences } from '../types';
+import { DEFAULT_DISPLAY_PREFERENCES } from '../types';
 
 export interface ProfileData {
   id?: string;
@@ -23,6 +25,7 @@ export interface ProfileData {
   preferred_credit_score?: string | null;
   credit_score_range?: string | null;
   preferred_down_payment?: number | null;
+  display_preferences?: DisplayPreferences | null;
   created_at?: string;
   updated_at?: string;
   last_used_at?: string | null;
@@ -137,6 +140,70 @@ export class ProfileService {
     } catch (error) {
       console.error('[ProfileService] Error touching profile:', error);
       // Non-critical, don't throw
+    }
+  }
+
+  /**
+   * Load display preferences from profile
+   * Returns DEFAULT_DISPLAY_PREFERENCES if none are set
+   */
+  async loadDisplayPreferences(userId: string): Promise<DisplayPreferences> {
+    try {
+      const profile = await this.loadProfile(userId);
+
+      if (!profile || !profile.display_preferences) {
+        return DEFAULT_DISPLAY_PREFERENCES;
+      }
+
+      // Merge with defaults to ensure all fields exist
+      return {
+        selectedVehicleCard: {
+          ...DEFAULT_DISPLAY_PREFERENCES.selectedVehicleCard,
+          ...(profile.display_preferences as any).selectedVehicleCard,
+        },
+        previewOffer: {
+          ...DEFAULT_DISPLAY_PREFERENCES.previewOffer,
+          ...(profile.display_preferences as any).previewOffer,
+        },
+      };
+    } catch (error) {
+      console.error('[ProfileService] Error loading display preferences:', error);
+      return DEFAULT_DISPLAY_PREFERENCES;
+    }
+  }
+
+  /**
+   * Save display preferences to profile
+   */
+  async saveDisplayPreferences(
+    userId: string,
+    preferences: DisplayPreferences
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('customer_profiles')
+        .upsert(
+          {
+            user_id: userId,
+            display_preferences: preferences as any,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: 'user_id',
+          }
+        );
+
+      if (error) throw error;
+
+      // Emit display-preferences-updated event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('display-preferences-updated', { detail: preferences })
+        );
+      }
+    } catch (error) {
+      console.error('[ProfileService] Error saving display preferences:', error);
+      throw error;
     }
   }
 

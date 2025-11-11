@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
 import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
 import { useProfile } from './hooks/useProfile';
+import { useTilBaselines, type TilDiff } from './hooks/useTilBaselines';
 import { fetchLenderRates, calculateAPR, creditScoreToValue, type LenderRate } from './services/lenderRates';
 import { DealerMap } from './components/DealerMap';
 import { OfferPreviewModal } from './components/OfferPreviewModal';
-import type { LeadData } from './services/leadSubmission';
+import type { LeadData, SubmissionProgress } from './services/leadSubmission';
+import { submitOfferWithProgress } from './services/leadSubmission';
+import { lookupTaxRates } from './services/taxRatesService';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
@@ -23,6 +26,32 @@ import authManager from './features/auth/auth-manager';
 // @ts-ignore - TS module
 import { supabase } from './lib/supabase';
 
+type SliderBaselineKey =
+  | 'salePrice'
+  | 'cashDown'
+  | 'tradeAllowance'
+  | 'tradePayoff'
+  | 'dealerFees'
+  | 'customerAddons';
+
+const DEFAULT_SALE_PRICE = 30000;
+const DEFAULT_CASH_DOWN = 5000;
+
+const DEFAULT_SLIDER_BASELINES: Record<SliderBaselineKey, number> = {
+  salePrice: DEFAULT_SALE_PRICE,
+  cashDown: DEFAULT_CASH_DOWN,
+  tradeAllowance: 0,
+  tradePayoff: 0,
+  dealerFees: 0,
+  customerAddons: 0,
+};
+
+declare global {
+  interface Window {
+    sliderOriginalValues?: Partial<Record<SliderBaselineKey, number>>;
+  }
+}
+
 /**
  * CalculatorApp - Main auto loan calculator application
  *
@@ -31,6 +60,7 @@ import { supabase } from './lib/supabase';
  */
 export const CalculatorApp: React.FC = () => {
   const toast = useToast();
+  const { baselines, diffs, updateBaselines, resetBaselines, calculateDiffs } = useTilBaselines();
 
   // Refs
   const locationInputRef = useRef<HTMLInputElement>(null);
@@ -45,9 +75,55 @@ export const CalculatorApp: React.FC = () => {
 
   // Google Maps Autocomplete
   const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(locationInputRef as React.RefObject<HTMLInputElement>, {
-    onPlaceSelected: (place: PlaceDetails) => {
+    onPlaceSelected: async (place: PlaceDetails) => {
       setLocation(place.address);
       setLocationDetails(place);
+
+      // Lookup tax rates based on location (cached for 90 days)
+      if (place.stateCode && place.county && place.state) {
+        console.log(`[CalculatorApp] Looking up tax rates for ${place.stateCode}/${place.county}`);
+
+        try {
+          const taxData = await lookupTaxRates(place.stateCode, place.county, place.state);
+
+          if (taxData) {
+            // Only update if tax rate wasn't manually set by user
+            if (!isTaxRateManuallySet) {
+              setStateTaxRate(taxData.stateTaxRate);
+              setCountyTaxRate(taxData.countyTaxRate);
+              setStateName(taxData.stateName);
+              setCountyName(taxData.countyName);
+
+              toast.push({
+                kind: 'success',
+                title: 'Tax Rates Updated',
+                detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`,
+              });
+            }
+          } else {
+            // No tax data found
+            console.warn(`[CalculatorApp] No tax rates found for ${place.stateCode}/${place.county}`);
+
+            toast.push({
+              kind: 'warning',
+              title: 'Tax Rates Not Found',
+              detail: `No tax data available for ${place.state}, ${place.countyName}. Using current rates. You can adjust manually below.`,
+            });
+
+            // Still update the location names for display
+            setStateName(place.state);
+            setCountyName(place.county);
+          }
+        } catch (error) {
+          console.error('[CalculatorApp] Error looking up tax rates:', error);
+
+          toast.push({
+            kind: 'error',
+            title: 'Tax Lookup Error',
+            detail: 'Failed to retrieve tax rates. Using current rates.',
+          });
+        }
+      }
     },
     types: ['address'],
     componentRestrictions: { country: 'us' },
@@ -94,6 +170,20 @@ export const CalculatorApp: React.FC = () => {
   const [showOfferPreviewModal, setShowOfferPreviewModal] = useState(false);
   const [leadDataForSubmission, setLeadDataForSubmission] = useState<LeadData>({});
 
+  // Submission Progress Modal State
+  const [showProgressModal, setShowProgressModal] = useState(false);
+  const [progressStage, setProgressStage] = useState<SubmissionProgress['stage']>('validating');
+  const [progressPercent, setProgressPercent] = useState(0);
+  const [progressError, setProgressError] = useState<string | undefined>(undefined);
+  const [submittedOfferId, setSubmittedOfferId] = useState<string | undefined>(undefined);
+
+  // My Offers Modal State
+  const [showMyOffersModal, setShowMyOffersModal] = useState(false);
+  const [highlightOfferId, setHighlightOfferId] = useState<string | undefined>(undefined);
+
+  // APR Confirmation Modal State
+  const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
+
   // User Profile Dropdown State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
@@ -122,19 +212,57 @@ export const CalculatorApp: React.FC = () => {
   const [isLoadingRates, setIsLoadingRates] = useState(false);
 
   // Slider State (all in dollars except term)
-  const [salePrice, setSalePrice] = useState(30000);
-  const [cashDown, setCashDown] = useState(5000);
+  const [salePrice, setSalePrice] = useState(DEFAULT_SALE_PRICE);
+  const [cashDown, setCashDown] = useState(DEFAULT_CASH_DOWN);
   const [tradeAllowance, setTradeAllowance] = useState(0);
   const [tradePayoff, setTradePayoff] = useState(0);
   const [dealerFees, setDealerFees] = useState(0);
   const [customerAddons, setCustomerAddons] = useState(0);
+  const [sliderBaselines, setSliderBaselines] = useState<Record<SliderBaselineKey, number>>(DEFAULT_SLIDER_BASELINES);
+  const updateSliderBaseline = useCallback((key: SliderBaselineKey, value: number) => {
+    setSliderBaselines((prev) => {
+      const previousValue = prev[key];
+      if (Math.abs(previousValue - value) < 0.0001) {
+        return prev;
+      }
+      const next = { ...prev, [key]: value };
+      return next;
+    });
+    if (typeof window !== 'undefined') {
+      window.sliderOriginalValues = {
+        ...(window.sliderOriginalValues || {}),
+        [key]: value,
+      };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.sliderOriginalValues = { ...sliderBaselines };
+    }
+  }, [sliderBaselines]);
 
   // Calculated values
   const [apr, setApr] = useState(5.99);
+  const [lenderBaselineApr, setLenderBaselineApr] = useState<number | null>(null);
   const [monthlyPayment, setMonthlyPayment] = useState(0);
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
   const [totalOfPayments, setTotalOfPayments] = useState(0);
+
+  // Tax State (FL defaults)
+  const [stateTaxRate, setStateTaxRate] = useState(6.0); // 6% FL state tax
+  const [countyTaxRate, setCountyTaxRate] = useState(1.0); // 1% FL surtax
+  const [stateTaxAmount, setStateTaxAmount] = useState(0);
+  const [countyTaxAmount, setCountyTaxAmount] = useState(0);
+  const [totalTaxes, setTotalTaxes] = useState(0);
+  const [stateName, setStateName] = useState<string>('Florida');
+  const [countyName, setCountyName] = useState<string>('');
+  const [isTaxRateManuallySet, setIsTaxRateManuallySet] = useState(false);
+
+  // Additional calculated values
+  const [unpaidBalance, setUnpaidBalance] = useState(0);
+  const [cashDue, setCashDue] = useState(0);
 
   // Lender options from config/lenders.json
   const lenderOptions: SelectOption[] = [
@@ -167,6 +295,27 @@ export const CalculatorApp: React.FC = () => {
     { value: 'fair', label: 'Fair (650-699)' },
     { value: 'poor', label: 'Building Credit (< 650)' },
   ];
+
+  const FEATURE_FLAGS = {
+    autoPopulateSalePrice: true,
+    useTradeValueForGarageSalePrice: true,
+    defaultVehicleCondition: 'new' as 'new' | 'used',
+    rebaseTilOnVehicleSelection: true,
+  };
+
+  const parseNumericValue = (value: any): number | null => {
+    if (value == null) return null;
+    if (typeof value === 'number') {
+      return Number.isFinite(value) ? value : null;
+    }
+    const cleaned = String(value).replace(/[^0-9.-]/g, '');
+    const numeric = Number(cleaned);
+    return Number.isFinite(numeric) ? numeric : null;
+  };
+
+  const rebaseTilBaselines = () => {
+    resetBaselines();
+  };
 
   // Fetch lender rates when lender changes
   useEffect(() => {
@@ -205,13 +354,15 @@ export const CalculatorApp: React.FC = () => {
 
     if (calculatedAPR !== null) {
       setApr(calculatedAPR);
+      // Store lender's recommended APR as baseline for comparison
+      setLenderBaselineApr(calculatedAPR);
     }
   }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
 
   // Calculate loan on any change
   useEffect(() => {
     calculateLoan();
-  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr]);
+  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate]);
 
   // Auto-populate location from profile when profile loads
   useEffect(() => {
@@ -239,14 +390,19 @@ export const CalculatorApp: React.FC = () => {
         geocoder.geocode({ address: addressString }, (results, status) => {
           if (status === 'OK' && results && results[0]) {
             const place = results[0];
-            setLocationDetails({
+            const inferredPlace: PlaceDetails = {
               address: addressString,
               city: profile.city || '',
-              state: profile.state_code || '',
-              zip: profile.zip_code || '',
+              state: profile.state || profile.state_code || '',
+              stateCode: profile.state_code || '',
+              zipCode: profile.zip_code || '',
+              country: 'United States',
+              county: profile.county || '',
+              countyName: profile.county_name || '',
               lat: place.geometry.location.lat(),
               lng: place.geometry.location.lng(),
-            } as PlaceDetails);
+            };
+            setLocationDetails(inferredPlace);
           }
         });
       }
@@ -255,13 +411,15 @@ export const CalculatorApp: React.FC = () => {
 
   // Auto-populate down payment from profile when vehicle is selected
   useEffect(() => {
-    if (!profile || !selectedVehicle || !profile.preferred_down_payment) return;
+    if (!profile || !selectedVehicle || profile.preferred_down_payment == null) return;
+    const preferredDown = parseNumericValue(profile.preferred_down_payment);
+    if (preferredDown == null) return;
 
-    // Only auto-fill if cash down is at default (5000 is the default)
-    if (cashDown === 5000) {
-      setCashDown(profile.preferred_down_payment);
+    if (Math.abs(cashDown - DEFAULT_CASH_DOWN) < 1) {
+      setCashDown(preferredDown);
+      updateSliderBaseline('cashDown', preferredDown);
     }
-  }, [profile, selectedVehicle, cashDown]);
+  }, [profile, selectedVehicle, cashDown, updateSliderBaseline]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -369,11 +527,31 @@ export const CalculatorApp: React.FC = () => {
   }, [currentUser, supabase]);
 
   const calculateLoan = () => {
-    // Calculate amount financed
-    const totalPrice = salePrice + dealerFees + customerAddons;
-    const downPayment = cashDown + (tradeAllowance - tradePayoff);
+    // Calculate net trade equity
+    const netTradeEquity = tradeAllowance - tradePayoff;
+
+    // Calculate unpaid balance (before fees/taxes)
+    const unpaid = salePrice - cashDown - netTradeEquity;
+    setUnpaidBalance(unpaid);
+
+    // Calculate taxes (FL tax law)
+    const taxableBase = (salePrice - netTradeEquity) + dealerFees + customerAddons;
+    const stateTax = taxableBase * (stateTaxRate / 100);
+    const countyTax = Math.min(taxableBase, 5000) * (countyTaxRate / 100); // FL caps county tax at $5k
+    const totalTax = stateTax + countyTax;
+
+    setStateTaxAmount(stateTax);
+    setCountyTaxAmount(countyTax);
+    setTotalTaxes(totalTax);
+
+    // Calculate amount financed (includes fees and taxes)
+    const totalPrice = salePrice + dealerFees + customerAddons + totalTax;
+    const downPayment = cashDown + netTradeEquity;
     const financed = totalPrice - downPayment;
     setAmountFinanced(financed);
+
+    // Calculate cash due at signing (for now, just cash down - will expand later)
+    setCashDue(cashDown);
 
     if (financed <= 0 || apr <= 0 || loanTerm <= 0) {
       setMonthlyPayment(0);
@@ -394,23 +572,23 @@ export const CalculatorApp: React.FC = () => {
     const total = payment * loanTerm;
     setTotalOfPayments(total);
     setFinanceCharge(total - financed);
+
+    // Update TIL baselines and calculate diffs
+    const tilValues = {
+      apr: apr / 100, // Convert to decimal for hook
+      term: loanTerm,
+      financeCharge: total - financed,
+      amountFinanced: financed,
+      totalPayments: total,
+      monthlyFinanceCharge: loanTerm > 0 ? (total - financed) / loanTerm : 0,
+    };
+    updateBaselines(tilValues);
+    calculateDiffs(tilValues);
   };
 
-  const handleSubmit = () => {
-    // Check if user is authenticated
-    if (!currentUser) {
-      toast.push({
-        kind: 'warning',
-        title: 'Sign In Required',
-        detail: 'Please sign in to save and submit your offer',
-      });
-      setAuthMode('signin');
-      setShowAuthModal(true);
-      return;
-    }
-
-    // Build lead data from current calculator state
-    const leadData: LeadData = {
+  // Helper to prepare lead data from calculator state
+  const prepareLeadData = (): LeadData => {
+    return {
       // Vehicle details
       vehicleYear: selectedVehicle?.year || undefined,
       vehicleMake: selectedVehicle?.make || undefined,
@@ -447,36 +625,198 @@ export const CalculatorApp: React.FC = () => {
         ? `${selectedVehicle.year || ''} ${selectedVehicle.make || ''} ${selectedVehicle.model || ''}`.trim()
         : 'Vehicle Offer',
     };
+  };
 
+  const handleSubmit = () => {
+    // Check if user is authenticated
+    if (!currentUser) {
+      toast.push({
+        kind: 'warning',
+        title: 'Sign In Required',
+        detail: 'Please sign in to save and submit your offer',
+      });
+      setAuthMode('signin');
+      setShowAuthModal(true);
+      return;
+    }
+
+    const leadData = prepareLeadData();
     setLeadDataForSubmission(leadData);
+
+    // Check for APR override before showing offer preview
+    if (lenderBaselineApr !== null && Math.abs(apr - lenderBaselineApr) >= 0.01) {
+      // User has overridden the APR - show confirmation modal
+      setShowAprConfirmModal(true);
+    } else {
+      // No override or no baseline - proceed directly to offer preview
+      setShowOfferPreviewModal(true);
+    }
+  };
+
+  // APR Confirmation Modal handlers
+  const handleResetToLenderApr = () => {
+    if (lenderBaselineApr !== null) {
+      setApr(lenderBaselineApr);
+      toast.push({
+        kind: 'info',
+        title: 'APR Reset',
+        detail: `Reset to lender rate: ${lenderBaselineApr.toFixed(2)}%`,
+      });
+    }
+    setShowAprConfirmModal(false);
     setShowOfferPreviewModal(true);
   };
 
-  const filterBySearch = (vehicle: any) => {
-    if (!vin) return true;
-    const searchTerm = vin.toLowerCase();
-    const vehicleText = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.trim || ''} ${vehicle.vin || ''}`.toLowerCase();
-    return vehicleText.includes(searchTerm);
+  const handleKeepCustomApr = () => {
+    setShowAprConfirmModal(false);
+    setShowOfferPreviewModal(true);
   };
 
-  const filteredSavedVehicles = savedVehicles.filter(filterBySearch);
-  const filteredGarageVehicles = garageVehicles.filter(filterBySearch);
+  // Handle offer submission with progress tracking
+  const handleOfferSubmitWithProgress = async (leadData: LeadData, devMode: boolean = false) => {
+    // Close preview modal, open progress modal
+    setShowOfferPreviewModal(false);
+    setShowProgressModal(true);
+    setProgressError(undefined);
+    setSubmittedOfferId(undefined);
+
+    // Add devMode flag to leadData
+    const submissionData = { ...leadData, devMode };
+
+    // Submit with progress callbacks
+    const result = await submitOfferWithProgress(submissionData, (update: SubmissionProgress) => {
+      setProgressStage(update.stage);
+      setProgressPercent(update.progress);
+      if (update.error) {
+        setProgressError(update.error);
+      }
+      if (update.offerId) {
+        setSubmittedOfferId(update.offerId);
+      }
+    });
+
+    if (result.ok && result.offerId) {
+      // Success - keep progress modal open to show complete state
+      setSubmittedOfferId(result.offerId);
+      setHighlightOfferId(result.offerId);
+    } else {
+      // Error - show error in progress modal
+      setProgressError(result.error || 'Failed to submit offer');
+    }
+  };
+
+  // Handle "View My Offers" button from success modal
+  const handleViewMyOffers = () => {
+    setShowProgressModal(false);
+    setShowMyOffersModal(true);
+  };
+
+  const filteredSavedVehicles = savedVehicles;
+  const filteredGarageVehicles = garageVehicles;
   const totalStoredVehicles = savedVehicles.length + garageVehicles.length;
-  const filteredStoredCount = filteredSavedVehicles.length + filteredGarageVehicles.length;
+  const filteredStoredCount = totalStoredVehicles;
+
+  const isGarageSelectedVehicle =
+    selectedVehicle?.__source === 'garage';
+
+  const getVehicleSalePrice = (vehicle: any): number | null => {
+    if (!vehicle) return null;
+    if (vehicle.__source === 'garage') {
+      return parseNumericValue(vehicle.estimated_value) ?? null;
+    }
+    return (
+      parseNumericValue(vehicle.price) ??
+      parseNumericValue(vehicle.asking_price) ??
+      parseNumericValue(vehicle.list_price) ??
+      parseNumericValue(vehicle.sale_price) ??
+      parseNumericValue(vehicle.msrp) ??
+      parseNumericValue(vehicle.estimated_value) ??
+      null
+    );
+  };
+
+  const selectedVehicleSaleValue = selectedVehicle ? getVehicleSalePrice(selectedVehicle) : null;
+
+  const baselineSalePrice = sliderBaselines.salePrice;
+
+  const selectedVehicleSaleLabel =
+    isGarageSelectedVehicle
+      ? 'Trade Value'
+      : 'Sale Price';
+
+  const saleValueColor = isGarageSelectedVehicle
+    ? 'text-blue-600'
+    : 'text-green-600';
+
+  const selectedVehicleMileage =
+    selectedVehicle?.mileage ?? selectedVehicle?.miles ?? null;
+
+  const selectedVehiclePayoff = isGarageSelectedVehicle
+    ? parseNumericValue(selectedVehicle?.payoff_amount)
+    : null;
+
+  const formatCurrencyWithCents = (value: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(value);
+  };
+
+  const renderTilStatCard = ({
+    label,
+    value,
+    helper,
+    diff,
+    highlight = false,
+  }: {
+    label: string;
+    value: string;
+    helper: string;
+    diff?: TilDiff | null;
+    highlight?: boolean;
+  }) => (
+    <div
+      className={`rounded-2xl border p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] transition-all duration-200 ${
+        highlight ? 'bg-blue-50 border-blue-100' : 'bg-white border-blue-50'
+      } hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus:border-blue-300 focus:outline-none cursor-default`}
+      tabIndex={0}
+    >
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-3xl font-bold text-blue-600 tracking-tight">{value}</div>
+      {diff && diff.isSignificant && (
+        <div className={`text-xs font-semibold mt-1 ${diff.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+          {diff.isPositive ? '↓' : '↑'} {diff.formatted}
+        </div>
+      )}
+      <div className="mt-2 text-xs text-slate-500">{helper}</div>
+    </div>
+  );
 
   // Handle selecting a saved vehicle from dropdown
   const handleSelectSavedVehicle = (vehicle: any) => {
-    setSelectedVehicle(vehicle);
+    setSelectedVehicle({ ...vehicle, __source: 'saved' });
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
+    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+    rebaseTilBaselines();
 
-    // Populate form with vehicle data
-    if (vehicle.estimated_value) {
-      setSalePrice(vehicle.estimated_value);
+    const saleValue = getVehicleSalePrice(vehicle);
+    if (saleValue != null) {
+      setSalePrice(saleValue);
+      updateSliderBaseline('salePrice', saleValue);
     }
-    if (vehicle.payoff_amount) {
-      setTradePayoff(vehicle.payoff_amount);
+
+    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? null;
+    if (payoffValue !== null) {
+      setTradePayoff(payoffValue);
+      updateSliderBaseline('tradePayoff', payoffValue);
     }
+
+    // Note: calculateLoan() will be called automatically by useEffect when salePrice updates
 
     toast.push({
       kind: 'success',
@@ -486,16 +826,27 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const handleSelectGarageVehicle = (vehicle: any) => {
-    setSelectedVehicle(vehicle);
+    setSelectedVehicle({ ...vehicle, __source: 'garage' });
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
+    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+    rebaseTilBaselines();
 
-    if (vehicle.estimated_value != null) {
-      setTradeAllowance(Number(vehicle.estimated_value) || 0);
+    const tradeValue = parseNumericValue(vehicle.estimated_value) ?? 0;
+    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? 0;
+
+    if (FEATURE_FLAGS.autoPopulateSalePrice && FEATURE_FLAGS.useTradeValueForGarageSalePrice) {
+      setSalePrice(tradeValue);
+      updateSliderBaseline('salePrice', tradeValue);
     }
-    if (vehicle.payoff_amount != null) {
-      setTradePayoff(Number(vehicle.payoff_amount) || 0);
-    }
+
+    setTradeAllowance(tradeValue);
+    updateSliderBaseline('tradeAllowance', tradeValue);
+
+    setTradePayoff(payoffValue);
+    updateSliderBaseline('tradePayoff', payoffValue);
+
+    // Note: calculateLoan() will be called automatically by useEffect when state updates
 
     toast.push({
       kind: 'success',
@@ -505,7 +856,7 @@ export const CalculatorApp: React.FC = () => {
   };
 
   // Handle edit vehicle from VIN dropdown
-  const handleEditVehicle = (e: React.MouseEvent, vehicle: any) => {
+  const handleEditVehicle = (e: React.MouseEvent | React.KeyboardEvent, vehicle: any) => {
     e.stopPropagation(); // Prevent vehicle selection
     setVehicleToEdit(vehicle);
     setShowManageVehiclesModal(true);
@@ -608,12 +959,15 @@ export const CalculatorApp: React.FC = () => {
       }) as any;
 
       if (result && result.listing) {
-        setSelectedVehicle(result.listing);
+        setSelectedVehicle({ ...result.listing, __source: 'market' });
+        rebaseTilBaselines();
 
-        // Pre-fill sale price from vehicle
-        if (result.listing.price) {
-          setSalePrice(result.listing.price);
+        const saleValue = getVehicleSalePrice(result.listing);
+        if (saleValue != null) {
+          setSalePrice(saleValue);
+          updateSliderBaseline('salePrice', saleValue);
         }
+        setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
 
         toast.push({
           kind: 'success',
@@ -707,17 +1061,17 @@ export const CalculatorApp: React.FC = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-4">
 
         {/* Main Grid - Left column (inputs) + Right column (summary) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* LEFT COLUMN: Inputs (2/3 width) */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4">
 
             {/* Location & Vehicle Section */}
-            <Card variant="elevated" padding="lg" className="overflow-visible">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            <Card variant="elevated" padding="md" className="overflow-visible transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-3">
                 Location & Vehicle
               </h2>
 
@@ -739,7 +1093,11 @@ export const CalculatorApp: React.FC = () => {
                   fullWidth
                 />
 
-                <div>
+                <div
+                  className="relative"
+                  onMouseEnter={() => setShowVehicleDropdown(true)}
+                  onMouseLeave={() => setShowVehicleDropdown(false)}
+                >
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     VIN or Search Saved Vehicles
                   </label>
@@ -759,9 +1117,8 @@ export const CalculatorApp: React.FC = () => {
                       type="text"
                       value={vin}
                       onChange={(e) => setVin(e.target.value.toUpperCase())}
-                      onFocus={() => setShowVehicleDropdown(true)}
                       placeholder="Paste VIN or select saved vehicle..."
-                      className={`w-full rounded-lg border py-2 pl-[2.75rem] pr-[2.75rem] bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
+                      className={`w-full rounded-lg border py-2 pr-2 pl-12 bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
                         vinError
                           ? 'border-red-500 focus:ring-red-500'
                           : selectedVehicle && !isLoadingVIN
@@ -793,7 +1150,7 @@ export const CalculatorApp: React.FC = () => {
 
                   {/* Stored Vehicles Dropdown */}
                   {showVehicleDropdown && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
+                    <div className="absolute z-50 w-full top-full mt-0.5 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto">
                       <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
                         <span className="text-sm font-medium text-gray-700">
                           {isLoadingSavedVehicles || isLoadingGarageVehicles
@@ -826,16 +1183,15 @@ export const CalculatorApp: React.FC = () => {
                         <div className="divide-y">
                           {filteredGarageVehicles.length > 0 && (
                             <div>
-                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
+                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-blue-900 bg-blue-50 font-semibold">
                                 My Garage
                               </div>
                               {filteredGarageVehicles.map((vehicle) => (
-                                <button
+                                <div
                                   key={vehicle.id}
-                                  onClick={() => handleSelectGarageVehicle(vehicle)}
-                                  className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
+                                  className="p-3 hover:bg-blue-50 transition-colors"
                                 >
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-between gap-2">
                                     <div className="flex-1">
                                       <div className="font-semibold text-gray-900">
                                         {vehicle.year} {vehicle.make} {vehicle.model}
@@ -851,32 +1207,41 @@ export const CalculatorApp: React.FC = () => {
                                         {vehicle.payoff_amount ? ` • Payoff: ${formatCurrency(vehicle.payoff_amount)}` : ''}
                                       </div>
                                     </div>
-                                    <div
-                                      onClick={(e) => handleEditVehicle(e, vehicle)}
-                                      className="ml-2 p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                                      title="Edit vehicle"
-                                      role="button"
-                                      tabIndex={0}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          handleEditVehicle(e, vehicle);
-                                        }
-                                      }}
-                                    >
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
+                                    <div className="flex items-center gap-2">
+                                      <button
+                                        onClick={() => handleSelectGarageVehicle(vehicle)}
+                                        className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
+                                        title="Use as trade-in"
+                                      >
+                                        Trade-In
+                                      </button>
+                                      <div
+                                        onClick={(e) => handleEditVehicle(e, vehicle)}
+                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                        title="Edit vehicle"
+                                        role="button"
+                                        tabIndex={0}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            handleEditVehicle(e, vehicle);
+                                          }
+                                        }}
+                                      >
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      </div>
                                     </div>
                                   </div>
-                                </button>
+                                </div>
                               ))}
                             </div>
                           )}
 
                           {filteredSavedVehicles.length > 0 && (
                             <div>
-                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-gray-500 bg-gray-50">
+                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-blue-900 bg-blue-50 font-semibold">
                                 Saved Vehicles
                               </div>
                               {filteredSavedVehicles.map((vehicle) => (
@@ -971,6 +1336,7 @@ export const CalculatorApp: React.FC = () => {
                         onClick={() => {
                           setSelectedVehicle(null);
                           setVin('');
+                          rebaseTilBaselines();
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700"
                       >
@@ -981,11 +1347,14 @@ export const CalculatorApp: React.FC = () => {
                       {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
                       {selectedVehicle.trim && ` - ${selectedVehicle.trim}`}
                     </h3>
-                    {selectedVehicle.price && (
-                      <div className="text-3xl font-bold text-green-600 mb-3">
-                        ${selectedVehicle.price.toLocaleString()}
+                    <div className="mb-3">
+                      <div className="text-xs font-semibold uppercase text-gray-500 tracking-wide">
+                        {selectedVehicleSaleLabel || 'Sale Price'}
                       </div>
-                    )}
+                      <div className={`text-3xl font-bold ${saleValueColor}`}>
+                        {formatCurrency(selectedVehicleSaleValue ?? baselineSalePrice ?? 0)}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       {selectedVehicle.vin && (
                         <div className="bg-gray-50 p-2 rounded">
@@ -993,10 +1362,22 @@ export const CalculatorApp: React.FC = () => {
                           <div className="font-mono font-semibold">{selectedVehicle.vin}</div>
                         </div>
                       )}
-                      {selectedVehicle.miles && (
+                      {selectedVehicleMileage != null && (
                         <div className="bg-gray-50 p-2 rounded">
                           <div className="text-gray-600 text-xs">MILEAGE</div>
-                          <div className="font-semibold">{selectedVehicle.miles.toLocaleString()} miles</div>
+                          <div className="font-semibold">
+                            {Number(selectedVehicleMileage).toLocaleString()} miles
+                          </div>
+                        </div>
+                      )}
+                      {isGarageSelectedVehicle && (
+                        <div className="bg-gray-50 p-2 rounded">
+                          <div className="text-gray-600 text-xs">Payoff Amount</div>
+                          <div className="font-semibold">
+                            {selectedVehiclePayoff != null
+                              ? formatCurrency(selectedVehiclePayoff)
+                              : '—'}
+                          </div>
                         </div>
                       )}
                       {selectedVehicle.dealer_name && (
@@ -1034,8 +1415,8 @@ export const CalculatorApp: React.FC = () => {
             </Card>
 
             {/* Financing Details Section */}
-            <Card variant="elevated" padding="lg">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-6">
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-3">
                 Financing Details
               </h2>
 
@@ -1082,9 +1463,9 @@ export const CalculatorApp: React.FC = () => {
           {/* RIGHT COLUMN: Summary (1/3 width, sticky) */}
           <div className="lg:col-span-1">
             <div className="sticky top-6">
-              <Card variant="elevated" padding="lg">
+              <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
                 {/* Monthly Payment Hero */}
-                <div className="text-center mb-6 p-6 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                <div className="text-center mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
                   <div className="text-sm font-medium text-gray-600 mb-2">
                     Estimated Monthly Payment
                   </div>
@@ -1097,77 +1478,98 @@ export const CalculatorApp: React.FC = () => {
                 </div>
 
                 {/* Truth-in-Lending Disclosures */}
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">
-                    Truth-in-Lending Disclosures
-                  </h3>
+                <div className="space-y-3">
+                  <div className="rounded-[32px] border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-4 shadow-inner transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+                    <h3 className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-600 mb-3">
+                      Truth-in-Lending Disclosures
+                    </h3>
 
-                  {/* APR with +/- controls */}
-                  <EnhancedControl
-                    value={apr}
-                    label="Annual Percentage Rate"
-                    onChange={(newApr) => setApr(parseFloat(newApr.toFixed(2)))}
-                    step={0.01}
-                    min={0}
-                    max={99.99}
-                    formatValue={(val) => `${val.toFixed(2)}%`}
-                  />
-                  <div className="text-xs text-gray-500 text-center mt-1">
-                    Cost of credit as yearly rate
-                  </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-fr">
+                      {/* APR with +/- controls */}
+                      <div className="rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none">
+                        <EnhancedControl
+                          value={apr}
+                          label="Annual Percentage Rate"
+                          onChange={(newApr) => setApr(parseFloat(newApr.toFixed(2)))}
+                          step={0.01}
+                          min={0}
+                          max={99.99}
+                          formatValue={(val) => `${val.toFixed(2)}%`}
+                          monthlyPayment={monthlyPayment}
+                          baselinePayment={baselines.totalPayments && baselines.term ? baselines.totalPayments / baselines.term : undefined}
+                          className="w-full"
+                          showKeyboardHint={false}
+                          unstyled={true}
+                        />
+                        {diffs.apr && diffs.apr.isSignificant && (
+                          <div className={`text-xs font-semibold mt-2 ${diffs.apr.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                            {diffs.apr.isPositive ? '↓' : '↑'} {diffs.apr.formatted}
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-slate-500">Cost of credit as yearly rate</div>
+                      </div>
 
-                  {/* Term with +/- controls */}
-                  <EnhancedControl
-                    value={loanTerm}
-                    label="Term (Months)"
-                    onChange={(newTerm) => {
-                      const terms = [36, 48, 60, 72, 84];
-                      // Find closest term
-                      const closest = terms.reduce((prev, curr) =>
-                        Math.abs(curr - newTerm) < Math.abs(prev - newTerm) ? curr : prev
-                      );
-                      setLoanTerm(closest);
-                    }}
-                    step={12}
-                    min={36}
-                    max={84}
-                    formatValue={(val) => val.toString()}
-                  />
-                  <div className="text-xs text-gray-500 text-center mt-1">
-                    Length of loan agreement
-                  </div>
+                      {/* Term with +/- controls */}
+                      <div className="rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none">
+                        <EnhancedControl
+                          value={loanTerm}
+                          label="Term (Months)"
+                          onChange={(newTerm) => {
+                            const terms = [36, 48, 60, 72, 84];
+                            // Find closest term
+                            const closest = terms.reduce((prev, curr) =>
+                              Math.abs(curr - newTerm) < Math.abs(prev - newTerm) ? curr : prev
+                            );
+                            setLoanTerm(closest);
+                          }}
+                          step={12}
+                          min={36}
+                          max={84}
+                          formatValue={(val) => val.toString()}
+                          monthlyPayment={monthlyPayment}
+                          baselinePayment={baselines.totalPayments && baselines.term ? baselines.totalPayments / baselines.term : undefined}
+                          className="w-full"
+                          showKeyboardHint={false}
+                          unstyled={true}
+                        />
+                        {diffs.term && diffs.term.isSignificant && (
+                          <div className={`text-xs font-semibold mt-2 ${diffs.term.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                            {diffs.term.isPositive ? '↓' : '↑'} {diffs.term.formatted}
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-slate-500">Length of loan agreement</div>
+                      </div>
 
-                  {/* Other TIL values */}
-                  <div className="grid grid-cols-1 gap-3">
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-600">Finance Charge</span>
-                      <span className="text-lg font-semibold text-gray-900">
-                        {formatCurrency(financeCharge)}
-                      </span>
+                      {renderTilStatCard({
+                        label: 'Finance Charge',
+                        value: formatCurrencyWithCents(financeCharge),
+                        helper: 'Dollar cost of credit',
+                        diff: diffs.financeCharge,
+                      })}
+
+                      {renderTilStatCard({
+                        label: 'Amount Financed',
+                        value: formatCurrencyWithCents(amountFinanced),
+                        helper: 'Credit provided to you',
+                        diff: diffs.amountFinanced,
+                      })}
+
+                      {renderTilStatCard({
+                        label: 'Total of Payments',
+                        value: formatCurrencyWithCents(totalOfPayments),
+                        helper: 'Total after all payments',
+                        diff: diffs.totalPayments,
+                        highlight: true,
+                      })}
+
+                      {renderTilStatCard({
+                        label: 'Monthly Finance Charge',
+                        value: formatCurrencyWithCents(loanTerm > 0 ? financeCharge / loanTerm : 0),
+                        helper: 'Interest portion per month',
+                        diff: diffs.monthlyFinanceCharge,
+                      })}
                     </div>
-                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-600">Amount Financed</span>
-                      <span className="text-lg font-semibold text-gray-900">
-                        {formatCurrency(amountFinanced)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 bg-blue-50 rounded-lg border border-blue-200">
-                      <span className="text-sm font-medium text-blue-900">Total of Payments</span>
-                      <span className="text-lg font-bold text-blue-900">
-                        {formatCurrency(totalOfPayments)}
-                      </span>
-                    </div>
                   </div>
-
-                  {/* Submit Button */}
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    fullWidth
-                    onClick={handleSubmit}
-                  >
-                    Preview Offer
-                  </Button>
                 </div>
               </Card>
             </div>
@@ -1175,108 +1577,176 @@ export const CalculatorApp: React.FC = () => {
         </div>
 
         {/* Sliders Section - Full Width Below */}
-        <div className="mt-6">
-          <Card variant="elevated" padding="lg">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-6">
-              Adjust Pricing & Terms
-            </h2>
+        <div className="mt-4 space-y-3">
+          <h2 className="text-2xl font-semibold text-gray-900">
+            Adjust Pricing & Terms
+          </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Sale Price Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Sale Price"
                 min={0}
                 max={150000}
-                step={500}
+                step={100}
                 value={salePrice}
                 onChange={(e) => setSalePrice(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="lower-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setSalePrice(selectedVehicle?.price || 30000)}
+                baselineValue={sliderBaselines.salePrice}
+                snapThreshold={100}
+                onReset={() => setSalePrice(sliderBaselines.salePrice)}
                 fullWidth
               />
+            </Card>
 
+            {/* Cash Down Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Cash Down"
                 min={0}
                 max={50000}
-                step={500}
+                step={100}
                 value={cashDown}
                 onChange={(e) => setCashDown(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="higher-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setCashDown(5000)}
+                baselineValue={sliderBaselines.cashDown}
+                snapThreshold={100}
+                onReset={() => setCashDown(sliderBaselines.cashDown)}
                 fullWidth
               />
+            </Card>
 
+            {/* Trade-In Allowance Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Trade-In Allowance"
                 min={0}
                 max={75000}
-                step={500}
+                step={100}
                 value={tradeAllowance}
                 onChange={(e) => setTradeAllowance(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Value of your trade-in vehicle"
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="higher-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setTradeAllowance(0)}
+                baselineValue={sliderBaselines.tradeAllowance}
+                snapThreshold={100}
+                onReset={() => setTradeAllowance(sliderBaselines.tradeAllowance)}
                 fullWidth
               />
+            </Card>
 
+            {/* Trade-In Payoff Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Trade-In Payoff"
                 min={0}
                 max={75000}
-                step={500}
+                step={100}
                 value={tradePayoff}
                 onChange={(e) => setTradePayoff(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Amount owed on trade-in"
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="lower-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setTradePayoff(0)}
+                baselineValue={sliderBaselines.tradePayoff}
+                snapThreshold={100}
+                onReset={() => setTradePayoff(sliderBaselines.tradePayoff)}
                 fullWidth
               />
+            </Card>
 
+            {/* Dealer Fees Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Total Dealer Fees"
                 min={0}
                 max={5000}
-                step={50}
+                step={10}
                 value={dealerFees}
                 onChange={(e) => setDealerFees(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Doc fees, title, registration"
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="lower-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setDealerFees(0)}
+                baselineValue={sliderBaselines.dealerFees}
+                snapThreshold={10}
+                onReset={() => setDealerFees(sliderBaselines.dealerFees)}
                 fullWidth
               />
+            </Card>
 
+            {/* Customer Add-ons Slider Card */}
+            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
               <EnhancedSlider
                 label="Total Customer Add-ons"
                 min={0}
                 max={10000}
-                step={100}
+                step={10}
                 value={customerAddons}
                 onChange={(e) => setCustomerAddons(Number(e.target.value))}
                 formatValue={(val) => formatCurrency(val)}
                 helperText="Warranties, protection packages"
                 monthlyPayment={monthlyPayment}
+                buyerPerspective="lower-is-better"
                 showTooltip={true}
                 showReset={true}
-                onReset={() => setCustomerAddons(0)}
+                baselineValue={sliderBaselines.customerAddons}
+                snapThreshold={10}
+                onReset={() => setCustomerAddons(sliderBaselines.customerAddons)}
                 fullWidth
               />
-            </div>
+            </Card>
+          </div>
+        </div>
+
+        {/* Itemization of Costs - At the End */}
+        <div className="mt-4">
+          <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+            <ItemizationCard
+              salePrice={salePrice}
+              cashDown={cashDown}
+              tradeAllowance={tradeAllowance}
+              tradePayoff={tradePayoff}
+              dealerFees={dealerFees}
+              customerAddons={customerAddons}
+              stateTaxRate={stateTaxRate}
+              countyTaxRate={countyTaxRate}
+              stateTaxAmount={stateTaxAmount}
+              countyTaxAmount={countyTaxAmount}
+              totalTaxes={totalTaxes}
+              unpaidBalance={unpaidBalance}
+              amountFinanced={amountFinanced}
+              cashDue={cashDue}
+            />
           </Card>
+        </div>
+
+        {/* Preview Offer CTA */}
+        <div className="mt-4">
+          <Button
+            variant="primary"
+            size="lg"
+            onClick={handleSubmit}
+            className="text-lg py-4 w-full"
+          >
+            Preview Offer
+          </Button>
         </div>
 
       </div>
@@ -1291,6 +1761,7 @@ export const CalculatorApp: React.FC = () => {
           }}
           onSave={handleVehicleSave}
           vehicle={vehicleToEdit}
+          onUseAsTradeIn={handleSelectGarageVehicle}
         />
       )}
 
@@ -1315,15 +1786,39 @@ export const CalculatorApp: React.FC = () => {
         isOpen={showOfferPreviewModal}
         onClose={() => setShowOfferPreviewModal(false)}
         leadData={leadDataForSubmission}
-        onSuccess={(offerId) => {
-          toast.push({
-            kind: 'success',
-            title: 'Offer Saved!',
-            detail: 'Your offer has been submitted and saved to your account',
-          });
-          setShowOfferPreviewModal(false);
-        }}
+        onSubmit={(data) => handleOfferSubmitWithProgress(data, false)}
+        onDevSubmit={(data) => handleOfferSubmitWithProgress(data, true)}
       />
+
+      {/* Submission Progress Modal */}
+      <SubmissionProgressModal
+        isOpen={showProgressModal}
+        stage={progressStage}
+        progress={progressPercent}
+        error={progressError}
+        onClose={() => setShowProgressModal(false)}
+        onViewOffers={handleViewMyOffers}
+      />
+
+      {/* My Offers Modal */}
+      <MyOffersModal
+        isOpen={showMyOffersModal}
+        onClose={() => setShowMyOffersModal(false)}
+        highlightOfferId={highlightOfferId}
+      />
+
+      {/* APR Confirmation Modal */}
+      {lenderBaselineApr !== null && (
+        <AprConfirmationModal
+          isOpen={showAprConfirmModal}
+          onClose={() => setShowAprConfirmModal(false)}
+          lenderApr={lenderBaselineApr / 100}
+          customApr={apr / 100}
+          isNewVehicle={vehicleCondition === 'new'}
+          onResetApr={handleResetToLenderApr}
+          onConfirm={handleKeepCustomApr}
+        />
+      )}
 
       {/* User Profile Dropdown */}
       <UserProfileDropdown
@@ -1376,6 +1871,10 @@ export const CalculatorApp: React.FC = () => {
           setAuthMode('signin');
           setShowAuthModal(true);
         } : undefined}
+        onOpenMyOffers={() => {
+          setShowProfileDropdown(false);
+          setShowMyOffersModal(true);
+        }}
         supabase={supabase}
         isDirty={isProfileDirty}
       />

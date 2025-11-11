@@ -15,10 +15,12 @@ export interface LeadData {
   vehicleMileage?: number;
   vehicleCondition?: 'new' | 'used';
   vehiclePrice?: number;
+  stockNumber?: string; // NEW: Dealer stock number
 
   // Dealer details
   dealerName?: string;
   dealerPhone?: string;
+  dealerEmail?: string; // NEW: Dealer email for sending offers
   dealerAddress?: string;
 
   // Financing details
@@ -39,10 +41,22 @@ export interface LeadData {
   customerName?: string;
   customerEmail?: string;
   customerPhone?: string;
+  customerAddress?: string; // NEW: Customer address
 
   // Offer text for email
   offerText?: string;
   offerName?: string;
+
+  // Dev mode flag - skips actual email/SMS sending
+  devMode?: boolean;
+}
+
+export interface SubmissionProgress {
+  stage: 'validating' | 'saving' | 'email' | 'sms' | 'complete' | 'error';
+  progress: number;
+  message: string;
+  offerId?: string;
+  error?: string;
 }
 
 /**
@@ -136,6 +150,294 @@ export const submitLead = async (leadData: LeadData): Promise<{ ok: boolean; off
     return {
       ok: false,
       error: error.message || 'An unexpected error occurred',
+    };
+  }
+};
+
+/**
+ * Delay helper for minimum stage duration
+ */
+const delay = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+const randomBetween = (min: number, max: number): number => {
+  if (max <= min) return min;
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+type SimulatedStage = 'validating' | 'saving' | 'email' | 'sms';
+
+const STAGE_TIMING: Record<SimulatedStage, { duration: [number, number]; progress: [number, number] }> = {
+  validating: { duration: [900, 2500], progress: [15, 35] },
+  saving: { duration: [1500, 4200], progress: [40, 70] },
+  email: { duration: [800, 2600], progress: [70, 85] },
+  sms: { duration: [600, 2000], progress: [85, 96] },
+};
+
+const getStageDuration = (stage: SimulatedStage) => {
+  const [min, max] = STAGE_TIMING[stage].duration;
+  return randomBetween(min, max);
+};
+
+const createProgressTracker = () => {
+  let lastProgress = 0;
+  return (stage: SimulatedStage) => {
+    const [min, max] = STAGE_TIMING[stage].progress;
+    const target = randomBetween(min, max);
+    const next = Math.max(lastProgress + 3, Math.min(99, target));
+    lastProgress = next;
+    return next;
+  };
+};
+
+/**
+ * Submit offer with progress tracking and email/SMS delivery
+ *
+ * This function provides a multi-stage submission flow:
+ * 1. Validating - Check auth and TCPA opt-in status
+ * 2. Saving - Create/link customer_profile and insert offer
+ * 3. Email - Send email confirmation via SendGrid
+ * 4. SMS - Send SMS notification if user opted in
+ * 5. Complete - Show success
+ *
+ * @param leadData - Offer data to submit
+ * @param onProgress - Callback for progress updates
+ * @returns Promise with success status and offerId
+ */
+export const submitOfferWithProgress = async (
+  leadData: LeadData,
+  onProgress: (update: SubmissionProgress) => void
+): Promise<{ ok: boolean; offerId?: string; error?: string }> => {
+
+  try {
+    const nextProgress = createProgressTracker();
+    // Stage 1: Validating (0-2s, 25% progress)
+    const stage1Start = Date.now();
+    const validatingDuration = getStageDuration('validating');
+    onProgress({
+      stage: 'validating',
+      progress: nextProgress('validating'),
+      message: 'Validating offer details...'
+    });
+
+    // Check if user is authenticated
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) {
+      throw new Error('You must be signed in to submit an offer');
+    }
+
+    // Check TCPA opt-in status (only if phone provided)
+    let isOptedIn = false;
+    if (leadData.customerPhone) {
+      const { data: optStatus } = await supabase
+        .from('sms_opt_status')
+        .select('opted_in')
+        .eq('phone_number', leadData.customerPhone)
+        .maybeSingle();
+
+      isOptedIn = optStatus?.opted_in || false;
+    }
+
+    // Ensure stage takes minimum time
+    await delay(Math.max(0, validatingDuration - (Date.now() - stage1Start)));
+
+    // Stage 2: Saving (2-4s, 50% progress)
+    const stage2Start = Date.now();
+    const savingDuration = getStageDuration('saving');
+    onProgress({
+      stage: 'saving',
+      progress: nextProgress('saving'),
+      message: 'Saving your offer...'
+    });
+
+    // Get or create customer_profile
+    let { data: profile } = await supabase
+      .from('customer_profiles')
+      .select('id')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    // Create profile if doesn't exist
+    if (!profile) {
+      const { data: newProfile, error: profileError } = await supabase
+        .from('customer_profiles')
+        .insert({
+          user_id: session.user.id,
+          email: leadData.customerEmail || session.user.email,
+          full_name: leadData.customerName || null,
+          phone: leadData.customerPhone || null,
+          street_address: leadData.customerAddress || null
+        })
+        .select('id')
+        .single();
+
+      if (profileError) {
+        console.error('[LeadSubmission] Error creating profile:', profileError);
+        throw new Error('Failed to create customer profile');
+      }
+
+      profile = newProfile;
+    }
+
+    // Generate offer name
+    const offerName = leadData.offerName ||
+      `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim() ||
+      'Vehicle Offer';
+
+    // Insert offer
+    const { data: offer, error: offerError } = await supabase
+      .from('customer_offers')
+      .insert({
+        customer_profile_id: profile.id, // REQUIRED FK
+        user_id: session.user.id, // Also set user_id for RLS
+        offer_name: offerName,
+        status: 'active',
+
+        // Vehicle details
+        vehicle_year: leadData.vehicleYear || null,
+        vehicle_make: leadData.vehicleMake || null,
+        vehicle_model: leadData.vehicleModel || null,
+        vehicle_trim: leadData.vehicleTrim || null,
+        vehicle_vin: leadData.vehicleVIN || null,
+        vehicle_mileage: leadData.vehicleMileage || null,
+        vehicle_condition: leadData.vehicleCondition || null,
+        vehicle_price: leadData.vehiclePrice || null,
+        vehicle_stock_number: leadData.stockNumber || null, // NEW
+
+        // Dealer details
+        dealer_name: leadData.dealerName || null,
+        dealer_phone: leadData.dealerPhone || null,
+        dealer_address: leadData.dealerAddress || null,
+
+        // Pricing details
+        offer_price: leadData.vehiclePrice || null,
+        down_payment: leadData.downPayment || null,
+        trade_value: leadData.tradeValue || null,
+        trade_payoff: leadData.tradePayoff || null,
+        dealer_fees: leadData.dealerFees || null,
+        customer_addons: leadData.customerAddons || null,
+
+        // Financing details
+        apr: leadData.apr || null,
+        term_months: leadData.termMonths || null,
+        monthly_payment: leadData.monthlyPayment || null,
+
+        // Customer snapshot
+        customer_name: leadData.customerName || null,
+        customer_email: leadData.customerEmail || null,
+        customer_phone: leadData.customerPhone || null,
+        customer_address: leadData.customerAddress || null,
+
+        // Offer text
+        offer_text: leadData.offerText || null,
+
+        submitted_at: new Date().toISOString()
+      })
+      .select('id')
+      .single();
+
+    if (offerError) {
+      console.error('[LeadSubmission] Error inserting offer:', offerError);
+      throw new Error(offerError.message || 'Failed to save offer');
+    }
+
+    console.log('[LeadSubmission] Offer saved successfully. ID:', offer.id);
+
+    await delay(Math.max(0, savingDuration - (Date.now() - stage2Start)));
+
+    // Stage 3: Email (4-6s, 75% progress)
+    const stage3Start = Date.now();
+    const emailDuration = getStageDuration('email');
+    onProgress({
+      stage: 'email',
+      progress: nextProgress('email'),
+      message: 'Sending email confirmation...',
+      offerId: offer.id
+    });
+
+    // Send email via edge function (skip in dev mode)
+    if (leadData.customerEmail && !leadData.devMode) {
+      const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
+
+      const { error: emailError } = await supabase.functions.invoke('send-email', {
+        body: {
+          offerId: offer.id,
+          recipientEmail: leadData.customerEmail,
+          recipientName: leadData.customerName,
+          offerText: leadData.offerText || '',
+          vehicleInfo: vehicleInfo || undefined
+        }
+      });
+
+      if (emailError) {
+        console.error('[LeadSubmission] Email send failed:', emailError);
+        // Don't fail the whole submission if email fails
+      }
+    } else if (leadData.devMode) {
+      console.log('[LeadSubmission] DEV MODE: Skipping email send');
+    }
+
+    await delay(Math.max(0, emailDuration - (Date.now() - stage3Start)));
+
+    // Stage 4: SMS (6-7s, 90% progress) - Only if opted in (skip in dev mode)
+    if (isOptedIn && leadData.customerPhone && !leadData.devMode) {
+      const stage4Start = Date.now();
+      const smsDuration = getStageDuration('sms');
+      onProgress({
+        stage: 'sms',
+        progress: nextProgress('sms'),
+        message: 'Sending SMS notification...',
+        offerId: offer.id
+      });
+
+      const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
+
+      const { error: smsError } = await supabase.functions.invoke('send-sms', {
+        body: {
+          to: leadData.customerPhone,
+          dealerName: leadData.dealerName || 'Dealer',
+          customerName: leadData.customerName || 'Customer',
+          vehicleInfo: vehicleInfo || 'Vehicle',
+          offerText: leadData.offerText || '',
+          offerId: offer.id
+        }
+      });
+
+      if (smsError) {
+        console.error('[LeadSubmission] SMS send failed:', smsError);
+        // Don't fail the whole submission if SMS fails
+      }
+
+      await delay(Math.max(0, smsDuration - (Date.now() - stage4Start)));
+    } else if (leadData.devMode && leadData.customerPhone) {
+      console.log('[LeadSubmission] DEV MODE: Skipping SMS send');
+    }
+
+    // Stage 5: Complete
+    onProgress({
+      stage: 'complete',
+      progress: 100,
+      message: 'Offer submitted successfully!',
+      offerId: offer.id
+    });
+
+    return {
+      ok: true,
+      offerId: offer.id
+    };
+
+  } catch (error: any) {
+    console.error('[LeadSubmission] Submission failed:', error);
+
+    onProgress({
+      stage: 'error',
+      progress: 0,
+      message: error.message || 'An unexpected error occurred',
+      error: error.message
+    });
+
+    return {
+      ok: false,
+      error: error.message || 'An unexpected error occurred'
     };
   }
 };

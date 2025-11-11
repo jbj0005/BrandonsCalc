@@ -30,3 +30,56 @@ export const formatCurrencyValue = (
     maximumFractionDigits: 2,
   })}`;
 };
+
+/**
+ * Format negative values with parentheses for itemization
+ * Positive: $2,500.00
+ * Negative: ($2,500.00)
+ */
+export const formatNegativeParens = (value: number): string => {
+  if (value < 0) {
+    return `($${Math.abs(value).toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })})`;
+  }
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+/**
+ * Format negative values with minus sign for general display
+ * Positive: $2,500.00
+ * Negative: -$2,500.00
+ */
+export const formatNegativeMinus = (value: number): string => {
+  const formatted = `$${Math.abs(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+  return value < 0 ? `-${formatted}` : formatted;
+};
+
+/**
+ * Format currency with exact cents for itemization
+ * Always shows 2 decimal places
+ */
+export const formatCurrencyExact = (value: number): string => {
+  return `$${value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
+
+/**
+ * Format currency rounded to nearest dollar for slider display
+ * No decimal places
+ */
+export const formatCurrencyRounded = (value: number): string => {
+  return `$${Math.round(value).toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })}`;
+};

@@ -27,15 +27,15 @@ CREATE TABLE IF NOT EXISTS auto_rates (
 );
 
 -- Indexes for better query performance
-CREATE INDEX idx_auto_rates_source ON auto_rates(source);
-CREATE INDEX idx_auto_rates_credit_tier ON auto_rates(credit_tier);
-CREATE INDEX idx_auto_rates_vehicle_condition ON auto_rates(vehicle_condition);
-CREATE INDEX idx_auto_rates_term_range ON auto_rates(term_range_min, term_range_max);
-CREATE INDEX idx_auto_rates_effective_at ON auto_rates(effective_at DESC);
-CREATE INDEX idx_auto_rates_apr ON auto_rates(apr_percent);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_source ON auto_rates(source);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_credit_tier ON auto_rates(credit_tier);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_vehicle_condition ON auto_rates(vehicle_condition);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_term_range ON auto_rates(term_range_min, term_range_max);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_effective_at ON auto_rates(effective_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_apr ON auto_rates(apr_percent);
 
 -- Composite index for common queries (source + credit tier + condition + term)
-CREATE INDEX idx_auto_rates_lookup ON auto_rates(source, credit_tier, vehicle_condition, term_range_min, term_range_max);
+CREATE INDEX IF NOT EXISTS idx_auto_rates_lookup ON auto_rates(source, credit_tier, vehicle_condition, term_range_min, term_range_max);
 
 -- RLS Policies (public read access for rates)
 ALTER TABLE auto_rates ENABLE ROW LEVEL SECURITY;

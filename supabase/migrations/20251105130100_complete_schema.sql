@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS customer_profiles (
 );
 
 -- Index for faster lookups
-CREATE INDEX idx_customer_profiles_user_id ON customer_profiles(user_id);
-CREATE INDEX idx_customer_profiles_email ON customer_profiles(email);
+CREATE INDEX IF NOT EXISTS idx_customer_profiles_user_id ON customer_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_customer_profiles_email ON customer_profiles(email);
 
 -- RLS Policies
 ALTER TABLE customer_profiles ENABLE ROW LEVEL SECURITY;
@@ -67,8 +67,8 @@ CREATE TABLE IF NOT EXISTS garage_vehicles (
 );
 
 -- Indexes
-CREATE INDEX idx_garage_vehicles_user_id ON garage_vehicles(user_id);
-CREATE INDEX idx_garage_vehicles_created_at ON garage_vehicles(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_garage_vehicles_user_id ON garage_vehicles(user_id);
+CREATE INDEX IF NOT EXISTS idx_garage_vehicles_created_at ON garage_vehicles(created_at DESC);
 
 -- RLS Policies
 ALTER TABLE garage_vehicles ENABLE ROW LEVEL SECURITY;
@@ -149,10 +149,10 @@ CREATE TABLE IF NOT EXISTS customer_offers (
 );
 
 -- Indexes
-CREATE INDEX idx_customer_offers_user_id ON customer_offers(user_id);
-CREATE INDEX idx_customer_offers_share_token ON customer_offers(share_token);
-CREATE INDEX idx_customer_offers_status ON customer_offers(status);
-CREATE INDEX idx_customer_offers_created_at ON customer_offers(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_user_id ON customer_offers(user_id);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_share_token ON customer_offers(share_token);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_status ON customer_offers(status);
+CREATE INDEX IF NOT EXISTS idx_customer_offers_created_at ON customer_offers(created_at DESC);
 
 -- RLS Policies
 ALTER TABLE customer_offers ENABLE ROW LEVEL SECURITY;
@@ -198,9 +198,9 @@ CREATE TABLE IF NOT EXISTS sms_logs (
 );
 
 -- Indexes
-CREATE INDEX idx_sms_logs_offer_id ON sms_logs(offer_id);
-CREATE INDEX idx_sms_logs_message_sid ON sms_logs(message_sid);
-CREATE INDEX idx_sms_logs_sent_at ON sms_logs(sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_offer_id ON sms_logs(offer_id);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_message_sid ON sms_logs(message_sid);
+CREATE INDEX IF NOT EXISTS idx_sms_logs_sent_at ON sms_logs(sent_at DESC);
 
 -- RLS Policies
 ALTER TABLE sms_logs ENABLE ROW LEVEL SECURITY;
@@ -227,9 +227,9 @@ CREATE TABLE IF NOT EXISTS rate_sheets (
 );
 
 -- Indexes
-CREATE INDEX idx_rate_sheets_lender ON rate_sheets(lender_name);
-CREATE INDEX idx_rate_sheets_active ON rate_sheets(is_active);
-CREATE INDEX idx_rate_sheets_effective_date ON rate_sheets(effective_date DESC);
+CREATE INDEX IF NOT EXISTS idx_rate_sheets_lender ON rate_sheets(lender_name);
+CREATE INDEX IF NOT EXISTS idx_rate_sheets_active ON rate_sheets(is_active);
+CREATE INDEX IF NOT EXISTS idx_rate_sheets_effective_date ON rate_sheets(effective_date DESC);
 
 -- RLS Policies (public read access)
 ALTER TABLE rate_sheets ENABLE ROW LEVEL SECURITY;
