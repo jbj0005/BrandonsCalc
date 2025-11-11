@@ -157,7 +157,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       ref={containerRef}
       className={`relative text-center transition-all ${
         unstyled
-          ? ''
+          ? 'w-full h-full flex flex-col justify-center py-4'
           : 'rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)]'
       } ${
         isHovering && !unstyled ? 'ring-2 ring-blue-100 shadow-[0_12px_28px_rgba(15,23,42,0.12)]' : ''

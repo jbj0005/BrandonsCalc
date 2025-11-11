@@ -1609,7 +1609,7 @@ export const CalculatorApp: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-fr">
                       {/* APR with +/- controls */}
-                      <div className="rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none">
+                      <div className="group rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={apr}
                           label="Annual Percentage Rate"
@@ -1621,7 +1621,7 @@ export const CalculatorApp: React.FC = () => {
                           monthlyPayment={monthlyPayment}
                           baselinePayment={baselineMonthlyPayment}
                           className="w-full"
-                          showKeyboardHint={false}
+                          showKeyboardHint={true}
                           unstyled={true}
                         />
                         {baselineMonthlyPayment != null && (
@@ -1638,7 +1638,7 @@ export const CalculatorApp: React.FC = () => {
                       </div>
 
                       {/* Term with +/- controls */}
-                      <div className="rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none">
+                      <div className="group rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={loanTerm}
                           label="Term (Months)"
@@ -1657,7 +1657,7 @@ export const CalculatorApp: React.FC = () => {
                           monthlyPayment={monthlyPayment}
                           baselinePayment={baselineMonthlyPayment}
                           className="w-full"
-                          showKeyboardHint={false}
+                          showKeyboardHint={true}
                           unstyled={true}
                         />
                         {diffs.term && diffs.term.isSignificant && (
