@@ -120,10 +120,15 @@ export async function lookupTaxRates(
     const stateTaxRate = totalTaxRate * 0.7;
     const countyTaxRate = totalTaxRate * 0.3;
 
+    // Format county name for display (add "County" suffix if not present)
+    const displayCountyName = countyName.endsWith('County') || countyName.endsWith('Parish')
+      ? countyName
+      : `${countyName} County`;
+
     const result: TaxLocation = {
       stateName,
       stateCode,
-      countyName,
+      countyName: displayCountyName,
       stateTaxRate,
       countyTaxRate,
     };

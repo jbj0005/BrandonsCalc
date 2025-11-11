@@ -111,9 +111,9 @@ export const CalculatorApp: React.FC = () => {
               detail: `No tax data available for ${place.state}, ${place.countyName}. Using current rates. You can adjust manually below.`,
             });
 
-            // Still update the location names for display
+            // Still update the location names for display (use full names)
             setStateName(place.state);
-            setCountyName(place.county);
+            setCountyName(place.countyName);
           }
         } catch (error) {
           console.error('[CalculatorApp] Error looking up tax rates:', error);
