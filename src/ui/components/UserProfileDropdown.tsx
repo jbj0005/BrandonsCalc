@@ -1,10 +1,11 @@
 /**
- * UserProfileDropdown - Mobile-friendly dropdown with three sections
+ * UserProfileDropdown - Mobile-friendly dropdown with four sections
  *
  * Sections:
  * 1. My Profile - Contact info, address, credit preferences
  * 2. My Garage - Saved garage vehicles
  * 3. Saved Vehicles - Saved marketplace vehicles
+ * 4. My Offers - Submitted offers
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -38,7 +39,7 @@ export interface UserProfileDropdownProps {
   isDirty?: boolean;
 }
 
-type Section = 'profile' | 'garage' | 'saved';
+type Section = 'profile' | 'garage' | 'saved' | 'offers';
 
 const CREDIT_SCORE_OPTIONS = [
   { value: 'excellent', label: 'Excellent (750+)' },
@@ -337,6 +338,41 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   }`}>{savedVehicles.length}</span>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
                     hoveredSection === 'saved' ? 'text-purple-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
+                  }`}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </button>
+
+              {/* My Offers Section */}
+              <button
+                onClick={() => setActiveSection('offers')}
+                onMouseEnter={() => !isTouchDevice && setHoveredSection('offers')}
+                onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
+                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
+                  hoveredSection === 'offers'
+                    ? 'bg-orange-50 scale-[1.01]'
+                    : 'hover:bg-gray-50/80 active:bg-gray-100/80'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center shadow-sm transition-all duration-200 ${
+                    hoveredSection === 'offers' ? 'shadow-md scale-105' : ''
+                  }`}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className={`font-semibold text-sm transition-colors duration-200 ${
+                      hoveredSection === 'offers' ? 'text-orange-700' : 'text-gray-900'
+                    }`}>My Offers</div>
+                    <div className="text-xs text-gray-500">Submitted offers</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
+                    hoveredSection === 'offers' ? 'text-orange-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
                   }`}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
@@ -657,21 +693,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
               <h4 className="text-lg font-semibold text-gray-900">Saved Vehicles</h4>
 
-              {onOpenMyOffers && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  fullWidth
-                  onClick={() => {
-                    onOpenMyOffers();
-                    onClose();
-                    setActiveSection(null);
-                  }}
-                >
-                  View My Offers
-                </Button>
-              )}
-
               {savedVehicles.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -750,6 +771,46 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* My Offers Section Content */}
+          {activeSection === 'offers' && (
+            <div className="p-4 space-y-4">
+              {/* Back Button */}
+              <button
+                onClick={() => setActiveSection(null)}
+                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                </svg>
+                Back
+              </button>
+
+              <h4 className="text-lg font-semibold text-gray-900">My Offers</h4>
+
+              {onOpenMyOffers && (
+                <Button
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  onClick={() => {
+                    onOpenMyOffers();
+                    onClose();
+                    setActiveSection(null);
+                  }}
+                >
+                  View All Offers
+                </Button>
+              )}
+
+              <div className="text-center py-6 text-gray-500">
+                <svg className="w-16 h-16 mx-auto mb-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-sm">Click "View All Offers" to manage your submitted offers</p>
+              </div>
             </div>
           )}
         </div>
