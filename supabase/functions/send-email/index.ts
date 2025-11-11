@@ -40,13 +40,18 @@ serve(async (req) => {
     // Parse request body
     const { offerId, recipientEmail, recipientName, offerText, vehicleInfo }: EmailRequest = await req.json();
 
-    // Validate required fields
-    if (!offerId || !recipientEmail || !offerText) {
+    // Validate required fields (offerText is optional - will use default if missing)
+    if (!offerId || !recipientEmail) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields: offerId, recipientEmail, offerText' }),
+        JSON.stringify({ success: false, error: 'Missing required fields: offerId, recipientEmail' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Provide default offer text if not provided
+    const finalOfferText = offerText && offerText.trim()
+      ? offerText
+      : 'Thank you for your vehicle offer submission. A dealer representative will review your offer and contact you shortly.';
 
     // Create Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -76,7 +81,7 @@ serve(async (req) => {
       Thank you for submitting your vehicle offer through Brandon's Calculator. Here are the details:
     </p>
 
-    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap; overflow-x: auto;">${offerText}</div>
+    <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap; overflow-x: auto;">${finalOfferText}</div>
 
     <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 4px;">
       <p style="margin: 0; color: #1e40af; font-size: 14px;">
@@ -108,7 +113,7 @@ Thank you for submitting your vehicle offer through Brandon's Calculator.
 
 ${vehicleInfo ? `Vehicle: ${vehicleInfo}\n` : ''}
 Your Offer Details:
-${offerText}
+${finalOfferText}
 
 What happens next?
 A dealer will review your offer and typically responds within the hour. They may contact you via phone or email to discuss next steps.
