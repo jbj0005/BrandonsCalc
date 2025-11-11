@@ -35,7 +35,7 @@ type SliderBaselineKey =
   | 'dealerFees'
   | 'customerAddons';
 
-const DEFAULT_SALE_PRICE = 30000;
+const DEFAULT_SALE_PRICE = 0;
 const DEFAULT_CASH_DOWN = 5000;
 
 const DEFAULT_SLIDER_BASELINES: Record<SliderBaselineKey, number> = {
@@ -1040,6 +1040,8 @@ export const CalculatorApp: React.FC = () => {
 
     if (!cleanVIN) {
       setSelectedVehicle(null);
+      setSalePrice(0);
+      updateSliderBaseline('salePrice', 0);
       setVinError('');
       return;
     }
@@ -1048,12 +1050,16 @@ export const CalculatorApp: React.FC = () => {
     if (cleanVIN.length < 11) {
       setVinError('VIN must be at least 11 characters');
       setSelectedVehicle(null);
+      setSalePrice(0);
+      updateSliderBaseline('salePrice', 0);
       return;
     }
 
     if (cleanVIN.length > 17) {
       setVinError('VIN cannot be more than 17 characters');
       setSelectedVehicle(null);
+      setSalePrice(0);
+      updateSliderBaseline('salePrice', 0);
       return;
     }
 
@@ -1088,6 +1094,8 @@ export const CalculatorApp: React.FC = () => {
       } else {
         setVinError('No vehicle found for this VIN');
         setSelectedVehicle(null);
+        setSalePrice(0);
+        updateSliderBaseline('salePrice', 0);
       }
     } catch (error: any) {
       console.error('VIN lookup error:', error);
@@ -1122,6 +1130,8 @@ export const CalculatorApp: React.FC = () => {
         // Other errors (like "not found") should clear selectedVehicle
         setVinError(error.message || 'Failed to look up VIN');
         setSelectedVehicle(null);
+        setSalePrice(0);
+        updateSliderBaseline('salePrice', 0);
         toast.push({
           kind: 'error',
           title: 'VIN Lookup Failed',
@@ -1459,6 +1469,8 @@ export const CalculatorApp: React.FC = () => {
                         onClick={() => {
                           setSelectedVehicle(null);
                           setVin('');
+                          setSalePrice(0);
+                          updateSliderBaseline('salePrice', 0);
                           rebaseTilBaselines();
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700"
