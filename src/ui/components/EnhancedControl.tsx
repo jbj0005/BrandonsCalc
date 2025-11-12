@@ -51,6 +51,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isHovering, setIsHovering] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,23 +97,29 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
     };
   }, []);
 
-  // Handle keyboard navigation when hovering
+  // Handle keyboard navigation when hovering or focused
   useEffect(() => {
-    if (!isHovering) return;
+    if (!isHovering && !isFocused) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+      if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) {
         return;
       }
 
       e.preventDefault();
+
+      if (e.key === 'Enter') {
+        // Enter key does nothing special for controls (just prevents default form submission)
+        return;
+      }
+
       const direction = ['ArrowLeft', 'ArrowDown'].includes(e.key) ? -1 : 1;
       handleChange(direction);
     };
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isHovering, value, step, min, max]);
+  }, [isHovering, isFocused, value, step, min, max]);
 
   // Format currency helper
   const formatCurrency = (amount: number): string => {
@@ -160,13 +167,15 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           ? 'w-full h-full flex flex-col justify-center py-4'
           : 'rounded-2xl border border-blue-50 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.08)]'
       } ${
-        isHovering && !unstyled ? 'ring-2 ring-blue-100 shadow-[0_12px_28px_rgba(15,23,42,0.12)]' : ''
+        (isHovering || isFocused) && !unstyled ? 'ring-2 ring-blue-100 shadow-[0_12px_28px_rgba(15,23,42,0.12)]' : ''
       } ${className}`}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => {
         setIsHovering(false);
         setShowTooltip(false);
       }}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
       onMouseMove={handleMouseMove}
       tabIndex={unstyled ? -1 : 0}
     >
@@ -242,9 +251,9 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       )}
 
       {/* Keyboard Hint */}
-      {showKeyboardHint && isHovering && (
+      {showKeyboardHint && (isHovering || isFocused) && (
         <div className="text-xs text-blue-600 text-center mt-2 animate-fade-in">
-          Hover + use ← → to fine tune
+          Use ← → to fine tune
         </div>
       )}
     </div>

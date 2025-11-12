@@ -1299,6 +1299,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                   placeholder="Enter your address or ZIP code..."
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    }
+                  }}
                   icon={
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -1334,6 +1339,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                       value={vin}
                       onChange={(e) => setVin(e.target.value.toUpperCase())}
                       onFocus={openVehicleDropdown}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.currentTarget.blur();
+                        }
+                      }}
                       placeholder="Paste VIN or select saved vehicle..."
                       className={`w-full rounded-lg border py-2 pr-2 pl-12 bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
                         vinError

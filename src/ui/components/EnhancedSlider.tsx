@@ -56,6 +56,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const sliderRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isHovering, setIsHovering] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [isInputFocused, setIsInputFocused] = useState(false);
 
@@ -172,9 +173,10 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       setIsHovering(false);
     };
 
-    // Handle arrow key navigation
+    // Handle arrow key navigation (when hovering or focused)
     useEffect(() => {
-      if (!isHovering) return;
+      if (!isHovering && !isFocused) return;
+      if (isInputFocused) return; // Don't interfere with input field
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -202,7 +204,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
 
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isHovering, currentValue, min, max, step, onChange]);
+    }, [isHovering, isFocused, isInputFocused, currentValue, min, max, step, onChange]);
 
     // Handle reset
     const handleReset = () => {
@@ -253,6 +255,13 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       setIsInputFocused(true);
     };
 
+    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.currentTarget.blur(); // Blur will trigger handleInputBlur which updates the value
+      }
+    };
+
     const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       if (!onChange) return;
       let nextValue = Number(event.target.value);
@@ -286,9 +295,11 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     return (
       <div
         ref={containerRef}
-        className="relative focus:outline-none"
+        className="relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => setIsFocused(false)}
         tabIndex={0}
       >
         {/* Input Field (optional) */}
@@ -333,6 +344,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
               onChange={handleInputChange}
               onBlur={handleInputBlur}
               onFocus={handleInputFocus}
+              onKeyDown={handleInputKeyDown}
               className="w-32 px-3 py-1.5 text-sm font-semibold text-blue-600 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
               placeholder="$0"
             />
