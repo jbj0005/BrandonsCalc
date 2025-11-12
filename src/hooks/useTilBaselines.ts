@@ -14,6 +14,7 @@ export interface TilBaselines {
   amountFinanced: number | null;
   totalPayments: number | null;
   monthlyFinanceCharge: number | null;
+  monthlyPayment: number | null;
 }
 
 export interface TilValues {
@@ -23,6 +24,7 @@ export interface TilValues {
   amountFinanced: number;
   totalPayments: number;
   monthlyFinanceCharge: number;
+  monthlyPayment: number;
 }
 
 export interface TilDiff {
@@ -49,12 +51,12 @@ interface UseTilBaselinesReturn {
   calculateDiffs: (currentValues: TilValues) => TilDiffs;
 }
 
-const formatCurrency = (value: number, showCents: boolean = true): string => {
+const formatCurrency = (value: number): string => {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'USD',
-    minimumFractionDigits: showCents ? 2 : 0,
-    maximumFractionDigits: showCents ? 2 : 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value);
 };
 
@@ -70,6 +72,7 @@ export const useTilBaselines = (): UseTilBaselinesReturn => {
     amountFinanced: null,
     totalPayments: null,
     monthlyFinanceCharge: null,
+    monthlyPayment: null,
   });
 
   const [diffs, setDiffs] = useState<TilDiffs>({
@@ -101,6 +104,9 @@ export const useTilBaselines = (): UseTilBaselinesReturn => {
       if (values.monthlyFinanceCharge !== undefined && prev.monthlyFinanceCharge === null) {
         updated.monthlyFinanceCharge = values.monthlyFinanceCharge;
       }
+      if (values.monthlyPayment !== undefined && prev.monthlyPayment === null) {
+        updated.monthlyPayment = values.monthlyPayment;
+      }
 
       return updated;
     });
@@ -115,6 +121,7 @@ export const useTilBaselines = (): UseTilBaselinesReturn => {
       amountFinanced: null,
       totalPayments: null,
       monthlyFinanceCharge: null,
+      monthlyPayment: null,
     });
     setDiffs({
       apr: null,
@@ -149,31 +156,37 @@ export const useTilBaselines = (): UseTilBaselinesReturn => {
       };
 
       const newDiffs: TilDiffs = {
-        apr: calculateDiff(currentValues.apr, baselines.apr, 0.0001, formatPercent),
+        // APR diff shows monthly payment impact (not APR percentage)
+        apr: calculateDiff(
+          currentValues.monthlyPayment,
+          baselines.monthlyPayment,
+          0.01,
+          formatCurrency
+        ),
         term: calculateDiff(currentValues.term, baselines.term, 1, (v) => `${v} mo`),
         financeCharge: calculateDiff(
           currentValues.financeCharge,
           baselines.financeCharge,
           1,
-          (v) => formatCurrency(v, true)
+          formatCurrency
         ),
         amountFinanced: calculateDiff(
           currentValues.amountFinanced,
           baselines.amountFinanced,
           1,
-          (v) => formatCurrency(v, true)
+          formatCurrency
         ),
         totalPayments: calculateDiff(
           currentValues.totalPayments,
           baselines.totalPayments,
           1,
-          (v) => formatCurrency(v, true)
+          formatCurrency
         ),
         monthlyFinanceCharge: calculateDiff(
           currentValues.monthlyFinanceCharge,
           baselines.monthlyFinanceCharge,
           1,
-          (v) => formatCurrency(v, true)
+          formatCurrency
         ),
       };
 

@@ -2,6 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { loadGoogleMapsScript } from '../utils/loadGoogleMaps';
 import { Card } from '../ui/components/Card';
 import type { PlaceDetails } from '../hooks/useGoogleMapsAutocomplete';
+import {
+  trackGoogleMapsError,
+  trackGoogleMapsPerformance,
+  GoogleMapsErrorType,
+} from '../utils/googleMapsErrorTracking';
 
 export interface DealerMapProps {
   /** Dealer information */
@@ -36,7 +41,8 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   const [distance, setDistance] = useState<string | null>(null);
   const [duration, setDuration] = useState<string | null>(null);
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
-  const dealerMarker = useRef<google.maps.Marker | null>(null);
+  const dealerMarker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const infoWindow = useRef<google.maps.InfoWindow | null>(null);
 
   // Load Google Maps
   useEffect(() => {
@@ -52,7 +58,22 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   useEffect(() => {
     if (!isLoaded || !mapRef.current || map) return;
 
+    // CRITICAL: Map ID is required for AdvancedMarkerElement to work
+    const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
+
+    if (!mapId) {
+      console.error('[DealerMap] Map ID not configured - Advanced Markers will not work!');
+      setError('Map configuration error - contact support');
+      trackGoogleMapsError(
+        GoogleMapsErrorType.MAP_ERROR,
+        'Map ID not configured in environment variables',
+        { component: 'DealerMap' }
+      );
+      return;
+    }
+
     const newMap = new google.maps.Map(mapRef.current, {
+      mapId, // REQUIRED for AdvancedMarkerElement
       zoom: 10,
       center: { lat: 28.5383, lng: -81.3792 }, // Orlando, FL default
       mapTypeControl: false,
@@ -69,43 +90,68 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
     // Clear existing marker
     if (dealerMarker.current) {
-      dealerMarker.current.setMap(null);
+      dealerMarker.current.map = null;
       dealerMarker.current = null;
+    }
+
+    // Clear existing info window
+    if (infoWindow.current) {
+      infoWindow.current.close();
     }
 
     // If we have exact coordinates, use them
     if (dealerLat && dealerLng) {
       const position = { lat: dealerLat, lng: dealerLng };
+      const markerStartTime = Date.now();
 
-      // NOTE: google.maps.Marker is deprecated as of February 2024
-      // TODO: Migrate to google.maps.marker.AdvancedMarkerElement
-      // Migration guide: https://developers.google.com/maps/documentation/javascript/advanced-markers/migration
-      // Current API will continue to receive bug fixes; 12+ months notice before discontinuation
-      dealerMarker.current = new google.maps.Marker({
-        position,
-        map,
-        title: dealerName || 'Dealer Location',
-        icon: {
-          url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-        },
-      });
+      try {
+        // Create custom pin element (replaces icon option)
+        const pinElement = new google.maps.marker.PinElement({
+          background: '#DC2626', // Red color
+          borderColor: '#991B1B',
+          glyphColor: '#FFFFFF',
+          scale: 1.2,
+        });
 
-      // Add info window
-      const infoWindow = new google.maps.InfoWindow({
-        content: `<div style="padding: 8px;">
-          <h3 style="margin: 0 0 4px; font-weight: 600;">${dealerName || 'Dealer'}</h3>
-          ${dealerAddress ? `<p style="margin: 0; font-size: 13px;">${dealerAddress}</p>` : ''}
-          ${dealerCity && dealerState ? `<p style="margin: 0; font-size: 13px;">${dealerCity}, ${dealerState} ${dealerZip || ''}</p>` : ''}
-        </div>`,
-      });
+        // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
+        dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
+          position,
+          map,
+          title: dealerName || 'Dealer Location',
+          content: pinElement.element,
+        });
 
-      dealerMarker.current.addListener('click', () => {
-        infoWindow.open(map, dealerMarker.current);
-      });
+        // Create info window
+        infoWindow.current = new google.maps.InfoWindow({
+          content: `<div style="padding: 8px;">
+            <h3 style="margin: 0 0 4px; font-weight: 600;">${dealerName || 'Dealer'}</h3>
+            ${dealerAddress ? `<p style="margin: 0; font-size: 13px;">${dealerAddress}</p>` : ''}
+            ${dealerCity && dealerState ? `<p style="margin: 0; font-size: 13px;">${dealerCity}, ${dealerState} ${dealerZip || ''}</p>` : ''}
+          </div>`,
+        });
 
-      map.setCenter(position);
-      map.setZoom(13);
-      return;
+        // Add click listener to show info window
+        dealerMarker.current.addListener('click', () => {
+          infoWindow.current?.open({
+            map,
+            anchor: dealerMarker.current!,
+          });
+        });
+
+        map.setCenter(position);
+        map.setZoom(13);
+        trackGoogleMapsPerformance('dealer_marker_create', markerStartTime, true);
+        return;
+      } catch (err) {
+        console.error('[DealerMap] Failed to create marker:', err);
+        trackGoogleMapsError(
+          GoogleMapsErrorType.MARKER_ERROR,
+          err instanceof Error ? err.message : String(err),
+          { component: 'DealerMap', phase: 'marker_creation' }
+        );
+        trackGoogleMapsPerformance('dealer_marker_create', markerStartTime, false);
+        setError('Failed to create dealer marker');
+      }
     }
 
     // Otherwise, geocode the address
@@ -115,37 +161,65 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
     if (!fullAddress) return;
 
+    const geocodeStartTime = Date.now();
     const geocoder = new google.maps.Geocoder();
     geocoder.geocode({ address: fullAddress }, (results, status) => {
       if (status === 'OK' && results && results[0]) {
         const position = results[0].geometry.location;
+        trackGoogleMapsPerformance('dealer_geocode', geocodeStartTime, true);
 
-        // NOTE: google.maps.Marker is deprecated as of February 2024
-        // TODO: Migrate to google.maps.marker.AdvancedMarkerElement
-        dealerMarker.current = new google.maps.Marker({
-          position,
-          map,
-          title: dealerName || 'Dealer Location',
-          icon: {
-            url: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png',
-          },
-        });
+        try {
+          // Create custom pin element (replaces icon option)
+          const pinElement = new google.maps.marker.PinElement({
+            background: '#DC2626', // Red color
+            borderColor: '#991B1B',
+            glyphColor: '#FFFFFF',
+            scale: 1.2,
+          });
 
-        const infoWindow = new google.maps.InfoWindow({
-          content: `<div style="padding: 8px;">
-            <h3 style="margin: 0 0 4px; font-weight: 600;">${dealerName || 'Dealer'}</h3>
-            <p style="margin: 0; font-size: 13px;">${fullAddress}</p>
-          </div>`,
-        });
+          // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
+          dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
+            position,
+            map,
+            title: dealerName || 'Dealer Location',
+            content: pinElement.element,
+          });
 
-        dealerMarker.current.addListener('click', () => {
-          infoWindow.open(map, dealerMarker.current);
-        });
+          // Create info window
+          infoWindow.current = new google.maps.InfoWindow({
+            content: `<div style="padding: 8px;">
+              <h3 style="margin: 0 0 4px; font-weight: 600;">${dealerName || 'Dealer'}</h3>
+              <p style="margin: 0; font-size: 13px;">${fullAddress}</p>
+            </div>`,
+          });
 
-        map.setCenter(position);
-        map.setZoom(13);
+          // Add click listener to show info window
+          dealerMarker.current.addListener('click', () => {
+            infoWindow.current?.open({
+              map,
+              anchor: dealerMarker.current!,
+            });
+          });
+
+          map.setCenter(position);
+          map.setZoom(13);
+        } catch (err) {
+          console.error('[DealerMap] Failed to create marker after geocoding:', err);
+          trackGoogleMapsError(
+            GoogleMapsErrorType.MARKER_ERROR,
+            err instanceof Error ? err.message : String(err),
+            { component: 'DealerMap', phase: 'marker_creation_after_geocode' }
+          );
+          setError('Failed to create dealer marker');
+        }
       } else {
         console.warn('[DealerMap] Geocoding failed:', status);
+        trackGoogleMapsPerformance('dealer_geocode', geocodeStartTime, false);
+        trackGoogleMapsError(
+          GoogleMapsErrorType.GEOCODING_ERROR,
+          `Geocoding failed with status: ${status}`,
+          { component: 'DealerMap', address: fullAddress }
+        );
         setError('Unable to locate dealer address');
       }
     });
@@ -153,7 +227,15 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
   // Show route from user location to dealer
   useEffect(() => {
-    if (!map || !isLoaded || !showRoute || !userLocation) return;
+    if (!map || !isLoaded || !showRoute || !userLocation) {
+      console.log('[DealerMap] Routing check:', {
+        hasMap: !!map,
+        isLoaded,
+        showRoute,
+        hasUserLocation: !!userLocation
+      });
+      return;
+    }
 
     // Clear existing directions
     if (directionsRenderer.current) {
@@ -167,12 +249,18 @@ export const DealerMap: React.FC<DealerMapProps> = ({
         ? { lat: dealerLat, lng: dealerLng }
         : [dealerAddress, dealerCity, dealerState, dealerZip].filter(Boolean).join(', ');
 
-    if (!dealerDestination) return;
+    if (!dealerDestination) {
+      console.warn('[DealerMap] No dealer destination available');
+      return;
+    }
+
+    console.log('[DealerMap] Calculating route from', userLocation, 'to', dealerDestination);
+    const directionsStartTime = Date.now();
 
     const directionsService = new google.maps.DirectionsService();
     directionsRenderer.current = new google.maps.DirectionsRenderer({
       map,
-      suppressMarkers: false,
+      suppressMarkers: false, // Show default A/B markers for origin/destination
       polylineOptions: {
         strokeColor: '#4F46E5',
         strokeWeight: 4,
@@ -194,10 +282,32 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           if (route && route.legs && route.legs[0]) {
             setDistance(route.legs[0].distance?.text || null);
             setDuration(route.legs[0].duration?.text || null);
+            console.log('[DealerMap] Route calculated:', {
+              distance: route.legs[0].distance?.text,
+              duration: route.legs[0].duration?.text
+            });
           }
+          trackGoogleMapsPerformance('dealer_directions', directionsStartTime, true);
         } else {
-          console.warn('[DealerMap] Directions request failed:', status);
-          setError('Unable to calculate route');
+          console.error('[DealerMap] Directions request failed:', status, result);
+          trackGoogleMapsPerformance('dealer_directions', directionsStartTime, false);
+          trackGoogleMapsError(
+            GoogleMapsErrorType.DIRECTIONS_ERROR,
+            `Directions failed with status: ${status}`,
+            {
+              component: 'DealerMap',
+              origin: { lat: userLocation.lat, lng: userLocation.lng },
+              destination: dealerDestination,
+              status
+            }
+          );
+
+          // Don't set error if it's just ZERO_RESULTS (might be too far)
+          if (status !== 'ZERO_RESULTS') {
+            setError('Unable to calculate route');
+          } else {
+            console.warn('[DealerMap] No route found (too far or unreachable)');
+          }
         }
       }
     );

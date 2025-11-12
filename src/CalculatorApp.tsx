@@ -10,7 +10,7 @@ import { DealerMap } from './components/DealerMap';
 import { OfferPreviewModal } from './components/OfferPreviewModal';
 import type { LeadData, SubmissionProgress } from './services/leadSubmission';
 import { submitOfferWithProgress } from './services/leadSubmission';
-import { lookupTaxRates } from './services/taxRatesService';
+import { lookupTaxRates, clearTaxRatesCache } from './services/taxRatesService';
 import type { EquityDecision } from './types';
 import { useCalculatorStore } from './stores/calculatorStore';
 import { formatEffectiveDate } from './utils/formatters';
@@ -74,7 +74,7 @@ export const CalculatorApp: React.FC = () => {
   const [vinError, setVinError] = useState('');
 
   // Google Maps Autocomplete
-  const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(locationInputRef as React.RefObject<HTMLInputElement>, {
+  const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(locationInputRef, {
     onPlaceSelected: async (place: PlaceDetails) => {
       setLocation(place.address);
       setLocationDetails(place);
@@ -160,6 +160,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         clearTimeout(dropdownHoverTimeout.current);
       }
     };
+  }, []);
+
+  // Clear tax rates cache on mount (to refresh with latest data)
+  useEffect(() => {
+    clearTaxRatesCache();
+    console.log('[CalculatorApp] Cleared tax rates cache');
   }, []);
 
   // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
@@ -429,25 +435,85 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       setLocation(addressString);
     }
 
-    // Always load county data and tax rates from profile (even if location string is already set)
-    if (profile.state_code && profile.county && profile.state) {
-      // Build locationDetails from profile data (county is already in profile!)
-      const profileLocation: PlaceDetails = {
-        address: addressString,
-        city: profile.city || '',
-        state: profile.state || profile.state_code || '',
-        stateCode: profile.state_code || '',
-        zipCode: profile.zip_code || '',
-        country: 'United States',
-        county: profile.county,
-        countyName: profile.county_name || profile.county,
-        lat: 0,
-        lng: 0,
-      };
+    // Build locationDetails from profile data
+    const profileLocation: PlaceDetails = {
+      address: addressString,
+      city: profile.city || '',
+      state: profile.state || profile.state_code || '',
+      stateCode: profile.state_code || '',
+      zipCode: profile.zip_code || '',
+      country: 'United States',
+      county: profile.county || '', // May be empty
+      countyName: profile.county_name || profile.county || '',
+      lat: 0,
+      lng: 0,
+    };
 
+    // Geocode the profile address to get lat/lng for routing
+    // This enables dealer directions to work with auto-loaded addresses
+    if (window.google?.maps?.Geocoder && addressString) {
+      const geocoder = new window.google.maps.Geocoder();
+      geocoder.geocode({ address: addressString }, (results, status) => {
+        if (status === 'OK' && results && results[0]) {
+          const location = results[0].geometry.location;
+          const lat = typeof location.lat === 'function' ? location.lat() : location.lat;
+          const lng = typeof location.lng === 'function' ? location.lng() : location.lng;
+
+          // Extract county from address components (same logic as autocomplete)
+          const addressComponents = results[0].address_components || [];
+          const getComponent = (type: string, nameType: 'long_name' | 'short_name' = 'long_name') => {
+            const component = addressComponents.find((c: google.maps.GeocoderAddressComponent) => c.types.includes(type));
+            return component ? component[nameType] : '';
+          };
+
+          const countyRaw = getComponent('administrative_area_level_2');
+          const countyNormalized = countyRaw.replace(/\s+(County|Parish)$/i, '').trim();
+
+          // Update location details with real coordinates AND county data
+          const geolocatedProfile: PlaceDetails = {
+            ...profileLocation,
+            county: countyNormalized || profileLocation.county,
+            countyName: countyRaw || profileLocation.countyName,
+            lat: lat as number,
+            lng: lng as number,
+          };
+
+          setLocationDetails(geolocatedProfile);
+
+          // Lookup tax rates with geocoded county data
+          // Use countyNormalized (same as autocomplete) for database lookup
+          if (profile.state_code && countyNormalized) {
+            lookupTaxRates(profile.state_code, countyNormalized, profile.state || profile.state_code)
+              .then((taxData) => {
+                if (taxData && !isTaxRateManuallySet) {
+                  setStateTaxRate(taxData.stateTaxRate);
+                  setCountyTaxRate(taxData.countyTaxRate);
+                  setStateName(taxData.stateName);
+                  setCountyName(taxData.countyName);
+                  console.log(`[CalculatorApp] Loaded tax rates from geocoded location: ${taxData.stateName}, ${taxData.countyName}`);
+                  toast.push({
+                    kind: 'success',
+                    title: 'Tax Rates Loaded',
+                    detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`
+                  });
+                }
+              })
+              .catch((err) => {
+                console.error('[CalculatorApp] Tax lookup error from geocoded location:', err);
+              });
+          }
+        } else {
+          // Fallback to profile location without coordinates
+          setLocationDetails(profileLocation);
+        }
+      });
+    } else {
+      // Google Maps not loaded yet or no address - use profile location without coordinates
       setLocationDetails(profileLocation);
+    }
 
-      // Load tax rates from profile location
+    // Load tax rates from profile location (only if county data is available)
+    if (profile.state_code && profile.county && profile.state) {
       lookupTaxRates(profile.state_code, profile.county, profile.state)
         .then((taxData) => {
           if (taxData && !isTaxRateManuallySet) {
@@ -700,6 +766,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       amountFinanced: financed,
       totalPayments: total,
       monthlyFinanceCharge: loanTerm > 0 ? (total - financed) / loanTerm : 0,
+      monthlyPayment: payment,
     };
     updateBaselines(tilValues);
     calculateDiffs(tilValues);
@@ -1773,14 +1840,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         label: 'Total of Payments',
                         value: formatCurrencyWithCents(totalOfPayments),
                         helper: 'Total after all payments',
-                        diff: diffs.totalPayments,
                       })}
 
                       {renderTilStatCard({
                         label: 'Monthly Finance Charge',
                         value: formatCurrencyWithCents(loanTerm > 0 ? financeCharge / loanTerm : 0),
                         helper: 'Interest portion per month',
-                        diff: diffs.monthlyFinanceCharge,
                       })}
                     </div>
                   </div>

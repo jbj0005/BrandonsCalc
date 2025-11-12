@@ -86,17 +86,16 @@ export async function lookupTaxRates(
   try {
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
 
-    // Query for total tax rate (includes both state and county)
+    // Query for component tax rates (separate state and county)
     const { data, error } = await supabase
       .from('county_surtax_windows')
       .select('*')
       .eq('state_code', stateCode)
       .eq('county_name', countyName)
-      .eq('component_label', 'total')
+      .eq('component_label', 'component')
       .lte('effective_date', currentDate)
       .or(`expiration_date.is.null,expiration_date.gte.${currentDate}`)
-      .order('effective_date', { ascending: false })
-      .limit(1);
+      .order('effective_date', { ascending: false });
 
     if (error) {
       console.error('[TaxRatesService] Supabase query error:', error);
@@ -108,17 +107,21 @@ export async function lookupTaxRates(
       return null;
     }
 
-    const taxRecord = data[0];
+    // Extract state and county components from the results
+    const stateComponent = data.find(d => d.source_version === 'state');
+    const countyComponent = data.find(d => d.source_version === 'county');
 
-    // Convert decimal rate to percentage (0.075 -> 7.5%)
-    const totalTaxRate = taxRecord.rate_decimal * 100;
+    if (!stateComponent || !countyComponent) {
+      console.error(`[TaxRatesService] Missing components for ${stateCode}/${countyName}`, {
+        hasState: !!stateComponent,
+        hasCounty: !!countyComponent
+      });
+      return null;
+    }
 
-    // For "total" component_label, we assume the rate includes both state and county
-    // We'll need to split this intelligently or query for separate components
-    // For now, we'll assume a 70/30 split (state/county) as a reasonable default
-    // This should be customized based on actual state tax structures
-    const stateTaxRate = totalTaxRate * 0.7;
-    const countyTaxRate = totalTaxRate * 0.3;
+    // Convert decimal rates to percentages
+    const stateTaxRate = stateComponent.rate_decimal * 100;
+    const countyTaxRate = countyComponent.rate_decimal * 100;
 
     // Format county name for display (add "County" suffix if not present)
     const displayCountyName = countyName.endsWith('County') || countyName.endsWith('Parish')

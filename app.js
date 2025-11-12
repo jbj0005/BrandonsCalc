@@ -180,7 +180,7 @@ let sendModeModalUI = null;
 
 // Google Places
 let placesAutocomplete = null;
-let quickLocationAutocomplete = null;
+// REMOVED: quickLocationAutocomplete (now uses React implementation)
 let profileAddressAutocomplete = null;
 let googleMapsLoaded = false;
 let quickLocationManualHandlerAttached = false;
@@ -1257,25 +1257,11 @@ async function loadGoogleMaps() {
 
     // Load Google Maps script
     const script = document.createElement("script");
-    const params = new URLSearchParams({
-      key: apiKey,
-      libraries: "places",
-      callback: "initGooglePlaces",
-      loading: "async",
-    });
-    script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
-    script.async = true;
-    script.defer = true;
-    document.head.appendChild(script);
-
-    // Set global callback
-    window.initGooglePlaces = () => {
-      googleMapsLoaded = true;
-      setupPlacesAutocomplete();
-      setupQuickLocationAutocomplete();
-    };
+    // REMOVED: Google Maps loading script
+    // This app now uses React-only Google Maps implementation
+    // See src/utils/loadGoogleMaps.ts and src/hooks/useGoogleMapsAutocomplete.ts
   } catch (error) {
-    console.error("Error loading Google Maps:", error);
+    console.error("Error loading config:", error);
   }
 }
 
@@ -1325,83 +1311,12 @@ async function deleteGarageVehiclePhoto(storagePath) {
   }
 }
 
-/**
- * Setup Google Places autocomplete on location input
- */
-function setupPlacesAutocomplete() {
-  const locationInput = document.getElementById("user-location");
-  const g = typeof window !== "undefined" ? window.google : undefined;
-  if (!locationInput || !g || !g.maps || !g.maps.places) return;
-
-  if (placesAutocomplete) {
-    return true;
-  }
-
-  try {
-    placesAutocomplete = new g.maps.places.Autocomplete(locationInput, {
-      types: ["address"],
-      componentRestrictions: { country: "us" },
-    });
-    locationInput.dataset.autocompleteInitialized = "true";
-
-    placesAutocomplete.addListener("place_changed", async () => {
-      const place = placesAutocomplete.getPlace();
-      if (!place.geometry) return;
-
-      // Extract location data
-      const location = {
-        address: place.formatted_address,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-        zip: extractZipFromPlace(place),
-      };
-
-      const locale = extractLocaleFromComponents(
-        place.address_components ?? []
-      );
-      location.stateCode = locale.stateCode;
-      location.countyName = locale.countyName;
-
-      wizardData.location = location;
-
-      applyLocaleToFees(locale);
-
-      // Update hint to show selected location
-      const hint = locationInput.nextElementSibling;
-      if (hint) {
-        hint.textContent = `✓ Using: ${location.zip || "your location"}`;
-        hint.style.color = "var(--success)";
-      }
-
-      // Populate year dropdown now that location is set
-      await populateYearDropdowns();
-
-      // Show vehicle selection section now that location is set
-      const vehicleSelectionSection = document.getElementById(
-        "vehicle-selection-section"
-      );
-      if (vehicleSelectionSection) {
-        vehicleSelectionSection.style.display = "block";
-      }
-    });
-  } catch (error) {
-    console.error("Error setting up Places autocomplete:", error);
-  }
-}
-
-/**
- * Extract ZIP code from Google Place result
- */
-function extractZipFromPlace(place) {
-  if (!place.address_components) return null;
-
-  for (const component of place.address_components) {
-    if (component.types.includes("postal_code")) {
-      return component.long_name;
-    }
-  }
-  return null;
-}
+// REMOVED: setupPlacesAutocomplete() and extractZipFromPlace()
+// This app now uses React-only Google Maps implementation
+// Location autocomplete is handled by:
+// - src/hooks/useGoogleMapsAutocomplete.ts (modern web component API)
+// - src/CalculatorApp.tsx (location input with autocomplete)
+// - src/ui/components/UserProfileDropdown.tsx (profile address autocomplete)
 
 function extractLocaleFromComponents(components = []) {
   let stateCode = "";
@@ -13856,91 +13771,9 @@ function clearQuickVehicleSelection() {
   autoCalculateQuick().catch(() => {});
 }
 
-/**
- * Setup location autocomplete for Quick Entry mode
- */
-function setupQuickLocationAutocomplete() {
-  const quickLocation = document.getElementById("quick-location");
-  if (!quickLocation) {
-    return false;
-  }
-
-  if (!googleMapsLoaded || !window.google?.maps?.places) {
-    return false;
-  }
-
-  if (quickLocationAutocomplete) {
-    return true;
-  }
-
-  quickLocationAutocomplete = new google.maps.places.Autocomplete(
-    quickLocation,
-    {
-      types: ["geocode"],
-      componentRestrictions: { country: "us" },
-    }
-  );
-  quickLocation.dataset.autocompleteInitialized = "true";
-
-  quickLocationAutocomplete.addListener("place_changed", async () => {
-    const place = quickLocationAutocomplete?.getPlace();
-    if (!place?.geometry) return;
-
-    const zip = extractZipFromPlace(place) || "";
-    const locale = extractLocaleFromComponents(place.address_components ?? []);
-
-    const lat =
-      typeof place.geometry.location?.lat === "function"
-        ? place.geometry.location.lat()
-        : place.geometry.location?.lat ?? null;
-    const lng =
-      typeof place.geometry.location?.lng === "function"
-        ? place.geometry.location.lng()
-        : place.geometry.location?.lng ?? null;
-
-    wizardData.location = {
-      ...wizardData.location,
-      formatted_address: place.formatted_address ?? zip ?? "",
-      address: place.formatted_address ?? zip ?? "",
-      zip,
-      lat,
-      lng,
-      stateCode: locale.stateCode,
-      countyName: locale.countyName,
-    };
-
-    quickLocation.value = place.formatted_address ?? zip ?? "";
-
-    const wizardLocationInput = document.getElementById("user-location");
-    if (wizardLocationInput) {
-      wizardLocationInput.value = place.formatted_address ?? zip ?? "";
-      const hint = wizardLocationInput.nextElementSibling;
-      if (hint) {
-        hint.textContent = `✓ Using: ${zip || "your location"}`;
-        hint.style.color = "var(--success)";
-      }
-    }
-
-    applyLocaleToFees(locale);
-
-    try {
-      await populateYearDropdowns();
-    } catch (error) {
-      // Error refreshing year dropdowns
-    }
-
-    // If a vehicle is already selected, refresh the card to show map
-    if (selectedVehicle) {
-      displayQuickVehicleCard(selectedVehicle);
-    }
-
-    autoCalculateQuick().catch((error) => {
-      // Error recalculating
-    });
-  });
-
-  return true;
-}
+// REMOVED: setupQuickLocationAutocomplete()
+// This app now uses React-only Google Maps implementation
+// Quick location functionality is handled by the React app
 
 function setupQuickLocationManualFallback() {
   if (quickLocationManualHandlerAttached) return;

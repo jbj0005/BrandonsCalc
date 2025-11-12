@@ -18,6 +18,7 @@ import { ProfileData } from '../../services/ProfileService';
 import type { GarageVehicle } from '../../types';
 import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
+import { useGoogleMapsAutocomplete, PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 import { useCalculatorStore } from '../../stores/calculatorStore';
 
 export interface UserProfileDropdownProps {
@@ -79,11 +80,31 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
   const [activeSection, setActiveSection] = useState<Section | null>(null);
   const [hoveredSection, setHoveredSection] = useState<Section | null>(null);
-  const [addressInputRef, setAddressInputRef] = useState<HTMLInputElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const autocompleteInputRef = useRef<HTMLInputElement | null>(null);
+  const addressInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle place selection from autocomplete
+  const handlePlaceSelected = (placeDetails: PlaceDetails) => {
+    // Extract street number and route for street_address
+    // Note: hook doesn't provide street breakdown, so we'll use the full formatted address
+    // and parse it if needed, or just use city/state/zip from the structured data
+    onUpdateField('street_address', placeDetails.address);
+    onUpdateField('city', placeDetails.city);
+    onUpdateField('state', placeDetails.state);
+    onUpdateField('state_code', placeDetails.stateCode);
+    onUpdateField('zip_code', placeDetails.zipCode);
+    onUpdateField('county', placeDetails.county);
+    onUpdateField('county_name', placeDetails.countyName);
+    // Note: google_place_id is not available in PlaceDetails - would need to extend hook if needed
+  };
+
+  // Setup Google Places autocomplete using modern hook
+  useGoogleMapsAutocomplete(addressInputRef, {
+    onPlaceSelected: handlePlaceSelected,
+    types: ['address'],
+    componentRestrictions: { country: 'us' },
+  });
 
   // Close on outside click
   useEffect(() => {
@@ -112,75 +133,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose]);
-
-  // Setup Google Places autocomplete on address field
-  useEffect(() => {
-    if (!addressInputRef || !isOpen || activeSection !== 'profile') return;
-    if (typeof window === 'undefined' || !window.google?.maps?.places) return;
-
-    if (!autocompleteRef.current || autocompleteInputRef.current !== addressInputRef) {
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(addressInputRef, {
-        types: ['address'],
-        componentRestrictions: { country: 'us' },
-      });
-      autocompleteInputRef.current = addressInputRef;
-    }
-
-    const autocomplete = autocompleteRef.current;
-    if (!autocomplete) return;
-
-    const handlePlaceChanged = () => {
-      const place = autocomplete.getPlace();
-      if (!place.address_components || !place.geometry) return;
-
-      let street = '';
-      let city = '';
-      let state = '';
-      let stateCode = '';
-      let zip = '';
-      let county = '';
-      let countyName = '';
-
-      place.address_components.forEach((component) => {
-        const types = component.types;
-        if (types.includes('street_number')) {
-          street = component.long_name + ' ';
-        }
-        if (types.includes('route')) {
-          street += component.long_name;
-        }
-        if (types.includes('locality')) {
-          city = component.long_name;
-        }
-        if (types.includes('administrative_area_level_1')) {
-          state = component.long_name;
-          stateCode = component.short_name;
-        }
-        if (types.includes('administrative_area_level_2')) {
-          countyName = component.long_name;
-          county = component.long_name.replace(/\s+(County|Parish)$/i, '').trim();
-        }
-        if (types.includes('postal_code')) {
-          zip = component.short_name;
-        }
-      });
-
-      onUpdateField('street_address', street);
-      onUpdateField('city', city);
-      onUpdateField('state', state);
-      onUpdateField('state_code', stateCode);
-      onUpdateField('zip_code', zip);
-      onUpdateField('county', county);
-      onUpdateField('county_name', countyName);
-      onUpdateField('google_place_id', place.place_id || null);
-    };
-
-    const listener = autocomplete.addListener('place_changed', handlePlaceChanged);
-
-    return () => {
-      listener.remove();
-    };
-  }, [addressInputRef, isOpen, activeSection, onUpdateField]);
 
   const handleSaveProfile = async () => {
     if (!profile) return;
@@ -513,7 +465,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   value={profile?.street_address || ''}
                   onChange={(e) => onUpdateField('street_address', e.target.value)}
                   placeholder="123 Main St"
-                  ref={(el) => setAddressInputRef(el)}
+                  ref={addressInputRef}
                   helperText="Start typing for suggestions"
                   fullWidth
                 />
