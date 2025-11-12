@@ -16,7 +16,7 @@ import { VehicleEditorModal } from '../ui/components/VehicleEditorModal';
 import { ConfirmationDialog } from '../ui/components/ConfirmationDialog';
 import { Button } from '../ui/components/Button';
 import { useToast } from '../ui/components/Toast';
-import type { GarageVehicle } from '../types';
+import type { GarageVehicle, Vehicle } from '../types';
 // Import your SavedVehiclesCache
 // import { savedVehiclesCache } from '../features/vehicles/saved-vehicles-cache';
 
@@ -152,7 +152,7 @@ export const VehicleManagementExample: React.FC = () => {
   };
 
   // Handle select vehicle (e.g., for use in calculator)
-  const handleSelectVehicle = (vehicle: GarageVehicle | any) => {
+  const handleSelectVehicle = (vehicle: Vehicle | GarageVehicle) => {
     const id = 'id' in vehicle ? vehicle.id : undefined;
     setSelectedVehicleId(id || null);
 

@@ -30,7 +30,7 @@ export const Tooltip: React.FC<TooltipProps> = ({
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const [tooltipStyle, setTooltipStyle] = useState<React.CSSProperties>({});
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
@@ -76,8 +76,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
   };
 
   const handleMouseLeave = () => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    const timer = timeoutRef.current;
+    if (timer) {
+      clearTimeout(timer);
+      timeoutRef.current = null;
     }
     setIsVisible(false);
   };
@@ -85,8 +87,10 @@ export const Tooltip: React.FC<TooltipProps> = ({
   // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      const timer = timeoutRef.current;
+      if (timer) {
+        clearTimeout(timer);
+        timeoutRef.current = null;
       }
     };
   }, []);

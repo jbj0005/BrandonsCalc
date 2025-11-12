@@ -30,6 +30,27 @@ export type ClientOptions = {
   maxAttempts?: number;             // includes the initial try
 };
 
+const normalizeHeaders = (input?: HeadersInit): Record<string, string> => {
+  if (!input) return {};
+
+  if (Array.isArray(input)) {
+    return input.reduce((acc, [key, value]) => {
+      acc[key] = String(value);
+      return acc;
+    }, {} as Record<string, string>);
+  }
+
+  if (typeof Headers !== 'undefined' && input instanceof Headers) {
+    const obj: Record<string, string> = {};
+    input.forEach((value, key) => {
+      obj[key] = value;
+    });
+    return obj;
+  }
+
+  return { ...(input as Record<string, string>) };
+};
+
 export class ApiClient {
   constructor(private opts: ClientOptions) {}
 
@@ -38,7 +59,7 @@ export class ApiClient {
     init: RequestInit & { schema?: z.ZodType<T> } = {}
   ): Promise<T> {
     const {
-      schema, method = "GET", headers = {}, body, ...rest
+      schema, method = "GET", headers, body, ...rest
     } = init;
 
     const max = this.opts.maxAttempts ?? 3;
@@ -53,8 +74,8 @@ export class ApiClient {
       Accept: "application/json",
       "Content-Type": "application/json",
       "X-Request-ID": this.opts.requestId?.() ?? crypto.randomUUID(),
-      ...(this.opts.defaultHeaders || {}),
-      ...(headers as Record<string, string>),
+      ...normalizeHeaders(this.opts.defaultHeaders),
+      ...normalizeHeaders(headers),
     };
 
     // Idempotency for mutating calls

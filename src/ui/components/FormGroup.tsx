@@ -53,20 +53,21 @@ export const FormGroup: React.FC<FormGroupProps> = ({
       {/* Form Control */}
       <div className="relative">
         {React.Children.map(children, (child) => {
-          if (React.isValidElement(child)) {
-            // Pass down ID and ARIA attributes to child components
-            const additionalProps = {
-              id: groupId,
-              'aria-invalid': hasError,
-              'aria-describedby': error
-                ? `${groupId}-error`
-                : helperText
-                ? `${groupId}-helper`
-                : undefined,
-            };
-            return React.cloneElement(child as React.ReactElement<any>, additionalProps);
+          if (!React.isValidElement(child)) {
+            return child;
           }
-          return child;
+
+          const additionalProps: Record<string, string | boolean | undefined> = {
+            id: groupId,
+            'aria-invalid': hasError || undefined,
+            'aria-describedby': error
+              ? `${groupId}-error`
+              : helperText
+              ? `${groupId}-helper`
+              : undefined,
+          };
+
+          return React.cloneElement(child, additionalProps);
         })}
       </div>
 
