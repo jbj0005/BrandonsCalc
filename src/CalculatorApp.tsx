@@ -244,6 +244,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     tradePayoff,
     rounding,
     setSliderValue,
+    setSliderValueWithSettling,
     setSliderBaseline,
     resetSlider,
     applyVehicle,
@@ -1796,7 +1797,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={saleMaxDynamic}
               step={100}
               value={salePrice}
-              onChange={(e) => setSliderValue('salePrice', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithSettling('salePrice', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="lower-is-better"
@@ -1815,7 +1816,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={cashDownMaxDynamic}
               step={100}
               value={cashDown}
-              onChange={(e) => setSliderValue('cashDown', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithSettling('cashDown', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="higher-is-better"
@@ -1834,7 +1835,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={tradeAllowanceMaxDynamic}
               step={100}
               value={tradeAllowance}
-              onChange={(e) => setSliderValue('tradeAllowance', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithSettling('tradeAllowance', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="higher-is-better"
@@ -1853,7 +1854,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={dealerFeesMaxDynamic}
               step={10}
               value={dealerFees}
-              onChange={(e) => setSliderValue('dealerFees', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithSettling('dealerFees', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="lower-is-better"
@@ -1872,7 +1873,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={customerAddonsMaxDynamic}
               step={10}
               value={customerAddons}
-              onChange={(e) => setSliderValue('customerAddons', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithSettling('customerAddons', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="lower-is-better"

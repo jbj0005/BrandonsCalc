@@ -239,9 +239,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       if (!isNaN(parsed) && onChange) {
         const clamped = Math.max(Number(min), Math.min(Number(max), parsed));
 
-        // Set new baseline when user enters exact amount
-        updateBaseline(clamped, monthlyPayment);
-
         const syntheticEvent = {
           target: { value: String(clamped) },
         } as React.ChangeEvent<HTMLInputElement>;

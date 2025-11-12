@@ -48,6 +48,7 @@ export interface CalculatorState {
 export interface CalculatorActions {
   // Slider actions
   setSliderValue: (key: SliderKey, value: number, updateBaseline?: boolean) => void;
+  setSliderValueWithSettling: (key: SliderKey, value: number) => void;
   setSliderBaseline: (key: SliderKey, baseline: number) => void;
   resetSlider: (key: SliderKey) => void;
   resetAllSliders: () => void;
@@ -98,6 +99,8 @@ const INITIAL_STATE: CalculatorState = {
     enabled: false,
     adjustment: 0,
   },
+  settlingTimerId: null,
+  lastSliderInteraction: 0,
 };
 
 // ============================================================================
@@ -153,6 +156,49 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
         ...(updateBaseline && { baseline: value }),
       };
       return { sliders: newSliders };
+    });
+  },
+
+  setSliderValueWithSettling: (key, value) => {
+    const SETTLING_DELAY = 3000; // 3 seconds
+
+    set((state) => {
+      // Clear existing timer
+      if (state.settlingTimerId) {
+        clearTimeout(state.settlingTimerId);
+      }
+
+      // Update slider value immediately
+      const newSliders = { ...state.sliders };
+      newSliders[key] = {
+        ...newSliders[key],
+        value,
+      };
+
+      // Start new settling timer
+      const timerId = setTimeout(() => {
+        // After 3s, update ALL 5 baselines to their current values (State 1)
+        set((currentState) => {
+          const updatedSliders = { ...currentState.sliders };
+          (Object.keys(updatedSliders) as SliderKey[]).forEach((sliderKey) => {
+            updatedSliders[sliderKey] = {
+              ...updatedSliders[sliderKey],
+              baseline: updatedSliders[sliderKey].value,
+            };
+          });
+
+          return {
+            sliders: updatedSliders,
+            settlingTimerId: null,
+          };
+        });
+      }, SETTLING_DELAY);
+
+      return {
+        sliders: newSliders,
+        settlingTimerId: timerId,
+        lastSliderInteraction: Date.now(),
+      };
     });
   },
 
