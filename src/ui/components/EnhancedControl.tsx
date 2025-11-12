@@ -170,7 +170,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       onMouseMove={handleMouseMove}
       tabIndex={unstyled ? -1 : 0}
     >
-      <div className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase mb-3">
+      <div className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase mb-2">
         {label}
       </div>
       <div className="flex items-center justify-center gap-3">
@@ -243,7 +243,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
 
       {/* Keyboard Hint */}
       {showKeyboardHint && isHovering && (
-        <div className="text-xs text-blue-600 text-center mt-3 animate-fade-in">
+        <div className="text-xs text-blue-600 text-center mt-2 animate-fade-in">
           Hover + use ← → to fine tune
         </div>
       )}

@@ -87,7 +87,7 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
             className={`
               w-full h-2 rounded-lg appearance-none cursor-pointer
               bg-gray-200
-              focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+              focus:outline-none
               [&::-webkit-slider-thumb]:appearance-none
               [&::-webkit-slider-thumb]:w-5
               [&::-webkit-slider-thumb]:h-5

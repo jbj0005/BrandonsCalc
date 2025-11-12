@@ -56,7 +56,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const sliderRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isHovering, setIsHovering] = useState(false);
-    const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
     const [inputValue, setInputValue] = useState('');
     const [isInputFocused, setIsInputFocused] = useState(false);
 
@@ -114,20 +113,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       }
     }, [baselineValue, updateBaseline]);
 
-    // Update tooltip position
-    const updateTooltipPosition = () => {
-      if (!sliderRef.current) return;
-
-      const slider = sliderRef.current;
-      const rect = slider.getBoundingClientRect();
-      const percentage = ((currentValue - Number(min)) / (Number(max) - Number(min)));
-      const thumbPosition = rect.left + rect.width * percentage;
-
-      setTooltipPosition({
-        x: thumbPosition,
-        y: rect.top - 80, // Position higher above slider thumb
-      });
-    };
 
     const isBuyerPositive = useMemo(() => {
       if (Math.abs(diffFromBaseline) <= effectiveSnapThreshold) return false;
@@ -180,14 +165,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     // Handle mouse enter
     const handleMouseEnter = () => {
       setIsHovering(true);
-      updateTooltipPosition();
-    };
-
-    // Handle mouse move
-    const handleMouseMove = () => {
-      if (isHovering) {
-        updateTooltipPosition();
-      }
     };
 
     // Handle mouse leave
@@ -221,7 +198,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         } as React.ChangeEvent<HTMLInputElement>;
 
         onChange?.(syntheticEvent);
-        updateTooltipPosition();
       };
 
       document.addEventListener('keydown', handleKeyDown);
@@ -296,6 +272,15 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         if (event.currentTarget instanceof HTMLInputElement) {
           event.currentTarget.value = String(nextValue);
         }
+      } else {
+        // Round to nearest hundredth (0.01) when not snapping to baseline
+        nextValue = Math.round(nextValue * 100) / 100;
+        if (event.target instanceof HTMLInputElement) {
+          event.target.value = String(nextValue);
+        }
+        if (event.currentTarget instanceof HTMLInputElement) {
+          event.currentTarget.value = String(nextValue);
+        }
       }
 
       onChange(event);
@@ -304,18 +289,47 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     return (
       <div
         ref={containerRef}
-        className="relative"
+        className="relative focus:outline-none"
         onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         tabIndex={0}
       >
         {/* Input Field (optional) */}
         {showInput && label && (
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              {label}
-            </label>
+          <div className="flex items-center justify-between mb-1">
+            <div className="relative flex items-center">
+              <label className="block text-sm font-medium text-gray-700">
+                {label}
+              </label>
+
+              {/* Inline Ribbon Tooltip - Absolutely positioned to prevent layout shift */}
+              {showTooltip && isHovering && monthlyPayment > 0 && (
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 z-10">
+                  <div className="bg-white/90 backdrop-blur-md border border-gray-200 rounded-lg shadow-xl px-3 py-1.5 min-w-[140px]">
+                    {/* Monthly payment */}
+                    <div className="text-center text-sm font-bold text-gray-900">
+                      {formatCurrency(monthlyPayment)}/mo
+                    </div>
+
+                    {/* Diff indicator with color coding */}
+                    {paymentDiff !== null && Math.abs(paymentDiff) >= 1 && (
+                      <div className={`text-xs text-center mt-0.5 font-semibold flex items-center justify-center gap-1 ${
+                        paymentDiff > 0
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                      }`}>
+                        <span className="text-sm">{paymentDiff > 0 ? '↑' : '↓'}</span>
+                        <span>{formatCurrency(Math.abs(paymentDiff))}</span>
+                      </div>
+                    )}
+
+                    {/* Left-pointing notch */}
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1.5 w-3 h-3 bg-white/90 border-l border-b border-gray-200 rotate-45" />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <input
               type="text"
               value={inputValue}
@@ -367,36 +381,6 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
           </div>
         )}
 
-        {/* Tooltip */}
-        {showTooltip && isHovering && (
-          <div
-            className="fixed z-50 pointer-events-none transition-all duration-100"
-            style={{
-              left: `${tooltipPosition.x}px`,
-              top: `${tooltipPosition.y}px`,
-              transform: 'translateX(-50%)',
-            }}
-          >
-            <div className="bg-white/40 dark:bg-gray-900/40 border border-white/30 dark:border-gray-700/30 px-4 py-2 rounded-lg shadow-2xl" style={{ backdropFilter: 'blur(2px)' }}>
-              <div className="text-center">
-                <div className="text-lg font-bold text-gray-900 dark:text-white drop-shadow-sm">{formatCurrency(monthlyPayment)}</div>
-                <div className="text-xs mt-1">
-                  {Math.abs(paymentDiff) < 1 ? (
-                    <span className="text-gray-700 dark:text-gray-300 drop-shadow-sm">No change</span>
-                  ) : paymentDiff > 0 ? (
-                    <span className="text-red-600 dark:text-red-400 drop-shadow-sm font-semibold">+{formatCurrency(paymentDiff)}/mo</span>
-                  ) : (
-                    <span className="text-green-600 dark:text-green-400 drop-shadow-sm font-semibold">{formatCurrency(paymentDiff)}/mo</span>
-                  )}
-                </div>
-              </div>
-              {/* Arrow */}
-              <div
-                className="absolute left-1/2 -translate-x-1/2 bottom-[-6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white/40 dark:border-t-gray-900/40"
-              />
-            </div>
-          </div>
-        )}
       </div>
     );
   }

@@ -28,9 +28,9 @@ const variantClasses = {
 
 const paddingClasses = {
   none: '',
-  sm: 'p-4',
-  md: 'p-6',
-  lg: 'p-8',
+  sm: 'p-3',
+  md: 'p-4',
+  lg: 'p-6',
 };
 
 const hoverClasses = 'hover:shadow-ios-elevated hover:-translate-y-0.5 transition-all duration-200';

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Button, Input, Checkbox } from '../ui/components';
+import { Modal, Card, Button, Input, Checkbox, Switch, Badge } from '../ui/components';
 import { generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
-import { formatPhoneNumber, formatCurrencyExact } from '../utils/formatters';
+import { formatPhoneNumber, formatCurrencyExact, formatEffectiveDate } from '../utils/formatters';
 
 export interface OfferPreviewModalProps {
   isOpen: boolean;
@@ -11,6 +11,13 @@ export interface OfferPreviewModalProps {
   leadData: LeadData;
   onSubmit: (data: LeadData) => void;
   onDevSubmit?: (data: LeadData) => void;
+  // Financial summary
+  amountFinanced?: number;
+  cashDue?: number;
+  // Rounding feature
+  roundAmountFinanced?: boolean;
+  roundingAdjustment?: number;
+  onToggleRounding?: (checked: boolean) => void;
 }
 
 interface DetailRowProps {
@@ -44,6 +51,11 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   leadData,
   onSubmit,
   onDevSubmit,
+  amountFinanced,
+  cashDue,
+  roundAmountFinanced,
+  roundingAdjustment,
+  onToggleRounding,
 }) => {
   // Get current user for profile loading
   const [userId, setUserId] = useState<string | null>(null);
@@ -119,6 +131,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
 
   // Vehicle info string
   const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
+
+  const ratesEffectiveDateLabel = leadData.ratesEffectiveDate
+    ? formatEffectiveDate(leadData.ratesEffectiveDate)
+    : null;
 
   // Handle submit
   const handleSubmit = () => {
@@ -252,8 +268,18 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             <div className="space-y-1">
               <DetailRow
                 label="Monthly Payment"
-                value={formatCurrency(leadData.monthlyPayment)}
-                bold
+                value={
+                  <>
+                    <span className="block text-base font-bold text-gray-900">
+                      {formatCurrency(leadData.monthlyPayment)}
+                    </span>
+                    {ratesEffectiveDateLabel && (
+                      <span className="block text-[11px] text-gray-500 mt-0.5">
+                        Rates effective {ratesEffectiveDateLabel}
+                      </span>
+                    )}
+                  </>
+                }
               />
               {leadData.apr && (
                 <DetailRow label="APR" value={`${leadData.apr.toFixed(2)}%`} />
@@ -274,11 +300,76 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
                 <DetailRow label="Customer Add-ons" value={formatCurrency(leadData.customerAddons)} />
               )}
             </div>
+
+            {/* Rounding Toggle Section */}
+            {onToggleRounding && (
+              <>
+                <div className="border-t border-gray-200 my-4"></div>
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <label className="text-sm font-semibold text-gray-900 block mb-1">
+                        Round Amount Financed
+                      </label>
+                      <p className="text-xs text-gray-600">
+                        Round to nearest $100, adjust cash due
+                      </p>
+                    </div>
+                    <Switch
+                      checked={roundAmountFinanced || false}
+                      onChange={(e) => onToggleRounding(e.target.checked)}
+                      size="md"
+                    />
+                  </div>
+
+                  {/* Show adjustment badge when rounding is active */}
+                  {roundAmountFinanced && roundingAdjustment !== 0 && (
+                    <div className="mt-3 pt-3 border-t border-blue-200">
+                      <Badge variant="info" size="sm">
+                        Rounded {roundingAdjustment && roundingAdjustment > 0 ? 'up' : 'down'} by {formatCurrency(Math.abs(roundingAdjustment || 0))}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {/* Amount Financed & Cash Due */}
+            {amountFinanced !== undefined && (
+              <>
+                <div className="border-t border-gray-200 my-4"></div>
+                <div className="space-y-3">
+                  <div className="rounded-lg bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-base font-bold text-white uppercase tracking-wide">
+                        Amount Financed
+                      </span>
+                      <span className="text-xl font-bold text-white">
+                        {formatCurrency(amountFinanced)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {cashDue !== undefined && (
+                    <div className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-base font-bold text-white">
+                          Cash Due at Signing
+                        </span>
+                        <span className="text-xl font-bold text-white">
+                          {formatCurrency(cashDue)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </Card>
 
           {/* 4. Dealer Contact (Optional) */}
           <Card padding="md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Send to Dealer (Optional)</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Send to Dealer (Optional)</h3>
             <p className="text-sm text-gray-600 mb-4">Enter dealer/salesman contact to send offer directly</p>
             <div className="space-y-4">
               <Input
@@ -301,7 +392,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           {/* 5. Customer Contact Information Card */}
           <Card padding="md">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Your Contact Information</h3>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Contact Information</h3>
               {profile && (
                 <button
                   onClick={handleToggleProfile}

@@ -83,3 +83,17 @@ export const formatCurrencyRounded = (value: number): string => {
     maximumFractionDigits: 0,
   })}`;
 };
+
+/**
+ * Format an ISO date string like 2025-03-01 into "Mar 1, 2025"
+ */
+export const formatEffectiveDate = (dateString?: string | null): string => {
+  if (!dateString) return '';
+  const parsed = new Date(dateString);
+  if (Number.isNaN(parsed.getTime())) return dateString;
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+};

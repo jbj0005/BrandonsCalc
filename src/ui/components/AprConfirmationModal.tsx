@@ -76,7 +76,7 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
               />
             </svg>
             <div>
-              <h4 className="text-sm font-semibold text-blue-800 mb-1">
+              <h4 className="text-sm font-semibold text-blue-800 mb-2">
                 You've manually adjusted the APR
               </h4>
               <p className="text-sm text-blue-700">

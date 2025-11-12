@@ -43,7 +43,7 @@ export const FormGroup: React.FC<FormGroupProps> = ({
       {label && (
         <label
           htmlFor={groupId}
-          className="block text-sm font-medium text-gray-700 mb-1.5"
+          className="block text-sm font-medium text-gray-700 mb-1"
         >
           {label}
           {required && <span className="text-red-500 ml-1">*</span>}
@@ -72,14 +72,14 @@ export const FormGroup: React.FC<FormGroupProps> = ({
 
       {/* Error message */}
       {error && (
-        <p id={`${groupId}-error`} className="mt-1.5 text-sm text-red-600">
+        <p id={`${groupId}-error`} className="mt-1 text-sm text-red-600">
           {error}
         </p>
       )}
 
       {/* Helper text */}
       {!error && helperText && (
-        <p id={`${groupId}-helper`} className="mt-1.5 text-sm text-gray-500">
+        <p id={`${groupId}-helper`} className="mt-1 text-sm text-gray-500">
           {helperText}
         </p>
       )}

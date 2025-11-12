@@ -300,7 +300,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <div className="text-center py-16 px-6">
           <div className="text-6xl mb-6">📋</div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-3">No Offers Yet</h2>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">No Offers Yet</h3>
           <p className="text-gray-600 mb-8 max-w-md mx-auto">
             You haven't submitted any offers yet. Start by configuring your ideal vehicle
             and financing options, then submit your first offer!
@@ -318,7 +318,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       <div className="max-h-[80vh] overflow-y-auto">
         {/* Header */}
         <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">My Offers</h2>
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">My Offers</h3>
           <p className="text-gray-600">View and manage all your submitted vehicle offers</p>
         </div>
 
@@ -384,7 +384,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Vehicle Info */}
                       <div className="md:col-span-2">
-                        <h3 className="text-lg font-bold text-gray-900 mb-1 pr-24">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-24">
                           {getVehicleInfo(offer)}
                         </h3>
                         <div className="text-sm text-gray-600 space-y-1">

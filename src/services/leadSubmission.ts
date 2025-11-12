@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '../lib/supabase';
+import { formatEffectiveDate } from '../utils/formatters';
 
 export interface LeadData {
   // Vehicle details
@@ -28,6 +29,7 @@ export interface LeadData {
   termMonths?: number;
   monthlyPayment?: number;
   downPayment?: number;
+  ratesEffectiveDate?: string;
 
   // Trade-in details
   tradeValue?: number;
@@ -482,6 +484,10 @@ export const generateOfferText = (leadData: LeadData): string => {
     lines.push('-'.repeat(50));
     if (leadData.monthlyPayment) lines.push(`Monthly Payment:   $${leadData.monthlyPayment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     if (leadData.apr) lines.push(`APR:               ${leadData.apr.toFixed(2)}%`);
+    if (leadData.ratesEffectiveDate) {
+      const formattedDate = formatEffectiveDate(leadData.ratesEffectiveDate) || leadData.ratesEffectiveDate;
+      lines.push(`Rates Effective:   ${formattedDate}`);
+    }
     if (leadData.termMonths) lines.push(`Term:              ${leadData.termMonths} months (${(leadData.termMonths / 12).toFixed(1)} years)`);
     if (leadData.downPayment) lines.push(`Down Payment:      $${leadData.downPayment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     lines.push('');

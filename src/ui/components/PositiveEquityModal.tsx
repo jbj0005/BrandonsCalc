@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Input } from './';
 import { ItemizationCard } from './ItemizationCard';
-import { formatCurrencyExact } from '../../utils/formatters';
+import { formatCurrencyExact, formatCurrencyInput } from '../../utils/formatters';
 import type { EquityDecision } from '../../types';
 
 export interface PositiveEquityModalProps {
@@ -21,6 +21,9 @@ export interface PositiveEquityModalProps {
   countyTaxRate: number;
   stateName?: string;
   countyName?: string;
+  roundAmountFinanced?: boolean;
+  roundingAdjustment?: number;
+  onToggleRounding?: (checked: boolean) => void;
 }
 
 /**
@@ -47,6 +50,9 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   countyTaxRate,
   stateName,
   countyName,
+  roundAmountFinanced,
+  roundingAdjustment,
+  onToggleRounding,
 }) => {
   const [selectedAction, setSelectedAction] = useState<'apply' | 'cashout' | 'split'>(
     initialDecision?.action || 'apply'
@@ -61,7 +67,7 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
       if (initialDecision.action === 'split' && positiveEquity > 0) {
         const percent = Math.round((initialDecision.cashoutAmount / positiveEquity) * 100);
         setSplitPercent(percent);
-        setCashoutInput(initialDecision.cashoutAmount.toFixed(2));
+        setCashoutInput(formatCurrencyInput(initialDecision.cashoutAmount.toFixed(2)));
       }
     }
   }, [isOpen, initialDecision, positiveEquity]);
@@ -70,8 +76,9 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   const cashoutFromPercent = (positiveEquity * splitPercent) / 100;
   const appliedFromPercent = positiveEquity - cashoutFromPercent;
 
-  // Parse cashout input
-  const cashoutFromInput = parseFloat(cashoutInput) || 0;
+  // Parse cashout input - strip formatting before parsing
+  const cleanedInput = cashoutInput.replace(/[^0-9.]/g, '');
+  const cashoutFromInput = parseFloat(cleanedInput) || 0;
   const validatedCashoutInput = Math.max(0, Math.min(positiveEquity, cashoutFromInput));
   const appliedFromInput = positiveEquity - validatedCashoutInput;
 
@@ -104,17 +111,55 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
     setCashoutInput('');
   };
 
-  // Handle input change
+  // Handle input change - allow raw input while typing
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setCashoutInput(value);
+
+    // Allow only numbers, dots, and dollar signs while typing
+    const cleaned = value.replace(/[^0-9.$]/g, '').replace(/\$/g, '');
+
+    // Prevent multiple decimal points
+    const parts = cleaned.split('.');
+    const formatted = parts.length > 2
+      ? parts[0] + '.' + parts.slice(1).join('')
+      : cleaned;
+
+    setCashoutInput(formatted);
 
     // Update slider to match input
-    const parsed = parseFloat(value) || 0;
+    const parsed = parseFloat(formatted) || 0;
     const validated = Math.max(0, Math.min(positiveEquity, parsed));
     if (positiveEquity > 0) {
       const percent = Math.round((validated / positiveEquity) * 100);
       setSplitPercent(percent);
+    }
+  };
+
+  // Handle input blur - format as currency when done typing
+  const handleInputBlur = () => {
+    if (cashoutInput) {
+      const cleaned = cashoutInput.replace(/[^0-9.]/g, '');
+      const parsed = parseFloat(cleaned) || 0;
+      const validated = Math.max(0, Math.min(positiveEquity, parsed));
+
+      // Format as currency
+      const formatted = formatCurrencyInput(validated.toFixed(2));
+      setCashoutInput(formatted);
+    }
+  };
+
+  // Handle input focus - remove formatting to allow editing
+  const handleInputFocus = () => {
+    if (cashoutInput) {
+      const cleaned = cashoutInput.replace(/[^0-9.]/g, '');
+      setCashoutInput(cleaned);
+    }
+  };
+
+  // Handle key press (Enter to confirm)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.currentTarget.blur(); // Blur the input to trigger formatting
     }
   };
 
@@ -134,16 +179,16 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                   Math.abs((finalApplied + finalCashout) - positiveEquity) < 0.01;
 
   // Calculate preview values for ItemizationCard
-  const unpaidBalance = salePrice - cashDown - finalApplied;
+  const previewUnpaidBalance = salePrice - cashDown - finalApplied;
 
   // Tax calculation (same as in CalculatorApp)
   const taxableBase = (salePrice - finalApplied) + dealerFees + customerAddons;
-  const stateTaxAmount = taxableBase * (stateTaxRate / 100);
-  const countyTaxAmount = Math.min(taxableBase, 5000) * (countyTaxRate / 100);
-  const totalTaxes = stateTaxAmount + countyTaxAmount;
+  const previewStateTaxAmount = taxableBase * (stateTaxRate / 100);
+  const previewCountyTaxAmount = Math.min(taxableBase, 5000) * (countyTaxRate / 100);
+  const previewTotalTaxes = previewStateTaxAmount + previewCountyTaxAmount;
 
-  const amountFinanced = unpaidBalance + dealerFees + customerAddons + totalTaxes + finalCashout;
-  const cashDue = cashDown; // Simplified for preview
+  const previewAmountFinanced = previewUnpaidBalance + dealerFees + customerAddons + previewTotalTaxes + finalCashout;
+  const previewCashDue = cashDown; // Simplified for preview
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -155,9 +200,9 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
               🎉
             </span>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h3 className="text-2xl font-bold text-gray-900 mb-3">
             Great News! You Have Positive Equity
-          </h2>
+          </h3>
           <div className="text-4xl font-bold text-green-600">
             {formatCurrencyExact(positiveEquity)}
           </div>
@@ -281,13 +326,13 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                       <div>
                         <Input
                           label="Cashout Amount"
-                          type="number"
+                          type="text"
                           value={cashoutInput}
                           onChange={handleInputChange}
-                          placeholder="0.00"
-                          min={0}
-                          max={positiveEquity}
-                          step={0.01}
+                          onKeyDown={handleKeyDown}
+                          onBlur={handleInputBlur}
+                          onFocus={handleInputFocus}
+                          placeholder="$0"
                           helperText={`Maximum: ${formatCurrencyExact(positiveEquity)}`}
                         />
                       </div>
@@ -329,17 +374,20 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             customerAddons={customerAddons}
             stateTaxRate={stateTaxRate}
             countyTaxRate={countyTaxRate}
-            stateTaxAmount={stateTaxAmount}
-            countyTaxAmount={countyTaxAmount}
-            totalTaxes={totalTaxes}
-            unpaidBalance={unpaidBalance}
-            amountFinanced={amountFinanced}
-            cashDue={cashDue}
+            stateTaxAmount={previewStateTaxAmount}
+            countyTaxAmount={previewCountyTaxAmount}
+            totalTaxes={previewTotalTaxes}
+            unpaidBalance={previewUnpaidBalance}
+            amountFinanced={previewAmountFinanced}
+            cashDue={previewCashDue}
             stateName={stateName}
             countyName={countyName}
             tradeInApplied={finalApplied}
             tradeInCashout={finalCashout}
             cashoutAmount={finalCashout > 0 ? finalCashout : undefined}
+            roundAmountFinanced={roundAmountFinanced}
+            roundingAdjustment={roundingAdjustment}
+            onToggleRounding={onToggleRounding}
           />
         </div>
 

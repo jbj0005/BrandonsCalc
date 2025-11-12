@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal } from './ui/components';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
@@ -12,6 +12,8 @@ import type { LeadData, SubmissionProgress } from './services/leadSubmission';
 import { submitOfferWithProgress } from './services/leadSubmission';
 import { lookupTaxRates } from './services/taxRatesService';
 import type { EquityDecision } from './types';
+import { useCalculatorStore } from './stores/calculatorStore';
+import { formatEffectiveDate } from './utils/formatters';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
@@ -27,31 +29,27 @@ import authManager from './features/auth/auth-manager';
 // @ts-ignore - TS module
 import { supabase } from './lib/supabase';
 
-type SliderBaselineKey =
-  | 'salePrice'
-  | 'cashDown'
-  | 'tradeAllowance'
-  | 'tradePayoff'
-  | 'dealerFees'
-  | 'customerAddons';
+const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
+  if (!rates || rates.length === 0) return null;
+  let latest: string | null = null;
+  rates.forEach((rate) => {
+    if (!rate.effective_date) return;
+    const candidateTime = new Date(rate.effective_date).getTime();
+    if (Number.isNaN(candidateTime)) return;
+    if (latest === null) {
+      latest = rate.effective_date;
+      return;
+    }
+    const latestTime = new Date(latest).getTime();
+    if (Number.isNaN(latestTime) || candidateTime > latestTime) {
+      latest = rate.effective_date;
+    }
+  });
+  return latest;
+};
 
 const DEFAULT_SALE_PRICE = 0;
 const DEFAULT_CASH_DOWN = 0;
-
-const DEFAULT_SLIDER_BASELINES: Record<SliderBaselineKey, number> = {
-  salePrice: DEFAULT_SALE_PRICE,
-  cashDown: DEFAULT_CASH_DOWN,
-  tradeAllowance: 0,
-  tradePayoff: 0,
-  dealerFees: 0,
-  customerAddons: 0,
-};
-
-declare global {
-  interface Window {
-    sliderOriginalValues?: Partial<Record<SliderBaselineKey, number>>;
-  }
-}
 
 /**
  * CalculatorApp - Main auto loan calculator application
@@ -239,44 +237,41 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     autoLoad: true,
   });
 
+  // Calculator Store (sliders, trade-in, rounding)
+  const {
+    sliders,
+    selectedTradeInVehicles,
+    tradePayoff,
+    rounding,
+    setSliderValue,
+    setSliderBaseline,
+    resetSlider,
+    applyVehicle,
+    applyGarageVehicle,
+    applyProfilePreferences,
+    toggleTradeInVehicle,
+    resetTradeIn,
+    toggleRounding,
+    setRounding,
+    setRoundingAdjustment,
+    setTradePayoff,
+  } = useCalculatorStore();
+
+  // Extract slider values for convenient access
+  const salePrice = sliders.salePrice.value;
+  const cashDown = sliders.cashDown.value;
+  const tradeAllowance = sliders.tradeAllowance.value;
+  const dealerFees = sliders.dealerFees.value;
+  const customerAddons = sliders.customerAddons.value;
+
   // Financing State
   const [lender, setLender] = useState('nfcu');
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
   const [vehicleCondition, setVehicleCondition] = useState<'new' | 'used'>('new');
   const [lenderRates, setLenderRates] = useState<LenderRate[]>([]);
+  const [ratesEffectiveDate, setRatesEffectiveDate] = useState<string | null>(null);
   const [isLoadingRates, setIsLoadingRates] = useState(false);
-
-  // Slider State (all in dollars except term)
-  const [salePrice, setSalePrice] = useState(DEFAULT_SALE_PRICE);
-  const [cashDown, setCashDown] = useState(DEFAULT_CASH_DOWN);
-  const [tradeAllowance, setTradeAllowance] = useState(0);
-  const [tradePayoff, setTradePayoff] = useState(0);
-  const [dealerFees, setDealerFees] = useState(0);
-  const [customerAddons, setCustomerAddons] = useState(0);
-  const [sliderBaselines, setSliderBaselines] = useState<Record<SliderBaselineKey, number>>(DEFAULT_SLIDER_BASELINES);
-  const updateSliderBaseline = useCallback((key: SliderBaselineKey, value: number) => {
-    setSliderBaselines((prev) => {
-      const previousValue = prev[key];
-      if (Math.abs(previousValue - value) < 0.0001) {
-        return prev;
-      }
-      const next = { ...prev, [key]: value };
-      return next;
-    });
-    if (typeof window !== 'undefined') {
-      window.sliderOriginalValues = {
-        ...(window.sliderOriginalValues || {}),
-        [key]: value,
-      };
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.sliderOriginalValues = { ...sliderBaselines };
-    }
-  }, [sliderBaselines]);
 
   // Calculated values
   const [apr, setApr] = useState(5.99);
@@ -305,6 +300,13 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   // Additional calculated values
   const [unpaidBalance, setUnpaidBalance] = useState(0);
   const [cashDue, setCashDue] = useState(0);
+
+  // Dynamic slider max ranges (115% of current value OR fallback maximum, whichever is greater)
+  const saleMaxDynamic = Math.max(salePrice * 1.15, 150000);
+  const cashDownMaxDynamic = Math.max(cashDown * 1.15, 50000);
+  const tradeAllowanceMaxDynamic = Math.max(tradeAllowance * 1.15, 75000);
+  const dealerFeesMaxDynamic = Math.max(dealerFees * 1.15, 5000);
+  const customerAddonsMaxDynamic = Math.max(customerAddons * 1.15, 10000);
 
   // Lender options from config/lenders.json
   const lenderOptions: SelectOption[] = [
@@ -365,12 +367,15 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       if (!lender) return;
 
       setIsLoadingRates(true);
+      setRatesEffectiveDate(null);
       try {
         const response = await fetchLenderRates(lender);
         setLenderRates(response.rates);
+        setRatesEffectiveDate(getLatestEffectiveDate(response.rates));
       } catch (error: any) {
         console.error('[Calculator] Failed to load rates:', error);
         setLenderRates([]);
+        setRatesEffectiveDate(null);
         toast.push({
           kind: 'warning',
           title: 'Rates Unavailable',
@@ -401,10 +406,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     }
   }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
 
-  // Calculate loan on any change (including equity decision)
+  // Calculate loan on any change (including equity decision and rounding)
   useEffect(() => {
     calculateLoan();
-  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate, equityDecision]);
+  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate, equityDecision, rounding.enabled]);
 
   // Auto-populate location from profile when profile loads
   useEffect(() => {
@@ -461,6 +466,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                       detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`
                     });
                   } else if (!taxData && !isTaxRateManuallySet) {
+                    // Set location names even if tax lookup fails
+                    setStateName(profile.state || '');
+                    setCountyName(profile.county_name || profile.county || '');
                     toast.push({
                       kind: 'warning',
                       title: 'Tax Rates Not Found',
@@ -485,10 +493,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     if (preferredDown == null) return;
 
     if (Math.abs(cashDown - DEFAULT_CASH_DOWN) < 1) {
-      setCashDown(preferredDown);
-      updateSliderBaseline('cashDown', preferredDown);
+      applyProfilePreferences(profile);
     }
-  }, [profile, selectedVehicle, cashDown, updateSliderBaseline]);
+  }, [profile, selectedVehicle, cashDown, applyProfilePreferences]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -595,25 +602,59 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     loadGarageVehicles();
   }, [currentUser, supabase]);
 
-  const calculateLoan = () => {
-    // Calculate net trade equity
+  const equityAllocation = useMemo(() => {
     const netTradeEquity = tradeAllowance - tradePayoff;
-    const positiveEquity = Math.max(0, netTradeEquity);
-    const negativeEquity = Math.abs(Math.min(0, netTradeEquity));
+    const positiveEquityAmount = Math.max(0, netTradeEquity);
+    const negativeEquityAmount = Math.abs(Math.min(0, netTradeEquity));
+    const hasManualDecision = equityDecision.appliedAmount > 0 || equityDecision.cashoutAmount > 0;
 
-    // Determine how much equity is applied to balance vs cashed out
-    let appliedToBalance = 0;
-    let cashoutAmount = 0;
-
-    if (positiveEquity > 0) {
-      // Use equity decision if positive equity exists
-      appliedToBalance = equityDecision.appliedAmount;
-      cashoutAmount = equityDecision.cashoutAmount;
-    } else {
-      // Negative equity: all goes to unpaid balance (increases loan)
-      appliedToBalance = -negativeEquity;
-      cashoutAmount = 0;
+    if (positiveEquityAmount > 0) {
+      if (hasManualDecision) {
+        const applied = Math.min(equityDecision.appliedAmount, positiveEquityAmount);
+        const remaining = Math.max(positiveEquityAmount - applied, 0);
+        const cashout = Math.min(equityDecision.cashoutAmount, remaining);
+        return {
+          appliedToBalance: applied,
+          cashoutAmount: cashout,
+          positiveEquity: positiveEquityAmount,
+          negativeEquity: negativeEquityAmount,
+          netTradeEquity,
+          hasManualDecision,
+        };
+      }
+      return {
+        appliedToBalance: positiveEquityAmount,
+        cashoutAmount: 0,
+        positiveEquity: positiveEquityAmount,
+        negativeEquity: negativeEquityAmount,
+        netTradeEquity,
+        hasManualDecision,
+      };
     }
+
+    return {
+      appliedToBalance: netTradeEquity < 0 ? -negativeEquityAmount : 0,
+      cashoutAmount: 0,
+      positiveEquity: positiveEquityAmount,
+      negativeEquity: negativeEquityAmount,
+      netTradeEquity,
+      hasManualDecision,
+    };
+  }, [tradeAllowance, tradePayoff, equityDecision.appliedAmount, equityDecision.cashoutAmount]);
+
+  const effectiveAppliedTrade = equityAllocation.appliedToBalance > 0 ? equityAllocation.appliedToBalance : 0;
+  const effectiveTradeCashout = equityAllocation.cashoutAmount > 0 ? equityAllocation.cashoutAmount : 0;
+  const initialEquityDecision: EquityDecision = equityAllocation.hasManualDecision || equityAllocation.positiveEquity === 0
+    ? equityDecision
+    : {
+        action: 'apply',
+        appliedAmount: Math.max(0, equityAllocation.appliedToBalance),
+        cashoutAmount: 0,
+      };
+
+  const calculateLoan = () => {
+    let appliedToBalance = equityAllocation.appliedToBalance;
+    let cashoutAmount = equityAllocation.cashoutAmount;
 
     // Calculate unpaid balance (before fees/taxes)
     const unpaid = salePrice - cashDown - appliedToBalance;
@@ -632,11 +673,21 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     // Calculate amount financed (includes fees, taxes, and cashout)
     const totalPrice = salePrice + dealerFees + customerAddons + totalTax;
     const downPayment = cashDown + appliedToBalance;
-    const financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
-    setAmountFinanced(financed);
+    let financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
+    let adjustment = 0;
 
-    // Calculate cash due at signing (for now, just cash down - will expand later)
-    setCashDue(cashDown);
+    // Apply rounding if enabled
+    if (rounding.enabled) {
+      const rounded = Math.round(financed / 100) * 100;
+      adjustment = rounded - financed;
+      financed = rounded;
+    }
+
+    setAmountFinanced(financed);
+    setRoundingAdjustment(adjustment);
+
+    // Calculate cash due at signing (adjusted for rounding)
+    setCashDue(cashDown - adjustment);
 
     if (financed <= 0 || apr <= 0 || loanTerm <= 0) {
       setMonthlyPayment(0);
@@ -696,6 +747,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       termMonths: loanTerm,
       monthlyPayment: monthlyPayment,
       downPayment: cashDown,
+      ratesEffectiveDate: ratesEffectiveDate || undefined,
 
       // Trade-in
       tradeValue: tradeAllowance || undefined,
@@ -856,7 +908,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
   const selectedVehicleSaleValue = selectedVehicle ? getVehicleSalePrice(selectedVehicle) : null;
 
-  const baselineSalePrice = sliderBaselines.salePrice;
+  const baselineSalePrice = sliders.salePrice.baseline;
 
   const selectedVehicleSaleLabel =
     isGarageSelectedVehicle
@@ -888,18 +940,14 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     value,
     helper,
     diff,
-    highlight = false,
   }: {
     label: string;
     value: string;
     helper: string;
     diff?: TilDiff | null;
-    highlight?: boolean;
   }) => (
     <div
-      className={`rounded-2xl border p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] transition-all duration-200 ${
-        highlight ? 'bg-blue-50 border-blue-100' : 'bg-white border-blue-50'
-      } hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus:border-blue-300 focus:outline-none cursor-default`}
+      className="rounded-2xl border border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus:border-blue-300 focus:outline-none cursor-default"
       tabIndex={0}
     >
       <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
@@ -925,14 +973,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
     const saleValue = getVehicleSalePrice(vehicle);
     if (saleValue != null) {
-      setSalePrice(saleValue);
-      updateSliderBaseline('salePrice', saleValue);
-    }
-
-    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? null;
-    if (payoffValue !== null) {
-      setTradePayoff(payoffValue);
-      updateSliderBaseline('tradePayoff', payoffValue);
+      setSliderValue('salePrice', saleValue, true);
     }
 
     // Note: calculateLoan() will be called automatically by useEffect when salePrice updates
@@ -951,19 +992,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
     rebaseTilBaselines();
 
-    const tradeValue = parseNumericValue(vehicle.estimated_value) ?? 0;
-    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? 0;
-
-    if (FEATURE_FLAGS.autoPopulateSalePrice && FEATURE_FLAGS.useTradeValueForGarageSalePrice) {
-      setSalePrice(tradeValue);
-      updateSliderBaseline('salePrice', tradeValue);
-    }
-
-    setTradeAllowance(tradeValue);
-    updateSliderBaseline('tradeAllowance', tradeValue);
-
-    setTradePayoff(payoffValue);
-    updateSliderBaseline('tradePayoff', payoffValue);
+    // Use store action to apply garage vehicle (sets values + baselines)
+    applyGarageVehicle(vehicle, FEATURE_FLAGS.autoPopulateSalePrice && FEATURE_FLAGS.useTradeValueForGarageSalePrice);
 
     // Note: calculateLoan() will be called automatically by useEffect when state updates
 
@@ -975,13 +1005,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   };
 
   const handleApplyGarageVehicleAsTrade = (vehicle: any) => {
-    const tradeValue = parseNumericValue(vehicle.estimated_value) ?? 0;
-    const payoffValue = parseNumericValue(vehicle.payoff_amount) ?? 0;
-
-    setTradeAllowance(tradeValue);
-    setTradePayoff(payoffValue);
-    updateSliderBaseline('tradeAllowance', tradeValue);
-    updateSliderBaseline('tradePayoff', payoffValue);
+    // Use store action to apply garage vehicle (sets values + baselines + toggles selection)
+    applyGarageVehicle(vehicle, FEATURE_FLAGS.autoPopulateSalePrice && FEATURE_FLAGS.useTradeValueForGarageSalePrice);
     setShowVehicleDropdown(false);
 
     setTimeout(() => calculateLoan(), 0);
@@ -991,6 +1016,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       title: 'Trade Values Applied',
       detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
     });
+  };
+
+  // Handle toggle garage vehicle as trade-in
+  const handleToggleGarageTradeIn = (vehicleId: string, isChecked: boolean) => {
+    toggleTradeInVehicle(vehicleId, garageVehicles || []);
   };
 
   // Handle edit vehicle from VIN dropdown
@@ -1067,8 +1097,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
     if (!cleanVIN) {
       setSelectedVehicle(null);
-      setSalePrice(0);
-      updateSliderBaseline('salePrice', 0);
+      setSliderValue('salePrice', 0, true);
       setVinError('');
       return;
     }
@@ -1077,16 +1106,14 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     if (cleanVIN.length < 11) {
       setVinError('VIN must be at least 11 characters');
       setSelectedVehicle(null);
-      setSalePrice(0);
-      updateSliderBaseline('salePrice', 0);
+      setSliderValue('salePrice', 0, true);
       return;
     }
 
     if (cleanVIN.length > 17) {
       setVinError('VIN cannot be more than 17 characters');
       setSelectedVehicle(null);
-      setSalePrice(0);
-      updateSliderBaseline('salePrice', 0);
+      setSliderValue('salePrice', 0, true);
       return;
     }
 
@@ -1108,8 +1135,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
         const saleValue = getVehicleSalePrice(result.listing);
         if (saleValue != null) {
-          setSalePrice(saleValue);
-          updateSliderBaseline('salePrice', saleValue);
+          setSliderValue('salePrice', saleValue, true);
         }
         setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
 
@@ -1121,8 +1147,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       } else {
         setVinError('No vehicle found for this VIN');
         setSelectedVehicle(null);
-        setSalePrice(0);
-        updateSliderBaseline('salePrice', 0);
+        setSliderValue('salePrice', 0, true);
       }
     } catch (error: any) {
       console.error('VIN lookup error:', error);
@@ -1157,8 +1182,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         // Other errors (like "not found") should clear selectedVehicle
         setVinError(error.message || 'Failed to look up VIN');
         setSelectedVehicle(null);
-        setSalePrice(0);
-        updateSliderBaseline('salePrice', 0);
+        setSliderValue('salePrice', 0, true);
         toast.push({
           kind: 'error',
           title: 'VIN Lookup Failed',
@@ -1186,6 +1210,16 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     }).format(value);
   };
 
+  const ratesEffectiveDateLabel = ratesEffectiveDate ? formatEffectiveDate(ratesEffectiveDate) : null;
+
+  const lenderHelperText = isLoadingRates
+    ? 'Loading rates...'
+    : lenderRates.length > 0
+      ? ratesEffectiveDateLabel
+        ? `Rates effective ${ratesEffectiveDateLabel} (${lenderRates.length} programs)`
+        : `${lenderRates.length} programs loaded`
+      : 'No rates available';
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Dark Header */}
@@ -1209,21 +1243,21 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 py-4">
+      <div className="max-w-7xl mx-auto px-4 py-3">
 
         {/* Main Grid - Left column (inputs) + Right column (summary) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
           {/* LEFT COLUMN: Inputs (2/3 width) */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-3">
 
             {/* Location & Vehicle Section */}
             <Card variant="elevated" padding="md" className="overflow-visible transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-3">
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
                 Location & Vehicle
               </h2>
 
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <Input
                   ref={locationInputRef}
                   label="Your Location"
@@ -1501,8 +1535,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         onClick={() => {
                           setSelectedVehicle(null);
                           setVin('');
-                          setSalePrice(0);
-                          updateSliderBaseline('salePrice', 0);
+                          setSliderValue('salePrice', 0, true);
                           rebaseTilBaselines();
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700"
@@ -1581,79 +1614,81 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               </div>
             </Card>
 
-            {/* Financing Details Section */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-3">
-                Financing Details
-              </h2>
-
-              <div className="space-y-4">
-                <Select
-                  label="Preferred Lender"
-                  value={lender}
-                  onChange={(e) => setLender(e.target.value)}
-                  options={lenderOptions}
-                  helperText={isLoadingRates ? 'Loading rates...' : lenderRates.length > 0 ? `${lenderRates.length} rates loaded` : 'No rates available'}
-                  fullWidth
-                />
-
-                <Select
-                  label="Vehicle Condition"
-                  value={vehicleCondition}
-                  onChange={(e) => setVehicleCondition(e.target.value as 'new' | 'used')}
-                  options={vehicleConditionOptions}
-                  helperText="New vehicles may qualify for lower rates"
-                  fullWidth
-                />
-
-                <Select
-                  label="Loan Term"
-                  value={loanTerm.toString()}
-                  onChange={(e) => setLoanTerm(Number(e.target.value))}
-                  options={termOptions}
-                  fullWidth
-                />
-
-                <Select
-                  label="Credit Score Range"
-                  value={creditScore}
-                  onChange={(e) => setCreditScore(e.target.value)}
-                  options={creditScoreOptions}
-                  helperText="Higher scores typically get better rates"
-                  fullWidth
-                />
-              </div>
-            </Card>
-
           </div>
 
           {/* RIGHT COLUMN: Summary (1/3 width, sticky) */}
           <div className="lg:col-span-1">
             <div className="sticky top-6">
               <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+                {/* Card Header */}
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
+                  Financing & Payment
+                </h2>
+
+                {/* Financing Details Inputs */}
+                <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
+                  <Select
+                    label="Preferred Lender"
+                    value={lender}
+                    onChange={(e) => setLender(e.target.value)}
+                    options={lenderOptions}
+                    helperText={lenderHelperText}
+                    fullWidth
+                  />
+
+                  <Select
+                    label="Vehicle Condition"
+                    value={vehicleCondition}
+                    onChange={(e) => setVehicleCondition(e.target.value as 'new' | 'used')}
+                    options={vehicleConditionOptions}
+                    fullWidth
+                  />
+
+                  <Select
+                    label="Loan Term"
+                    value={loanTerm.toString()}
+                    onChange={(e) => setLoanTerm(Number(e.target.value))}
+                    options={termOptions}
+                    fullWidth
+                  />
+
+                  <Select
+                    label="Credit Score Range"
+                    value={creditScore}
+                    onChange={(e) => setCreditScore(e.target.value)}
+                    options={creditScoreOptions}
+                    fullWidth
+                  />
+                </div>
+
                 {/* Monthly Payment Hero */}
-                <div className="text-center mb-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
-                  <div className="text-sm font-medium text-gray-600 mb-2">
+                <div className="text-center mb-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
+                  <div className="text-sm font-medium text-gray-600 mb-1">
                     Estimated Monthly Payment
                   </div>
-                  <div className="text-5xl font-bold text-gray-900 mb-2">
+                  <div className="text-5xl font-bold text-gray-900 mb-1">
                     {formatCurrency(monthlyPayment)}
                   </div>
                   <div className="text-sm text-gray-600">
                     {loanTerm} months • {apr.toFixed(2)}% APR
                   </div>
+                  {ratesEffectiveDateLabel && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Rates effective {ratesEffectiveDateLabel}
+                    </div>
+                  )}
                 </div>
 
                 {/* Truth-in-Lending Disclosures */}
                 <div className="space-y-3">
-                  <div className="rounded-[32px] border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-4 shadow-inner transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-                    <h3 className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-600 mb-3">
+                  <div className="rounded-[32px] border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-3 shadow-inner transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+                    <h3 className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-600 mb-2">
                       Truth-in-Lending Disclosures
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 auto-rows-fr">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-fr">
                       {/* APR with +/- controls */}
-                      <div className="group rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
+                      <div className="group rounded-2xl border bg-white border-blue-50 p-4 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={apr}
                           label="Annual Percentage Rate"
@@ -1675,14 +1710,14 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                             }`}
                           >
                             {monthlyPayment - baselineMonthlyPayment < 0 ? '↓' : '↑'}{' '}
-                            {formatCurrency(Math.abs(monthlyPayment - baselineMonthlyPayment))} vs baseline payment
+                            {formatCurrency(Math.abs(monthlyPayment - baselineMonthlyPayment))}
                           </div>
                         )}
                         <div className="mt-2 text-xs text-slate-500">Cost of credit as yearly rate</div>
                       </div>
 
                       {/* Term with +/- controls */}
-                      <div className="group rounded-2xl border bg-white border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
+                      <div className="group rounded-2xl border bg-white border-blue-50 p-4 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={loanTerm}
                           label="Term (Months)"
@@ -1731,7 +1766,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         value: formatCurrencyWithCents(totalOfPayments),
                         helper: 'Total after all payments',
                         diff: diffs.totalPayments,
-                        highlight: true,
                       })}
 
                       {renderTilStatCard({
@@ -1749,147 +1783,112 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         </div>
 
         {/* Sliders Section - Full Width Below */}
-        <div className="mt-4 space-y-3">
-          <h2 className="text-2xl font-semibold text-gray-900">
+        <Card variant="elevated" padding="md" className="mt-3 transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">
             Adjust Pricing & Terms
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Sale Price Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Sale Price"
-                min={0}
-                max={150000}
-                step={100}
-                value={salePrice}
-                onChange={(e) => setSalePrice(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="lower-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.salePrice}
-                snapThreshold={100}
-                onReset={() => setSalePrice(sliderBaselines.salePrice)}
-                fullWidth
-              />
-            </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Sale Price Slider */}
+            <EnhancedSlider
+              label="Sale Price"
+              min={0}
+              max={saleMaxDynamic}
+              step={100}
+              value={salePrice}
+              onChange={(e) => setSliderValue('salePrice', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="lower-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.salePrice.baseline}
+              snapThreshold={100}
+              onReset={() => resetSlider('salePrice')}
+              fullWidth
+            />
 
-            {/* Cash Down Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Cash Down"
-                min={0}
-                max={50000}
-                step={100}
-                value={cashDown}
-                onChange={(e) => setCashDown(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="higher-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.cashDown}
-                snapThreshold={100}
-                onReset={() => setCashDown(sliderBaselines.cashDown)}
-                fullWidth
-              />
-            </Card>
+            {/* Cash Down Slider */}
+            <EnhancedSlider
+              label="Cash Down"
+              min={0}
+              max={cashDownMaxDynamic}
+              step={100}
+              value={cashDown}
+              onChange={(e) => setSliderValue('cashDown', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="higher-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.cashDown.baseline}
+              snapThreshold={100}
+              onReset={() => resetSlider('cashDown')}
+              fullWidth
+            />
 
-            {/* Trade-In Allowance Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Trade-In Allowance"
-                min={0}
-                max={75000}
-                step={100}
-                value={tradeAllowance}
-                onChange={(e) => setTradeAllowance(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                helperText="Value of your trade-in vehicle"
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="higher-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.tradeAllowance}
-                snapThreshold={100}
-                onReset={() => setTradeAllowance(sliderBaselines.tradeAllowance)}
-                fullWidth
-              />
-            </Card>
+            {/* Trade-In Allowance Slider */}
+            <EnhancedSlider
+              label="Trade-In Allowance"
+              min={0}
+              max={tradeAllowanceMaxDynamic}
+              step={100}
+              value={tradeAllowance}
+              onChange={(e) => setSliderValue('tradeAllowance', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="higher-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.tradeAllowance.baseline}
+              snapThreshold={100}
+              onReset={() => resetTradeIn()}
+              fullWidth
+            />
 
-            {/* Trade-In Payoff Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Trade-In Payoff"
-                min={0}
-                max={75000}
-                step={100}
-                value={tradePayoff}
-                onChange={(e) => setTradePayoff(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                helperText="Amount owed on trade-in"
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="lower-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.tradePayoff}
-                snapThreshold={100}
-                onReset={() => setTradePayoff(sliderBaselines.tradePayoff)}
-                fullWidth
-              />
-            </Card>
+            {/* Dealer Fees Slider */}
+            <EnhancedSlider
+              label="Total Dealer Fees"
+              min={0}
+              max={dealerFeesMaxDynamic}
+              step={10}
+              value={dealerFees}
+              onChange={(e) => setSliderValue('dealerFees', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="lower-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.dealerFees.baseline}
+              snapThreshold={10}
+              onReset={() => resetSlider('dealerFees')}
+              fullWidth
+            />
 
-            {/* Dealer Fees Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Total Dealer Fees"
-                min={0}
-                max={5000}
-                step={10}
-                value={dealerFees}
-                onChange={(e) => setDealerFees(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                helperText="Doc fees, title, registration"
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="lower-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.dealerFees}
-                snapThreshold={10}
-                onReset={() => setDealerFees(sliderBaselines.dealerFees)}
-                fullWidth
-              />
-            </Card>
-
-            {/* Customer Add-ons Slider Card */}
-            <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <EnhancedSlider
-                label="Total Customer Add-ons"
-                min={0}
-                max={10000}
-                step={10}
-                value={customerAddons}
-                onChange={(e) => setCustomerAddons(Number(e.target.value))}
-                formatValue={(val) => formatCurrency(val)}
-                helperText="Warranties, protection packages"
-                monthlyPayment={monthlyPayment}
-                buyerPerspective="lower-is-better"
-                showTooltip={true}
-                showReset={true}
-                baselineValue={sliderBaselines.customerAddons}
-                snapThreshold={10}
-                onReset={() => setCustomerAddons(sliderBaselines.customerAddons)}
-                fullWidth
-              />
-            </Card>
+            {/* Customer Add-ons Slider */}
+            <EnhancedSlider
+              label="Total Customer Add-ons"
+              min={0}
+              max={customerAddonsMaxDynamic}
+              step={10}
+              value={customerAddons}
+              onChange={(e) => setSliderValue('customerAddons', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="lower-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.customerAddons.baseline}
+              snapThreshold={10}
+              onReset={() => resetSlider('customerAddons')}
+              fullWidth
+            />
           </div>
-        </div>
+        </Card>
 
         {/* Itemization of Costs - At the End */}
-        <div className="mt-4">
-          <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+        <div className="mt-3">
+          <Card variant="elevated" padding="sm" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
             <ItemizationCard
               salePrice={salePrice}
               cashDown={cashDown}
@@ -1907,9 +1906,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               cashDue={cashDue}
               stateName={stateName}
               countyName={countyName}
-              tradeInApplied={equityDecision.appliedAmount}
-              tradeInCashout={equityDecision.cashoutAmount}
-              cashoutAmount={equityDecision.cashoutAmount}
+              tradeInApplied={effectiveAppliedTrade}
+              tradeInCashout={effectiveTradeCashout}
+              cashoutAmount={effectiveTradeCashout}
+              roundAmountFinanced={rounding.enabled}
+              roundingAdjustment={rounding.adjustment}
+              onToggleRounding={toggleRounding}
             />
           </Card>
         </div>
@@ -1965,6 +1967,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         leadData={leadDataForSubmission}
         onSubmit={(data) => handleOfferSubmitWithProgress(data, false)}
         onDevSubmit={(data) => handleOfferSubmitWithProgress(data, true)}
+        amountFinanced={amountFinanced}
+        cashDue={cashDue}
+        roundAmountFinanced={rounding.enabled}
+        roundingAdjustment={rounding.adjustment}
+        onToggleRounding={toggleRounding}
       />
 
       {/* Submission Progress Modal */}
@@ -2003,7 +2010,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         onClose={() => setShowPositiveEquityModal(false)}
         positiveEquity={Math.max(0, tradeAllowance - tradePayoff)}
         onApply={handleEquityDecision}
-        initialDecision={equityDecision}
+        initialDecision={initialEquityDecision}
         salePrice={salePrice}
         cashDown={cashDown}
         tradeAllowance={tradeAllowance}
@@ -2014,6 +2021,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         countyTaxRate={countyTaxRate}
         stateName={stateName}
         countyName={countyName}
+        roundAmountFinanced={rounding.enabled}
+        roundingAdjustment={rounding.adjustment}
+        onToggleRounding={toggleRounding}
       />
 
       {/* User Profile Dropdown */}

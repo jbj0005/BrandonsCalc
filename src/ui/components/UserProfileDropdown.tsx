@@ -13,10 +13,12 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Input } from './Input';
 import { Button } from './Button';
 import { Badge } from './Badge';
+import { Switch } from './Switch';
 import { ProfileData } from '../../services/ProfileService';
 import type { GarageVehicle } from '../../types';
-import { formatPhoneNumber } from '../../utils/formatters';
+import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
+import { useCalculatorStore } from '../../stores/calculatorStore';
 
 export interface UserProfileDropdownProps {
   isOpen: boolean;
@@ -71,6 +73,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   supabase,
   isDirty = false,
 }) => {
+  // Use calculator store for trade-in state
+  const { selectedTradeInVehicles, sliders, tradePayoff, toggleTradeInVehicle } = useCalculatorStore();
+  const tradeAllowance = sliders.tradeAllowance.value;
+
   const [activeSection, setActiveSection] = useState<Section | null>(null);
   const [hoveredSection, setHoveredSection] = useState<Section | null>(null);
   const [addressInputRef, setAddressInputRef] = useState<HTMLInputElement | null>(null);
@@ -618,61 +624,108 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   <p className="text-sm">No vehicles in your garage</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {garageVehicles.map((vehicle) => (
-                    <div
-                      key={vehicle.id}
-                      className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          {vehicle.nickname && (
-                            <p className="text-xs font-semibold text-blue-600 mb-1 truncate">
-                              {vehicle.nickname}
-                            </p>
-                          )}
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {vehicle.year} {vehicle.make} {vehicle.model}
-                          </p>
-                          {vehicle.vin && (
-                            <p className="text-xs text-gray-500 font-mono mt-1 truncate uppercase">
-                              {vehicle.vin}
-                            </p>
-                          )}
-                          {vehicle.estimated_value != null && (
-                            <p className="text-sm font-medium text-green-600 mt-1">
-                              {formatCurrency(vehicle.estimated_value)}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1 ml-2">
-                          {onEditGarageVehicle && (
-                            <button
-                              onClick={() => onEditGarageVehicle(vehicle)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                              title="Edit"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                            </button>
-                          )}
-                          {onDeleteGarageVehicle && (
-                            <button
-                              onClick={() => onDeleteGarageVehicle(vehicle)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              title="Delete"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
+                <>
+                  {/* Trade-In Summary */}
+                  {selectedTradeInVehicles.size > 0 && (
+                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-semibold text-blue-900">
+                          {selectedTradeInVehicles.size} vehicle{selectedTradeInVehicles.size > 1 ? 's' : ''} selected for trade-in
+                        </span>
+                        <div className="text-right">
+                          <div className="text-blue-900 font-bold">
+                            Value: {formatCurrencyExact(tradeAllowance)}
+                          </div>
+                          {tradePayoff > 0 && (
+                            <div className="text-blue-700 text-xs">
+                              Payoff: {formatCurrencyExact(tradePayoff)}
+                            </div>
                           )}
                         </div>
                       </div>
                     </div>
-                  ))}
-                </div>
+                  )}
+
+                  {/* Vehicle Cards */}
+                  <div className="space-y-2">
+                    {garageVehicles.map((vehicle) => (
+                      <div
+                        key={vehicle.id}
+                        className={`p-3 border rounded-lg transition-all ${
+                          selectedTradeInVehicles.has(vehicle.id)
+                            ? 'border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-200'
+                            : 'border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            {vehicle.nickname && (
+                              <p className="text-xs font-semibold text-blue-600 mb-1 truncate">
+                                {vehicle.nickname}
+                              </p>
+                            )}
+                            <p className="text-sm font-semibold text-gray-900 truncate">
+                              {vehicle.year} {vehicle.make} {vehicle.model}
+                            </p>
+                            {vehicle.vin && (
+                              <p className="text-xs text-gray-500 font-mono mt-1 truncate uppercase">
+                                {vehicle.vin}
+                              </p>
+                            )}
+                            {vehicle.estimated_value != null && (
+                              <p className="text-sm font-medium text-green-600 mt-1">
+                                {formatCurrency(vehicle.estimated_value)}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 ml-2">
+                            {/* Trade-In Toggle */}
+                            <div className="flex items-center gap-2">
+                              <Switch
+                                checked={selectedTradeInVehicles.has(vehicle.id)}
+                                onChange={(e) => toggleTradeInVehicle(vehicle.id, garageVehicles)}
+                                size="sm"
+                              />
+                                <span className={`text-xs font-medium transition-colors ${
+                                  selectedTradeInVehicles.has(vehicle.id)
+                                    ? 'text-blue-600'
+                                    : 'text-gray-500'
+                                }`}>
+                                Trade-In
+                              </span>
+                            </div>
+
+                            {/* Edit Button */}
+                            {onEditGarageVehicle && (
+                              <button
+                                onClick={() => onEditGarageVehicle(vehicle)}
+                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                title="Edit"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+                            )}
+
+                            {/* Delete Button */}
+                            {onDeleteGarageVehicle && (
+                              <button
+                                onClick={() => onDeleteGarageVehicle(vehicle)}
+                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                title="Delete"
+                              >
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}

@@ -32,7 +32,7 @@
     "twilio": "^5.10.4",
     "undici": "^7.16.0",
     "zod": "^4.1.12",
-    "zustand": "^4.5.0"
+    "zustand": "^4.5.7"
   },
   "devDependencies": {
     "@types/google.maps": "^3.58.1",

@@ -1,5 +1,7 @@
 import React from 'react';
 import { formatCurrencyExact, formatNegativeParens } from '../../utils/formatters';
+import { Switch } from './Switch';
+import { Badge } from './Badge';
 
 export interface ItemizationCardProps {
   salePrice: number;
@@ -22,6 +24,10 @@ export interface ItemizationCardProps {
   tradeInApplied?: number;
   tradeInCashout?: number;
   cashoutAmount?: number;
+  // Amount financed rounding
+  roundAmountFinanced?: boolean;
+  roundingAdjustment?: number;
+  onToggleRounding?: (checked: boolean) => void;
 }
 
 /**
@@ -56,6 +62,9 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   tradeInApplied,
   tradeInCashout,
   cashoutAmount,
+  roundAmountFinanced,
+  roundingAdjustment,
+  onToggleRounding,
 }) => {
   const netTradeIn = tradeAllowance - tradePayoff;
   const otherCharges = dealerFees + customerAddons; // Note: Gov't fees = 0 for now
@@ -210,6 +219,36 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 
           {/* Divider */}
           <div className="border-t border-gray-300 my-4"></div>
+
+          {/* Amount Financed Rounding Control */}
+          {onToggleRounding && (
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <label className="text-sm font-semibold text-gray-900 block mb-1">
+                    Round Amount Financed
+                  </label>
+                  <p className="text-xs text-gray-600">
+                    Round to nearest $100, adjust cash due
+                  </p>
+                </div>
+                <Switch
+                  checked={roundAmountFinanced || false}
+                  onChange={(e) => onToggleRounding(e.target.checked)}
+                  size="md"
+                />
+              </div>
+
+              {/* Show adjustment badge when rounding is active */}
+              {roundAmountFinanced && roundingAdjustment !== 0 && (
+                <div className="mt-3 pt-3 border-t border-blue-200">
+                  <Badge variant="info" size="sm">
+                    Rounded {roundingAdjustment && roundingAdjustment > 0 ? 'up' : 'down'} by {formatCurrencyExact(Math.abs(roundingAdjustment || 0))}
+                  </Badge>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* AMOUNT FINANCED - Dark Footer */}
           <div className="rounded-lg bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-4">
