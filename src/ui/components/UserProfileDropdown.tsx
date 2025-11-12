@@ -138,6 +138,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
       let state = '';
       let stateCode = '';
       let zip = '';
+      let county = '';
+      let countyName = '';
 
       place.address_components.forEach((component) => {
         const types = component.types;
@@ -154,6 +156,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
           state = component.long_name;
           stateCode = component.short_name;
         }
+        if (types.includes('administrative_area_level_2')) {
+          countyName = component.long_name;
+          county = component.long_name.replace(/\s+(County|Parish)$/i, '').trim();
+        }
         if (types.includes('postal_code')) {
           zip = component.short_name;
         }
@@ -164,6 +170,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
       onUpdateField('state', state);
       onUpdateField('state_code', stateCode);
       onUpdateField('zip_code', zip);
+      onUpdateField('county', county);
+      onUpdateField('county_name', countyName);
       onUpdateField('google_place_id', place.place_id || null);
     };
 
@@ -352,7 +360,12 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
               {/* My Offers Section */}
               <button
-                onClick={() => setActiveSection('offers')}
+                onClick={() => {
+                  if (onOpenMyOffers) {
+                    onOpenMyOffers();
+                    onClose();
+                  }
+                }}
                 onMouseEnter={() => !isTouchDevice && setHoveredSection('offers')}
                 onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
                 className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
@@ -628,19 +641,24 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   {/* Trade-In Summary */}
                   {selectedTradeInVehicles.size > 0 && (
                     <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-semibold text-blue-900">
-                          {selectedTradeInVehicles.size} vehicle{selectedTradeInVehicles.size > 1 ? 's' : ''} selected for trade-in
-                        </span>
-                        <div className="text-right">
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="text-center">
+                          <div className="text-xs text-blue-600 mb-1">Trade Value</div>
                           <div className="text-blue-900 font-bold">
-                            Value: {formatCurrencyExact(tradeAllowance)}
+                            {formatCurrencyExact(tradeAllowance)}
                           </div>
-                          {tradePayoff > 0 && (
-                            <div className="text-blue-700 text-xs">
-                              Payoff: {formatCurrencyExact(tradePayoff)}
-                            </div>
-                          )}
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-blue-600 mb-1">Payoff</div>
+                          <div className="text-blue-900 font-bold">
+                            {formatCurrencyExact(tradePayoff)}
+                          </div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xs text-blue-600 mb-1">Net Trade-in</div>
+                          <div className={`font-bold ${tradeAllowance - tradePayoff >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                            {formatCurrencyExact(tradeAllowance - tradePayoff)}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -824,46 +842,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   ))}
                 </div>
               )}
-            </div>
-          )}
-
-          {/* My Offers Section Content */}
-          {activeSection === 'offers' && (
-            <div className="p-4 space-y-4">
-              {/* Back Button */}
-              <button
-                onClick={() => setActiveSection(null)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Back
-              </button>
-
-              <h4 className="text-lg font-semibold text-gray-900">My Offers</h4>
-
-              {onOpenMyOffers && (
-                <Button
-                  variant="primary"
-                  size="md"
-                  fullWidth
-                  onClick={() => {
-                    onOpenMyOffers();
-                    onClose();
-                    setActiveSection(null);
-                  }}
-                >
-                  View All Offers
-                </Button>
-              )}
-
-              <div className="text-center py-6 text-gray-500">
-                <svg className="w-16 h-16 mx-auto mb-3 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-sm">Click "View All Offers" to manage your submitted offers</p>
-              </div>
             </div>
           )}
         </div>

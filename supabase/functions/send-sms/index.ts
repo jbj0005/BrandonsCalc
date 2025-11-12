@@ -125,7 +125,7 @@ serve(async (req) => {
     // ========================================================================
     // COMPLIANCE: Add required opt-out instructions (REQUIRED by TCPA)
     // ========================================================================
-    smsBody += '\n\nReply STOP to unsubscribe.';
+    smsBody += '\n\nFrom Brandon\'s Calculator. Msg frequency varies. Msg & data rates may apply. Reply STOP to opt-out.';
 
     // Send SMS via Twilio API
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;

@@ -34,12 +34,6 @@ export interface CalculatorState {
   selectedTradeInVehicles: Set<string>;
   tradePayoff: number;
 
-  // Rounding preferences
-  rounding: {
-    enabled: boolean;
-    adjustment: number;
-  };
-
   // Settling timer for baseline updates
   settlingTimerId: NodeJS.Timeout | null;
   lastSliderInteraction: number;
@@ -69,11 +63,6 @@ export interface CalculatorActions {
   // Trade-in actions
   toggleTradeInVehicle: (vehicleId: string, garageVehicles: GarageVehicle[]) => void;
   resetTradeIn: () => void;
-
-  // Rounding actions
-  toggleRounding: () => void;
-  setRounding: (enabled: boolean) => void;
-  setRoundingAdjustment: (adjustment: number) => void;
 }
 
 // ============================================================================
@@ -95,10 +84,6 @@ const INITIAL_STATE: CalculatorState = {
   },
   selectedTradeInVehicles: new Set<string>(),
   tradePayoff: 0,
-  rounding: {
-    enabled: false,
-    adjustment: 0,
-  },
   settlingTimerId: null,
   lastSliderInteraction: 0,
 };
@@ -377,36 +362,6 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
     });
   },
 
-  // ========================================
-  // Rounding Actions
-  // ========================================
-
-  toggleRounding: () => {
-    set((state) => ({
-      rounding: {
-        ...state.rounding,
-        enabled: !state.rounding.enabled,
-      },
-    }));
-  },
-
-  setRounding: (enabled) => {
-    set((state) => ({
-      rounding: {
-        ...state.rounding,
-        enabled,
-      },
-    }));
-  },
-
-  setRoundingAdjustment: (adjustment) => {
-    set((state) => ({
-      rounding: {
-        ...state.rounding,
-        adjustment,
-      },
-    }));
-  },
 }));
 
 // Export types for external use

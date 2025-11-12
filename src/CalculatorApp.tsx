@@ -237,12 +237,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     autoLoad: true,
   });
 
-  // Calculator Store (sliders, trade-in, rounding)
+  // Calculator Store (sliders, trade-in)
   const {
     sliders,
     selectedTradeInVehicles,
     tradePayoff,
-    rounding,
     setSliderValue,
     setSliderValueWithSettling,
     setSliderBaseline,
@@ -252,9 +251,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     applyProfilePreferences,
     toggleTradeInVehicle,
     resetTradeIn,
-    toggleRounding,
-    setRounding,
-    setRoundingAdjustment,
     setTradePayoff,
   } = useCalculatorStore();
 
@@ -407,10 +403,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     }
   }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
 
-  // Calculate loan on any change (including equity decision and rounding)
+  // Calculate loan on any change (including equity decision)
   useEffect(() => {
     calculateLoan();
-  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate, equityDecision, rounding.enabled]);
+  }, [salePrice, cashDown, tradeAllowance, tradePayoff, dealerFees, customerAddons, loanTerm, apr, selectedVehicle, stateTaxRate, countyTaxRate, equityDecision]);
 
   // Auto-populate location from profile when profile loads
   useEffect(() => {
@@ -428,62 +424,57 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
     const addressString = addressParts.join(', ');
 
-    // Only auto-fill if location field is empty
+    // Only auto-fill location string if field is empty
     if (!location) {
       setLocation(addressString);
+    }
 
-      // Geocode if Google Maps is available
-      if (window.google?.maps?.Geocoder) {
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({ address: addressString }, (results, status) => {
-          if (status === 'OK' && results && results[0]) {
-            const place = results[0];
-            const inferredPlace: PlaceDetails = {
-              address: addressString,
-              city: profile.city || '',
-              state: profile.state || profile.state_code || '',
-              stateCode: profile.state_code || '',
-              zipCode: profile.zip_code || '',
-              country: 'United States',
-              county: profile.county || '',
-              countyName: profile.county_name || '',
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
-            };
-            setLocationDetails(inferredPlace);
+    // Always load county data and tax rates from profile (even if location string is already set)
+    if (profile.state_code && profile.county && profile.state) {
+      // Build locationDetails from profile data (county is already in profile!)
+      const profileLocation: PlaceDetails = {
+        address: addressString,
+        city: profile.city || '',
+        state: profile.state || profile.state_code || '',
+        stateCode: profile.state_code || '',
+        zipCode: profile.zip_code || '',
+        country: 'United States',
+        county: profile.county,
+        countyName: profile.county_name || profile.county,
+        lat: 0,
+        lng: 0,
+      };
 
-            // Load tax rates from profile location
-            if (profile.state_code && profile.county && profile.state) {
-              lookupTaxRates(profile.state_code, profile.county, profile.state)
-                .then((taxData) => {
-                  if (taxData && !isTaxRateManuallySet) {
-                    setStateTaxRate(taxData.stateTaxRate);
-                    setCountyTaxRate(taxData.countyTaxRate);
-                    setStateName(taxData.stateName);
-                    setCountyName(taxData.countyName);
-                    toast.push({
-                      kind: 'success',
-                      title: 'Tax Rates Loaded',
-                      detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`
-                    });
-                  } else if (!taxData && !isTaxRateManuallySet) {
-                    // Set location names even if tax lookup fails
-                    setStateName(profile.state || '');
-                    setCountyName(profile.county_name || profile.county || '');
-                    toast.push({
-                      kind: 'warning',
-                      title: 'Tax Rates Not Found',
-                      detail: `No rates found for ${profile.state}, ${profile.county}. Using defaults.`
-                    });
-                  }
-                })
-                .catch((err) => {
-                  console.error('[CalculatorApp] Tax lookup error from profile:', err);
-                });
-            }
+      setLocationDetails(profileLocation);
+
+      // Load tax rates from profile location
+      lookupTaxRates(profile.state_code, profile.county, profile.state)
+        .then((taxData) => {
+          if (taxData && !isTaxRateManuallySet) {
+            setStateTaxRate(taxData.stateTaxRate);
+            setCountyTaxRate(taxData.countyTaxRate);
+            setStateName(taxData.stateName);
+            setCountyName(taxData.countyName);
+            console.log(`[CalculatorApp] Loaded tax rates from profile: ${taxData.stateName}, ${taxData.countyName}`);
+            toast.push({
+              kind: 'success',
+              title: 'Tax Rates Loaded',
+              detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`
+            });
+          } else if (!taxData && !isTaxRateManuallySet) {
+            // Set location names even if tax lookup fails
+            setStateName(profile.state || '');
+            setCountyName(profile.county_name || profile.county || '');
+            toast.push({
+              kind: 'warning',
+              title: 'Tax Rates Not Found',
+              detail: `No rates found for ${profile.state}, ${profile.county}. Using defaults.`
+            });
           }
+        })
+        .catch((err) => {
+          console.error('[CalculatorApp] Tax lookup error from profile:', err);
         });
-      }
     }
   }, [profile, mapsLoaded, location, isTaxRateManuallySet]);
 
@@ -674,21 +665,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     // Calculate amount financed (includes fees, taxes, and cashout)
     const totalPrice = salePrice + dealerFees + customerAddons + totalTax;
     const downPayment = cashDown + appliedToBalance;
-    let financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
-    let adjustment = 0;
-
-    // Apply rounding if enabled
-    if (rounding.enabled) {
-      const rounded = Math.round(financed / 100) * 100;
-      adjustment = rounded - financed;
-      financed = rounded;
-    }
+    const financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
 
     setAmountFinanced(financed);
-    setRoundingAdjustment(adjustment);
 
-    // Calculate cash due at signing (adjusted for rounding)
-    setCashDue(cashDown - adjustment);
+    // Calculate cash due at signing
+    setCashDue(cashDown);
 
     if (financed <= 0 || apr <= 0 || loanTerm <= 0) {
       setMonthlyPayment(0);
@@ -1529,8 +1511,32 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
                 {/* Vehicle Display Card */}
                 {selectedVehicle && (
-                  <div className="mt-4 p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <div className="flex items-center justify-between mb-3">
+                  <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                    {/* Vehicle Photo */}
+                    {selectedVehicle.photo_url && (
+                      <div
+                        className={`w-full h-48 bg-gray-100 ${selectedVehicle.listing_url ? 'cursor-pointer' : ''}`}
+                        onClick={() => {
+                          if (selectedVehicle.listing_url) {
+                            window.open(selectedVehicle.listing_url, '_blank', 'noopener,noreferrer');
+                          }
+                        }}
+                        title={selectedVehicle.listing_url ? 'Click to view full listing' : undefined}
+                      >
+                        <img
+                          src={selectedVehicle.photo_url}
+                          alt={`${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.parentElement!.style.display = 'none';
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-3">
                       <Badge variant="info">SELECTED VEHICLE</Badge>
                       <button
                         onClick={() => {
@@ -1592,6 +1598,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                           )}
                         </div>
                       )}
+                    </div>
                     </div>
                   </div>
                 )}
@@ -1910,9 +1917,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               tradeInApplied={effectiveAppliedTrade}
               tradeInCashout={effectiveTradeCashout}
               cashoutAmount={effectiveTradeCashout}
-              roundAmountFinanced={rounding.enabled}
-              roundingAdjustment={rounding.adjustment}
-              onToggleRounding={toggleRounding}
             />
           </Card>
         </div>
@@ -1970,9 +1974,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         onDevSubmit={(data) => handleOfferSubmitWithProgress(data, true)}
         amountFinanced={amountFinanced}
         cashDue={cashDue}
-        roundAmountFinanced={rounding.enabled}
-        roundingAdjustment={rounding.adjustment}
-        onToggleRounding={toggleRounding}
       />
 
       {/* Submission Progress Modal */}
@@ -2022,9 +2023,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         countyTaxRate={countyTaxRate}
         stateName={stateName}
         countyName={countyName}
-        roundAmountFinanced={rounding.enabled}
-        roundingAdjustment={rounding.adjustment}
-        onToggleRounding={toggleRounding}
       />
 
       {/* User Profile Dropdown */}

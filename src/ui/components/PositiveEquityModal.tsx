@@ -21,9 +21,6 @@ export interface PositiveEquityModalProps {
   countyTaxRate: number;
   stateName?: string;
   countyName?: string;
-  roundAmountFinanced?: boolean;
-  roundingAdjustment?: number;
-  onToggleRounding?: (checked: boolean) => void;
 }
 
 /**
@@ -50,9 +47,6 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   countyTaxRate,
   stateName,
   countyName,
-  roundAmountFinanced,
-  roundingAdjustment,
-  onToggleRounding,
 }) => {
   const [selectedAction, setSelectedAction] = useState<'apply' | 'cashout' | 'split'>(
     initialDecision?.action || 'apply'
@@ -385,9 +379,6 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             tradeInApplied={finalApplied}
             tradeInCashout={finalCashout}
             cashoutAmount={finalCashout > 0 ? finalCashout : undefined}
-            roundAmountFinanced={roundAmountFinanced}
-            roundingAdjustment={roundingAdjustment}
-            onToggleRounding={onToggleRounding}
           />
         </div>
 

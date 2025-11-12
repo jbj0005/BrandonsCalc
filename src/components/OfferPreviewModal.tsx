@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Button, Input, Checkbox, Switch, Badge } from '../ui/components';
+import { Modal, Card, Button, Input, Checkbox } from '../ui/components';
 import { generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -14,10 +14,6 @@ export interface OfferPreviewModalProps {
   // Financial summary
   amountFinanced?: number;
   cashDue?: number;
-  // Rounding feature
-  roundAmountFinanced?: boolean;
-  roundingAdjustment?: number;
-  onToggleRounding?: (checked: boolean) => void;
 }
 
 interface DetailRowProps {
@@ -53,9 +49,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   onDevSubmit,
   amountFinanced,
   cashDue,
-  roundAmountFinanced,
-  roundingAdjustment,
-  onToggleRounding,
 }) => {
   // Get current user for profile loading
   const [userId, setUserId] = useState<string | null>(null);
@@ -300,39 +293,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
                 <DetailRow label="Customer Add-ons" value={formatCurrency(leadData.customerAddons)} />
               )}
             </div>
-
-            {/* Rounding Toggle Section */}
-            {onToggleRounding && (
-              <>
-                <div className="border-t border-gray-200 my-4"></div>
-                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <label className="text-sm font-semibold text-gray-900 block mb-1">
-                        Round Amount Financed
-                      </label>
-                      <p className="text-xs text-gray-600">
-                        Round to nearest $100, adjust cash due
-                      </p>
-                    </div>
-                    <Switch
-                      checked={roundAmountFinanced || false}
-                      onChange={(e) => onToggleRounding(e.target.checked)}
-                      size="md"
-                    />
-                  </div>
-
-                  {/* Show adjustment badge when rounding is active */}
-                  {roundAmountFinanced && roundingAdjustment !== 0 && (
-                    <div className="mt-3 pt-3 border-t border-blue-200">
-                      <Badge variant="info" size="sm">
-                        Rounded {roundingAdjustment && roundingAdjustment > 0 ? 'up' : 'down'} by {formatCurrency(Math.abs(roundingAdjustment || 0))}
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
 
             {/* Amount Financed & Cash Due */}
             {amountFinanced !== undefined && (
