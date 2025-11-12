@@ -81,8 +81,6 @@ export const CalculatorApp: React.FC = () => {
 
       // Lookup tax rates based on location (cached for 90 days)
       if (place.stateCode && place.county && place.state) {
-        console.log(`[CalculatorApp] Looking up tax rates for ${place.stateCode}/${place.county}`);
-
         try {
           const taxData = await lookupTaxRates(place.stateCode, place.county, place.state);
 
@@ -102,8 +100,6 @@ export const CalculatorApp: React.FC = () => {
             }
           } else {
             // No tax data found
-            console.warn(`[CalculatorApp] No tax rates found for ${place.stateCode}/${place.county}`);
-
             toast.push({
               kind: 'warning',
               title: 'Tax Rates Not Found',
@@ -115,8 +111,6 @@ export const CalculatorApp: React.FC = () => {
             setCountyName(place.countyName);
           }
         } catch (error) {
-          console.error('[CalculatorApp] Error looking up tax rates:', error);
-
           toast.push({
             kind: 'error',
             title: 'Tax Lookup Error',
@@ -125,7 +119,6 @@ export const CalculatorApp: React.FC = () => {
         }
       }
     },
-    types: ['address'],
     componentRestrictions: { country: 'us' },
   });
 
@@ -165,7 +158,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   // Clear tax rates cache on mount (to refresh with latest data)
   useEffect(() => {
     clearTaxRatesCache();
-    console.log('[CalculatorApp] Cleared tax rates cache');
   }, []);
 
   // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
@@ -376,7 +368,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         setLenderRates(response.rates);
         setRatesEffectiveDate(getLatestEffectiveDate(response.rates));
       } catch (error: any) {
-        console.error('[Calculator] Failed to load rates:', error);
         setLenderRates([]);
         setRatesEffectiveDate(null);
         toast.push({
@@ -490,7 +481,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                   setCountyTaxRate(taxData.countyTaxRate);
                   setStateName(taxData.stateName);
                   setCountyName(taxData.countyName);
-                  console.log(`[CalculatorApp] Loaded tax rates from geocoded location: ${taxData.stateName}, ${taxData.countyName}`);
                   toast.push({
                     kind: 'success',
                     title: 'Tax Rates Loaded',
@@ -499,7 +489,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                 }
               })
               .catch((err) => {
-                console.error('[CalculatorApp] Tax lookup error from geocoded location:', err);
+                // Tax lookup failed
               });
           }
         } else {
@@ -521,7 +511,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
             setCountyTaxRate(taxData.countyTaxRate);
             setStateName(taxData.stateName);
             setCountyName(taxData.countyName);
-            console.log(`[CalculatorApp] Loaded tax rates from profile: ${taxData.stateName}, ${taxData.countyName}`);
             toast.push({
               kind: 'success',
               title: 'Tax Rates Loaded',
@@ -539,10 +528,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
           }
         })
         .catch((err) => {
-          console.error('[CalculatorApp] Tax lookup error from profile:', err);
+          // Tax lookup failed
         });
     }
-  }, [profile, mapsLoaded, location, isTaxRateManuallySet]);
+  }, [profile, mapsLoaded, isTaxRateManuallySet]);
 
   // Auto-populate down payment from profile when vehicle is selected
   useEffect(() => {
@@ -613,7 +602,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         const vehicles = await savedVehiclesCache.getVehicles({ forceRefresh: true });
         setSavedVehicles(vehicles || []);
       } catch (error: any) {
-        console.error('Failed to load saved vehicles:', error);
         if (!error.message?.includes('No Supabase client') && !error.message?.includes('user ID')) {
           toast.push({
             kind: 'error',
@@ -647,7 +635,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         if (error) throw error;
         setGarageVehicles(data || []);
       } catch (error: any) {
-        console.error('Failed to load garage vehicles:', error);
         toast.push({
           kind: 'error',
           title: 'Failed to Load Garage',
@@ -1091,7 +1078,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         detail: 'Your saved vehicles have been updated',
       });
     } catch (error) {
-      console.error('Failed to reload vehicles:', error);
+      // Failed to reload vehicles
     }
     setShowManageVehiclesModal(false);
     setVehicleToEdit(null);
@@ -1135,7 +1122,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       setSavedVehicles(vehicles || []);
       return vehicles;
     } catch (error) {
-      console.error('Failed to reload saved vehicles:', error);
       throw error;
     }
   };
@@ -1200,8 +1186,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         setSliderValue('salePrice', 0, true);
       }
     } catch (error: any) {
-      console.error('VIN lookup error:', error);
-
       // Distinguish between API errors (quota, network) and "not found"
       const isQuotaError = error.message?.toLowerCase().includes('quota') ||
                           error.message?.toLowerCase().includes('rate limit') ||

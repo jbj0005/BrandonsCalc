@@ -102,7 +102,6 @@ class SavedVehiclesCache {
    */
   async _fetchFromSupabase() {
     if (!this.supabase || !this.userId) {
-      console.warn('[SavedVehiclesCache] Cannot fetch: No Supabase client or user ID');
       return [];
     }
 
@@ -157,7 +156,6 @@ class SavedVehiclesCache {
 
       return normalizedVehicles;
     } catch (error) {
-      console.error('[SavedVehiclesCache] Fetch error:', error);
       throw error;
     } finally {
       this.emit('loading', false);
@@ -320,7 +318,6 @@ class SavedVehiclesCache {
     const client = supabaseClient || window.supabase;
 
     if (!client || !userId) {
-      console.warn('[SavedVehiclesCache] Cannot subscribe: Missing Supabase or userId');
       return;
     }
 
@@ -330,8 +327,6 @@ class SavedVehiclesCache {
 
     // Check if client has channel method (realtime support)
     if (typeof client.channel !== 'function') {
-      console.warn('[SavedVehiclesCache] Supabase client does not support realtime (no channel method)');
-      console.warn('[SavedVehiclesCache] Falling back to polling mode - cache will work but no live updates');
       return;
     }
 
@@ -373,7 +368,6 @@ class SavedVehiclesCache {
       const eventTypeMap = { INSERT: 'add', UPDATE: 'update', DELETE: 'delete' };
 
       if (eventTypeMap[payload.eventType] === pending.action) {
-        console.log(`[SavedVehiclesCache] Ignoring duplicate realtime ${payload.eventType} event for vehicle ${vehicleId} (local mutation already applied)`);
         return;
       }
     }
@@ -457,7 +451,7 @@ class SavedVehiclesCache {
       try {
         callback(data);
       } catch (error) {
-        console.error(`[SavedVehiclesCache] Error in ${event} listener:`, error);
+        // Silent fail on listener error
       }
     });
   }

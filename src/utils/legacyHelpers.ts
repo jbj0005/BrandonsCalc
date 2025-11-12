@@ -16,7 +16,6 @@ export const setupSavedVehicleHandlers = (
 
   // Expose selectSavedVehicle to window
   window.selectSavedVehicle = (vehicle: any) => {
-    console.log('[selectSavedVehicle] Vehicle selected:', vehicle);
     onVehicleSelect(vehicle);
   };
 
@@ -34,8 +33,6 @@ export const showTradeInSyncError = (message?: string) => {
   // Check if toast API is available
   if (typeof window !== 'undefined' && window.showToast) {
     window.showToast(message || defaultMessage, 'error');
-  } else {
-    console.error('[Trade-In Sync Error]', message || defaultMessage);
   }
 };
 
@@ -51,7 +48,6 @@ export const setupProfileDropdownToggle = (
 
   window.toggleProfileDropdown = () => {
     isOpen = !isOpen;
-    console.log('[toggleProfileDropdown]', isOpen);
     onToggle(isOpen);
   };
 };

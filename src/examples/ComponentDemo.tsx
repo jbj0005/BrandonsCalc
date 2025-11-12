@@ -312,7 +312,6 @@ export const ComponentDemo: React.FC = () => {
             onSave={async (vehicleData) => {
               // Simulate API call
               await new Promise((resolve) => setTimeout(resolve, 1500));
-              console.log(editingVehicle ? 'Updating vehicle:' : 'Adding vehicle:', vehicleData);
             }}
           />
 
@@ -326,7 +325,6 @@ export const ComponentDemo: React.FC = () => {
             onConfirm={async () => {
               // Simulate API call
               await new Promise((resolve) => setTimeout(resolve, 1500));
-              console.log('Deleting vehicle:', deletingVehicle);
               toast.push({
                 kind: 'success',
                 title: 'Vehicle Deleted',
@@ -824,17 +822,14 @@ export const ComponentDemo: React.FC = () => {
             onSignIn={async (email, password) => {
               // Simulate API call
               await new Promise((resolve) => setTimeout(resolve, 1500));
-              console.log('Sign in:', email, password);
             }}
             onSignUp={async (email, password, fullName, phone) => {
               // Simulate API call
               await new Promise((resolve) => setTimeout(resolve, 1500));
-              console.log('Sign up:', { email, password, fullName, phone });
             }}
             onForgotPassword={async (email) => {
               // Simulate API call
               await new Promise((resolve) => setTimeout(resolve, 1500));
-              console.log('Forgot password:', email);
             }}
           />
 

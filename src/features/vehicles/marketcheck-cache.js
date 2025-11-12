@@ -85,7 +85,6 @@ class MarketCheckCache {
 
       return response;
     } catch (error) {
-      console.error(`[MarketCheckCache] Fetch failed for VIN: ${normalizedVIN}`, error);
       this.emit('error', { vin: normalizedVIN, error });
       throw error;
     } finally {
@@ -206,7 +205,7 @@ class MarketCheckCache {
       try {
         callback(data);
       } catch (error) {
-        console.error(`[MarketCheckCache] Error in ${event} listener:`, error);
+        // Listener error
       }
     });
   }

@@ -66,10 +66,7 @@ export function trackGoogleMapsError(
     errorLog.shift(); // Remove oldest error
   }
 
-  // Console logging
-  if (defaultConfig.enableConsoleLogging) {
-    console.error(`[Google Maps] ${type}:`, message, context || '');
-  }
+  // Console logging removed - errors tracked internally
 
   // Analytics tracking (extend this when you add Sentry/analytics)
   if (defaultConfig.enableAnalytics && typeof window !== 'undefined') {
@@ -134,15 +131,6 @@ export function trackGoogleMapsPerformance(
   };
 
   performanceLog.push(metric);
-
-  // Log slow operations
-  if (metric.duration > 3000) {
-    console.warn(`[Google Maps] Slow operation: ${operation} took ${metric.duration}ms`);
-  }
-
-  if (defaultConfig.enableConsoleLogging && import.meta.env.DEV) {
-    console.log(`[Google Maps] ${operation}: ${metric.duration}ms`);
-  }
 }
 
 /**
@@ -176,13 +164,6 @@ export function trackDeprecatedApiUsage(apiName: string, replacementApi: string)
       stack: new Error().stack,
     }
   );
-
-  // Show console warning in development
-  if (import.meta.env.DEV) {
-    console.warn(
-      `[Google Maps] DEPRECATED: ${apiName} is deprecated. Use ${replacementApi} instead.`
-    );
-  }
 }
 
 /**

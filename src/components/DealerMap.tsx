@@ -49,7 +49,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
     loadGoogleMapsScript()
       .then(() => setIsLoaded(true))
       .catch((err) => {
-        console.error('[DealerMap] Failed to load Google Maps:', err);
         setError(err.message);
       });
   }, []);
@@ -62,7 +61,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
     const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
 
     if (!mapId) {
-      console.error('[DealerMap] Map ID not configured - Advanced Markers will not work!');
       setError('Map configuration error - contact support');
       trackGoogleMapsError(
         GoogleMapsErrorType.MAP_ERROR,
@@ -143,7 +141,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
         trackGoogleMapsPerformance('dealer_marker_create', markerStartTime, true);
         return;
       } catch (err) {
-        console.error('[DealerMap] Failed to create marker:', err);
         trackGoogleMapsError(
           GoogleMapsErrorType.MARKER_ERROR,
           err instanceof Error ? err.message : String(err),
@@ -204,7 +201,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           map.setCenter(position);
           map.setZoom(13);
         } catch (err) {
-          console.error('[DealerMap] Failed to create marker after geocoding:', err);
           trackGoogleMapsError(
             GoogleMapsErrorType.MARKER_ERROR,
             err instanceof Error ? err.message : String(err),
@@ -213,7 +209,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           setError('Failed to create dealer marker');
         }
       } else {
-        console.warn('[DealerMap] Geocoding failed:', status);
         trackGoogleMapsPerformance('dealer_geocode', geocodeStartTime, false);
         trackGoogleMapsError(
           GoogleMapsErrorType.GEOCODING_ERROR,
@@ -228,12 +223,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   // Show route from user location to dealer
   useEffect(() => {
     if (!map || !isLoaded || !showRoute || !userLocation) {
-      console.log('[DealerMap] Routing check:', {
-        hasMap: !!map,
-        isLoaded,
-        showRoute,
-        hasUserLocation: !!userLocation
-      });
       return;
     }
 
@@ -250,11 +239,9 @@ export const DealerMap: React.FC<DealerMapProps> = ({
         : [dealerAddress, dealerCity, dealerState, dealerZip].filter(Boolean).join(', ');
 
     if (!dealerDestination) {
-      console.warn('[DealerMap] No dealer destination available');
       return;
     }
 
-    console.log('[DealerMap] Calculating route from', userLocation, 'to', dealerDestination);
     const directionsStartTime = Date.now();
 
     const directionsService = new google.maps.DirectionsService();
@@ -282,14 +269,9 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           if (route && route.legs && route.legs[0]) {
             setDistance(route.legs[0].distance?.text || null);
             setDuration(route.legs[0].duration?.text || null);
-            console.log('[DealerMap] Route calculated:', {
-              distance: route.legs[0].distance?.text,
-              duration: route.legs[0].duration?.text
-            });
           }
           trackGoogleMapsPerformance('dealer_directions', directionsStartTime, true);
         } else {
-          console.error('[DealerMap] Directions request failed:', status, result);
           trackGoogleMapsPerformance('dealer_directions', directionsStartTime, false);
           trackGoogleMapsError(
             GoogleMapsErrorType.DIRECTIONS_ERROR,
@@ -305,8 +287,6 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           // Don't set error if it's just ZERO_RESULTS (might be too far)
           if (status !== 'ZERO_RESULTS') {
             setError('Unable to calculate route');
-          } else {
-            console.warn('[DealerMap] No route found (too far or unreachable)');
           }
         }
       }

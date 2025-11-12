@@ -57,7 +57,6 @@ export const ConfirmationDialog: React.FC<ConfirmationDialogProps> = ({
       onClose();
     } catch (error) {
       // Error handling should be done by the parent component
-      console.error('Confirmation action failed:', error);
     } finally {
       setIsProcessing(false);
     }

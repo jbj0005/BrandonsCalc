@@ -126,12 +126,11 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     .select('*')
     .eq('user_id', userId)
     .single();
-  
+
   if (error) {
-    console.error('Error fetching user profile:', error);
     return null;
   }
-  
+
   return data;
 }
 
@@ -151,12 +150,11 @@ export async function updateUserProfile(
     .eq('user_id', userId)
     .select()
     .single();
-  
+
   if (error) {
-    console.error('Error updating user profile:', error);
     throw error;
   }
-  
+
   return data;
 }
 
@@ -172,7 +170,6 @@ export async function getGarageVehicles(userId: string): Promise<GarageVehicle[]
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching garage vehicles:', error);
     return [];
   }
 
@@ -196,7 +193,6 @@ export async function addGarageVehicle(
     .single();
 
   if (error) {
-    console.error('Error adding garage vehicle:', error);
     throw error;
   }
 
@@ -219,12 +215,11 @@ export async function updateGarageVehicle(
     .eq('id', vehicleId)
     .select()
     .single();
-  
+
   if (error) {
-    console.error('Error updating garage vehicle:', error);
     throw error;
   }
-  
+
   return data;
 }
 
@@ -238,9 +233,8 @@ export async function deleteGarageVehicle(vehicleId: string): Promise<boolean> {
     .eq('id', vehicleId)
     .select('photo_storage_path')
     .single();
-  
+
   if (error) {
-    console.error('Error deleting garage vehicle:', error);
     throw error;
   }
 
@@ -248,10 +242,10 @@ export async function deleteGarageVehicle(vehicleId: string): Promise<boolean> {
     try {
       await supabase.storage.from('garage-vehicle-photos').remove([data.photo_storage_path]);
     } catch (storageError) {
-      console.warn('Unable to delete garage vehicle photo:', storageError);
+      // Silent fail on photo deletion
     }
   }
-  
+
   return true;
 }
 
@@ -264,12 +258,11 @@ export async function getCustomerOffers(userId: string): Promise<CustomerOffer[]
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
-  
+
   if (error) {
-    console.error('Error fetching customer offers:', error);
     return [];
   }
-  
+
   return data || [];
 }
 
@@ -291,12 +284,11 @@ export async function createCustomerOffer(
     })
     .select()
     .single();
-  
+
   if (error) {
-    console.error('Error creating customer offer:', error);
     throw error;
   }
-  
+
   return data;
 }
 
@@ -316,12 +308,11 @@ export async function updateCustomerOffer(
     .eq('id', offerId)
     .select()
     .single();
-  
+
   if (error) {
-    console.error('Error updating customer offer:', error);
     throw error;
   }
-  
+
   return data;
 }
 
@@ -334,12 +325,11 @@ export async function getOfferByShareToken(token: string): Promise<CustomerOffer
     .select('*')
     .eq('share_token', token)
     .single();
-  
+
   if (error) {
-    console.error('Error fetching offer by share token:', error);
     return null;
   }
-  
+
   // Mark as viewed if not already
   if (data && !data.viewed_at) {
     await supabase
@@ -368,12 +358,11 @@ export async function getRateSheets(creditTier?: string): Promise<RateSheet[]> {
   }
   
   const { data, error } = await query.order('apr', { ascending: true });
-  
+
   if (error) {
-    console.error('Error fetching rate sheets:', error);
     return [];
   }
-  
+
   return data || [];
 }
 
@@ -390,12 +379,11 @@ export async function getSMSLogs(offerId?: string): Promise<SMSLog[]> {
   }
   
   const { data, error } = await query.order('sent_at', { ascending: false });
-  
+
   if (error) {
-    console.error('Error fetching SMS logs:', error);
     return [];
   }
-  
+
   return data || [];
 }
 

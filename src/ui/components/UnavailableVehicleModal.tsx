@@ -35,7 +35,6 @@ export const UnavailableVehicleModal: React.FC<UnavailableVehicleModalProps> = (
 }) => {
   const handleRemoveVehicle = async () => {
     if (!vehicle || !vehicle.vin || !supabase || !currentUserId) {
-      console.error('[UnavailableVehicleModal] Missing required data');
       return;
     }
 
@@ -47,7 +46,6 @@ export const UnavailableVehicleModal: React.FC<UnavailableVehicleModalProps> = (
         .eq('vin', vehicle.vin);
 
       if (error) {
-        console.error('[UnavailableVehicleModal] Error removing vehicle:', error);
         if (window.showToast) {
           window.showToast('Failed to remove vehicle from database', 'error');
         }
@@ -67,7 +65,6 @@ export const UnavailableVehicleModal: React.FC<UnavailableVehicleModalProps> = (
         window.showToast('Vehicle removed from your saved vehicles', 'success');
       }
     } catch (error) {
-      console.error('[UnavailableVehicleModal] Error:', error);
       if (window.showToast) {
         window.showToast('Failed to remove vehicle', 'error');
       }

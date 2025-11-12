@@ -35,7 +35,6 @@ export const useCashDownAutoPopulate = ({
           .single();
 
         if (error || !profile || profile.preferred_down_payment == null) {
-          console.log('[useCashDownAutoPopulate] No preferred down payment found');
           return;
         }
 
@@ -47,11 +46,8 @@ export const useCashDownAutoPopulate = ({
             : Number(raw);
 
         if (!Number.isFinite(preferredDown) || preferredDown < 0) {
-          console.log('[useCashDownAutoPopulate] Invalid preferred down payment:', raw);
           return;
         }
-
-        console.log('[useCashDownAutoPopulate] Setting preferred down payment:', preferredDown);
 
         // Store baseline for diff tracking
         if (typeof window !== 'undefined') {
@@ -63,7 +59,7 @@ export const useCashDownAutoPopulate = ({
           onCashDownUpdate(preferredDown);
         }
       } catch (error) {
-        console.error('[useCashDownAutoPopulate] Error:', error);
+        // Silent fail
       }
     };
 

@@ -36,7 +36,6 @@ export const AuthIntegrationExample: React.FC = () => {
 
     // Demo: Listen to global auth events
     const handleAuth = (event: any) => {
-      console.log('Auth event:', event.detail);
       setCurrentUser(event.detail.user);
     };
 
@@ -52,7 +51,6 @@ export const AuthIntegrationExample: React.FC = () => {
     // return user;
 
     // Demo implementation
-    console.log('Sign in:', email, password);
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Simulate success
@@ -89,7 +87,6 @@ export const AuthIntegrationExample: React.FC = () => {
     // return user;
 
     // Demo implementation
-    console.log('Sign up:', { email, password, fullName, phone });
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
     // Simulate success
@@ -111,7 +108,6 @@ export const AuthIntegrationExample: React.FC = () => {
     // if (error) throw new Error(error.message);
 
     // Demo implementation
-    console.log('Reset password for:', email);
     await new Promise((resolve) => setTimeout(resolve, 1500));
   };
 

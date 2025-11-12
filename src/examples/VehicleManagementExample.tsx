@@ -104,7 +104,6 @@ export const VehicleManagementExample: React.FC = () => {
 
     // Demo implementation
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log(editingVehicle ? 'Updating:' : 'Adding:', vehicleData);
 
     if (editingVehicle) {
       // Update existing
@@ -140,7 +139,6 @@ export const VehicleManagementExample: React.FC = () => {
 
     // Demo implementation
     await new Promise((resolve) => setTimeout(resolve, 1500));
-    console.log('Deleting:', deletingVehicle);
 
     setVehicles((prev) => prev.filter((v) => v.id !== deletingVehicle.id));
 

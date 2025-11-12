@@ -166,7 +166,7 @@ const vehicle = await marketCheckCache.lookupByVIN('1HGBH41JXMN109186');
 
 // Listen for updates
 marketCheckCache.on('change', (vin, data) => {
-  console.log('VIN data updated:', vin, data);
+  // VIN data updated
 });
       `.trim(),
     ],
@@ -231,7 +231,7 @@ await savedVehiclesCache.addVehicle(vehicleData);
 
 // Listen for changes
 savedVehiclesCache.on('change', (vehicles) => {
-  console.log('Vehicles updated:', vehicles);
+  // Vehicles updated
 });
       `.trim(),
     ],

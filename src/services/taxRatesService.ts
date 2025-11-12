@@ -8,6 +8,7 @@ interface TaxRateCache {
 
 const CACHE_DURATION_MS = 90 * 24 * 60 * 60 * 1000; // 90 days in milliseconds
 const CACHE_KEY_PREFIX = 'tax_rates_';
+const TAX_CACHE_ENABLED = false;
 
 /**
  * Get cache key for a specific state/county combination
@@ -20,6 +21,7 @@ function getCacheKey(stateCode: string, countyName: string): string {
  * Retrieve cached tax rates from localStorage
  */
 function getCachedTaxRates(stateCode: string, countyName: string): TaxLocation | null {
+  if (!TAX_CACHE_ENABLED) return null;
   try {
     const cacheKey = getCacheKey(stateCode, countyName);
     const cached = localStorage.getItem(cacheKey);
@@ -31,16 +33,13 @@ function getCachedTaxRates(stateCode: string, countyName: string): TaxLocation |
 
     // Check if cache is still valid (within 90 days)
     if (age < CACHE_DURATION_MS) {
-      console.log(`[TaxRatesService] Cache hit for ${stateCode}/${countyName} (${Math.floor(age / (24 * 60 * 60 * 1000))} days old)`);
       return parsedCache.data;
     }
 
     // Cache expired, remove it
-    console.log(`[TaxRatesService] Cache expired for ${stateCode}/${countyName}`);
     localStorage.removeItem(cacheKey);
     return null;
   } catch (error) {
-    console.error('[TaxRatesService] Error reading cache:', error);
     return null;
   }
 }
@@ -49,6 +48,7 @@ function getCachedTaxRates(stateCode: string, countyName: string): TaxLocation |
  * Store tax rates in localStorage cache
  */
 function cacheTaxRates(stateCode: string, countyName: string, data: TaxLocation): void {
+  if (!TAX_CACHE_ENABLED) return;
   try {
     const cacheKey = getCacheKey(stateCode, countyName);
     const cacheData: TaxRateCache = {
@@ -56,9 +56,8 @@ function cacheTaxRates(stateCode: string, countyName: string, data: TaxLocation)
       timestamp: Date.now(),
     };
     localStorage.setItem(cacheKey, JSON.stringify(cacheData));
-    console.log(`[TaxRatesService] Cached tax rates for ${stateCode}/${countyName}`);
   } catch (error) {
-    console.error('[TaxRatesService] Error writing cache:', error);
+    // Silent fail on cache write error
   }
 }
 
@@ -81,8 +80,6 @@ export async function lookupTaxRates(
   }
 
   // No cache hit, query Supabase
-  console.log(`[TaxRatesService] Looking up tax rates for ${stateCode}/${countyName}`);
-
   try {
     const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
 
@@ -98,12 +95,10 @@ export async function lookupTaxRates(
       .order('effective_date', { ascending: false });
 
     if (error) {
-      console.error('[TaxRatesService] Supabase query error:', error);
       return null;
     }
 
     if (!data || data.length === 0) {
-      console.warn(`[TaxRatesService] No tax rates found for ${stateCode}/${countyName}`);
       return null;
     }
 
@@ -112,10 +107,6 @@ export async function lookupTaxRates(
     const countyComponent = data.find(d => d.source_version === 'county');
 
     if (!stateComponent || !countyComponent) {
-      console.error(`[TaxRatesService] Missing components for ${stateCode}/${countyName}`, {
-        hasState: !!stateComponent,
-        hasCounty: !!countyComponent
-      });
       return null;
     }
 
@@ -141,7 +132,6 @@ export async function lookupTaxRates(
 
     return result;
   } catch (error) {
-    console.error('[TaxRatesService] Error looking up tax rates:', error);
     return null;
   }
 }
@@ -162,8 +152,6 @@ export async function lookupTaxRatesDetailed(
     return cached;
   }
 
-  console.log(`[TaxRatesService] Looking up detailed tax rates for ${stateCode}/${countyName}`);
-
   try {
     const currentDate = new Date().toISOString().split('T')[0];
 
@@ -179,7 +167,6 @@ export async function lookupTaxRatesDetailed(
       .order('effective_date', { ascending: false });
 
     if (componentError) {
-      console.error('[TaxRatesService] Component query error:', componentError);
       // Fall back to simple lookup
       return lookupTaxRates(stateCode, countyName, stateName);
     }
@@ -189,13 +176,11 @@ export async function lookupTaxRatesDetailed(
       // This requires additional metadata in the county_surtax_windows table
       // to distinguish between state and county components
       // For now, fall back to the simple lookup
-      console.warn('[TaxRatesService] Component parsing not yet implemented, falling back to total');
     }
 
     // Fall back to total lookup
     return lookupTaxRates(stateCode, countyName, stateName);
   } catch (error) {
-    console.error('[TaxRatesService] Error in detailed lookup:', error);
     return null;
   }
 }
@@ -213,8 +198,7 @@ export function clearTaxRatesCache(): void {
       }
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
-    console.log(`[TaxRatesService] Cleared ${keysToRemove.length} cached tax rate entries`);
   } catch (error) {
-    console.error('[TaxRatesService] Error clearing cache:', error);
+    // Silent fail on cache clear error
   }
 }

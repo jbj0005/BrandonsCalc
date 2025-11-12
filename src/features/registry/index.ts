@@ -175,26 +175,7 @@ export function getCategoryCounts(): Map<InteractionType, number> {
  * Print feature registry summary to console
  */
 export function printRegistrySummary(): void {
-  console.group('🔧 Features Registry Summary');
-  console.log(`Total Features: ${ALL_FEATURES.length}`);
-  console.log('');
-
-  console.group('By Category:');
-  const counts = getCategoryCounts();
-  counts.forEach((count, category) => {
-    console.log(`  ${category}: ${count}`);
-  });
-  console.groupEnd();
-
-  console.log('');
-  console.group('Features with Delays:');
-  getFeaturesWithDelays().forEach((f) => {
-    const delay = f.config?.delay || f.config?.timeout;
-    console.log(`  ${f.name}: ${delay}ms`);
-  });
-  console.groupEnd();
-
-  console.groupEnd();
+  // Registry summary logging removed
 }
 
 /**

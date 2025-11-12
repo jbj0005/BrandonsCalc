@@ -73,8 +73,8 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
       });
       onClose();
     } catch (error) {
-      console.error('Failed to save display preferences:', error);
-    } finally {
+      // Failed to save
+    } finally{
       setLoading(false);
     }
   };

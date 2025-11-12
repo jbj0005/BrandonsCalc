@@ -41,7 +41,6 @@ export const loadGoogleMapsScript = (): Promise<void> => {
   return new Promise((resolve, reject) => {
     // Check for web component support
     if (!supportsWebComponents()) {
-      console.error('[Google Maps] Browser does not support web components (Custom Elements, Shadow DOM)');
       reject(new Error('Browser does not support web components required for Google Maps'));
       return;
     }
@@ -85,7 +84,6 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
     if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
-      console.warn('[Google Maps] API key not configured');
       reject(new Error('Google Maps API key not configured'));
       return;
     }
@@ -115,7 +113,6 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     };
 
     script.onerror = () => {
-      console.error('[Google Maps] Failed to load API');
       reject(new Error('Failed to load Google Maps API'));
     };
 
@@ -137,10 +134,8 @@ export const loadGoogleMapsScript = (): Promise<void> => {
         // Mark as loaded
         window.__googleMapsWebComponentsLoaded = true;
 
-        console.log('[Google Maps] API and web components loaded successfully');
         resolve();
       } catch (error) {
-        console.error('[Google Maps] Failed to load web components library:', error);
         reject(new Error('Failed to load Google Maps web components'));
       }
     };

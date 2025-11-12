@@ -74,7 +74,6 @@ export const EmailHandshakeModal: React.FC<EmailHandshakeModalProps> = ({
       window.closeEmailHandshakeModal = onClose;
       window.setEmailHandshakeStage = (newStage: EmailHandshakeStage) => {
         // This would need to be wired up through parent component state
-        console.log('[EmailHandshakeModal] Stage change requested:', newStage);
       };
     }
   }, [onClose]);

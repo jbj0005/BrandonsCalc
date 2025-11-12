@@ -58,7 +58,6 @@ export const useTradeInAutoPopulate = ({
   // Update trade-in calculations based on selected vehicles
   const updateTradeInCalculations = useCallback(async () => {
     if (!supabase || !userId) {
-      console.warn('[useTradeInAutoPopulate] Cannot update: No Supabase client or user ID');
       return;
     }
 
@@ -95,12 +94,6 @@ export const useTradeInAutoPopulate = ({
         totalPayoff += parseFloat(String(vehicle.payoff_amount || 0));
       });
 
-      console.log('[useTradeInAutoPopulate] Trade-in totals:', {
-        value: totalValue,
-        payoff: totalPayoff,
-        count: garageVehicles.length,
-      });
-
       // Notify parent component
       if (onTradeInUpdate) {
         onTradeInUpdate({
@@ -111,7 +104,7 @@ export const useTradeInAutoPopulate = ({
         });
       }
     } catch (error) {
-      console.error('[useTradeInAutoPopulate] Error updating trade-in calculations:', error);
+      // Silent fail
     }
   }, [supabase, userId, selectedTradeIns, onTradeInUpdate]);
 
@@ -154,18 +147,15 @@ export const useTradeInAutoPopulate = ({
           .limit(1);
 
         if (error || !vehicles || vehicles.length === 0) {
-          console.log('[useTradeInAutoPopulate] No garage vehicles found');
           return;
         }
 
         const latestVehicle = vehicles[0] as GarageVehicle;
 
-        console.log('[useTradeInAutoPopulate] Auto-selecting latest vehicle:', latestVehicle.id);
-
         // Set as selected trade-in
         setSelectedTradeIns([latestVehicle.id]);
       } catch (error) {
-        console.error('[useTradeInAutoPopulate] Error auto-selecting latest vehicle:', error);
+        // Silent fail
       }
     };
 

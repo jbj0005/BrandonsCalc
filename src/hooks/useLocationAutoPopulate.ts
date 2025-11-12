@@ -60,7 +60,6 @@ export const useLocationAutoPopulate = ({
           .single();
 
         if (error || !profile) {
-          console.log('[useLocationAutoPopulate] No profile found');
           return;
         }
 
@@ -68,7 +67,6 @@ export const useLocationAutoPopulate = ({
 
         // Need at least city and state
         if (!typedProfile.city || !typedProfile.state_code) {
-          console.log('[useLocationAutoPopulate] Profile missing city/state');
           return;
         }
 
@@ -118,8 +116,6 @@ export const useLocationAutoPopulate = ({
                 onLocationUpdate(locationData);
               }
             } else {
-              console.error('[useLocationAutoPopulate] Geocoding failed:', status);
-
               // Fallback: update without coordinates
               const locationData: LocationData = {
                 formatted_address: locationString,
@@ -155,7 +151,7 @@ export const useLocationAutoPopulate = ({
           }
         }
       } catch (error) {
-        console.error('[useLocationAutoPopulate] Error:', error);
+        // Silent fail
       }
     };
 

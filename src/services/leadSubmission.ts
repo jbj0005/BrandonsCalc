@@ -125,8 +125,6 @@ export const submitLead = async (leadData: LeadData): Promise<{ ok: boolean; off
       submitted_at: new Date().toISOString(),
     };
 
-    console.log('[LeadSubmission] Submitting offer to Supabase:', offerName);
-
     const { data, error } = await supabase
       .from('customer_offers')
       .insert(offerData)
@@ -134,21 +132,17 @@ export const submitLead = async (leadData: LeadData): Promise<{ ok: boolean; off
       .single();
 
     if (error) {
-      console.error('[LeadSubmission] Supabase error:', error);
       return {
         ok: false,
         error: error.message || 'Failed to submit offer',
       };
     }
 
-    console.log('[LeadSubmission] Offer submitted successfully. ID:', data.id);
-
     return {
       ok: true,
       offerId: data.id,
     };
   } catch (error: any) {
-    console.error('[LeadSubmission] Unexpected error:', error);
     return {
       ok: false,
       error: error.message || 'An unexpected error occurred',
@@ -273,7 +267,6 @@ export const submitOfferWithProgress = async (
         .single();
 
       if (profileError) {
-        console.error('[LeadSubmission] Error creating profile:', profileError);
         throw new Error('Failed to create customer profile');
       }
 
@@ -338,11 +331,8 @@ export const submitOfferWithProgress = async (
       .single();
 
     if (offerError) {
-      console.error('[LeadSubmission] Error inserting offer:', offerError);
       throw new Error(offerError.message || 'Failed to save offer');
     }
-
-    console.log('[LeadSubmission] Offer saved successfully. ID:', offer.id);
 
     await delay(Math.max(0, savingDuration - (Date.now() - stage2Start)));
 
@@ -371,11 +361,8 @@ export const submitOfferWithProgress = async (
       });
 
       if (emailError) {
-        console.error('[LeadSubmission] Email send failed:', emailError);
         // Don't fail the whole submission if email fails
       }
-    } else if (leadData.devMode) {
-      console.log('[LeadSubmission] DEV MODE: Skipping email send');
     }
 
     await delay(Math.max(0, emailDuration - (Date.now() - stage3Start)));
@@ -405,13 +392,10 @@ export const submitOfferWithProgress = async (
       });
 
       if (smsError) {
-        console.error('[LeadSubmission] SMS send failed:', smsError);
         // Don't fail the whole submission if SMS fails
       }
 
       await delay(Math.max(0, smsDuration - (Date.now() - stage4Start)));
-    } else if (leadData.devMode && leadData.customerPhone) {
-      console.log('[LeadSubmission] DEV MODE: Skipping SMS send');
     }
 
     // Stage 5: Complete
@@ -428,8 +412,6 @@ export const submitOfferWithProgress = async (
     };
 
   } catch (error: any) {
-    console.error('[LeadSubmission] Submission failed:', error);
-
     onProgress({
       stage: 'error',
       progress: 0,

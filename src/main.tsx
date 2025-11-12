@@ -16,6 +16,4 @@ if (rootElement) {
       </ToastProvider>
     </React.StrictMode>
   );
-} else {
-  console.error('React root element not found. Add <div id="react-root"></div> to your HTML.');
 }

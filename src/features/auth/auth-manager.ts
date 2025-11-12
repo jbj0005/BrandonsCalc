@@ -166,7 +166,7 @@ export class AuthManager {
       useAuthStore.getState().setProfile(data);
       this.autoPopulateFields(data);
     } else if (error) {
-      console.error('Error creating user profile:', error);
+      // Error creating user profile
     }
   }
   
@@ -343,7 +343,6 @@ export class AuthManager {
       if (header) {
         header.insertAdjacentHTML('beforeend', this.getProfileDropdownHTML());
       } else {
-        console.error('❌ [Auth Manager] Header element not found! Cannot inject profile dropdown');
         return;
       }
     }
@@ -787,7 +786,6 @@ export class AuthManager {
     const { error } = await supabase.auth.signOut();
     
     if (error) {
-      console.error('Error signing out:', error);
       throw error;
     }
     

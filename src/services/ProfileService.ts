@@ -59,7 +59,6 @@ export class ProfileService {
 
       return data as ProfileData;
     } catch (error) {
-      console.error('[ProfileService] Error loading profile:', error);
       throw error;
     }
   }
@@ -93,7 +92,6 @@ export class ProfileService {
 
       return data as ProfileData;
     } catch (error) {
-      console.error('[ProfileService] Error saving profile:', error);
       throw error;
     }
   }
@@ -119,7 +117,6 @@ export class ProfileService {
 
       return data as ProfileData;
     } catch (error) {
-      console.error('[ProfileService] Error initializing profile:', error);
       throw error;
     }
   }
@@ -138,7 +135,6 @@ export class ProfileService {
 
       if (error) throw error;
     } catch (error) {
-      console.error('[ProfileService] Error touching profile:', error);
       // Non-critical, don't throw
     }
   }
@@ -167,7 +163,6 @@ export class ProfileService {
         },
       };
     } catch (error) {
-      console.error('[ProfileService] Error loading display preferences:', error);
       return DEFAULT_DISPLAY_PREFERENCES;
     }
   }
@@ -202,7 +197,6 @@ export class ProfileService {
         );
       }
     } catch (error) {
-      console.error('[ProfileService] Error saving display preferences:', error);
       throw error;
     }
   }

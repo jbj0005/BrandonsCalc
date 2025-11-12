@@ -46,7 +46,6 @@ export class SMSSender {
       });
       
       if (error) {
-        console.error('SMS send error:', error);
         throw error;
       }
       
@@ -63,8 +62,6 @@ export class SMSSender {
         data: data
       };
     } catch (error: any) {
-      console.error('Failed to send SMS:', error);
-      
       return {
         success: false,
         error: error.message || 'Failed to send SMS'
@@ -271,10 +268,10 @@ export class SMSSender {
         .eq('id', offerId);
       
       if (error) {
-        console.error('Failed to update offer status:', error);
+        // Failed to update offer status
       }
     } catch (error) {
-      console.error('Error updating offer status:', error);
+      // Error updating offer status
     }
   }
   

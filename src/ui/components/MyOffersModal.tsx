@@ -140,7 +140,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       if (error) throw error;
       setOffers(data || []);
     } catch (error) {
-      console.error('Error loading offers:', error);
+      // Failed to load offers
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +166,6 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       if (error) throw error;
       alert('Email sent successfully!');
     } catch (error: any) {
-      console.error('Error sending email:', error);
       alert(`Failed to send email: ${error.message}`);
     } finally {
       setActionMenuOpen(null);
@@ -205,7 +204,6 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       if (error) throw error;
       alert('SMS sent successfully!');
     } catch (error: any) {
-      console.error('Error sending SMS:', error);
       alert(`Failed to send SMS: ${error.message}`);
     } finally {
       setActionMenuOpen(null);
@@ -251,7 +249,6 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         });
 
         if (emailError) {
-          console.error('Failed to send email copy:', emailError);
           // Don't block the close operation if email fails
         }
       }
@@ -268,7 +265,6 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       await loadOffers();
       alert('Offer closed successfully. A copy has been sent to your email.');
     } catch (error: any) {
-      console.error('Error closing offer:', error);
       alert(`Failed to close offer: ${error.message}`);
     } finally {
       setActionMenuOpen(null);

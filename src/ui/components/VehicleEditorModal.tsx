@@ -225,7 +225,6 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
       }
       return response ?? null;
     } catch (error) {
-      console.error('Error fetching fresh MarketCheck data:', error);
       return null;
     }
   };

@@ -35,14 +35,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
     // Subscribe to cache changes
     const unsubscribe = savedVehiclesCache.on('change', (updatedVehicles: GarageVehicle[]) => {
-      console.log('[UserProfileModal] Cache change event:', updatedVehicles.length, 'vehicles');
       setVehicles(updatedVehicles);
       setIsLoadingVehicles(false);
     });
 
     // Subscribe to loading events
     const unsubscribeLoading = savedVehiclesCache.on('loading', (loading: boolean) => {
-      console.log('[UserProfileModal] Cache loading state:', loading);
       setIsLoadingVehicles(loading);
     });
 
@@ -53,7 +51,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         const data = await savedVehiclesCache.getVehicles({ forceRefresh: false });
         setVehicles(data || []);
       } catch (error: any) {
-        console.error('[UserProfileModal] Failed to load vehicles:', error);
         toast.push({
           kind: 'error',
           title: 'Failed to Load Vehicles',
@@ -95,7 +92,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
       });
     } catch (error: any) {
-      console.error('[UserProfileModal] Failed to delete vehicle:', error);
       toast.push({
         kind: 'error',
         title: 'Delete Failed',
@@ -126,7 +122,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setShowVehicleEditor(false);
       setVehicleToEdit(null);
     } catch (error: any) {
-      console.error('[UserProfileModal] Failed to save vehicle:', error);
       toast.push({
         kind: 'error',
         title: 'Save Failed',
