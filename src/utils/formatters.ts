@@ -21,6 +21,36 @@ export const formatCurrencyInput = (value: string): string => {
   return `$${base}`;
 };
 
+/**
+ * Format number input with commas (for mileage, etc.)
+ * Only formats on blur/enter, not while typing
+ */
+export const formatNumberInput = (value: string): string => {
+  if (!value) return '';
+  const cleaned = value.replace(/[^\d]/g, '');
+  if (!cleaned) return '';
+  const number = parseInt(cleaned, 10);
+  if (isNaN(number)) return '';
+  return number.toLocaleString();
+};
+
+/**
+ * Parse a formatted number string back to a number
+ */
+export const parseFormattedNumber = (value: string): number => {
+  if (!value) return 0;
+  const cleaned = value.replace(/[^\d]/g, '');
+  const parsed = parseInt(cleaned, 10);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+export const parseCurrency = (value: string): number => {
+  if (!value) return 0;
+  const cleaned = value.replace(/[^\d.]/g, '');
+  const parsed = parseFloat(cleaned);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
 export const formatCurrencyValue = (
   value: number | string | null | undefined
 ): string => {

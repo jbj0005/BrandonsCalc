@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "server": "node server/server.js",
+    "start": "npm run server & npm run dev",
     "build": "tsc && vite build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
@@ -14,6 +16,7 @@
     "functions:deploy": "supabase functions deploy send-sms --no-verify-jwt",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
+    "storage:setup": "node scripts/setup-storage-bucket.mjs",
     "mcp:verify": "node .mcp/verify-setup.mjs",
     "mcp:install": "npm install --save-dev @modelcontextprotocol/server-filesystem @modelcontextprotocol/server-git"
   },

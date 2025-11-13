@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Card, Button, Input, Checkbox } from '../ui/components';
+import { ItemizationCard } from '../ui/components/ItemizationCard';
 import { generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useProfile } from '../hooks/useProfile';
 import { supabase } from '../lib/supabase';
@@ -11,9 +12,36 @@ export interface OfferPreviewModalProps {
   leadData: LeadData;
   onSubmit: (data: LeadData) => void;
   onDevSubmit?: (data: LeadData) => void;
-  // Financial summary
-  amountFinanced?: number;
-  cashDue?: number;
+  // ItemizationCard props - pass through from main app
+  salePrice: number;
+  cashDown: number;
+  tradeAllowance: number;
+  tradePayoff: number;
+  dealerFees: number;
+  customerAddons: number;
+  govtFees: number;
+  stateTaxRate: number;
+  countyTaxRate: number;
+  stateTaxAmount: number;
+  countyTaxAmount: number;
+  totalTaxes: number;
+  unpaidBalance: number;
+  amountFinanced: number;
+  cashDue: number;
+  stateName?: string;
+  countyName?: string;
+  tradeInApplied?: number;
+  tradeInCashout?: number;
+  cashoutAmount?: number;
+  // onChange handlers
+  onSalePriceChange?: (value: number) => void;
+  onCashDownChange?: (value: number) => void;
+  onTradeAllowanceChange?: (value: number) => void;
+  onTradePayoffChange?: (value: number) => void;
+  onDealerFeesChange?: (value: number) => void;
+  onCustomerAddonsChange?: (value: number) => void;
+  onGovtFeesChange?: (value: number) => void;
+  onTradeInCashoutChange?: (value: number) => void;
 }
 
 interface DetailRowProps {
@@ -47,8 +75,36 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   leadData,
   onSubmit,
   onDevSubmit,
+  // ItemizationCard props
+  salePrice,
+  cashDown,
+  tradeAllowance,
+  tradePayoff,
+  dealerFees,
+  customerAddons,
+  govtFees,
+  stateTaxRate,
+  countyTaxRate,
+  stateTaxAmount,
+  countyTaxAmount,
+  totalTaxes,
+  unpaidBalance,
   amountFinanced,
   cashDue,
+  stateName,
+  countyName,
+  tradeInApplied,
+  tradeInCashout,
+  cashoutAmount,
+  // onChange handlers
+  onSalePriceChange,
+  onCashDownChange,
+  onTradeAllowanceChange,
+  onTradePayoffChange,
+  onDealerFeesChange,
+  onCustomerAddonsChange,
+  onGovtFeesChange,
+  onTradeInCashoutChange,
 }) => {
   // Get current user for profile loading
   const [userId, setUserId] = useState<string | null>(null);
@@ -116,18 +172,8 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   // Validation
   const isValid = customerName.trim() && customerEmail.trim() && customerEmail.includes('@');
 
-  // Format currency helper
-  const formatCurrency = (value?: number): string => {
-    if (!value) return '$0.00';
-    return formatCurrencyExact(value);
-  };
-
   // Vehicle info string
   const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
-
-  const ratesEffectiveDateLabel = leadData.ratesEffectiveDate
-    ? formatEffectiveDate(leadData.ratesEffectiveDate)
-    : null;
 
   // Handle submit
   const handleSubmit = () => {
@@ -201,7 +247,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-8 rounded-t-xl text-center -mt-6 -mx-6 mb-6">
           <div className="text-sm font-medium mb-2 opacity-90">Your Offer</div>
           <div className="text-5xl font-bold mb-2">
-            {formatCurrency(leadData.vehiclePrice)}
+            {formatCurrencyExact(leadData.vehiclePrice || 0)}
           </div>
           {vehicleInfo && (
             <div className="text-base opacity-90">{vehicleInfo}</div>
@@ -255,77 +301,37 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             </div>
           </Card>
 
-          {/* 3. Financing Details Card */}
-          <Card padding="md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Financing Details</h3>
-            <div className="space-y-1">
-              <DetailRow
-                label="Monthly Payment"
-                value={
-                  <>
-                    <span className="block text-base font-bold text-gray-900">
-                      {formatCurrency(leadData.monthlyPayment)}
-                    </span>
-                    {ratesEffectiveDateLabel && (
-                      <span className="block text-[11px] text-gray-500 mt-0.5">
-                        Rates effective {ratesEffectiveDateLabel}
-                      </span>
-                    )}
-                  </>
-                }
-              />
-              {leadData.apr && (
-                <DetailRow label="APR" value={`${leadData.apr.toFixed(2)}%`} />
-              )}
-              {leadData.termMonths && (
-                <DetailRow
-                  label="Term"
-                  value={`${leadData.termMonths} months (${(leadData.termMonths / 12).toFixed(1)} years)`}
-                />
-              )}
-              {leadData.downPayment !== undefined && (
-                <DetailRow label="Down Payment" value={formatCurrency(leadData.downPayment)} />
-              )}
-              {leadData.dealerFees !== undefined && (
-                <DetailRow label="Dealer Fees" value={formatCurrency(leadData.dealerFees)} />
-              )}
-              {leadData.customerAddons !== undefined && (
-                <DetailRow label="Customer Add-ons" value={formatCurrency(leadData.customerAddons)} />
-              )}
-            </div>
-
-            {/* Amount Financed & Cash Due */}
-            {amountFinanced !== undefined && (
-              <>
-                <div className="border-t border-gray-200 my-4"></div>
-                <div className="space-y-3">
-                  <div className="rounded-lg bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-base font-bold text-white uppercase tracking-wide">
-                        Amount Financed
-                      </span>
-                      <span className="text-xl font-bold text-white">
-                        {formatCurrency(amountFinanced)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {cashDue !== undefined && (
-                    <div className="rounded-lg bg-gradient-to-r from-green-600 to-green-700 px-4 py-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-base font-bold text-white">
-                          Cash Due at Signing
-                        </span>
-                        <span className="text-xl font-bold text-white">
-                          {formatCurrency(cashDue)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-          </Card>
+          {/* 3. Itemization of Costs (editable) */}
+          <ItemizationCard
+            salePrice={salePrice}
+            cashDown={cashDown}
+            tradeAllowance={tradeAllowance}
+            tradePayoff={tradePayoff}
+            dealerFees={dealerFees}
+            customerAddons={customerAddons}
+            govtFees={govtFees}
+            stateTaxRate={stateTaxRate}
+            countyTaxRate={countyTaxRate}
+            stateTaxAmount={stateTaxAmount}
+            countyTaxAmount={countyTaxAmount}
+            totalTaxes={totalTaxes}
+            unpaidBalance={unpaidBalance}
+            amountFinanced={amountFinanced}
+            cashDue={cashDue}
+            stateName={stateName}
+            countyName={countyName}
+            tradeInApplied={tradeInApplied}
+            tradeInCashout={tradeInCashout}
+            cashoutAmount={cashoutAmount}
+            onSalePriceChange={onSalePriceChange}
+            onCashDownChange={onCashDownChange}
+            onTradeAllowanceChange={onTradeAllowanceChange}
+            onTradePayoffChange={onTradePayoffChange}
+            onDealerFeesChange={onDealerFeesChange}
+            onCustomerAddonsChange={onCustomerAddonsChange}
+            onGovtFeesChange={onGovtFeesChange}
+            onTradeInCashoutChange={onTradeInCashoutChange}
+          />
 
           {/* 4. Dealer Contact (Optional) */}
           <Card padding="md">

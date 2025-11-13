@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Card, Button } from './index';
 import { supabase } from '../../lib/supabase';
 import { formatCurrencyExact } from '../../utils/formatters';
+import { useToast } from './Toast';
 
 export interface MyOffersModalProps {
   isOpen: boolean;
@@ -82,6 +83,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
   onClose,
   highlightOfferId
 }) => {
+  const toast = useToast();
   const [offers, setOffers] = useState<CustomerOffer[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState<FilterOption>('all');
@@ -164,9 +166,17 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       });
 
       if (error) throw error;
-      alert('Email sent successfully!');
+      toast.push({
+        kind: 'success',
+        title: 'Email Sent',
+        detail: 'Offer email has been sent successfully'
+      });
     } catch (error: any) {
-      alert(`Failed to send email: ${error.message}`);
+      toast.push({
+        kind: 'error',
+        title: 'Failed to Send Email',
+        detail: error.message || 'An error occurred'
+      });
     } finally {
       setActionMenuOpen(null);
     }
@@ -177,7 +187,11 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
     try {
       // Check TCPA opt-in status
       if (!offer.customer_phone) {
-        alert('No phone number on file for this offer.');
+        toast.push({
+          kind: 'warning',
+          title: 'No Phone Number',
+          detail: 'No phone number on file for this offer'
+        });
         return;
       }
 
@@ -188,7 +202,11 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         .maybeSingle();
 
       if (!optStatus?.opted_in) {
-        alert('Customer has not opted in to receive SMS messages. Cannot send.');
+        toast.push({
+          kind: 'warning',
+          title: 'Cannot Send SMS',
+          detail: 'Customer has not opted in to receive SMS messages'
+        });
         return;
       }
 
@@ -202,9 +220,17 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       });
 
       if (error) throw error;
-      alert('SMS sent successfully!');
+      toast.push({
+        kind: 'success',
+        title: 'SMS Sent',
+        detail: 'Offer SMS has been sent successfully'
+      });
     } catch (error: any) {
-      alert(`Failed to send SMS: ${error.message}`);
+      toast.push({
+        kind: 'error',
+        title: 'Failed to Send SMS',
+        detail: error.message || 'An error occurred'
+      });
     } finally {
       setActionMenuOpen(null);
     }
@@ -214,16 +240,16 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
   const handleShare = (offer: CustomerOffer) => {
     const shareUrl = `${window.location.origin}/offer/${offer.id}`;
     navigator.clipboard.writeText(shareUrl);
-    alert('Offer link copied to clipboard!');
+    toast.push({
+      kind: 'success',
+      title: 'Link Copied',
+      detail: 'Offer link copied to clipboard'
+    });
     setActionMenuOpen(null);
   };
 
   // Handle close offer
   const handleCloseOffer = async (offerId: string) => {
-    if (!confirm('Are you sure you want to close this offer? A copy will be emailed to you for your records.')) {
-      return;
-    }
-
     try {
       // Find the offer to get customer email
       const offer = offers.find(o => o.id === offerId);
@@ -231,7 +257,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         throw new Error('Offer not found');
       }
 
-      // Send copy to customer email before closing
+      // Send copy to customer email before deleting
       if (offer.customer_email) {
         const vehicleInfo = [offer.vehicle_year, offer.vehicle_make, offer.vehicle_model]
           .filter(Boolean)
@@ -253,19 +279,29 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         }
       }
 
-      // Update offer status to closed
+      // Delete the offer
       const { error } = await supabase
         .from('customer_offers')
-        .update({ status: 'closed', updated_at: new Date().toISOString() })
+        .delete()
         .eq('id', offerId);
 
       if (error) throw error;
 
-      // Reload offers
-      await loadOffers();
-      alert('Offer closed successfully. A copy has been sent to your email.');
+      // Remove from local state immediately (no need to reload)
+      setOffers(prevOffers => prevOffers.filter(o => o.id !== offerId));
+
+      // Show success toast
+      toast.push({
+        kind: 'success',
+        title: 'Offer Closed',
+        detail: 'A copy has been sent to your email'
+      });
     } catch (error: any) {
-      alert(`Failed to close offer: ${error.message}`);
+      toast.push({
+        kind: 'error',
+        title: 'Failed to Close Offer',
+        detail: error.message || 'An error occurred'
+      });
     } finally {
       setActionMenuOpen(null);
     }

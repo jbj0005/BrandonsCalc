@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal } from './ui/components';
+import { FeesModal } from './ui/components/FeesModal';
+import { FeeTemplateEditorModal } from './ui/components/FeeTemplateEditorModal';
 import { useToast } from './ui/components/Toast';
 import type { SelectOption } from './ui/components/Select';
 import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
@@ -216,6 +218,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   // APR Confirmation Modal State
   const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
 
+  // Fees Modal State
+  const [showFeesModal, setShowFeesModal] = useState(false);
+  const [showFeeTemplateModal, setShowFeeTemplateModal] = useState(false);
+
   // User Profile Dropdown State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
 
@@ -240,6 +246,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     sliders,
     selectedTradeInVehicles,
     tradePayoff,
+    feeItems,
+    stateTaxRate: storeTaxState,
+    countyTaxRate: storeTaxCounty,
+    userTaxOverride,
     setSliderValue,
     setSliderValueWithSettling,
     setSliderBaseline,
@@ -250,6 +260,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     toggleTradeInVehicle,
     resetTradeIn,
     setTradePayoff,
+    setFeeItems,
+    setTaxRates,
+    syncFeeSliders,
   } = useCalculatorStore();
 
   // Extract slider values for convenient access
@@ -258,6 +271,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const tradeAllowance = sliders.tradeAllowance.value;
   const dealerFees = sliders.dealerFees.value;
   const customerAddons = sliders.customerAddons.value;
+  const govtFees = sliders.govtFees.value;
 
   // Financing State
   const [lender, setLender] = useState('nfcu');
@@ -302,6 +316,60 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const tradeAllowanceMaxDynamic = Math.max(tradeAllowance * 1.15, 75000);
   const dealerFeesMaxDynamic = Math.max(dealerFees * 1.15, 5000);
   const customerAddonsMaxDynamic = Math.max(customerAddons * 1.15, 10000);
+  const govtFeesMaxDynamic = Math.max(govtFees * 1.15, 5000);
+
+  // Fee modal handlers
+  const handleFeesModalSave = (data: {
+    dealerFees: Array<{ description: string; amount: number }>;
+    customerAddons: Array<{ description: string; amount: number }>;
+    govtFees: Array<{ description: string; amount: number }>;
+    stateTaxRate: number;
+    countyTaxRate: number;
+    userTaxOverride: boolean;
+  }) => {
+    // Update fee items in store
+    setFeeItems('dealer', data.dealerFees);
+    setFeeItems('customer', data.customerAddons);
+    setFeeItems('gov', data.govtFees);
+
+    // Update tax rates
+    setTaxRates(data.stateTaxRate, data.countyTaxRate, data.userTaxOverride);
+
+    // Sync fee totals to sliders
+    syncFeeSliders();
+
+    // Close modal
+    setShowFeesModal(false);
+
+    toast.push({
+      kind: 'success',
+      title: 'Fees Updated',
+      detail: 'Totals refreshed with your latest amounts.',
+    });
+  };
+
+  const handleOpenFeeTemplateEditor = () => {
+    setShowFeesModal(false);
+    setShowFeeTemplateModal(true);
+  };
+
+  const handleCloseFeeTemplateEditor = () => {
+    setShowFeeTemplateModal(false);
+    setShowFeesModal(true);
+  };
+
+  // Handler for editing "Cash to You" from itemization
+  const handleEquityCashoutChange = (cashout: number) => {
+    const positiveEquity = Math.max(0, tradeAllowance - tradePayoff);
+    const validatedCashout = Math.max(0, Math.min(cashout, positiveEquity)); // Ensure within bounds
+    const appliedAmount = Math.max(0, positiveEquity - validatedCashout);
+
+    setEquityDecision({
+      action: validatedCashout > 0 ? 'split' : 'apply',
+      appliedAmount,
+      cashoutAmount: validatedCashout
+    });
+  };
 
   // Lender options from config/lenders.json
   const lenderOptions: SelectOption[] = [
@@ -706,7 +774,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setUnpaidBalance(unpaid);
 
     // Calculate taxes (based on sale price minus applied trade-in equity)
-    const taxableBase = (salePrice - appliedToBalance) + dealerFees + customerAddons;
+    const taxableBase = (salePrice - appliedToBalance) + dealerFees + customerAddons + govtFees;
     const stateTax = taxableBase * (stateTaxRate / 100);
     const countyTax = Math.min(taxableBase, 5000) * (countyTaxRate / 100); // FL caps county tax at $5k
     const totalTax = stateTax + countyTax;
@@ -716,7 +784,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setTotalTaxes(totalTax);
 
     // Calculate amount financed (includes fees, taxes, and cashout)
-    const totalPrice = salePrice + dealerFees + customerAddons + totalTax;
+    const totalPrice = salePrice + dealerFees + customerAddons + govtFees + totalTax;
     const downPayment = cashDown + appliedToBalance;
     const financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
 
@@ -793,6 +861,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       // Fees
       dealerFees: dealerFees || undefined,
       customerAddons: customerAddons || undefined,
+      govtFees: govtFees || undefined,
+
+      // Fee items breakdown
+      dealerFeeItems: feeItems.dealer.length > 0 ? feeItems.dealer : undefined,
+      customerAddonItems: feeItems.customer.length > 0 ? feeItems.customer : undefined,
+      govtFeeItems: feeItems.gov.length > 0 ? feeItems.gov : undefined,
 
       // Generate offer name
       offerName: selectedVehicle
@@ -1068,20 +1142,70 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setShowVehicleDropdown(false); // Close dropdown
   };
 
-  // Handle vehicle save/update from modal
-  const handleVehicleSave = async () => {
+  // Handle vehicle save/update from modal (for garage_vehicles table)
+  const handleVehicleSave = async (vehicleData: Partial<Vehicle | GarageVehicle>) => {
+    if (!currentUser || !supabase) {
+      toast.push({
+        kind: 'error',
+        title: 'Cannot save vehicle',
+        detail: 'Please sign in to save vehicles',
+      });
+      return;
+    }
+
     try {
-      await reloadSavedVehicles();
+      // Prepare the data for Supabase (ensure user_id is set)
+      const dataToSave = {
+        ...vehicleData,
+        user_id: currentUser.id,
+      };
+
+      // Check if this is an update (has id) or new vehicle
+      if (vehicleData.id) {
+        // Update existing garage vehicle
+        const { id, ...updates } = dataToSave;
+        const { error } = await supabase
+          .from('garage_vehicles')
+          .update(updates)
+          .eq('id', id)
+          .eq('user_id', currentUser.id);
+
+        if (error) throw error;
+      } else {
+        // Add new garage vehicle
+        const { error } = await supabase
+          .from('garage_vehicles')
+          .insert([dataToSave]);
+
+        if (error) throw error;
+      }
+
+      // Reload garage vehicles to reflect changes
+      const { data: updatedVehicles, error: loadError } = await supabase
+        .from('garage_vehicles')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      if (loadError) throw loadError;
+      setGarageVehicles(updatedVehicles || []);
+
       toast.push({
         kind: 'success',
-        title: 'Vehicle Saved!',
-        detail: 'Your saved vehicles have been updated',
+        title: vehicleData.id ? 'Vehicle Updated!' : 'Vehicle Added!',
+        detail: `${vehicleData.year} ${vehicleData.make} ${vehicleData.model}`,
       });
-    } catch (error) {
-      // Failed to reload vehicles
+
+      setShowManageVehiclesModal(false);
+      setVehicleToEdit(null);
+    } catch (error: any) {
+      toast.push({
+        kind: 'error',
+        title: 'Failed to save vehicle',
+        detail: error.message || 'An error occurred',
+      });
+      throw error; // Re-throw so modal can handle it
     }
-    setShowManageVehiclesModal(false);
-    setVehicleToEdit(null);
   };
 
   // Authentication handlers
@@ -1431,8 +1555,23 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                                     }
                                   }}
                                 >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    {/* Vehicle Photo Thumbnail */}
+                                    {vehicle.photo_url && (
+                                      <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                                        <img
+                                          src={vehicle.photo_url}
+                                          alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Vehicle Info */}
+                                    <div className="flex-1 min-w-0">
                                       <div className="font-semibold text-gray-900">
                                         {vehicle.year} {vehicle.make} {vehicle.model}
                                         {vehicle.trim && ` ${vehicle.trim}`}
@@ -1447,7 +1586,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                                         {vehicle.payoff_amount ? ` • Payoff: ${formatCurrency(vehicle.payoff_amount)}` : ''}
                                       </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
+
+                                    {/* Action Buttons */}
+                                    <div className="flex items-center gap-2 flex-shrink-0">
                                       <button
                                         onClick={(e) => {
                                           e.stopPropagation();
@@ -1493,8 +1634,23 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                                   onClick={() => handleSelectSavedVehicle(vehicle)}
                                   className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
                                 >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <div className="flex-1">
+                                  <div className="flex items-center gap-3">
+                                    {/* Vehicle Photo Thumbnail */}
+                                    {vehicle.photo_url && (
+                                      <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                                        <img
+                                          src={vehicle.photo_url}
+                                          alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                                          className="w-full h-full object-cover"
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+
+                                    {/* Vehicle Info */}
+                                    <div className="flex-1 min-w-0">
                                       <div className="font-semibold text-gray-900">
                                         {vehicle.year} {vehicle.make} {vehicle.model}
                                         {vehicle.trim && ` ${vehicle.trim}`}
@@ -1510,9 +1666,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                                         </div>
                                       ) : null}
                                     </div>
+
+                                    {/* Edit Button */}
                                     <div
                                       onClick={(e) => handleEditVehicle(e, vehicle)}
-                                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
+                                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer flex-shrink-0"
                                       title="Edit vehicle"
                                       role="button"
                                       tabIndex={0}
@@ -1913,6 +2071,19 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               fullWidth
             />
 
+            {/* Add Fees Button */}
+            <div className="flex justify-center my-4">
+              <button
+                onClick={() => setShowFeesModal(true)}
+                className="px-6 py-2.5 text-sm font-medium text-blue-600 bg-white border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Add Fees
+              </button>
+            </div>
+
             {/* Dealer Fees Slider */}
             <EnhancedSlider
               label="Total Dealer Fees"
@@ -1950,6 +2121,25 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               onReset={() => resetSlider('customerAddons')}
               fullWidth
             />
+
+            {/* Gov't Fees Slider */}
+            <EnhancedSlider
+              label="Total Gov't Fees"
+              min={0}
+              max={govtFeesMaxDynamic}
+              step={10}
+              value={govtFees}
+              onChange={(e) => setSliderValueWithSettling('govtFees', Number(e.target.value))}
+              formatValue={(val) => formatCurrency(val)}
+              monthlyPayment={monthlyPayment}
+              buyerPerspective="lower-is-better"
+              showTooltip={true}
+              showReset={true}
+              baselineValue={sliders.govtFees.baseline}
+              snapThreshold={10}
+              onReset={() => resetSlider('govtFees')}
+              fullWidth
+            />
           </div>
         </Card>
 
@@ -1963,6 +2153,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               tradePayoff={tradePayoff}
               dealerFees={dealerFees}
               customerAddons={customerAddons}
+              govtFees={govtFees}
               stateTaxRate={stateTaxRate}
               countyTaxRate={countyTaxRate}
               stateTaxAmount={stateTaxAmount}
@@ -1976,6 +2167,20 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               tradeInApplied={effectiveAppliedTrade}
               tradeInCashout={effectiveTradeCashout}
               cashoutAmount={effectiveTradeCashout}
+              onSalePriceChange={(value) => setSliderValueWithSettling('salePrice', value)}
+              onCashDownChange={(value) => setSliderValueWithSettling('cashDown', value)}
+              onTradeAllowanceChange={(value) => setSliderValueWithSettling('tradeAllowance', value)}
+              onTradePayoffChange={(value) => setTradePayoff(value)}
+              onDealerFeesChange={(value) => setSliderValueWithSettling('dealerFees', value)}
+              apr={apr}
+              loanTerm={loanTerm}
+              monthlyPayment={monthlyPayment}
+              baselineMonthlyPayment={baselineMonthlyPayment}
+              onAprChange={setApr}
+              onTermChange={setLoanTerm}
+              onCustomerAddonsChange={(value) => setSliderValueWithSettling('customerAddons', value)}
+              onGovtFeesChange={(value) => setSliderValueWithSettling('govtFees', value)}
+              onTradeInCashoutChange={handleEquityCashoutChange}
             />
           </Card>
         </div>
@@ -2031,8 +2236,36 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         leadData={leadDataForSubmission}
         onSubmit={(data) => handleOfferSubmitWithProgress(data, false)}
         onDevSubmit={(data) => handleOfferSubmitWithProgress(data, true)}
+        // ItemizationCard props - same as main app
+        salePrice={salePrice}
+        cashDown={cashDown}
+        tradeAllowance={tradeAllowance}
+        tradePayoff={tradePayoff}
+        dealerFees={dealerFees}
+        customerAddons={customerAddons}
+        govtFees={govtFees}
+        stateTaxRate={stateTaxRate}
+        countyTaxRate={countyTaxRate}
+        stateTaxAmount={stateTaxAmount}
+        countyTaxAmount={countyTaxAmount}
+        totalTaxes={totalTaxes}
+        unpaidBalance={unpaidBalance}
         amountFinanced={amountFinanced}
         cashDue={cashDue}
+        stateName={stateName}
+        countyName={countyName}
+        tradeInApplied={effectiveAppliedTrade}
+        tradeInCashout={effectiveTradeCashout}
+        cashoutAmount={effectiveTradeCashout}
+        // onChange handlers - same as main app
+        onSalePriceChange={(value) => setSliderValueWithSettling('salePrice', value)}
+        onCashDownChange={(value) => setSliderValueWithSettling('cashDown', value)}
+        onTradeAllowanceChange={(value) => setSliderValueWithSettling('tradeAllowance', value)}
+        onTradePayoffChange={(value) => setTradePayoff(value)}
+        onDealerFeesChange={(value) => setSliderValueWithSettling('dealerFees', value)}
+        onCustomerAddonsChange={(value) => setSliderValueWithSettling('customerAddons', value)}
+        onGovtFeesChange={(value) => setSliderValueWithSettling('govtFees', value)}
+        onTradeInCashoutChange={handleEquityCashoutChange}
       />
 
       {/* Submission Progress Modal */}
@@ -2078,10 +2311,32 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         tradePayoff={tradePayoff}
         dealerFees={dealerFees}
         customerAddons={customerAddons}
+        govtFees={govtFees}
         stateTaxRate={stateTaxRate}
         countyTaxRate={countyTaxRate}
         stateName={stateName}
         countyName={countyName}
+      />
+
+      {/* Fees Modal */}
+      <FeesModal
+        isOpen={showFeesModal}
+        onClose={() => setShowFeesModal(false)}
+        dealerFees={feeItems.dealer}
+        customerAddons={feeItems.customer}
+        govtFees={feeItems.gov}
+        stateTaxRate={userTaxOverride ? storeTaxState || stateTaxRate : stateTaxRate}
+        countyTaxRate={userTaxOverride ? storeTaxCounty || countyTaxRate : countyTaxRate}
+        stateName={stateName}
+        countyName={countyName}
+        onSave={handleFeesModalSave}
+        onEditTemplates={handleOpenFeeTemplateEditor}
+      />
+
+      {/* Fee Template Editor Modal */}
+      <FeeTemplateEditorModal
+        isOpen={showFeeTemplateModal}
+        onClose={handleCloseFeeTemplateEditor}
       />
 
       {/* User Profile Dropdown */}

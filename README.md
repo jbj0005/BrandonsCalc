@@ -142,11 +142,27 @@ npm install
 ```
 
 ## Local Development
+
+**Important**: This project requires TWO servers to run:
+1. **Frontend** (Vite) - Port 3000
+2. **Backend API** (Express) - Port 5174
+
+### Quick Start (Both Servers)
 ```bash
+npm start
+```
+This starts both the backend API and frontend dev server simultaneously.
+
+### Individual Server Commands
+```bash
+# Start backend API server only
+npm run server
+
+# Start frontend dev server only
 npm run dev
 ```
 
-Vite hosts the app on `http://localhost:5173` with hot module replacement. The dev server proxies `/api` traffic to `http://localhost:5174` (see `vite.config.js`) for any local middleware you attach.
+The frontend at `http://localhost:3000/BrandonsCalc/` proxies `/api` requests to the backend at `http://localhost:5174` (see `vite.config.js`).
 
 ## Building for Production
 ```bash

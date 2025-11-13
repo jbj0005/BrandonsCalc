@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from './Modal';
 import { Input } from './Input';
 import { Select } from './Select';
@@ -7,8 +7,9 @@ import { FormGroup } from './FormGroup';
 import { Checkbox } from './Checkbox';
 import { useToast } from './Toast';
 import type { Vehicle, GarageVehicle } from '../../types';
-import { formatCurrencyInput, formatCurrencyValue } from '../../utils/formatters';
+import { formatCurrencyInput, formatCurrencyValue, formatNumberInput, parseFormattedNumber, parseCurrency } from '../../utils/formatters';
 import { ConflictResolutionModal, type FieldConflict } from './ConflictResolutionModal';
+import { supabase } from '../../lib/supabase';
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
@@ -56,6 +57,8 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   const [estimatedValue, setEstimatedValue] = useState('');
   const [payoffAmount, setPayoffAmount] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [notes, setNotes] = useState('');
 
   // Validation errors
@@ -304,6 +307,95 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
     }
   };
 
+  // Handle photo upload
+  const handlePhotoUpload = async (file: File) => {
+    setPhotoUploading(true);
+    try {
+      // Generate unique filename
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      // Upload to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('garage-vehicle-photos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: publicData } = supabase.storage
+        .from('garage-vehicle-photos')
+        .getPublicUrl(filePath);
+
+      setPhotoUrl(publicData.publicUrl);
+
+      toast.push({
+        kind: 'success',
+        title: 'Photo uploaded',
+        detail: 'Vehicle photo has been uploaded successfully'
+      });
+    } catch (error: any) {
+      toast.push({
+        kind: 'error',
+        title: 'Upload failed',
+        detail: error.message
+      });
+      setPhotoFile(null);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.push({
+          kind: 'error',
+          title: 'Invalid file',
+          detail: 'Please select an image file'
+        });
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.push({
+          kind: 'error',
+          title: 'File too large',
+          detail: 'Please select an image smaller than 5MB'
+        });
+        return;
+      }
+
+      setPhotoFile(file);
+      handlePhotoUpload(file);
+    }
+  };
+
+  // Focus next input helper
+  const focusNextInput = (currentElement: HTMLElement) => {
+    const modal = currentElement.closest('[role="dialog"]');
+    if (!modal) return;
+
+    const focusableElements = modal.querySelectorAll<HTMLElement>(
+      'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled])'
+    );
+
+    const currentIndex = Array.from(focusableElements).indexOf(currentElement);
+    const nextElement = focusableElements[currentIndex + 1];
+
+    if (nextElement) {
+      nextElement.focus();
+    }
+  };
+
   // Handle save
   const handleSave = async () => {
     // Validate required fields
@@ -326,10 +418,10 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         model: model.trim(),
         trim: trim.trim() || undefined,
         vin: vin.trim() || undefined,
-        mileage: mileage ? parseInt(mileage) : undefined,
+        mileage: mileage ? parseFormattedNumber(mileage) : undefined,
         condition: condition || undefined,
-        estimated_value: estimatedValue ? parseFloat(estimatedValue) : undefined,
-        payoff_amount: payoffAmount ? parseFloat(payoffAmount) : undefined,
+        estimated_value: estimatedValue ? parseCurrency(estimatedValue) : undefined,
+        payoff_amount: payoffAmount ? parseCurrency(payoffAmount) : undefined,
         photo_url: photoUrl.trim() || undefined,
         notes: notes.trim() || undefined,
       };
@@ -382,10 +474,10 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   };
 
   // Handle modal close
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     resetForm();
     onClose();
-  };
+  }, [onClose]);
 
   // Generate year options (current year + 2 down to 1990)
   const currentYear = new Date().getFullYear();
@@ -411,6 +503,75 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         size="md"
       >
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+        {/* Vehicle Preview Card - Only show in edit mode when we have data */}
+        {mode === 'edit' && (year || make || model || photoUrl) && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200 shadow-sm">
+            <div className="flex gap-4">
+              {/* Photo Section */}
+              {photoUrl ? (
+                <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-white shadow-md">
+                  <img
+                    src={photoUrl}
+                    alt={`${year} ${make} ${model}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="w-32 h-32 flex-shrink-0 rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center shadow-md">
+                  <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              )}
+
+              {/* Vehicle Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 leading-tight">
+                      {year && make && model ? `${year} ${make} ${model}` : 'Vehicle Details'}
+                    </h3>
+                    {trim && <p className="text-sm text-gray-600 mt-0.5">{trim}</p>}
+                    {nickname && (
+                      <p className="text-xs text-blue-600 font-medium mt-1">"{nickname}"</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 mt-3">
+                  {mileage && (
+                    <div className="bg-white/60 rounded-lg px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Mileage</div>
+                      <div className="text-sm font-semibold text-gray-900">{formatNumberInput(mileage)}</div>
+                    </div>
+                  )}
+                  {estimatedValue && (
+                    <div className="bg-white/60 rounded-lg px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Value</div>
+                      <div className="text-sm font-semibold text-green-700">{formatCurrencyInput(estimatedValue)}</div>
+                    </div>
+                  )}
+                  {condition && (
+                    <div className="bg-white/60 rounded-lg px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Condition</div>
+                      <div className="text-sm font-semibold text-gray-900 capitalize">{condition}</div>
+                    </div>
+                  )}
+                  {payoffAmount && (
+                    <div className="bg-white/60 rounded-lg px-2.5 py-1.5">
+                      <div className="text-[10px] uppercase tracking-wide text-gray-500 font-semibold">Payoff</div>
+                      <div className="text-sm font-semibold text-red-700">{formatCurrencyInput(payoffAmount)}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Nickname (optional, for garage vehicles) */}
         <Input
           label="Nickname (Optional)"
@@ -484,10 +645,20 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           placeholder="17-character VIN"
           value={vin}
           onChange={(e) => {
-            setVin(e.target.value.toUpperCase());
+            setVin(e.target.value);
             setVinError('');
           }}
-          onBlur={validateVin}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+              setTimeout(() => focusNextInput(e.currentTarget), 0);
+            }
+          }}
+          onBlur={() => {
+            setVin(vin.trim().toUpperCase());
+            validateVin();
+          }}
           error={vinError}
           helperText="Vehicle Identification Number"
           maxLength={17}
@@ -499,10 +670,22 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Mileage (Optional)"
-            type="number"
-            placeholder="15000"
+            type="text"
+            placeholder="15,000"
             value={mileage}
             onChange={(e) => setMileage(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+                setTimeout(() => focusNextInput(e.currentTarget), 0);
+              }
+            }}
+            onBlur={() => {
+              if (mileage) {
+                setMileage(formatNumberInput(mileage));
+              }
+            }}
             helperText="Current odometer reading"
             fullWidth
           />
@@ -524,7 +707,19 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
             type="text"
             placeholder="$25,000"
             value={estimatedValue}
-            onChange={(e) => setEstimatedValue(formatCurrencyInput(e.target.value))}
+            onChange={(e) => setEstimatedValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+                setTimeout(() => focusNextInput(e.currentTarget), 0);
+              }
+            }}
+            onBlur={() => {
+              if (estimatedValue) {
+                setEstimatedValue(formatCurrencyInput(estimatedValue));
+              }
+            }}
             helperText="Current market value"
             fullWidth
           />
@@ -534,7 +729,19 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
             type="text"
             placeholder="$18,000"
             value={payoffAmount}
-            onChange={(e) => setPayoffAmount(formatCurrencyInput(e.target.value))}
+            onChange={(e) => setPayoffAmount(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+                setTimeout(() => focusNextInput(e.currentTarget), 0);
+              }
+            }}
+            onBlur={() => {
+              if (payoffAmount) {
+                setPayoffAmount(formatCurrencyInput(payoffAmount));
+              }
+            }}
             helperText="Remaining loan balance"
             fullWidth
           />
@@ -560,16 +767,66 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           );
         })()}
 
-        {/* Photo URL */}
-        <Input
-          label="Photo URL (Optional)"
-          type="url"
-          placeholder="https://example.com/photo.jpg"
-          value={photoUrl}
-          onChange={(e) => setPhotoUrl(e.target.value)}
-          helperText="Link to vehicle photo"
-          fullWidth
-        />
+        {/* Photo Upload */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Vehicle Photo (Optional)
+          </label>
+
+          <div className="flex items-center gap-4">
+            <label className="flex-1">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={photoUploading}
+                className="hidden"
+              />
+              <div className={`
+                flex items-center justify-center gap-2 px-4 py-2
+                border-2 border-dashed rounded-lg cursor-pointer
+                transition-colors
+                ${photoUploading
+                  ? 'border-gray-300 bg-gray-50 cursor-not-allowed'
+                  : 'border-blue-300 bg-blue-50 hover:border-blue-500 hover:bg-blue-100'
+                }
+              `}>
+                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="text-sm font-medium text-blue-900">
+                  {photoUploading ? 'Uploading...' : 'Choose Photo'}
+                </span>
+              </div>
+            </label>
+
+            {photoUrl && (
+              <div className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200">
+                <img
+                  src={photoUrl}
+                  alt="Vehicle"
+                  className="w-full h-full object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoUrl('');
+                    setPhotoFile(null);
+                  }}
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-gray-500">
+            JPG, PNG, or GIF • Max 5MB
+          </p>
+        </div>
 
         {/* Notes */}
         <FormGroup label="Notes (Optional)" helperText="Any additional information">

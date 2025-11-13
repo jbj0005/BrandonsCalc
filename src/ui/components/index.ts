@@ -123,3 +123,6 @@ export type { PositiveEquityModalProps } from './PositiveEquityModal';
 // User Profile Components
 export { UserProfileDropdown } from './UserProfileDropdown';
 export type { UserProfileDropdownProps } from './UserProfileDropdown';
+
+export { CurrencyInput } from './CurrencyInput';
+export type { CurrencyInputProps } from './CurrencyInput';

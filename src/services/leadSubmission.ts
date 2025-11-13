@@ -38,6 +38,12 @@ export interface LeadData {
   // Fees and addons
   dealerFees?: number;
   customerAddons?: number;
+  govtFees?: number;
+
+  // Fee items breakdown
+  dealerFeeItems?: Array<{ description: string; amount: number }>;
+  customerAddonItems?: Array<{ description: string; amount: number }>;
+  govtFeeItems?: Array<{ description: string; amount: number }>;
 
   // Customer details
   customerName?: string;
@@ -113,6 +119,12 @@ export const submitLead = async (leadData: LeadData): Promise<{ ok: boolean; off
       // Fees
       dealer_fees: leadData.dealerFees || null,
       customer_addons: leadData.customerAddons || null,
+      govt_fees: leadData.govtFees || null,
+
+      // Fee items (stored as JSON)
+      dealer_fee_items: leadData.dealerFeeItems ? JSON.stringify(leadData.dealerFeeItems) : null,
+      customer_addon_items: leadData.customerAddonItems ? JSON.stringify(leadData.customerAddonItems) : null,
+      govt_fee_items: leadData.govtFeeItems ? JSON.stringify(leadData.govtFeeItems) : null,
 
       // Customer info
       customer_name: leadData.customerName || null,

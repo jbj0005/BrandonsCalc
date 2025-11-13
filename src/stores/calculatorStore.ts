@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { FeeItems, FeeItem, FeeCategory } from '../types/fees';
 
 // ============================================================================
 // Types
@@ -9,7 +10,8 @@ export type SliderKey =
   | 'cashDown'
   | 'tradeAllowance'
   | 'dealerFees'
-  | 'customerAddons';
+  | 'customerAddons'
+  | 'govtFees';
 
 export interface SliderState {
   value: number;
@@ -34,6 +36,12 @@ export interface CalculatorState {
   selectedTradeInVehicles: Set<string>;
   tradePayoff: number;
 
+  // Fee itemization
+  feeItems: FeeItems;
+  stateTaxRate: number | null;
+  countyTaxRate: number | null;
+  userTaxOverride: boolean;
+
   // Settling timer for baseline updates
   settlingTimerId: NodeJS.Timeout | null;
   lastSliderInteraction: number;
@@ -47,6 +55,14 @@ export interface CalculatorActions {
   resetSlider: (key: SliderKey) => void;
   resetAllSliders: () => void;
   setTradePayoff: (value: number) => void;
+
+  // Fee actions
+  setFeeItems: (category: FeeCategory, items: FeeItem[]) => void;
+  addFeeItem: (category: FeeCategory, item: FeeItem) => void;
+  removeFeeItem: (category: FeeCategory, index: number) => void;
+  updateFeeItem: (category: FeeCategory, index: number, item: FeeItem) => void;
+  setTaxRates: (stateTaxRate: number, countyTaxRate: number, userOverride?: boolean) => void;
+  syncFeeSliders: () => void;
 
   // Coordinated vehicle actions
   applyVehicle: (vehicle: {
@@ -81,9 +97,18 @@ const INITIAL_STATE: CalculatorState = {
     tradeAllowance: { ...DEFAULT_SLIDER_STATE },
     dealerFees: { ...DEFAULT_SLIDER_STATE },
     customerAddons: { ...DEFAULT_SLIDER_STATE },
+    govtFees: { ...DEFAULT_SLIDER_STATE },
   },
   selectedTradeInVehicles: new Set<string>(),
   tradePayoff: 0,
+  feeItems: {
+    dealer: [],
+    customer: [],
+    gov: [],
+  },
+  stateTaxRate: null,
+  countyTaxRate: null,
+  userTaxOverride: false,
   settlingTimerId: null,
   lastSliderInteraction: 0,
 };
@@ -224,6 +249,81 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   setTradePayoff: (value) => {
     set({ tradePayoff: value });
+  },
+
+  // ========================================
+  // Fee Actions
+  // ========================================
+
+  setFeeItems: (category, items) => {
+    set((state) => {
+      const newFeeItems = { ...state.feeItems };
+      newFeeItems[category] = items;
+      return { feeItems: newFeeItems };
+    });
+  },
+
+  addFeeItem: (category, item) => {
+    set((state) => {
+      const newFeeItems = { ...state.feeItems };
+      newFeeItems[category] = [...newFeeItems[category], item];
+      return { feeItems: newFeeItems };
+    });
+  },
+
+  removeFeeItem: (category, index) => {
+    set((state) => {
+      const newFeeItems = { ...state.feeItems };
+      newFeeItems[category] = newFeeItems[category].filter((_, i) => i !== index);
+      return { feeItems: newFeeItems };
+    });
+  },
+
+  updateFeeItem: (category, index, item) => {
+    set((state) => {
+      const newFeeItems = { ...state.feeItems };
+      newFeeItems[category] = newFeeItems[category].map((existing, i) =>
+        i === index ? item : existing
+      );
+      return { feeItems: newFeeItems };
+    });
+  },
+
+  setTaxRates: (stateTaxRate, countyTaxRate, userOverride = false) => {
+    set({
+      stateTaxRate,
+      countyTaxRate,
+      userTaxOverride: userOverride,
+    });
+  },
+
+  syncFeeSliders: () => {
+    set((state) => {
+      const newSliders = { ...state.sliders };
+
+      // Calculate totals from fee items
+      const dealerTotal = state.feeItems.dealer.reduce((sum, item) => sum + item.amount, 0);
+      const customerTotal = state.feeItems.customer.reduce((sum, item) => sum + item.amount, 0);
+      const govTotal = state.feeItems.gov.reduce((sum, item) => sum + item.amount, 0);
+
+      // Update slider values
+      newSliders.dealerFees = {
+        value: dealerTotal,
+        baseline: dealerTotal,
+      };
+
+      newSliders.customerAddons = {
+        value: customerTotal,
+        baseline: customerTotal,
+      };
+
+      newSliders.govtFees = {
+        value: govTotal,
+        baseline: govTotal,
+      };
+
+      return { sliders: newSliders };
+    });
   },
 
   // ========================================

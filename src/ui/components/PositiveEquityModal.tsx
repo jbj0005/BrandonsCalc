@@ -17,6 +17,7 @@ export interface PositiveEquityModalProps {
   tradePayoff: number;
   dealerFees: number;
   customerAddons: number;
+  govtFees: number;
   stateTaxRate: number;
   countyTaxRate: number;
   stateName?: string;
@@ -43,6 +44,7 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
   tradePayoff,
   dealerFees,
   customerAddons,
+  govtFees,
   stateTaxRate,
   countyTaxRate,
   stateName,
@@ -366,6 +368,7 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             tradePayoff={tradePayoff}
             dealerFees={dealerFees}
             customerAddons={customerAddons}
+            govtFees={govtFees}
             stateTaxRate={stateTaxRate}
             countyTaxRate={countyTaxRate}
             stateTaxAmount={previewStateTaxAmount}
