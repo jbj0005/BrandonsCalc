@@ -1400,6 +1400,43 @@ app.get("/api/mc/trims", async (req, res) => {
   }
 });
 
+// GET /api/lenders
+// Get list of active lenders from database
+app.get("/api/lenders", async (req, res) => {
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ error: "Supabase not configured" });
+    }
+
+    // Fetch active lenders from database, sorted by display_order
+    const url = new URL(`${SUPABASE_URL}/rest/v1/lenders`);
+    url.searchParams.set('select', 'id,source,short_name,long_name,display_order,partnership_type,badge_text');
+    url.searchParams.set('is_active', 'eq.true');
+    url.searchParams.set('order', 'display_order.asc');
+
+    const response = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supabase returned ${response.status}`);
+    }
+
+    const lenders = await response.json();
+    res.json(lenders);
+  } catch (err) {
+    console.error("[/api/lenders] error:", err);
+    res.status(500).json({
+      error: "Failed to fetch lenders",
+      detail: err?.message || "Unknown error"
+    });
+  }
+});
+
 // GET /api/rates?source=NFCU
 // Get lender rates from Supabase or fall back to stub rates
 app.get("/api/rates", async (req, res) => {
@@ -1440,7 +1477,8 @@ app.get("/api/rates", async (req, res) => {
         const url = new URL(`${SUPABASE_URL}/rest/v1/auto_rates`);
         url.searchParams.set('or', `(source.eq.${sourceLower},source.eq.${sourceUpper},source.eq.${lender.id})`);
         url.searchParams.set('select', '*');
-        url.searchParams.set('order', 'effective_at.desc');
+        // Sort by lowest APR first, with intelligent tiebreakers for better rate selection
+        url.searchParams.set('order', 'apr_percent.asc,effective_at.desc');
 
         const response = await fetch(url, {
           headers: {

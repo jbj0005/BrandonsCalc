@@ -275,6 +275,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
   // Financing State
   const [lender, setLender] = useState('nfcu');
+  const [lenderOptions, setLenderOptions] = useState<SelectOption[]>([
+    { value: 'nfcu', label: 'Navy Federal Credit Union' }, // Default fallback
+  ]);
+  const [isLoadingLenders, setIsLoadingLenders] = useState(true);
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
   const [vehicleCondition, setVehicleCondition] = useState<'new' | 'used'>('new');
@@ -371,15 +375,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     });
   };
 
-  // Lender options from config/lenders.json
-  const lenderOptions: SelectOption[] = [
-    { value: 'nfcu', label: 'Navy Federal Credit Union' },
-    { value: 'sccu', label: 'Space Coast Credit Union' },
-    { value: 'penfed', label: 'Pentagon Federal Credit Union' },
-    { value: 'dcu', label: 'Digital Federal Credit Union' },
-    { value: 'launchcu', label: 'Launch Federal Credit Union' },
-  ];
-
   // Vehicle condition options
   const vehicleConditionOptions: SelectOption[] = [
     { value: 'new', label: 'New Vehicle' },
@@ -423,6 +418,49 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const rebaseTilBaselines = () => {
     resetBaselines();
   };
+
+  // Fetch lenders list on component mount
+  useEffect(() => {
+    const loadLenders = async () => {
+      try {
+        // TODO: Replace with actual API endpoint once lenders table is created
+        // For now, use expanded hardcoded list from database research
+        const fallbackLenders: SelectOption[] = [
+          { value: 'nfcu', label: 'Navy Federal Credit Union' },
+          { value: 'sccu', label: 'Space Coast Credit Union' },
+          { value: 'penfed', label: 'Pentagon Federal Credit Union' },
+          { value: 'dcu', label: 'Digital Federal Credit Union' },
+          { value: 'launchcu', label: 'Launch Federal Credit Union' },
+          { value: 'ngfcu', label: 'Nightingale Federal Credit Union' },
+          { value: 'ccufl', label: 'Community Credit Union of Florida' },
+        ];
+
+        // Try fetching from API (once lenders table exists)
+        try {
+          const response = await fetch('/api/lenders');
+          if (response.ok) {
+            const data = await response.json();
+            const apiLenders = data.map((lender: any) => ({
+              value: lender.id,
+              label: lender.long_name,
+            }));
+            setLenderOptions(apiLenders);
+          } else {
+            setLenderOptions(fallbackLenders);
+          }
+        } catch {
+          setLenderOptions(fallbackLenders);
+        }
+      } catch (error) {
+        console.error('Error loading lenders:', error);
+        // Keep default fallback from initial state
+      } finally {
+        setIsLoadingLenders(false);
+      }
+    };
+
+    loadLenders();
+  }, []);
 
   // Fetch lender rates when lender changes
   useEffect(() => {
