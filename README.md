@@ -60,7 +60,7 @@ See [OFFER_MANAGEMENT_SYSTEM.md](docs/OFFER_MANAGEMENT_SYSTEM.md) for complete d
 
 ## Requirements
 - Node.js ≥ 18 (for native fetch and ESM compatibility).
-- Supabase project with `auto_rates` table populated (see `scripts/fetch-rates.mjs` for shape).
+- Supabase project with `auto_rates` and `lenders` tables (managed via myLenders tool).
 - Optional APIs:
   - MarketCheck (vehicle inventory enrichment).
   - Google Maps JavaScript + Map ID (dealership map embed).
@@ -180,7 +180,7 @@ npm test -- provider-engine
 Playwright is available for browser automation if you add end-to-end suites later.
 
 ## Data & Rates Maintenance
-- `npm run fetch:rates` – Pulls lender APR matrices and upserts into Supabase.
+- **Lender Rates:** Managed via the [myLenders tool](../myLenders/) - a PyQt6 GUI for scraper development and rate management.
 - `npm run import:gov-fees` / `npm run import:tax` – Sync state fees and tax rates.
 - `node scripts/show-rates.mjs` – Inspect normalized rates in the console.
 - `node scripts/reset-calculator.mjs` – Utilities for clearing stored deals.
