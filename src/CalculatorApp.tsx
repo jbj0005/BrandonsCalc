@@ -13,7 +13,7 @@ import { OfferPreviewModal } from './components/OfferPreviewModal';
 import type { LeadData, SubmissionProgress } from './services/leadSubmission';
 import { submitOfferWithProgress } from './services/leadSubmission';
 import { lookupTaxRates, clearTaxRatesCache } from './services/taxRatesService';
-import type { EquityDecision } from './types';
+import type { EquityDecision, Vehicle, GarageVehicle } from './types';
 import { useCalculatorStore } from './stores/calculatorStore';
 import { formatEffectiveDate } from './utils/formatters';
 
@@ -839,6 +839,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       vehicleMileage: selectedVehicle?.mileage || undefined,
       vehicleCondition: vehicleCondition,
       vehiclePrice: salePrice || undefined,
+      vehiclePhotoUrl: selectedVehicle?.photo_url || undefined,
 
       // Dealer details
       dealerName: selectedVehicle?.dealer_name || undefined,

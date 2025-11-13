@@ -17,6 +17,7 @@ export interface LeadData {
   vehicleCondition?: 'new' | 'used';
   vehiclePrice?: number;
   stockNumber?: string; // NEW: Dealer stock number
+  vehiclePhotoUrl?: string; // Vehicle photo URL
 
   // Dealer details
   dealerName?: string;
@@ -309,6 +310,7 @@ export const submitOfferWithProgress = async (
         vehicle_condition: leadData.vehicleCondition || null,
         vehicle_price: leadData.vehiclePrice || null,
         vehicle_stock_number: leadData.stockNumber || null, // NEW
+        vehicle_photo_url: leadData.vehiclePhotoUrl || null, // Vehicle photo
 
         // Dealer details
         dealer_name: leadData.dealerName || null,

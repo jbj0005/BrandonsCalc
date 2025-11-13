@@ -25,6 +25,7 @@ interface CustomerOffer {
   vehicle_mileage: number | null;
   vehicle_condition: string | null;
   vehicle_stock_number: string | null;
+  vehicle_photo_url: string | null;
   vehicle_price: number;
   down_payment: number | null;
   term_months: number | null;
@@ -401,8 +402,8 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                   }`}
                 >
                   <Card padding="md" className="relative overflow-visible">
-                    {/* Status Badge */}
-                    <div className="absolute top-4 right-4">
+                    {/* Status Badge and Delete Icon */}
+                    <div className="absolute top-4 right-4 flex items-center gap-2">
                       <span
                         className={`px-3 py-1 rounded-full text-xs font-semibold ${
                           STATUS_CONFIG[offer.status].className
@@ -410,48 +411,85 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                       >
                         {STATUS_CONFIG[offer.status].label}
                       </span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Are you sure you want to delete this offer? A copy will be sent to your email.')) {
+                            handleCloseOffer(offer.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-full hover:bg-red-100 text-red-600 hover:text-red-700 transition-colors"
+                        title="Delete offer"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
 
                     {/* Main Content */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                      {/* Vehicle Info */}
-                      <div className="md:col-span-2">
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-24">
-                          {getVehicleInfo(offer)}
-                        </h3>
-                        <div className="text-sm text-gray-600 space-y-1">
-                          {offer.vehicle_vin && (
-                            <div>
-                              <span className="font-medium">VIN:</span>{' '}
-                              <span className="font-mono text-xs">{offer.vehicle_vin}</span>
-                            </div>
-                          )}
-                          {offer.vehicle_stock_number && (
-                            <div>
-                              <span className="font-medium">Stock #:</span>{' '}
-                              <span className="font-mono">{offer.vehicle_stock_number}</span>
-                            </div>
-                          )}
-                          {offer.vehicle_mileage && (
-                            <div>
-                              <span className="font-medium">Mileage:</span>{' '}
-                              {offer.vehicle_mileage.toLocaleString()} miles
-                            </div>
-                          )}
+                    <div className="flex gap-4 mb-4 pt-8">
+                      {/* Vehicle Photo */}
+                      {offer.vehicle_photo_url ? (
+                        <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-white shadow-md">
+                          <img
+                            src={offer.vehicle_photo_url}
+                            alt={getVehicleInfo(offer)}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.parentElement!.classList.add('hidden');
+                            }}
+                          />
                         </div>
-                      </div>
+                      ) : (
+                        <div className="w-32 h-32 flex-shrink-0 rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center shadow-md">
+                          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
+                      )}
 
-                      {/* Price */}
-                      <div className="text-right">
-                        <div className="text-sm text-gray-600 mb-1">Offer Price</div>
-                        <div className="text-2xl font-bold text-gray-900">
-                          {formatCurrencyExact(offer.vehicle_price)}
-                        </div>
-                        {offer.monthly_payment && (
-                          <div className="text-sm text-gray-600 mt-1">
-                            {formatCurrencyExact(offer.monthly_payment)}/mo
+                      {/* Vehicle Info and Price */}
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Vehicle Info */}
+                        <div className="md:col-span-2">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-24">
+                            {getVehicleInfo(offer)}
+                          </h3>
+                          <div className="text-sm text-gray-600 space-y-1">
+                            {offer.vehicle_vin && (
+                              <div>
+                                <span className="font-medium">VIN:</span>{' '}
+                                <span className="font-mono text-xs">{offer.vehicle_vin}</span>
+                              </div>
+                            )}
+                            {offer.vehicle_stock_number && (
+                              <div>
+                                <span className="font-medium">Stock #:</span>{' '}
+                                <span className="font-mono">{offer.vehicle_stock_number}</span>
+                              </div>
+                            )}
+                            {offer.vehicle_mileage && (
+                              <div>
+                                <span className="font-medium">Mileage:</span>{' '}
+                                {offer.vehicle_mileage.toLocaleString()} miles
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
+
+                        {/* Price */}
+                        <div className="text-right pr-24">
+                          <div className="text-sm text-gray-600 mb-1">Offer Price</div>
+                          <div className="text-2xl font-bold text-gray-900">
+                            {formatCurrencyExact(offer.vehicle_price)}
+                          </div>
+                          {offer.monthly_payment && (
+                            <div className="text-sm text-gray-600 mt-1">
+                              {formatCurrencyExact(offer.monthly_payment)}/mo
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -521,13 +559,6 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
                               >
                                 <span>🔗</span> Share Offer
-                              </button>
-                              <hr className="my-2 border-gray-200" />
-                              <button
-                                onClick={() => handleCloseOffer(offer.id)}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
-                              >
-                                <span>✕</span> Close Offer
                               </button>
                             </div>
                           </>
