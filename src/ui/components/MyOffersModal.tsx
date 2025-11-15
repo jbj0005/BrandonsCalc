@@ -91,6 +91,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const highlightRef = useRef<HTMLDivElement>(null);
+  const actionMenuRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Load user ID when modal opens
   useEffect(() => {
@@ -120,6 +121,15 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       }, 300);
     }
   }, [isOpen, highlightOfferId, offers]);
+
+  useEffect(() => {
+    if (!actionMenuOpen) return;
+    const menuEl = actionMenuRefs.current.get(actionMenuOpen);
+    if (!menuEl) return;
+    requestAnimationFrame(() => {
+      menuEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, [actionMenuOpen]);
 
   // Load offers from database
   const loadOffers = async () => {
@@ -541,7 +551,16 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                             />
 
                             {/* Dropdown Menu */}
-                            <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[9999]">
+                            <div
+                              ref={(el) => {
+                                if (el) {
+                                  actionMenuRefs.current.set(offer.id, el);
+                                } else {
+                                  actionMenuRefs.current.delete(offer.id);
+                                }
+                              }}
+                              className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[9999]"
+                            >
                               <button
                                 onClick={() => handleResendEmail(offer)}
                                 className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"

@@ -105,6 +105,49 @@ export const creditScoreToValue = (creditRange: string): number => {
 };
 
 /**
+ * Find the best lender (lowest APR) across all available lenders
+ */
+export const findBestLender = async (
+  lenderSources: string[],
+  creditScore: number,
+  term: number,
+  vehicleCondition: 'new' | 'used' = 'used'
+): Promise<{ lenderSource: string; lenderName: string; apr: number } | null> => {
+  let bestLender: { lenderSource: string; lenderName: string; apr: number } | null = null;
+
+  // Fetch rates from all lenders in parallel
+  const ratesPromises = lenderSources.map(async (source) => {
+    try {
+      const response = await fetchLenderRates(source);
+      const apr = calculateAPR(response.rates, creditScore, term, vehicleCondition);
+
+      if (apr !== null) {
+        return {
+          lenderSource: source,
+          lenderName: response.lenderName,
+          apr,
+        };
+      }
+      return null;
+    } catch (error) {
+      // Skip lenders that fail to load
+      return null;
+    }
+  });
+
+  const results = await Promise.all(ratesPromises);
+
+  // Find the lender with the lowest APR
+  for (const result of results) {
+    if (result && (bestLender === null || result.apr < bestLender.apr)) {
+      bestLender = result;
+    }
+  }
+
+  return bestLender;
+};
+
+/**
  * Clear the rates cache (useful for testing or forcing refresh)
  */
 export const clearRatesCache = (): void => {

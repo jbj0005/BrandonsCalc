@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal, Switch } from './ui/components';
 import { FeesModal } from './ui/components/FeesModal';
 import { FeeTemplateEditorModal } from './ui/components/FeeTemplateEditorModal';
 import { useToast } from './ui/components/Toast';
@@ -7,7 +7,7 @@ import type { SelectOption } from './ui/components/Select';
 import { useGoogleMapsAutocomplete, type PlaceDetails } from './hooks/useGoogleMapsAutocomplete';
 import { useProfile } from './hooks/useProfile';
 import { useTilBaselines, type TilDiff } from './hooks/useTilBaselines';
-import { fetchLenderRates, calculateAPR, creditScoreToValue, type LenderRate } from './services/lenderRates';
+import { fetchLenderRates, calculateAPR, creditScoreToValue, findBestLender, type LenderRate } from './services/lenderRates';
 import { DealerMap } from './components/DealerMap';
 import { OfferPreviewModal } from './components/OfferPreviewModal';
 import type { LeadData, SubmissionProgress } from './services/leadSubmission';
@@ -66,6 +66,7 @@ export const CalculatorApp: React.FC = () => {
   // Refs
   const locationInputRef = useRef<HTMLInputElement>(null);
   const dropdownHoverTimeout = useRef<NodeJS.Timeout | null>(null);
+  const lastVehicleBaselineKeyRef = useRef<string | null>(null);
 
   // Location & Vehicle State
   const [location, setLocation] = useState('');
@@ -278,6 +279,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const [lenderOptions, setLenderOptions] = useState<SelectOption[]>([
     { value: 'nfcu', label: 'Navy Federal Credit Union' }, // Default fallback
   ]);
+  const [bestLenderLongName, setBestLenderLongName] = useState<string | null>(null);
   const [isLoadingLenders, setIsLoadingLenders] = useState(true);
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
@@ -285,14 +287,29 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const [lenderRates, setLenderRates] = useState<LenderRate[]>([]);
   const [ratesEffectiveDate, setRatesEffectiveDate] = useState<string | null>(null);
   const [isLoadingRates, setIsLoadingRates] = useState(false);
+  const [useLowestApr, setUseLowestApr] = useState(false);
+  const [isFindingBestLender, setIsFindingBestLender] = useState(false);
 
   // Calculated values
   const [apr, setApr] = useState(5.99);
   const [lenderBaselineApr, setLenderBaselineApr] = useState<number | null>(null);
+  const [aprInitialPayment, setAprInitialPayment] = useState<number | null>(null);
   const [monthlyPayment, setMonthlyPayment] = useState(0);
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
   const [totalOfPayments, setTotalOfPayments] = useState(0);
+  const handleAprChange = useCallback(
+    (nextApr: number) => {
+      const rounded = parseFloat(nextApr.toFixed(2));
+      setApr(rounded);
+
+      if (useLowestApr) {
+        setUseLowestApr(false);
+      }
+    },
+    [useLowestApr]
+  );
+
   const baselineMonthlyPayment =
     baselines.totalPayments != null &&
     baselines.term != null &&
@@ -415,9 +432,22 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     return Number.isFinite(numeric) ? numeric : null;
   };
 
-  const rebaseTilBaselines = () => {
+  useEffect(() => {
+    if (!FEATURE_FLAGS.rebaseTilOnVehicleSelection) {
+      return;
+    }
+
+    const nextVehicleKey =
+      selectedVehicle?.vin ||
+      (typeof selectedVehicle?.id === 'string' ? selectedVehicle.id : null);
+
+    if (lastVehicleBaselineKeyRef.current === nextVehicleKey) {
+      return;
+    }
+
     resetBaselines();
-  };
+    lastVehicleBaselineKeyRef.current = nextVehicleKey ?? null;
+  }, [selectedVehicle, resetBaselines]);
 
   // Fetch lenders list on component mount
   useEffect(() => {
@@ -488,6 +518,45 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
     loadRates();
   }, [lender]);
+
+  // Find best lender when "Use Lowest APR" is enabled
+  useEffect(() => {
+    if (!useLowestApr || lenderOptions.length === 0) {
+      setBestLenderLongName(null);
+      return;
+    }
+
+    setBestLenderLongName(null);
+
+    const findBest = async () => {
+      setIsFindingBestLender(true);
+      try {
+        const lenderSources = lenderOptions.map(opt => opt.value);
+        const creditScoreValue = creditScoreToValue(creditScore);
+        const bestLender = await findBestLender(lenderSources, creditScoreValue, loanTerm, vehicleCondition);
+
+        if (bestLender) {
+          setLender(bestLender.lenderSource);
+          setBestLenderLongName(bestLender.lenderName);
+          toast.push({
+            kind: 'success',
+            title: 'Best Rate Found',
+            detail: `${bestLender.lenderName} has the lowest APR at ${bestLender.apr.toFixed(2)}%`,
+          });
+        }
+      } catch (error) {
+        toast.push({
+          kind: 'error',
+          title: 'Error Finding Best Rate',
+          detail: 'Could not compare lenders. Please select manually.',
+        });
+      } finally {
+        setIsFindingBestLender(false);
+      }
+    };
+
+    findBest();
+  }, [useLowestApr, creditScore, loanTerm, vehicleCondition, lenderOptions, toast]);
 
   // Calculate APR based on credit score, term, and vehicle condition
   useEffect(() => {
@@ -876,7 +945,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       vehicleVIN: selectedVehicle?.vin || vin || undefined,
       vehicleMileage: selectedVehicle?.mileage || undefined,
       vehicleCondition: vehicleCondition,
-      vehiclePrice: salePrice || undefined,
+      vehiclePrice:
+        (selectedVehicleSaleValue ?? salePrice) || undefined,
       vehiclePhotoUrl: selectedVehicle?.photo_url || undefined,
 
       // Dealer details
@@ -978,6 +1048,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const handleResetToLenderApr = () => {
     if (lenderBaselineApr !== null) {
       setApr(lenderBaselineApr);
+      setAprInitialPayment(null);
       toast.push({
         kind: 'info',
         title: 'APR Reset',
@@ -1056,9 +1127,133 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     );
   };
 
-  const selectedVehicleSaleValue = selectedVehicle ? getVehicleSalePrice(selectedVehicle) : null;
+  const selectedVehicleSaleValue = useMemo(
+    () => (selectedVehicle ? getVehicleSalePrice(selectedVehicle) : null),
+    [selectedVehicle]
+  );
+  const salePriceState1Baseline = useMemo(() => {
+    if (selectedVehicleSaleValue != null && Number.isFinite(Number(selectedVehicleSaleValue))) {
+      return Number(selectedVehicleSaleValue);
+    }
+    return null;
+  }, [selectedVehicleSaleValue]);
+  const [salePriceDiffBaseline, setSalePriceDiffBaseline] = useState<number | null>(null);
+  const [salePricePaymentBaseline, setSalePricePaymentBaseline] = useState<number | null>(null);
+  const [salePricePaymentDiffOverride, setSalePricePaymentDiffOverride] = useState<number | null>(null);
+  const salePriceLastDiffValueRef = useRef<number | null>(null);
+  const previousVehicleSaleBaselineRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (salePriceState1Baseline != null) {
+      setSalePriceDiffBaseline(salePriceState1Baseline);
+      setSalePricePaymentBaseline(null);
+      setSalePricePaymentDiffOverride(null);
+      salePriceLastDiffValueRef.current = salePriceState1Baseline;
+      previousVehicleSaleBaselineRef.current = salePriceState1Baseline;
+    } else if (previousVehicleSaleBaselineRef.current != null) {
+      previousVehicleSaleBaselineRef.current = null;
+      setSalePriceDiffBaseline(null);
+      setSalePricePaymentBaseline(null);
+      setSalePricePaymentDiffOverride(null);
+      salePriceLastDiffValueRef.current = null;
+    }
+  }, [salePriceState1Baseline]);
+
+  useEffect(() => {
+    if (lenderBaselineApr == null) {
+      if (aprInitialPayment !== null) {
+        setAprInitialPayment(null);
+      }
+      return;
+    }
+    if (monthlyPayment > 0 && aprInitialPayment == null) {
+      setAprInitialPayment(monthlyPayment);
+    }
+  }, [lenderBaselineApr, monthlyPayment, aprInitialPayment]);
+
+  useEffect(() => {
+    if (salePriceDiffBaseline == null) {
+      if (salePricePaymentBaseline !== null) {
+        setSalePricePaymentBaseline(null);
+      }
+      if (salePricePaymentDiffOverride !== null) {
+        setSalePricePaymentDiffOverride(null);
+      }
+      salePriceLastDiffValueRef.current = null;
+      return;
+    }
+    if (salePricePaymentBaseline == null && monthlyPayment > 0) {
+      setSalePricePaymentBaseline(monthlyPayment);
+    }
+  }, [salePriceDiffBaseline, salePricePaymentBaseline, monthlyPayment, salePricePaymentDiffOverride]);
+
+  useEffect(() => {
+    if (
+      salePriceDiffBaseline == null ||
+      salePricePaymentBaseline == null ||
+      monthlyPayment <= 0
+    ) {
+      if (salePricePaymentDiffOverride !== null) {
+        setSalePricePaymentDiffOverride(null);
+      }
+      salePriceLastDiffValueRef.current = null;
+      return;
+    }
+
+    const valueDiff = salePrice - salePriceDiffBaseline;
+    const atBaseline = Math.abs(valueDiff) < 0.01;
+
+    if (atBaseline) {
+      if (salePricePaymentDiffOverride !== null) {
+        setSalePricePaymentDiffOverride(null);
+      }
+      salePriceLastDiffValueRef.current = salePriceDiffBaseline;
+      return;
+    }
+
+    if (salePriceLastDiffValueRef.current === salePrice) {
+      return;
+    }
+
+    salePriceLastDiffValueRef.current = salePrice;
+    setSalePricePaymentDiffOverride(monthlyPayment - salePricePaymentBaseline);
+  }, [
+    salePrice,
+    salePriceDiffBaseline,
+    salePricePaymentBaseline,
+    monthlyPayment,
+    salePricePaymentDiffOverride,
+  ]);
 
   const baselineSalePrice = sliders.salePrice.baseline;
+  const hasCustomApr =
+    lenderBaselineApr !== null &&
+    Math.abs(apr - lenderBaselineApr) >= 0.001 &&
+    !useLowestApr;
+  const aprPaymentDiffFromLender =
+    hasCustomApr && aprInitialPayment != null ? monthlyPayment - aprInitialPayment : null;
+
+  const handleResetSalePrice = useCallback(() => {
+    if (salePriceDiffBaseline != null) {
+      setSliderValue('salePrice', salePriceDiffBaseline, true);
+    } else {
+      resetSlider('salePrice');
+    }
+  }, [salePriceDiffBaseline, setSliderValue, resetSlider]);
+
+  useEffect(() => {
+    if (salePriceState1Baseline != null) {
+      return;
+    }
+    if (salePriceDiffBaseline != null) {
+      return;
+    }
+    if (salePrice > 0) {
+      setSalePriceDiffBaseline(salePrice);
+      salePriceLastDiffValueRef.current = salePrice;
+      setSalePricePaymentDiffOverride(null);
+    }
+  }, [salePriceState1Baseline, salePriceDiffBaseline, salePrice]);
 
   const selectedVehicleSaleLabel =
     isGarageSelectedVehicle
@@ -1119,7 +1314,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
     setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
-    rebaseTilBaselines();
 
     const saleValue = getVehicleSalePrice(vehicle);
     if (saleValue != null) {
@@ -1140,7 +1334,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
     setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
-    rebaseTilBaselines();
 
     // Use store action to apply garage vehicle (sets values + baselines)
     applyGarageVehicle(vehicle, FEATURE_FLAGS.autoPopulateSalePrice && FEATURE_FLAGS.useTradeValueForGarageSalePrice);
@@ -1330,7 +1523,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
       if (result && result.listing) {
         setSelectedVehicle({ ...result.listing, __source: 'market' });
-        rebaseTilBaselines();
 
         const saleValue = getVehicleSalePrice(result.listing);
         if (saleValue != null) {
@@ -1801,7 +1993,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                           setSelectedVehicle(null);
                           setVin('');
                           setSliderValue('salePrice', 0, true);
-                          rebaseTilBaselines();
                         }}
                         className="text-sm text-gray-500 hover:text-gray-700"
                       >
@@ -1893,6 +2084,28 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
                 {/* Financing Details Inputs */}
                 <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
+                  {/* Use Lowest APR Toggle */}
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
+                    <div className="flex-1">
+                      <label className="text-sm font-medium text-gray-900">Use Lowest APR</label>
+                      <p className="text-xs text-gray-600 mt-0.5">
+                        {isFindingBestLender ? 'Comparing lenders...' : 'Automatically find the lender with the best rate'}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={useLowestApr}
+                      onChange={(e) => {
+                        const nextValue = e.target.checked;
+                        setUseLowestApr(nextValue);
+                        if (nextValue && lenderBaselineApr !== null) {
+                          setApr(lenderBaselineApr);
+                          setAprInitialPayment(null);
+                        }
+                      }}
+                      disabled={isFindingBestLender}
+                    />
+                  </div>
+
                   <Select
                     label="Preferred Lender"
                     value={lender}
@@ -1900,6 +2113,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                     options={lenderOptions}
                     helperText={lenderHelperText}
                     fullWidth
+                    disabled={useLowestApr || isFindingBestLender}
                   />
 
                   <Select
@@ -1929,8 +2143,18 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
                 {/* Monthly Payment Hero */}
                 <div className="text-center mb-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
-                  <div className="text-sm font-medium text-gray-600 mb-1">
-                    Estimated Monthly Payment
+                  <div className="text-sm font-medium text-gray-600 mb-1 flex items-center justify-center gap-2">
+                    <span>Estimated Monthly Payment</span>
+                    {useLowestApr && bestLenderLongName && (
+                      <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
+                        {bestLenderLongName}
+                      </span>
+                    )}
+                    {hasCustomApr && (
+                      <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                        User Rate Active
+                      </span>
+                    )}
                   </div>
                   <div className="text-5xl font-bold text-gray-900 mb-1">
                     {formatCurrency(monthlyPayment)}
@@ -1958,25 +2182,27 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         <EnhancedControl
                           value={apr}
                           label="Annual Percentage Rate"
-                          onChange={(newApr) => setApr(parseFloat(newApr.toFixed(2)))}
+                          onChange={handleAprChange}
                           step={0.01}
                           min={0}
                           max={99.99}
                           formatValue={(val) => `${val.toFixed(2)}%`}
-                          monthlyPayment={monthlyPayment}
-                          baselinePayment={baselineMonthlyPayment}
+                          monthlyPayment={aprPaymentDiffFromLender != null ? monthlyPayment : undefined}
+                          baselinePayment={aprInitialPayment ?? undefined}
+                          paymentDiffOverride={aprPaymentDiffFromLender ?? undefined}
                           className="w-full"
                           showKeyboardHint={true}
                           unstyled={true}
                         />
-                        {baselineMonthlyPayment != null && (
+                        {aprPaymentDiffFromLender != null && (
                           <div
                             className={`text-xs font-semibold mt-2 ${
-                              monthlyPayment - baselineMonthlyPayment < 0 ? 'text-green-600' : 'text-red-500'
+                              aprPaymentDiffFromLender < 0 ? 'text-green-600' : 'text-red-500'
                             }`}
                           >
-                            {monthlyPayment - baselineMonthlyPayment < 0 ? '↓' : '↑'}{' '}
-                            {formatCurrency(Math.abs(monthlyPayment - baselineMonthlyPayment))}
+                            {aprPaymentDiffFromLender < 0 ? '↓' : '↑'}{' '}
+                            {formatCurrency(Math.abs(aprPaymentDiffFromLender))}{' '}
+                            <span className="text-gray-500">vs lender rate</span>
                           </div>
                         )}
                         <div className="mt-2 text-xs text-slate-500">Cost of credit as yearly rate</div>
@@ -2067,8 +2293,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               showTooltip={true}
               showReset={true}
               baselineValue={sliders.salePrice.baseline}
+              diffBaselineValue={salePriceDiffBaseline ?? undefined}
+              diffBaselinePayment={salePricePaymentBaseline ?? undefined}
+              paymentDiffOverride={salePricePaymentDiffOverride ?? undefined}
               snapThreshold={100}
-              onReset={() => resetSlider('salePrice')}
+              onReset={handleResetSalePrice}
               fullWidth
             />
 
@@ -2111,10 +2340,10 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
             />
 
             {/* Add Fees Button */}
-            <div className="flex justify-center my-4">
+            <div className="my-2">
               <button
                 onClick={() => setShowFeesModal(true)}
-                className="px-6 py-2.5 text-sm font-medium text-blue-600 bg-white border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2 shadow-sm"
+                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-blue-600 bg-white border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2215,7 +2444,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               loanTerm={loanTerm}
               monthlyPayment={monthlyPayment}
               baselineMonthlyPayment={baselineMonthlyPayment}
-              onAprChange={setApr}
+              onAprChange={handleAprChange}
+              aprBaselinePayment={aprInitialPayment ?? undefined}
+              aprPaymentDiffOverride={aprPaymentDiffFromLender}
               onTermChange={setLoanTerm}
               onCustomerAddonsChange={(value) => setSliderValueWithSettling('customerAddons', value)}
               onGovtFeesChange={(value) => setSliderValueWithSettling('govtFees', value)}

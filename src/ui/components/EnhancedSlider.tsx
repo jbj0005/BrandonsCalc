@@ -1,11 +1,42 @@
-import React, { useState, useRef, useEffect, forwardRef, useMemo } from 'react';
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  forwardRef,
+  useMemo,
+  useId,
+  useCallback,
+} from 'react';
 import { Slider, SliderProps } from './Slider';
 import { useSliderBaseline } from '../../hooks/useSliderBaseline';
 import { formatCurrencyInput } from '../../utils/formatters';
+import { normalizeSliderValue } from './enhancedSliderHelpers.mjs';
+
+const activeSliderStore = (() => {
+  let currentId: string | null = null;
+  const listeners = new Set<(id: string | null) => void>();
+
+  return {
+    get: () => currentId,
+    set: (id: string | null) => {
+      if (currentId === id) return;
+      currentId = id;
+      listeners.forEach((listener) => listener(currentId));
+    },
+    subscribe: (listener: (id: string | null) => void) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+})();
 
 export interface EnhancedSliderProps extends SliderProps {
   /** Current monthly payment for diff calculation */
   monthlyPayment?: number;
+  /** Optional baseline for monthly payment diffs (State 1) */
+  diffBaselinePayment?: number;
+  /** Optional override for payment diff display (e.g., captured snapshot) */
+  paymentDiffOverride?: number | null;
   /** Enable baseline tracking and tooltips */
   showTooltip?: boolean;
   /** Enable reset button */
@@ -16,6 +47,8 @@ export interface EnhancedSliderProps extends SliderProps {
   onReset?: () => void;
   /** Baseline value (if different from initial value) */
   baselineValue?: number;
+  /** Optional value to use specifically for diff calculations (e.g., immutable State 1) */
+  diffBaselineValue?: number;
   /** Snap threshold for "at baseline" detection */
   snapThreshold?: number;
   /** Buyer perspective for color coding: "lower-is-better" means increase=red, decrease=green */
@@ -40,6 +73,8 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       showInput = true,
       onReset,
       baselineValue,
+      diffBaselinePayment,
+      diffBaselineValue,
       snapThreshold,
       buyerPerspective = 'lower-is-better',
       value,
@@ -49,10 +84,26 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       step = 1,
       formatValue,
       label,
+      paymentDiffOverride,
       ...props
     },
     ref
   ) => {
+    const sliderKeyboardId = useId();
+    const [activeSliderId, setActiveSliderId] = useState<string | null>(activeSliderStore.get());
+    useEffect(() => activeSliderStore.subscribe(setActiveSliderId), []);
+    const isActiveSlider = activeSliderId === sliderKeyboardId;
+
+    const claimKeyboardControl = useCallback(() => {
+      activeSliderStore.set(sliderKeyboardId);
+    }, [sliderKeyboardId]);
+
+    const releaseKeyboardControl = useCallback(() => {
+      if (activeSliderStore.get() === sliderKeyboardId) {
+        activeSliderStore.set(null);
+      }
+    }, [sliderKeyboardId]);
+
     const sliderRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const [isHovering, setIsHovering] = useState(false);
@@ -62,6 +113,12 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
 
     const currentValue = Number(value || 0);
 
+    useEffect(() => {
+      return () => {
+        releaseKeyboardControl();
+      };
+    }, [releaseKeyboardControl]);
+
     // Update input value when slider value changes (but not when user is typing)
     useEffect(() => {
       if (!isInputFocused) {
@@ -70,6 +127,13 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     }, [currentValue, isInputFocused]);
     const numericMin = Number(min);
     const numericMax = Number(max);
+    const numericStep =
+      typeof step === 'number'
+        ? step
+        : typeof step === 'string'
+          ? Number(step)
+          : 0;
+    const effectiveStep = Number.isFinite(numericStep) && numericStep > 0 ? numericStep : 0.01;
     const range = numericMax - numericMin || 1;
     const clampPercent = (val: number) =>
       Math.min(100, Math.max(0, ((val - numericMin) / range) * 100));
@@ -92,15 +156,38 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       snapThreshold: effectiveSnapThreshold,
     });
 
-    const baselineForDiff = useMemo(() => {
+    const snapBaseline = useMemo(() => {
       if (baselineValue !== undefined && Number.isFinite(baselineValue)) {
         return baselineValue;
       }
       return baseline;
     }, [baselineValue, baseline]);
 
+    const diffBaseline = useMemo(() => {
+      if (diffBaselineValue !== undefined && Number.isFinite(diffBaselineValue)) {
+        return diffBaselineValue;
+      }
+      return snapBaseline;
+    }, [diffBaselineValue, snapBaseline]);
+
     const diffFromBaseline =
-      baselineForDiff != null ? currentValue - baselineForDiff : 0;
+      diffBaseline != null ? currentValue - diffBaseline : 0;
+
+    const valueDiffForDisplay =
+      diffBaseline != null ? currentValue - diffBaseline : 0;
+    const paymentDiffForDisplay =
+      paymentDiffOverride !== undefined
+        ? paymentDiffOverride
+        : diffBaselinePayment != null && monthlyPayment != null
+          ? monthlyPayment - diffBaselinePayment
+          : null;
+
+    const isAtDiffBaseline =
+      diffBaseline != null
+        ? Math.abs(diffFromBaseline) <= effectiveSnapThreshold
+        : isAtBaseline;
+
+    const shouldShowDiff = diffBaseline != null;
 
     const latestPaymentRef = useRef(monthlyPayment);
     useEffect(() => {
@@ -124,7 +211,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     }, [diffFromBaseline, buyerPerspective, effectiveSnapThreshold]);
 
     const baselinePercent = clampPercent(
-      baselineForDiff != null ? baselineForDiff : numericMin
+      diffBaseline != null ? diffBaseline : numericMin
     );
     const currentPercent = clampPercent(currentValue);
 
@@ -166,17 +253,21 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     // Handle mouse enter
     const handleMouseEnter = () => {
       setIsHovering(true);
+      claimKeyboardControl();
     };
 
     // Handle mouse leave
     const handleMouseLeave = () => {
       setIsHovering(false);
+      if (!isFocused) {
+        releaseKeyboardControl();
+      }
     };
 
     // Handle arrow key navigation (when hovering or focused)
     useEffect(() => {
-      if (!isHovering && !isFocused) return;
-      if (isInputFocused) return; // Don't interfere with input field
+      const shouldHandleKeys = (isHovering || isActiveSlider) && !isInputFocused;
+      if (!shouldHandleKeys) return;
 
       const handleKeyDown = (e: KeyboardEvent) => {
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
@@ -188,11 +279,16 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         const direction = ['ArrowLeft', 'ArrowDown'].includes(e.key) ? -1 : 1;
         let newValue = Math.max(
           Number(min),
-          Math.min(Number(max), currentValue + direction * Number(step))
+          Math.min(Number(max), currentValue + direction * effectiveStep)
         );
 
-        // Round to nearest hundredth (0.01)
-        newValue = Math.round(newValue * 100) / 100;
+        newValue = normalizeSliderValue({
+          rawValue: newValue,
+          baseline: snapBaseline,
+          snapThreshold: effectiveSnapThreshold,
+          disableSnap: snapBaseline != null && currentValue === snapBaseline,
+          stepSize: effectiveStep,
+        });
 
         // Create synthetic event
         const syntheticEvent = {
@@ -204,7 +300,18 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
 
       document.addEventListener('keydown', handleKeyDown);
       return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [isHovering, isFocused, isInputFocused, currentValue, min, max, step, onChange]);
+    }, [
+      isHovering,
+      isActiveSlider,
+      isInputFocused,
+      currentValue,
+      min,
+      max,
+      effectiveStep,
+      snapBaseline,
+      effectiveSnapThreshold,
+      onChange,
+    ]);
 
     // Handle reset
     const handleReset = () => {
@@ -264,29 +371,18 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
 
     const handleSliderChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       if (!onChange) return;
-      let nextValue = Number(event.target.value);
-      const shouldSnap =
-        baselineForDiff != null &&
-        Number.isFinite(nextValue) &&
-        Math.abs(nextValue - baselineForDiff) <= effectiveSnapThreshold;
+      const normalizedValue = normalizeSliderValue({
+        rawValue: Number(event.target.value),
+        baseline: snapBaseline,
+        snapThreshold: effectiveSnapThreshold,
+        stepSize: effectiveStep,
+      });
 
-      if (shouldSnap) {
-        nextValue = baselineForDiff as number;
-        if (event.target instanceof HTMLInputElement) {
-          event.target.value = String(nextValue);
-        }
-        if (event.currentTarget instanceof HTMLInputElement) {
-          event.currentTarget.value = String(nextValue);
-        }
-      } else {
-        // Round to nearest hundredth (0.01) when not snapping to baseline
-        nextValue = Math.round(nextValue * 100) / 100;
-        if (event.target instanceof HTMLInputElement) {
-          event.target.value = String(nextValue);
-        }
-        if (event.currentTarget instanceof HTMLInputElement) {
-          event.currentTarget.value = String(nextValue);
-        }
+      if (event.target instanceof HTMLInputElement) {
+        event.target.value = String(normalizedValue);
+      }
+      if (event.currentTarget instanceof HTMLInputElement) {
+        event.currentTarget.value = String(normalizedValue);
       }
 
       onChange(event);
@@ -298,8 +394,16 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         className="relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        onFocus={() => {
+          setIsFocused(true);
+          claimKeyboardControl();
+        }}
+        onBlur={() => {
+          setIsFocused(false);
+          if (!isHovering) {
+            releaseKeyboardControl();
+          }
+        }}
         tabIndex={0}
       >
         {/* Input Field (optional) */}
@@ -320,14 +424,17 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
                     </div>
 
                     {/* Diff indicator with color coding */}
-                    {paymentDiff !== null && Math.abs(paymentDiff) >= 1 && (
+                    {paymentDiffForDisplay !== null &&
+                      Math.abs(paymentDiffForDisplay) >= 1 && (
                       <div className={`text-xs text-center mt-0.5 font-semibold flex items-center justify-center gap-1 ${
-                        paymentDiff > 0
+                        paymentDiffForDisplay > 0
                           ? 'text-red-600'
                           : 'text-green-600'
                       }`}>
-                        <span className="text-sm">{paymentDiff > 0 ? '↑' : '↓'}</span>
-                        <span>{formatCurrency(Math.abs(paymentDiff))}</span>
+                        <span className="text-sm">
+                          {paymentDiffForDisplay > 0 ? '↑' : '↓'}
+                        </span>
+                        <span>{formatCurrency(Math.abs(paymentDiffForDisplay))}</span>
                       </div>
                     )}
 
@@ -366,17 +473,19 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         />
 
         {/* Diff Indicator */}
-        {showTooltip && !isAtBaseline && (
+        {showTooltip && shouldShowDiff && (
           <div className="flex items-center justify-between mt-1 text-xs">
             <span
               className={`font-medium ${
                 buyerPerspective === 'lower-is-better'
-                  ? (valueDiff > 0 ? 'text-red-600' : valueDiff < 0 ? 'text-green-600' : 'text-gray-500')
-                  : (valueDiff > 0 ? 'text-green-600' : valueDiff < 0 ? 'text-red-600' : 'text-gray-500')
+                  ? (valueDiffForDisplay > 0 ? 'text-red-600' : valueDiffForDisplay < 0 ? 'text-green-600' : 'text-gray-500')
+                  : (valueDiffForDisplay > 0 ? 'text-green-600' : valueDiffForDisplay < 0 ? 'text-red-600' : 'text-gray-500')
               }`}
             >
-              {valueDiff > 0 ? '+' : ''}
-              {formatValue ? formatValue(valueDiff) : valueDiff.toLocaleString()}
+              {valueDiffForDisplay > 0 ? '+' : ''}
+              {formatValue
+                ? formatValue(valueDiffForDisplay)
+                : valueDiffForDisplay.toLocaleString()}
             </span>
             {showReset && (
               <button

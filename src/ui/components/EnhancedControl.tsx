@@ -23,6 +23,8 @@ export interface EnhancedControlProps {
   monthlyPayment?: number;
   /** Baseline monthly payment (for diff tooltip) */
   baselinePayment?: number;
+  /** Override payment diff shown in tooltip */
+  paymentDiffOverride?: number | null;
   /** Remove card styling (for use within parent card) */
   unstyled?: boolean;
 }
@@ -47,6 +49,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   className = '',
   monthlyPayment,
   baselinePayment,
+  paymentDiffOverride,
   unstyled = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -132,9 +135,12 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   };
 
   // Calculate payment diff for tooltip
-  const paymentDiff = monthlyPayment && baselinePayment
-    ? monthlyPayment - baselinePayment
-    : null;
+  const paymentDiff =
+    paymentDiffOverride !== undefined
+      ? paymentDiffOverride
+      : monthlyPayment != null && baselinePayment != null
+        ? monthlyPayment - baselinePayment
+        : null;
 
   // Handle mouse move for tooltip positioning
   const handleMouseMove = (e: React.MouseEvent) => {

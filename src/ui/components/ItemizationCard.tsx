@@ -41,6 +41,8 @@ export interface ItemizationCardProps {
   loanTerm?: number;
   monthlyPayment?: number;
   baselineMonthlyPayment?: number;
+  aprBaselinePayment?: number;
+  aprPaymentDiffOverride?: number | null;
   onAprChange?: (value: number) => void;
   onTermChange?: (value: number) => void;
 }
@@ -90,6 +92,8 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   loanTerm,
   monthlyPayment,
   baselineMonthlyPayment,
+  aprBaselinePayment,
+  aprPaymentDiffOverride,
   onAprChange,
   onTermChange,
 }) => {
@@ -121,15 +125,22 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                   min={0}
                   max={99.99}
                   formatValue={(val) => `${val.toFixed(2)}%`}
-                  monthlyPayment={monthlyPayment}
-                  baselinePayment={baselineMonthlyPayment}
+                  monthlyPayment={aprPaymentDiffOverride != null ? monthlyPayment : undefined}
+                  baselinePayment={aprBaselinePayment ?? undefined}
+                  paymentDiffOverride={aprPaymentDiffOverride ?? undefined}
                   className="w-full"
                   showKeyboardHint={true}
                   unstyled={true}
                 />
-                {baselineMonthlyPayment != null && monthlyPayment != null && (
-                  <div className={`text-xs font-semibold mt-2 ${monthlyPayment - baselineMonthlyPayment < 0 ? 'text-green-600' : 'text-red-500'}`}>
-                    {monthlyPayment - baselineMonthlyPayment < 0 ? '↓' : '↑'} {formatCurrencyRounded(Math.abs(monthlyPayment - baselineMonthlyPayment))}
+                {aprPaymentDiffOverride != null && (
+                  <div
+                    className={`text-xs font-semibold mt-2 ${
+                      aprPaymentDiffOverride < 0 ? 'text-green-600' : 'text-red-500'
+                    }`}
+                  >
+                    {aprPaymentDiffOverride < 0 ? '↓' : '↑'}{' '}
+                    {formatCurrencyRounded(Math.abs(aprPaymentDiffOverride))}{' '}
+                    <span className="text-gray-500">vs lender rate</span>
                   </div>
                 )}
                 <div className="mt-1 text-xs text-slate-500">Cost of credit as yearly rate</div>

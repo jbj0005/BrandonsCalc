@@ -487,7 +487,15 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     color: string
   ) => {
     return (
-      <div className="space-y-3">
+      <div
+        className="space-y-3"
+        onMouseLeave={() => {
+          if (activeCategoryRef.current === category) {
+            cleanupEmptyLastRow(category);
+            activeCategoryRef.current = null;
+          }
+        }}
+      >
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
             {title}
