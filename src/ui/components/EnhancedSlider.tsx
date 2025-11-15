@@ -25,7 +25,7 @@ const activeSliderStore = (() => {
     },
     subscribe: (listener: (id: string | null) => void) => {
       listeners.add(listener);
-      return () => listeners.delete(listener);
+      return () => { listeners.delete(listener); };
     },
   };
 })();
