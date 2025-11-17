@@ -112,7 +112,7 @@ export const ComponentDemo: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-emerald-100 p-8">
       <div className="max-w-6xl mx-auto space-y-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -789,7 +789,7 @@ export const ComponentDemo: React.FC = () => {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => setModalOpen(true)}
-                className="px-6 py-3 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition-colors font-medium"
+                className="px-6 py-3 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
               >
                 Open Generic Modal
               </button>

@@ -50,15 +50,15 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     const hasError = !!error;
 
     const borderColor = hasError
-      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
-      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
+      ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/30'
+      : 'border-white/10 focus:border-emerald-400/50 focus:ring-emerald-400/30';
 
     return (
       <div className={`${fullWidth ? 'w-full' : ''}`}>
         {label && (
           <label
             htmlFor={selectId}
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-emerald-300/80 mb-1"
           >
             {label}
           </label>
@@ -73,11 +73,11 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               block w-full rounded-lg border
               ${sizeClasses[size]}
               ${borderColor}
-              bg-white
-              text-gray-900
+              bg-black/20
+              text-white
               transition-colors duration-200
               focus:outline-none focus:ring-2 focus:ring-offset-0
-              disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
+              disabled:bg-black/10 disabled:text-white/30 disabled:cursor-not-allowed
               appearance-none pr-10
               ${className}
             `}

@@ -154,7 +154,7 @@ export const Modal: React.FC<ModalProps> = ({
           aria-labelledby={title ? 'modal-title' : undefined}
           tabIndex={-1}
           className={`
-            relative bg-white rounded-2xl shadow-ios-elevated
+            relative bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 rounded-2xl shadow-ios-elevated border border-white/10
             w-full ${sizeClasses[size]}
             max-h-[90vh] overflow-y-auto
             transform transition-all duration-300
@@ -167,10 +167,10 @@ export const Modal: React.FC<ModalProps> = ({
             <button
               onClick={onClose}
               className="absolute top-4 right-4 z-700 w-10 h-10 rounded-full
-                bg-gray-100 hover:bg-gray-200 active:bg-gray-300
-                text-gray-600 hover:text-gray-900
+                bg-white/10 hover:bg-white/20 active:bg-white/30
+                text-white/60 hover:text-white
                 flex items-center justify-center
-                transition-all duration-200 hover:rotate-90"
+                transition-all duration-200 hover:rotate-90 border border-white/10"
               aria-label="Close modal"
             >
               <svg
@@ -189,10 +189,11 @@ export const Modal: React.FC<ModalProps> = ({
 
           {/* Header */}
           {title && (
-            <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+            <div className="px-6 pt-6 pb-4 border-b border-white/10">
               <h2
                 id="modal-title"
-                className="text-2xl font-semibold text-gray-900"
+                className="text-2xl font-semibold text-white"
+                style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}
               >
                 {title}
               </h2>

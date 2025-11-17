@@ -192,24 +192,24 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
         {/* Header */}
         <div className="text-center">
           <div className="mb-2">
-            <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 text-green-600 text-3xl">
+            <span className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-500/20 text-green-400 text-3xl border border-green-400/30">
               🎉
             </span>
           </div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">
+          <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
             Great News! You Have Positive Equity
           </h3>
-          <div className="text-4xl font-bold text-green-600">
+          <div className="text-4xl font-bold text-green-400" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
             {formatCurrencyExact(positiveEquity)}
           </div>
-          <p className="text-sm text-gray-600 mt-2">
+          <p className="text-sm text-white/60 mt-2">
             Your trade-in is worth more than you owe
           </p>
         </div>
 
         {/* Question */}
         <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          <h3 className="text-lg font-semibold text-white mb-4" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
             How would you like to use this equity?
           </h3>
 
@@ -218,8 +218,8 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             <label
               className={`block p-4 border-2 rounded-lg cursor-pointer transition-all ${
                 selectedAction === 'apply'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-400 bg-blue-500/20'
+                  : 'border-white/10 hover:border-white/20'
               }`}
             >
               <div className="flex items-start">
@@ -229,11 +229,11 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                   value="apply"
                   checked={selectedAction === 'apply'}
                   onChange={(e) => setSelectedAction(e.target.value as 'apply')}
-                  className="mt-1 mr-3 w-4 h-4 text-blue-600"
+                  className="mt-1 mr-3 w-4 h-4 text-blue-400 accent-blue-400"
                 />
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900">Apply to Unpaid Balance</div>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="font-semibold text-white">Apply to Unpaid Balance</div>
+                  <div className="text-sm text-white/60 mt-1">
                     Reduces your loan amount by {formatCurrencyExact(positiveEquity)}
                   </div>
                 </div>
@@ -244,8 +244,8 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             <label
               className={`block p-4 border-2 rounded-lg cursor-pointer transition-all ${
                 selectedAction === 'cashout'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-400 bg-blue-500/20'
+                  : 'border-white/10 hover:border-white/20'
               }`}
             >
               <div className="flex items-start">
@@ -255,11 +255,11 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                   value="cashout"
                   checked={selectedAction === 'cashout'}
                   onChange={(e) => setSelectedAction(e.target.value as 'cashout')}
-                  className="mt-1 mr-3 w-4 h-4 text-blue-600"
+                  className="mt-1 mr-3 w-4 h-4 text-blue-400 accent-blue-400"
                 />
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900">Cash Out</div>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <div className="font-semibold text-white">Cash Out</div>
+                  <div className="text-sm text-white/60 mt-1">
                     Receive {formatCurrencyExact(positiveEquity)} check from dealer, add to loan
                   </div>
                 </div>
@@ -270,8 +270,8 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
             <label
               className={`block p-4 border-2 rounded-lg cursor-pointer transition-all ${
                 selectedAction === 'split'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-400 bg-blue-500/20'
+                  : 'border-white/10 hover:border-white/20'
               }`}
             >
               <div className="flex items-start">
@@ -281,20 +281,20 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                   value="split"
                   checked={selectedAction === 'split'}
                   onChange={(e) => setSelectedAction(e.target.value as 'split')}
-                  className="mt-1 mr-3 w-4 h-4 text-blue-600"
+                  className="mt-1 mr-3 w-4 h-4 text-blue-400 accent-blue-400"
                 />
                 <div className="flex-1">
-                  <div className="font-semibold text-gray-900 mb-3">Split Between Both</div>
+                  <div className="font-semibold text-white mb-3">Split Between Both</div>
 
                   {selectedAction === 'split' && (
                     <div className="space-y-4 mt-3">
                       {/* Slider */}
                       <div>
                         <div className="flex items-center justify-between text-sm mb-2">
-                          <span className="text-gray-700">
+                          <span className="text-white/70">
                             {100 - splitPercent}% Apply
                           </span>
-                          <span className="text-blue-600 font-medium">
+                          <span className="text-blue-400 font-medium">
                             {splitPercent}% Cashout
                           </span>
                         </div>
@@ -304,17 +304,17 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                           max="100"
                           value={splitPercent}
                           onChange={handleSliderChange}
-                          className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-blue-400"
                         />
                       </div>
 
                       {/* Or divider */}
                       <div className="relative">
                         <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-gray-300"></div>
+                          <div className="w-full border-t border-white/10"></div>
                         </div>
                         <div className="relative flex justify-center text-xs uppercase">
-                          <span className="bg-white px-2 text-gray-500">Or enter exact amount</span>
+                          <span className="bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950 px-2 text-white/50">Or enter exact amount</span>
                         </div>
                       </div>
 
@@ -334,16 +334,16 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
                       </div>
 
                       {/* Summary */}
-                      <div className="bg-gray-50 p-3 rounded-lg space-y-2 text-sm">
+                      <div className="bg-black/20 p-3 rounded-lg border border-white/10 space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span className="text-gray-700">Applied to Balance:</span>
-                          <span className="font-semibold text-green-600">
+                          <span className="text-white/70">Applied to Balance:</span>
+                          <span className="font-semibold text-green-400">
                             {formatCurrencyExact(finalApplied)}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-700">Cash to You:</span>
-                          <span className="font-semibold text-blue-600">
+                          <span className="text-white/70">Cash to You:</span>
+                          <span className="font-semibold text-blue-400">
                             {formatCurrencyExact(finalCashout)}
                           </span>
                         </div>
@@ -357,8 +357,8 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
         </div>
 
         {/* Preview Itemization */}
-        <div className="border-t pt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">
+        <div className="border-t border-white/10 pt-6">
+          <h3 className="text-lg font-semibold text-white mb-4" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
             Preview with Selected Option
           </h3>
           <ItemizationCard
@@ -386,7 +386,7 @@ export const PositiveEquityModal: React.FC<PositiveEquityModalProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-3 pt-4 border-t">
+        <div className="flex gap-3 pt-4 border-t border-white/10">
           <Button variant="secondary" onClick={onClose} fullWidth>
             Cancel
           </Button>

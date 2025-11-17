@@ -14,8 +14,10 @@ export type SliderKey =
   | 'govtFees';
 
 export interface SliderState {
-  value: number;
-  baseline: number;
+  value: number;           // Current value (can be adjusted by user)
+  baseline: number;        // State 1: Asking price (set on vehicle selection)
+  lockedBaseline: number | null;  // State 2: User's negotiated price (for diff calculations)
+  isLocked: boolean;       // Whether State 2 is active
 }
 
 export interface GarageVehicle {
@@ -45,13 +47,21 @@ export interface CalculatorState {
   // Settling timer for baseline updates
   settlingTimerId: NodeJS.Timeout | null;
   lastSliderInteraction: number;
+
+  // Auto-lock timer for sale price State 2
+  autoLockTimerId: NodeJS.Timeout | null;
 }
 
 export interface CalculatorActions {
   // Slider actions
   setSliderValue: (key: SliderKey, value: number, updateBaseline?: boolean) => void;
   setSliderValueWithSettling: (key: SliderKey, value: number) => void;
+  setSliderValueWithAutoLock: (key: SliderKey, value: number) => void;
   setSliderBaseline: (key: SliderKey, baseline: number) => void;
+  lockSliderBaseline: (key: SliderKey) => void;
+  unlockSliderBaseline: (key: SliderKey) => void;
+  toggleSliderLock: (key: SliderKey) => void;
+  getEffectiveBaseline: (key: SliderKey) => number;
   resetSlider: (key: SliderKey) => void;
   resetAllSliders: () => void;
   setTradePayoff: (value: number) => void;
@@ -88,6 +98,8 @@ export interface CalculatorActions {
 const DEFAULT_SLIDER_STATE: SliderState = {
   value: 0,
   baseline: 0,
+  lockedBaseline: null,
+  isLocked: false,
 };
 
 const INITIAL_STATE: CalculatorState = {
@@ -111,6 +123,7 @@ const INITIAL_STATE: CalculatorState = {
   userTaxOverride: false,
   settlingTimerId: null,
   lastSliderInteraction: 0,
+  autoLockTimerId: null,
 };
 
 // ============================================================================
@@ -223,27 +236,154 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
     });
   },
 
+  setSliderValueWithAutoLock: (key, value) => {
+    const AUTO_LOCK_DELAY = 3000; // 3 seconds
+
+    set((state) => {
+      // Clear existing auto-lock timer
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
+      // Update slider value immediately
+      const newSliders = { ...state.sliders };
+      newSliders[key] = {
+        ...newSliders[key],
+        value,
+        // If locked, don't unlock on value change
+      };
+
+      // Start new auto-lock timer (only if not manually locked)
+      let timerId: NodeJS.Timeout | null = null;
+      if (!newSliders[key].isLocked) {
+        timerId = setTimeout(() => {
+          // After 3s, set lockedBaseline to current value (State 2)
+          set((currentState) => {
+            const updatedSliders = { ...currentState.sliders };
+            updatedSliders[key] = {
+              ...updatedSliders[key],
+              lockedBaseline: updatedSliders[key].value,
+              isLocked: true,
+            };
+
+            return {
+              sliders: updatedSliders,
+              autoLockTimerId: null,
+            };
+          });
+        }, AUTO_LOCK_DELAY);
+      }
+
+      return {
+        sliders: newSliders,
+        autoLockTimerId: timerId,
+      };
+    });
+  },
+
+  lockSliderBaseline: (key) => {
+    set((state) => {
+      // Clear any pending auto-lock timer
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
+      const newSliders = { ...state.sliders };
+      newSliders[key] = {
+        ...newSliders[key],
+        lockedBaseline: newSliders[key].value,
+        isLocked: true,
+      };
+
+      return {
+        sliders: newSliders,
+        autoLockTimerId: null,
+      };
+    });
+  },
+
+  unlockSliderBaseline: (key) => {
+    set((state) => {
+      // Clear any pending auto-lock timer
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
+      const newSliders = { ...state.sliders };
+      newSliders[key] = {
+        ...newSliders[key],
+        lockedBaseline: null,
+        isLocked: false,
+      };
+
+      return {
+        sliders: newSliders,
+        autoLockTimerId: null,
+      };
+    });
+  },
+
+  toggleSliderLock: (key) => {
+    const state = get();
+    if (state.sliders[key].isLocked) {
+      get().unlockSliderBaseline(key);
+    } else {
+      get().lockSliderBaseline(key);
+    }
+  },
+
+  getEffectiveBaseline: (key) => {
+    const state = get();
+    const slider = state.sliders[key];
+    // Return State 2 (lockedBaseline) if locked, otherwise State 1 (baseline)
+    return slider.isLocked && slider.lockedBaseline !== null
+      ? slider.lockedBaseline
+      : slider.baseline;
+  },
+
   resetSlider: (key) => {
     set((state) => {
+      // Clear auto-lock timer
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
       const newSliders = { ...state.sliders };
       newSliders[key] = {
         ...newSliders[key],
         value: newSliders[key].baseline,
+        lockedBaseline: null,
+        isLocked: false,
       };
-      return { sliders: newSliders };
+
+      return {
+        sliders: newSliders,
+        autoLockTimerId: null,
+      };
     });
   },
 
   resetAllSliders: () => {
     set((state) => {
+      // Clear auto-lock timer
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
       const newSliders = { ...state.sliders };
       (Object.keys(newSliders) as SliderKey[]).forEach((key) => {
         newSliders[key] = {
           ...newSliders[key],
           value: newSliders[key].baseline,
+          lockedBaseline: null,
+          isLocked: false,
         };
       });
-      return { sliders: newSliders };
+
+      return {
+        sliders: newSliders,
+        autoLockTimerId: null,
+      };
     });
   },
 
@@ -310,16 +450,22 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
       newSliders.dealerFees = {
         value: dealerTotal,
         baseline: dealerTotal,
+        lockedBaseline: null,
+        isLocked: false,
       };
 
       newSliders.customerAddons = {
         value: customerTotal,
         baseline: customerTotal,
+        lockedBaseline: null,
+        isLocked: false,
       };
 
       newSliders.govtFees = {
         value: govTotal,
         baseline: govTotal,
+        lockedBaseline: null,
+        isLocked: false,
       };
 
       return { sliders: newSliders };
@@ -332,15 +478,22 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   applyVehicle: (vehicle) => {
     set((state) => {
+      // Clear auto-lock timer when applying new vehicle
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
       const newSliders = { ...state.sliders };
       const updates: Partial<CalculatorState> = {};
 
-      // Set sale price if provided
+      // Set sale price if provided (reset State 2)
       if (vehicle.price !== undefined) {
         const price = parseNumeric(vehicle.price);
         newSliders.salePrice = {
           value: price,
           baseline: price,
+          lockedBaseline: null,
+          isLocked: false,
         };
       }
 
@@ -351,6 +504,7 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
       return {
         sliders: newSliders,
+        autoLockTimerId: null,
         ...(updates.tradePayoff !== undefined ? { tradePayoff: updates.tradePayoff } : {}),
       };
     });
@@ -358,19 +512,26 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   applyGarageVehicle: (vehicle, enableSalePriceSync = false) => {
     set((state) => {
+      // Clear auto-lock timer when applying garage vehicle
+      if (state.autoLockTimerId) {
+        clearTimeout(state.autoLockTimerId);
+      }
+
       const newSliders = { ...state.sliders };
       const newSelectedVehicles = new Set(state.selectedTradeInVehicles);
 
       // Add vehicle to selection
       newSelectedVehicles.add(vehicle.id);
 
-      // Set sale price if feature enabled
+      // Set sale price if feature enabled (reset State 2)
       if (enableSalePriceSync) {
         const price = parseNumeric(vehicle.estimated_value || vehicle.asking_price || 0);
         if (price > 0) {
           newSliders.salePrice = {
             value: price,
             baseline: price,
+            lockedBaseline: null,
+            isLocked: false,
           };
         }
       }
@@ -384,12 +545,15 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
       newSliders.tradeAllowance = {
         value: allowance,
         baseline: allowance,
+        lockedBaseline: null,
+        isLocked: false,
       };
 
       return {
         sliders: newSliders,
         selectedTradeInVehicles: newSelectedVehicles,
         tradePayoff: payoff,
+        autoLockTimerId: null,
       };
     });
   },
@@ -403,6 +567,8 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
         newSliders.cashDown = {
           value: downPayment,
           baseline: downPayment,
+          lockedBaseline: null,
+          isLocked: false,
         };
 
         return { sliders: newSliders };
@@ -434,6 +600,8 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
       newSliders.tradeAllowance = {
         value: allowance,
         baseline: allowance,
+        lockedBaseline: null,
+        isLocked: false,
       };
 
       return {

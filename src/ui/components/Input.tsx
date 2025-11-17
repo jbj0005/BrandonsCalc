@@ -72,10 +72,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const hasError = !!error;
 
     const borderColor = hasError
-      ? 'border-red-500 focus:border-red-500 focus:ring-red-500'
+      ? 'border-red-400/50 focus:border-red-400 focus:ring-red-400/30'
       : success
-      ? 'border-green-500 focus:border-green-500 focus:ring-green-500'
-      : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500';
+      ? 'border-green-400/50 focus:border-green-400 focus:ring-green-400/30'
+      : 'border-white/10 focus:border-emerald-400/50 focus:ring-emerald-400/30';
 
     const leftPaddingClass = icon ? iconLeftPadding[size] : defaultLeftPadding[size];
     const rightPaddingClass = iconRight ? iconRightPadding[size] : defaultRightPadding[size];
@@ -85,7 +85,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-emerald-300/80 mb-1"
           >
             {label}
           </label>
@@ -93,7 +93,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
         <div className="relative">
           {icon && (
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">
               {icon}
             </div>
           )}
@@ -108,11 +108,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               ${leftPaddingClass}
               ${rightPaddingClass}
               ${borderColor}
-              bg-white
-              text-gray-900 placeholder-gray-400
+              bg-black/20
+              text-white placeholder-white/20
               transition-colors duration-200
               focus:outline-none focus:ring-2 focus:ring-offset-0
-              disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed
+              disabled:bg-black/10 disabled:text-white/50 disabled:cursor-not-allowed
               ${className}
             `}
             aria-invalid={hasError}
@@ -123,14 +123,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           />
 
           {iconRight && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none">
               {iconRight}
             </div>
           )}
 
           {/* Error icon */}
           {hasError && !iconRight && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-red-400 pointer-events-none">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
@@ -143,7 +143,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
           {/* Success icon */}
           {success && !hasError && !iconRight && (
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none">
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 pointer-events-none">
               <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
                 <path
                   fillRule="evenodd"
@@ -157,14 +157,14 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 
         {/* Error message */}
         {error && (
-          <p id={`${inputId}-error`} className="mt-1 text-sm text-red-600">
+          <p id={`${inputId}-error`} className="mt-1 text-sm text-red-400">
             {error}
           </p>
         )}
 
         {/* Helper text */}
         {!error && helperText && (
-          <p id={`${inputId}-helper`} className="mt-1 text-sm text-gray-500">
+          <p id={`${inputId}-helper`} className="mt-1 text-sm text-white/50">
             {helperText}
           </p>
         )}

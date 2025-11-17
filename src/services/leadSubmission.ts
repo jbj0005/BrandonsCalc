@@ -6,6 +6,8 @@
 import { supabase } from '../lib/supabase';
 import { formatEffectiveDate } from '../utils/formatters';
 
+export type EmailFormat = 'customer' | 'dealer' | 'lender';
+
 export interface LeadData {
   // Vehicle details
   vehicleYear?: number;
@@ -15,7 +17,8 @@ export interface LeadData {
   vehicleVIN?: string;
   vehicleMileage?: number;
   vehicleCondition?: 'new' | 'used';
-  vehiclePrice?: number;
+  vehiclePrice?: number; // Customer's offer price
+  dealerAskingPrice?: number; // Dealer's original asking price
   stockNumber?: string; // NEW: Dealer stock number
   vehiclePhotoUrl?: string; // Vehicle photo URL
 
@@ -32,9 +35,18 @@ export interface LeadData {
   downPayment?: number;
   ratesEffectiveDate?: string;
 
-  // Trade-in details
+  // Trade-in details (financial)
   tradeValue?: number;
   tradePayoff?: number;
+
+  // Trade-in vehicle details
+  tradeVehicleYear?: number;
+  tradeVehicleMake?: string;
+  tradeVehicleModel?: string;
+  tradeVehicleTrim?: string;
+  tradeVehicleVIN?: string;
+  tradeVehicleMileage?: number;
+  tradeVehicleCondition?: string; // e.g., "Excellent", "Good", "Fair"
 
   // Fees and addons
   dealerFees?: number;
@@ -308,7 +320,8 @@ export const submitOfferWithProgress = async (
         vehicle_vin: leadData.vehicleVIN || null,
         vehicle_mileage: leadData.vehicleMileage || null,
         vehicle_condition: leadData.vehicleCondition || null,
-        vehicle_price: leadData.vehiclePrice || null,
+        vehicle_price: leadData.vehiclePrice || null, // Customer's offer
+        dealer_asking_price: leadData.dealerAskingPrice || null, // Dealer's asking price
         vehicle_stock_number: leadData.stockNumber || null, // NEW
         vehicle_photo_url: leadData.vehiclePhotoUrl || null, // Vehicle photo
 
@@ -442,14 +455,38 @@ export const submitOfferWithProgress = async (
 
 /**
  * Generate offer text summary for email/display
+ * @param leadData - Lead data
+ * @param format - Email format: 'customer' (all details), 'dealer' (no financing/fees), 'lender' (TBD)
  */
-export const generateOfferText = (leadData: LeadData): string => {
+export const generateOfferText = (leadData: LeadData, format: EmailFormat = 'customer'): string => {
   const lines: string[] = [];
 
-  // Title
-  lines.push('VEHICLE OFFER SUMMARY');
+  // Title - varies by format
+  const title = format === 'dealer' ? 'DEALER OFFER SUMMARY' :
+                format === 'lender' ? 'LENDER OFFER SUMMARY' :
+                'VEHICLE OFFER SUMMARY';
+  lines.push(title);
   lines.push('═'.repeat(50));
   lines.push('');
+
+  // OFFER HERO - Customer's offer prominently at top
+  if (leadData.vehiclePrice) {
+    lines.push('CUSTOMER OFFER');
+    lines.push('═'.repeat(50));
+    lines.push('');
+    lines.push(`    💰 $${leadData.vehiclePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    lines.push('');
+
+    // Show savings ONLY for customer format
+    if (format === 'customer' && leadData.dealerAskingPrice && leadData.dealerAskingPrice > leadData.vehiclePrice) {
+      const savings = leadData.dealerAskingPrice - leadData.vehiclePrice;
+      lines.push(`    💵 Savings: $${savings.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} below asking price`);
+      lines.push('');
+    }
+
+    lines.push('═'.repeat(50));
+    lines.push('');
+  }
 
   // Vehicle Info
   if (leadData.vehicleYear || leadData.vehicleMake || leadData.vehicleModel) {
@@ -460,7 +497,8 @@ export const generateOfferText = (leadData: LeadData): string => {
     if (leadData.vehicleVIN) lines.push(`VIN:               ${leadData.vehicleVIN}`);
     if (leadData.vehicleMileage) lines.push(`Mileage:           ${leadData.vehicleMileage.toLocaleString()} miles`);
     if (leadData.vehicleCondition) lines.push(`Condition:         ${leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}`);
-    if (leadData.vehiclePrice) lines.push(`Asking Price:      $${leadData.vehiclePrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
+    if (leadData.stockNumber) lines.push(`Stock #:           ${leadData.stockNumber}`);
+    if (leadData.dealerAskingPrice) lines.push(`Dealer Asking:     $${leadData.dealerAskingPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
     lines.push('');
   }
 
@@ -474,8 +512,8 @@ export const generateOfferText = (leadData: LeadData): string => {
     lines.push('');
   }
 
-  // Financing Details
-  if (leadData.monthlyPayment || leadData.apr || leadData.termMonths) {
+  // Financing Details - EXCLUDE for dealer format
+  if (format !== 'dealer' && (leadData.monthlyPayment || leadData.apr || leadData.termMonths)) {
     lines.push('FINANCING DETAILS');
     lines.push('-'.repeat(50));
     if (leadData.monthlyPayment) lines.push(`Monthly Payment:   $${leadData.monthlyPayment.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
@@ -489,8 +527,22 @@ export const generateOfferText = (leadData: LeadData): string => {
     lines.push('');
   }
 
-  // Trade-in
-  if (leadData.tradeValue || leadData.tradePayoff) {
+  // Trade-in - Different format for dealer vs customer
+  const hasTradeVehicle = leadData.tradeVehicleYear || leadData.tradeVehicleMake || leadData.tradeVehicleModel;
+  const hasTradeFinancials = leadData.tradeValue || leadData.tradePayoff;
+
+  if (format === 'dealer' && hasTradeVehicle) {
+    // Dealer format: Show trade-in vehicle details
+    lines.push('TRADE-IN DETAILS');
+    lines.push('-'.repeat(50));
+    const tradeVehicle = `${leadData.tradeVehicleYear || ''} ${leadData.tradeVehicleMake || ''} ${leadData.tradeVehicleModel || ''} ${leadData.tradeVehicleTrim || ''}`.trim();
+    if (tradeVehicle) lines.push(`Vehicle:           ${tradeVehicle}`);
+    if (leadData.tradeVehicleVIN) lines.push(`VIN:               ${leadData.tradeVehicleVIN}`);
+    if (leadData.tradeVehicleMileage) lines.push(`Mileage:           ${leadData.tradeVehicleMileage.toLocaleString()} miles`);
+    if (leadData.tradeVehicleCondition) lines.push(`Trade-in Condition:${leadData.tradeVehicleCondition}`);
+    lines.push('');
+  } else if (format === 'customer' && hasTradeFinancials) {
+    // Customer format: Show financial details
     lines.push('TRADE-IN DETAILS');
     lines.push('-'.repeat(50));
     if (leadData.tradeValue) lines.push(`Trade-in Value:    $${leadData.tradeValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
@@ -502,8 +554,8 @@ export const generateOfferText = (leadData: LeadData): string => {
     lines.push('');
   }
 
-  // Fees & Addons
-  if (leadData.dealerFees || leadData.customerAddons) {
+  // Fees & Addons - EXCLUDE for dealer format
+  if (format !== 'dealer' && (leadData.dealerFees || leadData.customerAddons)) {
     lines.push('FEES & ADDONS');
     lines.push('-'.repeat(50));
     if (leadData.dealerFees) lines.push(`Dealer Fees:       $${leadData.dealerFees.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);

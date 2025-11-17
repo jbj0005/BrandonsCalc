@@ -20,9 +20,9 @@ export interface CardProps {
 }
 
 const variantClasses = {
-  default: 'bg-white border border-gray-200 shadow-sm',
-  elevated: 'bg-white shadow-ios-elevated border-0',
-  outlined: 'bg-white border-2 border-gray-300 shadow-none',
+  default: 'bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 shadow-sm',
+  elevated: 'bg-gradient-to-br from-slate-900 to-slate-950 shadow-ios-elevated border border-white/5',
+  outlined: 'bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-white/20 shadow-none',
   glass: 'bg-white/10 backdrop-blur-glass border border-white/20 shadow-ios',
 };
 
@@ -64,7 +64,7 @@ export const Card: React.FC<CardProps> = ({
     >
       {/* Header */}
       {header && (
-        <div className={`border-b border-gray-100 ${paddingClasses[padding]}`}>
+        <div className={`border-b border-white/10 ${paddingClasses[padding]}`}>
           {header}
         </div>
       )}
@@ -74,7 +74,7 @@ export const Card: React.FC<CardProps> = ({
 
       {/* Footer */}
       {footer && (
-        <div className={`border-t border-gray-100 ${paddingClasses[padding]}`}>
+        <div className={`border-t border-white/10 ${paddingClasses[padding]}`}>
           {footer}
         </div>
       )}

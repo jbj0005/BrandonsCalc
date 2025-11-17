@@ -334,20 +334,22 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       )}
 
       {/* Map Container */}
-      <div
-        ref={mapRef}
-        className="w-full h-96"
-        style={{ minHeight: '384px' }}
-      />
+      <div className="relative w-full h-96" style={{ minHeight: '384px' }}>
+        <div
+          ref={mapRef}
+          className="w-full h-full"
+          style={{ display: 'block', position: 'relative', zIndex: 1 }}
+        />
 
-      {!isLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-2"></div>
-            <p className="text-sm text-gray-600">Loading map...</p>
+        {!isLoaded && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-100 z-10">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600">Loading map...</p>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </Card>
   );
 };

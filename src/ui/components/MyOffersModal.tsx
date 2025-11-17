@@ -44,12 +44,12 @@ interface CustomerOffer {
 }
 
 const STATUS_CONFIG: Record<OfferStatus, { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-blue-100 text-blue-800' },
-  sent: { label: 'Sent', className: 'bg-purple-100 text-purple-800' },
-  accepted: { label: 'Accepted', className: 'bg-green-100 text-green-800' },
-  rejected: { label: 'Rejected', className: 'bg-red-100 text-red-800' },
-  viewed: { label: 'Viewed', className: 'bg-yellow-100 text-yellow-800' },
-  closed: { label: 'Closed', className: 'bg-gray-100 text-gray-800' }
+  active: { label: 'Active', className: 'bg-blue-500/20 text-blue-300 border border-blue-400/30' },
+  sent: { label: 'Sent', className: 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30' },
+  accepted: { label: 'Accepted', className: 'bg-green-500/20 text-green-300 border border-green-400/30' },
+  rejected: { label: 'Rejected', className: 'bg-red-500/20 text-red-300 border border-red-400/30' },
+  viewed: { label: 'Viewed', className: 'bg-yellow-500/20 text-yellow-300 border border-yellow-400/30' },
+  closed: { label: 'Closed', className: 'bg-white/10 text-white/60 border border-white/20' }
 };
 
 const FILTER_TABS: { value: FilterOption; label: string }[] = [
@@ -343,8 +343,8 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <div className="text-center py-16 px-6">
           <div className="text-6xl mb-6">📋</div>
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">No Offers Yet</h3>
-          <p className="text-gray-600 mb-8 max-w-md mx-auto">
+          <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>No Offers Yet</h3>
+          <p className="text-white/60 mb-8 max-w-md mx-auto">
             You haven't submitted any offers yet. Start by configuring your ideal vehicle
             and financing options, then submit your first offer!
           </p>
@@ -361,8 +361,8 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       <div className="max-h-[80vh] overflow-y-auto">
         {/* Header */}
         <div className="mb-6">
-          <h3 className="text-2xl font-bold text-gray-900 mb-3">My Offers</h3>
-          <p className="text-gray-600">View and manage all your submitted vehicle offers</p>
+          <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>My Offers</h3>
+          <p className="text-white/60">View and manage all your submitted vehicle offers</p>
         </div>
 
         {/* Filter Tabs */}
@@ -371,10 +371,10 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
             <button
               key={tab.value}
               onClick={() => setFilter(tab.value)}
-              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-colors ${
+              className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 ${
                 filter === tab.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  ? 'bg-gradient-to-r from-emerald-600 to-blue-600 text-white border border-emerald-400/30'
+                  : 'bg-white/5 text-white/70 hover:bg-white/10 border border-white/10'
               }`}
             >
               {tab.label}
@@ -384,7 +384,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
 
         {/* Loading State */}
         {isLoading && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-white/60">
             <div className="animate-spin text-4xl mb-4">⏳</div>
             Loading your offers...
           </div>
@@ -392,7 +392,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
 
         {/* No Results for Filter */}
         {!isLoading && offers.length === 0 && filter !== 'all' && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-white/60">
             <div className="text-4xl mb-4">🔍</div>
             No {filter} offers found.
           </div>
@@ -427,7 +427,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                             handleCloseOffer(offer.id);
                           }
                         }}
-                        className="p-1.5 rounded-full hover:bg-red-100 text-red-600 hover:text-red-700 transition-colors"
+                        className="p-1.5 rounded-full hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-colors border border-red-400/30"
                         title="Delete offer"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -440,7 +440,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                     <div className="flex gap-4 mb-4 pt-8">
                       {/* Vehicle Photo */}
                       {offer.vehicle_photo_url ? (
-                        <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-white shadow-md">
+                        <div className="w-32 h-32 flex-shrink-0 rounded-lg overflow-hidden bg-black/30 shadow-md border border-white/10">
                           <img
                             src={offer.vehicle_photo_url}
                             alt={getVehicleInfo(offer)}
@@ -452,8 +452,8 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                           />
                         </div>
                       ) : (
-                        <div className="w-32 h-32 flex-shrink-0 rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center shadow-md">
-                          <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-32 h-32 flex-shrink-0 rounded-lg bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center shadow-md border border-white/10">
+                          <svg className="w-16 h-16 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                         </div>
@@ -463,20 +463,20 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
                         {/* Vehicle Info */}
                         <div className="md:col-span-2">
-                          <h3 className="text-lg font-semibold text-gray-900 mb-2 pr-24">
+                          <h3 className="text-lg font-semibold text-white mb-2 pr-24" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
                             {getVehicleInfo(offer)}
                           </h3>
-                          <div className="text-sm text-gray-600 space-y-1">
+                          <div className="text-sm text-white/60 space-y-1">
                             {offer.vehicle_vin && (
                               <div>
                                 <span className="font-medium">VIN:</span>{' '}
-                                <span className="font-mono text-xs">{offer.vehicle_vin}</span>
+                                <span className="text-xs" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{offer.vehicle_vin}</span>
                               </div>
                             )}
                             {offer.vehicle_stock_number && (
                               <div>
                                 <span className="font-medium">Stock #:</span>{' '}
-                                <span className="font-mono">{offer.vehicle_stock_number}</span>
+                                <span style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{offer.vehicle_stock_number}</span>
                               </div>
                             )}
                             {offer.vehicle_mileage && (
@@ -490,12 +490,12 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
 
                         {/* Price */}
                         <div className="text-right pr-24">
-                          <div className="text-sm text-gray-600 mb-1">Offer Price</div>
-                          <div className="text-2xl font-bold text-gray-900">
+                          <div className="text-sm text-white/60 mb-1">Offer Price</div>
+                          <div className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
                             {formatCurrencyExact(offer.vehicle_price)}
                           </div>
                           {offer.monthly_payment && (
-                            <div className="text-sm text-gray-600 mt-1">
+                            <div className="text-sm text-white/60 mt-1">
                               {formatCurrencyExact(offer.monthly_payment)}/mo
                             </div>
                           )}
@@ -505,7 +505,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
 
                     {/* Financing Details */}
                     {(offer.apr || offer.term_months || offer.down_payment) && (
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4 pt-4 border-t border-gray-200">
+                      <div className="flex flex-wrap gap-4 text-sm text-white/60 mb-4 pt-4 border-t border-white/10">
                         {offer.apr && (
                           <div>
                             <span className="font-medium">APR:</span> {offer.apr.toFixed(2)}%
@@ -526,8 +526,8 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                     )}
 
                     {/* Footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200">
-                      <div className="text-sm text-gray-500">
+                    <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                      <div className="text-sm text-white/50">
                         Submitted {formatDate(offer.created_at)}
                       </div>
 
@@ -537,7 +537,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                           onClick={() =>
                             setActionMenuOpen(actionMenuOpen === offer.id ? null : offer.id)
                           }
-                          className="text-gray-600 hover:text-gray-900 font-medium text-sm px-3 py-1 rounded hover:bg-gray-100"
+                          className="text-white/70 hover:text-white font-medium text-sm px-3 py-1 rounded hover:bg-white/10 transition-colors"
                         >
                           Actions ▾
                         </button>
@@ -559,23 +559,23 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
                                   actionMenuRefs.current.delete(offer.id);
                                 }
                               }}
-                              className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[9999]"
+                              className="absolute right-0 mt-2 w-56 bg-gradient-to-br from-slate-900 to-slate-950 rounded-lg shadow-lg border border-white/10 py-2 z-[9999]"
                             >
                               <button
                                 onClick={() => handleResendEmail(offer)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
                               >
                                 <span>📧</span> Resend Email
                               </button>
                               <button
                                 onClick={() => handleResendSMS(offer)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
                               >
                                 <span>📱</span> Resend SMS
                               </button>
                               <button
                                 onClick={() => handleShare(offer)}
-                                className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-2 text-sm text-white/70 hover:text-white hover:bg-white/10 flex items-center gap-2 transition-colors"
                               >
                                 <span>🔗</span> Share Offer
                               </button>

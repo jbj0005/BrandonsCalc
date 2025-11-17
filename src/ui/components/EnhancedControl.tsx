@@ -25,6 +25,10 @@ export interface EnhancedControlProps {
   baselinePayment?: number;
   /** Override payment diff shown in tooltip */
   paymentDiffOverride?: number | null;
+  /** Secondary payment diff (e.g., from sale price baseline) */
+  secondaryPaymentDiff?: number | null;
+  /** Labels for primary and secondary diffs */
+  diffLabels?: { primary?: string; secondary?: string };
   /** Remove card styling (for use within parent card) */
   unstyled?: boolean;
 }
@@ -50,6 +54,8 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   monthlyPayment,
   baselinePayment,
   paymentDiffOverride,
+  secondaryPaymentDiff,
+  diffLabels,
   unstyled = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -59,6 +65,10 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const activeKeyRef = useRef<string | null>(null);
+
+  const HOLD_DELAY_MS = 300;
+  const HOLD_INTERVAL_MS = 120;
 
   // Handle value change
   const handleChange = (delta: number) => {
@@ -66,19 +76,23 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
     onChange(newValue);
   };
 
+  const startRepeat = (delta: number) => {
+    // Immediate change on press
+    handleChange(delta);
+
+    // Delay before continuous repeat
+    holdTimerRef.current = setTimeout(() => {
+      holdIntervalRef.current = setInterval(() => {
+        handleChange(delta);
+      }, HOLD_INTERVAL_MS);
+    }, HOLD_DELAY_MS);
+  };
+
   // Start hold (initial delay, then interval)
   const startHold = (delta: number, event?: React.MouseEvent) => {
     event?.preventDefault();
 
-    // Immediate change on mousedown
-    handleChange(delta);
-
-    // Delay before continuous hold
-    holdTimerRef.current = setTimeout(() => {
-      holdIntervalRef.current = setInterval(() => {
-        handleChange(delta);
-      }, 100); // Adjust every 100ms during hold
-    }, 500); // 500ms initial delay
+    startRepeat(delta);
   };
 
   // Stop hold
@@ -116,12 +130,30 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
         return;
       }
 
+      if (activeKeyRef.current === e.key) {
+        return;
+      }
+
       const direction = ['ArrowLeft', 'ArrowDown'].includes(e.key) ? -1 : 1;
-      handleChange(direction);
+      activeKeyRef.current = e.key;
+      startRepeat(direction);
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (activeKeyRef.current && e.key === activeKeyRef.current) {
+        activeKeyRef.current = null;
+        stopHold();
+      }
     };
 
     document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+      activeKeyRef.current = null;
+      stopHold();
+    };
   }, [isHovering, isFocused, value, step, min, max]);
 
   // Format currency helper
@@ -185,7 +217,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       onMouseMove={handleMouseMove}
       tabIndex={unstyled ? -1 : 0}
     >
-      <div className="text-xs font-semibold tracking-[0.08em] text-slate-500 uppercase mb-2">
+      <div className="text-xs font-semibold tracking-[0.08em] text-emerald-300/70 uppercase mb-2">
         {label}
       </div>
       <div className="flex items-center justify-center gap-3">
@@ -199,7 +231,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           }}
           onMouseEnter={handleButtonMouseEnter}
           onClick={(e) => e.preventDefault()}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-blue-100 text-blue-600 bg-white hover:bg-blue-50 transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
           aria-label={`Decrease ${label}`}
           type="button"
         >
@@ -209,7 +241,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
         </button>
 
         {/* Value Display */}
-        <div className="text-3xl font-bold text-blue-600 min-w-[120px] text-center tracking-tight">
+        <div className="text-3xl font-bold text-white min-w-[120px] text-center tracking-tight">
           {formatValue(value)}
         </div>
 
@@ -223,7 +255,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           }}
           onMouseEnter={handleButtonMouseEnter}
           onClick={(e) => e.preventDefault()}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-blue-100 text-blue-600 bg-white hover:bg-blue-50 transition-colors"
+          className="w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
           aria-label={`Increase ${label}`}
           type="button"
         >
@@ -244,14 +276,47 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           }}
         >
           <div className="text-base font-semibold text-gray-900 dark:text-white">{formatCurrency(monthlyPayment)}/mo</div>
-          {paymentDiff !== null && Math.abs(paymentDiff) >= 1 && (
-            <div
-              className={`text-xs mt-1 ${
-                paymentDiff > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
-              }`}
-            >
-              {paymentDiff > 0 ? '+' : ''}{formatCurrency(paymentDiff)}
+
+          {/* Show both diffs if secondary exists */}
+          {secondaryPaymentDiff !== undefined && secondaryPaymentDiff !== null ? (
+            <div className="space-y-0.5 mt-1">
+              {/* Primary diff (APR) */}
+              {paymentDiff !== null && Math.abs(paymentDiff) >= 0.01 && (
+                <div
+                  className={`text-xs flex items-center gap-1 ${
+                    paymentDiff > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                  }`}
+                >
+                  <span>{paymentDiff > 0 ? '↑' : '↓'}</span>
+                  <span>{formatCurrency(Math.abs(paymentDiff))}</span>
+                  {diffLabels?.primary && <span className="text-gray-500 dark:text-gray-400">{diffLabels.primary}</span>}
+                </div>
+              )}
+
+              {/* Secondary diff (Sale Price) */}
+              {Math.abs(secondaryPaymentDiff) >= 0.01 && (
+                <div
+                  className={`text-xs flex items-center gap-1 ${
+                    secondaryPaymentDiff > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                  }`}
+                >
+                  <span>{secondaryPaymentDiff > 0 ? '↑' : '↓'}</span>
+                  <span>{formatCurrency(Math.abs(secondaryPaymentDiff))}</span>
+                  {diffLabels?.secondary && <span className="text-gray-500 dark:text-gray-400">{diffLabels.secondary}</span>}
+                </div>
+              )}
             </div>
+          ) : (
+            /* Single diff display (backward compatible) */
+            paymentDiff !== null && Math.abs(paymentDiff) >= 1 && (
+              <div
+                className={`text-xs mt-1 ${
+                  paymentDiff > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'
+                }`}
+              >
+                {paymentDiff > 0 ? '+' : ''}{formatCurrency(paymentDiff)}
+              </div>
+            )
           )}
         </div>
       )}

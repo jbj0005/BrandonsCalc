@@ -2638,7 +2638,7 @@ body {
   font-family: var(--font-mono) !important;
   font-weight: 500;
   letter-spacing: 0.05em;
-  font-size: 0.875rem;
+  font-size: 0.95rem;
   color: #64748b;
 }
 
@@ -8883,19 +8883,17 @@ label[for*="vin" i],
   color: var(--text-primary);
 }
 
-/* Tailwind utility classes for VIN */
-@layer utilities {
-  .font-vin {
-    font-family: "IBM Plex Mono", "Courier New", monospace;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    font-weight: 500;
-  }
+/* Utility classes for VIN text */
+.font-vin {
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
 
-  .font-vin-compact {
-    font-family: "IBM Plex Mono", "Courier New", monospace;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    font-weight: 500;
-  }
+.font-vin-compact {
+  font-family: "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 500;
 }

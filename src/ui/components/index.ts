@@ -24,6 +24,9 @@ export type { EnhancedSliderProps } from './EnhancedSlider';
 export { EnhancedControl } from './EnhancedControl';
 export type { EnhancedControlProps } from './EnhancedControl';
 
+export { SectionHeader } from './SectionHeader';
+export type { SectionHeaderProps } from './SectionHeader';
+
 export { Label } from './Label';
 export type { LabelProps } from './Label';
 
@@ -71,6 +74,16 @@ export type { VehicleCardProps } from './VehicleCard';
 
 export { VehicleCardSkeleton } from './VehicleCardSkeleton';
 export type { VehicleCardSkeletonProps } from './VehicleCardSkeleton';
+
+// Premium Vehicle Components
+export { VehicleCardPremium } from './VehicleCardPremium';
+export type { VehicleCardPremiumProps } from './VehicleCardPremium';
+
+export { VINSearchPremium } from './VINSearchPremium';
+export type { VINSearchPremiumProps, VehicleOption } from './VINSearchPremium';
+
+export { LocationSearchPremium } from './LocationSearchPremium';
+export type { LocationSearchPremiumProps, LocationDetails } from './LocationSearchPremium';
 
 // Modal Components
 export { AuthModal } from './AuthModal';

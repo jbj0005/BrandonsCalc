@@ -167,8 +167,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           {/* Header with Add Button */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Saved Vehicles</h3>
-              <p className="text-sm text-gray-600 mt-1">
+              <h3 className="text-lg font-semibold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Saved Vehicles</h3>
+              <p className="text-sm text-white/60 mt-1">
                 Manage your saved vehicles for quick access
               </p>
             </div>
@@ -194,7 +194,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             <Card variant="outlined" padding="lg">
               <div className="text-center py-12">
                 <svg
-                  className="mx-auto h-12 w-12 text-gray-400"
+                  className="mx-auto h-12 w-12 text-white/40"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -206,8 +206,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     d="M8 17a5 5 0 01-.916-9.916 5.002 5.002 0 019.832 0A5.002 5.002 0 0116 17m-7-5l3-3m0 0l3 3m-3-3v12"
                   />
                 </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">No vehicles yet</h3>
-                <p className="mt-2 text-sm text-gray-500">
+                <h3 className="mt-4 text-lg font-medium text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>No vehicles yet</h3>
+                <p className="mt-2 text-sm text-white/50">
                   Get started by adding your first vehicle to your garage
                 </p>
                 <Button variant="primary" size="md" className="mt-4" onClick={handleAddVehicle}>
@@ -249,15 +249,15 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       content: (
         <div className="space-y-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Saved Offers</h3>
-            <p className="text-sm text-gray-600 mt-1">
+            <h3 className="text-lg font-semibold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Saved Offers</h3>
+            <p className="text-sm text-white/60 mt-1">
               View and manage your loan offers
             </p>
           </div>
           <Card variant="outlined" padding="lg">
             <div className="text-center py-12">
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className="mx-auto h-12 w-12 text-white/40"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -269,8 +269,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">No saved offers</h3>
-              <p className="mt-2 text-sm text-gray-500">
+              <h3 className="mt-4 text-lg font-medium text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>No saved offers</h3>
+              <p className="mt-2 text-sm text-white/50">
                 Your loan offers will appear here once you create them
               </p>
             </div>
@@ -288,14 +288,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         title="My Profile"
       >
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+          <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-400/30">
             <svg
               width="24"
               height="24"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
-              className="text-blue-600"
+              className="text-blue-400"
             >
               <path
                 strokeLinecap="round"
@@ -306,8 +306,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </svg>
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900">My Profile</h2>
-            <p className="text-sm text-gray-600">{currentUser?.email}</p>
+            <h2 className="text-xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>My Profile</h2>
+            <p className="text-sm text-white/60">{currentUser?.email}</p>
           </div>
         </div>
 
@@ -329,6 +329,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         vehicle={vehicleToEdit}
         onSave={handleSaveVehicle}
         mode={vehicleToEdit ? 'edit' : 'add'}
+        vehicleType="garage"
       />
     </>
   );

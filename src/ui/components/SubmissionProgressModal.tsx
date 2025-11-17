@@ -48,13 +48,13 @@ const STAGE_CONFIG: Record<ProgressStage, StageConfig> = {
     title: 'Offer submitted!',
     message: 'Your offer has been sent successfully',
     icon: '✓',
-    iconClass: 'text-green-500'
+    iconClass: 'text-green-400'
   },
   error: {
     title: 'Something went wrong',
     message: 'We encountered an error submitting your offer',
     icon: '!',
-    iconClass: 'text-red-500'
+    iconClass: 'text-red-400'
   }
 };
 
@@ -108,20 +108,20 @@ export const SubmissionProgressModal: React.FC<SubmissionProgressModalProps> = (
         </div>
 
         {/* Title */}
-        <h3 className="text-2xl font-bold text-gray-900 mb-3">
+        <h3 className="text-2xl font-bold text-white mb-3" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
           {config.title}
         </h3>
 
         {/* Message */}
-        <p className="text-gray-600 mb-8 text-base">
+        <p className="text-white/60 mb-8 text-base">
           {error || config.message}
         </p>
 
         {/* Progress Bar */}
         {showProgress && (
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-8 overflow-hidden">
+          <div className="w-full bg-white/10 rounded-full h-3 mb-8 overflow-hidden">
             <div
-              className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+              className="bg-gradient-to-r from-blue-400 to-blue-500 h-3 rounded-full transition-all duration-500 ease-out"
               style={{ width: `${progress}%` }}
               role="progressbar"
               aria-valuenow={progress}
@@ -176,7 +176,7 @@ export const SubmissionProgressModal: React.FC<SubmissionProgressModalProps> = (
 
         {/* Progress Stage Indicator (for in-progress states) */}
         {showProgress && (
-          <div className="mt-6 text-sm text-gray-500">
+          <div className="mt-6 text-sm text-white/50">
             {progress}% complete
           </div>
         )}

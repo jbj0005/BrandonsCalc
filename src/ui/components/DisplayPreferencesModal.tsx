@@ -134,14 +134,14 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
     >
       <div className="flex flex-col h-full">
         {/* Tabs */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-white/10">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button
               onClick={() => setActiveTab('vehicle-card')}
               className={`${
                 activeTab === 'vehicle-card'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white/50 hover:text-white/70 hover:border-white/20'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
             >
               Selected Vehicle Card
@@ -150,8 +150,8 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
               onClick={() => setActiveTab('preview-offer')}
               className={`${
                 activeTab === 'preview-offer'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-400 text-blue-400'
+                  : 'border-transparent text-white/50 hover:text-white/70 hover:border-white/20'
               } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition-colors`}
             >
               Preview Offer Sections
@@ -163,31 +163,31 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
         <div className="flex-1 overflow-y-auto py-6">
           {activeTab === 'vehicle-card' && (
             <div className="space-y-6">
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-white/60">
                 Choose which vehicle attributes to display in the Selected Vehicle card.
                 Essentials (Year/Make/Model/Trim/Price/VIN) are checked by default.
               </p>
 
               {Object.entries(fieldsByCategory).map(([category, fields]) => (
                 <div key={category} className="space-y-3">
-                  <h3 className="text-sm font-semibold text-gray-900 border-b pb-2">
+                  <h3 className="text-sm font-semibold text-white border-b border-white/10 pb-2">
                     {category}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {fields.map(field => (
                       <label
                         key={field.key}
-                        className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                        className="flex items-start space-x-3 p-3 rounded-lg hover:bg-white/5 transition-colors cursor-pointer"
                       >
                         <input
                           type="checkbox"
                           checked={vehicleCardPrefs[field.key]}
                           onChange={() => toggleVehicleField(field.key)}
-                          className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                          className="mt-1 h-4 w-4 text-blue-400 focus:ring-blue-400/50 border-white/10 rounded accent-blue-400 bg-black/20"
                         />
                         <div className="flex-1">
-                          <div className="text-sm font-medium text-gray-900">{field.label}</div>
-                          <div className="text-xs text-gray-500">{field.description}</div>
+                          <div className="text-sm font-medium text-white">{field.label}</div>
+                          <div className="text-xs text-white/50">{field.description}</div>
                         </div>
                       </label>
                     ))}
@@ -199,14 +199,14 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
 
           {activeTab === 'preview-offer' && (
             <div className="space-y-6">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="bg-yellow-500/10 border border-yellow-400/30 rounded-lg p-4">
                 <div className="flex items-start">
                   <svg className="h-5 w-5 text-yellow-400 mt-0.5 mr-3" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                   </svg>
                   <div>
-                    <h3 className="text-sm font-medium text-yellow-800">Protected Information</h3>
-                    <p className="mt-1 text-sm text-yellow-700">
+                    <h3 className="text-sm font-medium text-yellow-300">Protected Information</h3>
+                    <p className="mt-1 text-sm text-yellow-200/80">
                       Hiding trade-in and fee details can protect your negotiating power when sending offers to dealers.
                       These sections contain sensitive financial information like trade value, payoff amounts, and down payment.
                     </p>
@@ -214,53 +214,53 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
                 </div>
               </div>
 
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-white/60">
                 Choose which sections to include in the Preview Offer modal. Vehicle Details, Dealer Information,
                 Financing Details, and Customer Information are always shown.
               </p>
 
               <div className="space-y-4">
-                <label className="flex items-start space-x-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                <label className="flex items-start space-x-3 p-4 rounded-lg border border-white/10 hover:bg-white/5 transition-colors cursor-pointer">
                   <input
                     type="checkbox"
                     checked={offerPrefs.showTradeInSection}
                     onChange={() => toggleOfferSection('showTradeInSection')}
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="mt-1 h-4 w-4 text-blue-400 focus:ring-blue-400/50 border-white/10 rounded accent-blue-400 bg-black/20"
                   />
                   <div className="flex-1">
                     <div className="flex items-center">
-                      <div className="text-sm font-medium text-gray-900">Show Trade-In Details Section</div>
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                      <div className="text-sm font-medium text-white">Show Trade-In Details Section</div>
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-500/20 text-red-300 border border-red-400/30">
                         Sensitive
                       </span>
                     </div>
-                    <div className="mt-1 text-sm text-gray-500">
+                    <div className="mt-1 text-sm text-white/50">
                       Includes: Trade-in value, payoff amount, calculated equity
                     </div>
-                    <div className="mt-2 text-xs text-red-600">
+                    <div className="mt-2 text-xs text-red-400">
                       ⚠️ Revealing trade details may limit dealer negotiation flexibility
                     </div>
                   </div>
                 </label>
 
-                <label className="flex items-start space-x-3 p-4 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                <label className="flex items-start space-x-3 p-4 rounded-lg border border-white/10 hover:bg-white/5 transition-colors cursor-pointer">
                   <input
                     type="checkbox"
                     checked={offerPrefs.showFeesSection}
                     onChange={() => toggleOfferSection('showFeesSection')}
-                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="mt-1 h-4 w-4 text-blue-400 focus:ring-blue-400/50 border-white/10 rounded accent-blue-400 bg-black/20"
                   />
                   <div className="flex-1">
                     <div className="flex items-center">
-                      <div className="text-sm font-medium text-gray-900">Show Fees & Add-ons Section</div>
-                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                      <div className="text-sm font-medium text-white">Show Fees & Add-ons Section</div>
+                      <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-300 border border-yellow-400/30">
                         Negotiable
                       </span>
                     </div>
-                    <div className="mt-1 text-sm text-gray-500">
+                    <div className="mt-1 text-sm text-white/50">
                       Includes: Dealer fees, customer add-ons (warranties, packages)
                     </div>
-                    <div className="mt-2 text-xs text-yellow-600">
+                    <div className="mt-2 text-xs text-yellow-400">
                       💡 These items are often negotiable and may limit dealer flexibility
                     </div>
                   </div>
@@ -271,7 +271,7 @@ export const DisplayPreferencesModal: React.FC<DisplayPreferencesModalProps> = (
         </div>
 
         {/* Footer Actions */}
-        <div className="border-t border-gray-200 pt-4 flex justify-between">
+        <div className="border-t border-white/10 pt-4 flex justify-between">
           <Button
             variant="secondary"
             onClick={handleReset}

@@ -109,14 +109,33 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
     <div className="space-y-4">
       {/* Header with Payment Controls */}
       <div className="space-y-3">
-        <h3 className="text-2xl font-bold text-gray-900">Itemization of Costs</h3>
+        <h3 className="text-2xl font-bold text-white">Itemization of Costs</h3>
 
         {/* Payment Terms and Monthly Payment Row */}
         {(apr !== undefined || loanTerm !== undefined || monthlyPayment !== undefined) && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-stretch">
+            {/* Monthly Payment Display */}
+            {monthlyPayment !== undefined && (
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-white/20">
+                <div className="flex-1 flex flex-col justify-center">
+                  <div className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-300/70 mb-2">
+                    Monthly Payment
+                  </div>
+                  <div className="text-3xl font-bold text-white tracking-tight">
+                    {formatCurrencyRounded(monthlyPayment)}
+                  </div>
+                  {loanTerm !== undefined && apr !== undefined && (
+                    <div className="text-xs text-white/60 mt-2">
+                      {loanTerm} months • {apr.toFixed(2)}% APR
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* APR Control */}
             {apr !== undefined && onAprChange && (
-              <div className="group rounded-xl border bg-white border-blue-50 p-3 text-center shadow-sm flex flex-col transition-all duration-200 hover:shadow-md hover:border-blue-200 focus-within:shadow-md focus-within:border-blue-300 cursor-pointer">
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-white/20 cursor-pointer">
                 <EnhancedControl
                   value={apr}
                   label="Annual Percentage Rate"
@@ -135,21 +154,21 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                 {aprPaymentDiffOverride != null && (
                   <div
                     className={`text-xs font-semibold mt-2 ${
-                      aprPaymentDiffOverride < 0 ? 'text-green-600' : 'text-red-500'
+                      aprPaymentDiffOverride < 0 ? 'text-emerald-400' : 'text-red-400'
                     }`}
                   >
                     {aprPaymentDiffOverride < 0 ? '↓' : '↑'}{' '}
                     {formatCurrencyRounded(Math.abs(aprPaymentDiffOverride))}{' '}
-                    <span className="text-gray-500">vs lender rate</span>
+                    <span className="text-white/50">vs lender rate</span>
                   </div>
                 )}
-                <div className="mt-1 text-xs text-slate-500">Cost of credit as yearly rate</div>
+                <div className="mt-2 text-xs text-white/50">Cost of credit as yearly rate</div>
               </div>
             )}
 
             {/* Term Control */}
             {loanTerm !== undefined && onTermChange && (
-              <div className="group rounded-xl border bg-white border-blue-50 p-3 text-center shadow-sm flex flex-col transition-all duration-200 hover:shadow-md hover:border-blue-200 focus-within:shadow-md focus-within:border-blue-300 cursor-pointer">
+              <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-white/20 cursor-pointer">
                 <EnhancedControl
                   value={loanTerm}
                   label="Term (Months)"
@@ -170,24 +189,7 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                   showKeyboardHint={true}
                   unstyled={true}
                 />
-                <div className="mt-1 text-xs text-slate-500">Length of loan agreement</div>
-              </div>
-            )}
-
-            {/* Monthly Payment Display */}
-            {monthlyPayment !== undefined && (
-              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-4 text-center border border-blue-100 shadow-sm">
-                <div className="text-xs font-medium text-gray-600 mb-1 uppercase tracking-wide">
-                  Monthly Payment
-                </div>
-                <div className="text-3xl font-bold text-gray-900">
-                  {formatCurrencyRounded(monthlyPayment)}
-                </div>
-                {loanTerm !== undefined && apr !== undefined && (
-                  <div className="text-xs text-gray-600 mt-1">
-                    {loanTerm} months • {apr.toFixed(2)}% APR
-                  </div>
-                )}
+                <div className="mt-2 text-xs text-white/50">Length of loan agreement</div>
               </div>
             )}
           </div>
@@ -195,35 +197,35 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
       </div>
 
       {/* Breakdown Card */}
-      <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm relative">
+      <div className="rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-950 p-6 shadow-lg relative">
         <div className="space-y-3">
           {/* Sale Price */}
-          <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-            <span className="text-base font-semibold text-gray-900">Sale Price</span>
+          <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+            <span className="text-base font-semibold text-white">Sale Price</span>
             {onSalePriceChange ? (
               <CurrencyInput
                 value={salePrice}
                 onChange={onSalePriceChange}
-                className="text-base font-bold text-gray-900 w-40"
+                className="text-base font-bold text-white w-40"
               />
             ) : (
-              <span className="text-base font-bold text-gray-900">
+              <span className="text-base font-bold text-white">
                 {formatCurrencyExact(salePrice)}
               </span>
             )}
           </div>
 
           {/* LESS Cash Down */}
-          <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-            <span className="text-base font-semibold text-gray-900">LESS Cash Down</span>
+          <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+            <span className="text-base font-semibold text-white">LESS Cash Down</span>
             {onCashDownChange ? (
               <CurrencyInput
                 value={cashDown}
                 onChange={onCashDownChange}
-                className="text-base font-bold text-gray-900 w-40"
+                className="text-base font-bold text-white w-40"
               />
             ) : (
-              <span className="text-base font-bold text-gray-900">
+              <span className="text-base font-bold text-white">
                 {formatCurrencyExact(cashDown)}
               </span>
             )}
@@ -231,11 +233,11 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 
           {/* LESS Net Trade-In */}
           <div>
-            <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-              <span className="text-base font-semibold text-gray-900">
+            <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+              <span className="text-base font-semibold text-white">
                 {netTradeIn >= 0 ? 'LESS' : 'PLUS'} Net Trade-In
               </span>
-              <span className="text-base font-bold text-gray-900">
+              <span className="text-base font-bold text-white">
                 {formatNegativeParens(netTradeIn)}
               </span>
             </div>
@@ -243,48 +245,48 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
             {/* Sub-items (indented, no border) */}
             <div className="pl-8 space-y-1.5 pb-2 pt-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Trade-In Allowance</span>
+                <span className="text-white/60">Trade-In Allowance</span>
                 {onTradeAllowanceChange ? (
                   <CurrencyInput
                     value={tradeAllowance}
                     onChange={onTradeAllowanceChange}
-                    className="text-sm text-gray-900 w-32"
+                    className="text-sm text-white w-32"
                   />
                 ) : (
-                  <span className="text-gray-900">{formatCurrencyExact(tradeAllowance)}</span>
+                  <span className="text-white">{formatCurrencyExact(tradeAllowance)}</span>
                 )}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Trade-In Payoff</span>
+                <span className="text-white/60">Trade-In Payoff</span>
                 {onTradePayoffChange ? (
                   <CurrencyInput
                     value={tradePayoff}
                     onChange={onTradePayoffChange}
-                    className="text-sm text-gray-900 w-32"
+                    className="text-sm text-white w-32"
                   />
                 ) : (
-                  <span className="text-gray-900">{formatCurrencyExact(tradePayoff)}</span>
+                  <span className="text-white">{formatCurrencyExact(tradePayoff)}</span>
                 )}
               </div>
 
               {/* Show equity split breakdown if applicable */}
               {hasSplitEquity && (
                 <>
-                  <div className="border-t border-gray-200 my-1"></div>
+                  <div className="border-t border-white/10 my-1"></div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-green-700 font-medium">Applied to Balance</span>
-                    <span className="text-green-700 font-semibold">{formatCurrencyExact(tradeInApplied!)}</span>
+                    <span className="text-green-400 font-medium">Applied to Balance</span>
+                    <span className="text-green-400 font-semibold">{formatCurrencyExact(tradeInApplied!)}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-blue-700 font-medium">Cash to You</span>
+                    <span className="text-blue-400 font-medium">Cash to You</span>
                     {onTradeInCashoutChange ? (
                       <CurrencyInput
                         value={tradeInCashout!}
                         onChange={onTradeInCashoutChange}
-                        className="text-sm text-blue-700 font-semibold w-32"
+                        className="text-sm text-blue-400 font-semibold w-32"
                       />
                     ) : (
-                      <span className="text-blue-700 font-semibold">{formatCurrencyExact(tradeInCashout!)}</span>
+                      <span className="text-blue-400 font-semibold">{formatCurrencyExact(tradeInCashout!)}</span>
                     )}
                   </div>
                 </>
@@ -293,18 +295,18 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
           </div>
 
           {/* Unpaid Balance */}
-          <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-            <span className="text-base font-semibold text-gray-900">Unpaid Balance</span>
-            <span className="text-base font-bold text-gray-900">
+          <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+            <span className="text-base font-semibold text-white">Unpaid Balance</span>
+            <span className="text-base font-bold text-white">
               {formatCurrencyExact(unpaidBalance)}
             </span>
           </div>
 
           {/* PLUS Other Charges */}
           <div>
-            <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-              <span className="text-base font-semibold text-gray-900">PLUS Other Charges</span>
-              <span className="text-base font-bold text-gray-900">
+            <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+              <span className="text-base font-semibold text-white">PLUS Other Charges</span>
+              <span className="text-base font-bold text-white">
                 {formatCurrencyExact(otherCharges)}
               </span>
             </div>
@@ -312,39 +314,39 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
             {/* Sub-items */}
             <div className="pl-8 space-y-1.5 pb-2 pt-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Total Dealer Fees</span>
+                <span className="text-white/60">Total Dealer Fees</span>
                 {onDealerFeesChange ? (
                   <CurrencyInput
                     value={dealerFees}
                     onChange={onDealerFeesChange}
-                    className="text-sm text-gray-900 w-32"
+                    className="text-sm text-white w-32"
                   />
                 ) : (
-                  <span className="text-gray-900">{formatCurrencyExact(dealerFees)}</span>
+                  <span className="text-white">{formatCurrencyExact(dealerFees)}</span>
                 )}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Total Customer Add-ons</span>
+                <span className="text-white/60">Total Customer Add-ons</span>
                 {onCustomerAddonsChange ? (
                   <CurrencyInput
                     value={customerAddons}
                     onChange={onCustomerAddonsChange}
-                    className="text-sm text-gray-900 w-32"
+                    className="text-sm text-white w-32"
                   />
                 ) : (
-                  <span className="text-gray-900">{formatCurrencyExact(customerAddons)}</span>
+                  <span className="text-white">{formatCurrencyExact(customerAddons)}</span>
                 )}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">Total Gov't Fees</span>
+                <span className="text-white/60">Total Gov't Fees</span>
                 {onGovtFeesChange ? (
                   <CurrencyInput
                     value={govtFees}
                     onChange={onGovtFeesChange}
-                    className="text-sm text-gray-900 w-32"
+                    className="text-sm text-white w-32"
                   />
                 ) : (
-                  <span className="text-gray-900">{formatCurrencyExact(govtFees)}</span>
+                  <span className="text-white">{formatCurrencyExact(govtFees)}</span>
                 )}
               </div>
             </div>
@@ -352,9 +354,9 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 
           {/* PLUS Cash Advance to Customer (only if cashout exists) */}
           {cashoutAmount !== undefined && cashoutAmount > 0 && (
-            <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-              <span className="text-base font-semibold text-gray-900">PLUS Cash Advance to Customer</span>
-              <span className="text-base font-bold text-blue-600">
+            <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+              <span className="text-base font-semibold text-white">PLUS Cash Advance to Customer</span>
+              <span className="text-base font-bold text-blue-400">
                 {formatCurrencyExact(cashoutAmount)}
               </span>
             </div>
@@ -362,9 +364,9 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 
           {/* PLUS Sales Tax */}
           <div>
-            <div className="flex items-center justify-between border-l-4 border-blue-500 pl-4 bg-blue-50/30 py-2">
-              <span className="text-base font-semibold text-gray-900">PLUS Sales Tax</span>
-              <span className="text-base font-bold text-gray-900">
+            <div className="flex items-center justify-between border-l-4 border-blue-400 pl-4 bg-blue-500/10 py-2 rounded-r-lg">
+              <span className="text-base font-semibold text-white">PLUS Sales Tax</span>
+              <span className="text-base font-bold text-white">
                 {formatCurrencyExact(totalTaxes)}
               </span>
             </div>
@@ -373,31 +375,31 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
             <div className="pl-8 space-y-1.5 pb-2 pt-2">
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600">
+                  <span className="text-white/60">
                     {stateName ? `${stateName} State Tax` : 'State Tax'} ({stateTaxRate.toFixed(2)}%)
                   </span>
                   {!stateName && (
-                    <span className="text-xs text-gray-400 italic">Using default</span>
+                    <span className="text-xs text-white/40 italic">Using default</span>
                   )}
                 </div>
-                <span className="text-gray-900">{formatCurrencyExact(stateTaxAmount)}</span>
+                <span className="text-white">{formatCurrencyExact(stateTaxAmount)}</span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
-                  <span className="text-gray-600">
+                  <span className="text-white/60">
                     {countyName ? `${countyName} Tax` : 'County Tax'} ({countyTaxRate.toFixed(2)}%)
                   </span>
                   {!countyName && (
-                    <span className="text-xs text-gray-400 italic">Using default</span>
+                    <span className="text-xs text-white/40 italic">Using default</span>
                   )}
                 </div>
-                <span className="text-gray-900">{formatCurrencyExact(countyTaxAmount)}</span>
+                <span className="text-white">{formatCurrencyExact(countyTaxAmount)}</span>
               </div>
             </div>
           </div>
 
           {/* Divider */}
-          <div className="border-t border-gray-300 my-4"></div>
+          <div className="border-t border-white/20 my-4"></div>
 
           {/* AMOUNT FINANCED - Dark Footer */}
           <div className="rounded-lg bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-4">

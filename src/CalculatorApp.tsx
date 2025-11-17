@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal, Switch } from './ui/components';
+import { Input, Select, Slider, Button, Card, Badge, VehicleEditorModal, AuthModal, EnhancedSlider, EnhancedControl, UserProfileDropdown, AprConfirmationModal, ItemizationCard, SubmissionProgressModal, MyOffersModal, PositiveEquityModal, Switch, VehicleCardPremium, VINSearchPremium, LocationSearchPremium } from './ui/components';
+import type { VehicleOption, LocationDetails } from './ui/components';
+import { SectionHeader } from './ui/components';
 import { FeesModal } from './ui/components/FeesModal';
 import { FeeTemplateEditorModal } from './ui/components/FeeTemplateEditorModal';
 import { useToast } from './ui/components/Toast';
@@ -52,6 +54,41 @@ const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
 
 const DEFAULT_SALE_PRICE = 0;
 const DEFAULT_CASH_DOWN = 0;
+
+const normalizeDealerData = (vehicle: any) => {
+  const dealer = vehicle?.dealer || {};
+
+  const dealerLat =
+    typeof vehicle?.dealer_lat === 'number' ? vehicle.dealer_lat :
+    typeof vehicle?.dealer_latitude === 'number' ? vehicle.dealer_latitude :
+    typeof dealer?.latitude === 'number' ? dealer.latitude :
+    null;
+
+  const dealerLng =
+    typeof vehicle?.dealer_lng === 'number' ? vehicle.dealer_lng :
+    typeof vehicle?.dealer_longitude === 'number' ? vehicle.dealer_longitude :
+    typeof dealer?.longitude === 'number' ? dealer.longitude :
+    null;
+
+  const dealerAddress =
+    vehicle?.dealer_address ||
+    vehicle?.dealer_street ||
+    dealer?.street ||
+    dealer?.address ||
+    '';
+
+  return {
+    ...vehicle,
+    dealer_lat: dealerLat,
+    dealer_lng: dealerLng,
+    dealer_address: dealerAddress,
+    dealer_name: vehicle?.dealer_name || dealer?.name || vehicle?.dealer || '',
+    dealer_city: vehicle?.dealer_city || dealer?.city || '',
+    dealer_state: vehicle?.dealer_state || dealer?.state || '',
+    dealer_zip: vehicle?.dealer_zip || dealer?.zip || '',
+    dealer_phone: vehicle?.dealer_phone || dealer?.phone || '',
+  };
+};
 
 /**
  * CalculatorApp - Main auto loan calculator application
@@ -251,9 +288,13 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     stateTaxRate: storeTaxState,
     countyTaxRate: storeTaxCounty,
     userTaxOverride,
+    autoLockTimerId,
     setSliderValue,
     setSliderValueWithSettling,
+    setSliderValueWithAutoLock,
     setSliderBaseline,
+    toggleSliderLock,
+    getEffectiveBaseline,
     resetSlider,
     applyVehicle,
     applyGarageVehicle,
@@ -293,7 +334,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   // Calculated values
   const [apr, setApr] = useState(5.99);
   const [lenderBaselineApr, setLenderBaselineApr] = useState<number | null>(null);
-  const [aprInitialPayment, setAprInitialPayment] = useState<number | null>(null);
   const [monthlyPayment, setMonthlyPayment] = useState(0);
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
@@ -862,6 +902,13 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     };
   }, [tradeAllowance, tradePayoff, equityDecision.appliedAmount, equityDecision.cashoutAmount]);
 
+  // Auto-sync: Clear garage vehicle toggles when trade allowance reaches $0
+  useEffect(() => {
+    if (tradeAllowance === 0 && selectedTradeInVehicles.size > 0) {
+      resetTradeIn();
+    }
+  }, [tradeAllowance, selectedTradeInVehicles, resetTradeIn]);
+
   const effectiveAppliedTrade = equityAllocation.appliedToBalance > 0 ? equityAllocation.appliedToBalance : 0;
   const effectiveTradeCashout = equityAllocation.cashoutAmount > 0 ? equityAllocation.cashoutAmount : 0;
   const initialEquityDecision: EquityDecision = equityAllocation.hasManualDecision || equityAllocation.positiveEquity === 0
@@ -871,6 +918,59 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         appliedAmount: Math.max(0, equityAllocation.appliedToBalance),
         cashoutAmount: 0,
       };
+
+  // Helper function to calculate monthly payment given parameters
+  const calculateMonthlyPaymentFor = (params: {
+    salePrice: number;
+    cashDown: number;
+    dealerFees: number;
+    customerAddons: number;
+    govtFees: number;
+    appliedToBalance: number;
+    cashoutAmount: number;
+    stateTaxRate: number;
+    countyTaxRate: number;
+    apr: number;
+    loanTerm: number;
+  }): number => {
+    const {
+      salePrice: sp,
+      cashDown: cd,
+      dealerFees: df,
+      customerAddons: ca,
+      govtFees: gf,
+      appliedToBalance: atb,
+      cashoutAmount: co,
+      stateTaxRate: str,
+      countyTaxRate: ctr,
+      apr: a,
+      loanTerm: lt,
+    } = params;
+
+    // Calculate taxes
+    const taxableBase = (sp - atb) + df + ca + gf;
+    const stateTax = taxableBase * (str / 100);
+    const countyTax = Math.min(taxableBase, 5000) * (ctr / 100);
+    const totalTax = stateTax + countyTax;
+
+    // Calculate amount financed
+    const totalPrice = sp + df + ca + gf + totalTax;
+    const downPayment = cd + atb;
+    const financed = totalPrice - downPayment + co;
+
+    if (financed <= 0 || a <= 0 || lt <= 0) {
+      return 0;
+    }
+
+    // Monthly interest rate
+    const monthlyRate = a / 100 / 12;
+
+    // Monthly payment formula: P * [r(1 + r)^n] / [(1 + r)^n - 1]
+    const payment = financed * (monthlyRate * Math.pow(1 + monthlyRate, lt)) /
+                    (Math.pow(1 + monthlyRate, lt) - 1);
+
+    return payment;
+  };
 
   const calculateLoan = () => {
     let appliedToBalance = equityAllocation.appliedToBalance;
@@ -945,8 +1045,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       vehicleVIN: selectedVehicle?.vin || vin || undefined,
       vehicleMileage: selectedVehicle?.mileage || undefined,
       vehicleCondition: vehicleCondition,
-      vehiclePrice:
-        (selectedVehicleSaleValue ?? salePrice) || undefined,
+      vehiclePrice: salePrice || undefined, // Customer's offer
+      dealerAskingPrice: selectedVehicleSaleValue || undefined, // Dealer's original asking price
+      stockNumber: (selectedVehicle as any)?.stock_number || undefined,
       vehiclePhotoUrl: selectedVehicle?.photo_url || undefined,
 
       // Dealer details
@@ -1048,7 +1149,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const handleResetToLenderApr = () => {
     if (lenderBaselineApr !== null) {
       setApr(lenderBaselineApr);
-      setAprInitialPayment(null);
       toast.push({
         kind: 'info',
         title: 'APR Reset',
@@ -1137,39 +1237,16 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     }
     return null;
   }, [selectedVehicleSaleValue]);
-  const [salePriceDiffBaseline, setSalePriceDiffBaseline] = useState<number | null>(null);
+
+  // Compute diff baseline using effective baseline (State 2 if locked, otherwise State 1)
+  const salePriceDiffBaseline = useMemo(() => {
+    const effectiveBaseline = getEffectiveBaseline('salePrice');
+    return effectiveBaseline > 0 ? effectiveBaseline : null;
+  }, [getEffectiveBaseline, sliders.salePrice.baseline, sliders.salePrice.lockedBaseline, sliders.salePrice.isLocked]);
+
   const [salePricePaymentBaseline, setSalePricePaymentBaseline] = useState<number | null>(null);
   const [salePricePaymentDiffOverride, setSalePricePaymentDiffOverride] = useState<number | null>(null);
   const salePriceLastDiffValueRef = useRef<number | null>(null);
-  const previousVehicleSaleBaselineRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (salePriceState1Baseline != null) {
-      setSalePriceDiffBaseline(salePriceState1Baseline);
-      setSalePricePaymentBaseline(null);
-      setSalePricePaymentDiffOverride(null);
-      salePriceLastDiffValueRef.current = salePriceState1Baseline;
-      previousVehicleSaleBaselineRef.current = salePriceState1Baseline;
-    } else if (previousVehicleSaleBaselineRef.current != null) {
-      previousVehicleSaleBaselineRef.current = null;
-      setSalePriceDiffBaseline(null);
-      setSalePricePaymentBaseline(null);
-      setSalePricePaymentDiffOverride(null);
-      salePriceLastDiffValueRef.current = null;
-    }
-  }, [salePriceState1Baseline]);
-
-  useEffect(() => {
-    if (lenderBaselineApr == null) {
-      if (aprInitialPayment !== null) {
-        setAprInitialPayment(null);
-      }
-      return;
-    }
-    if (monthlyPayment > 0 && aprInitialPayment == null) {
-      setAprInitialPayment(monthlyPayment);
-    }
-  }, [lenderBaselineApr, monthlyPayment, aprInitialPayment]);
 
   useEffect(() => {
     if (salePriceDiffBaseline == null) {
@@ -1225,35 +1302,285 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     salePricePaymentDiffOverride,
   ]);
 
+  // Calculate APR baseline payment (for pure APR diff tooltip)
+  // Uses baseline sale price to isolate APR impact from sale price changes
+  const aprBaselinePayment = useMemo(() => {
+    // Only show diff if user has deviated from lender APR
+    if (lenderBaselineApr == null || Math.abs(apr - lenderBaselineApr) < 0.001) {
+      return null;
+    }
+
+    // Use baseline sale price to isolate pure APR impact
+    const baselineSalePriceValue = salePriceDiffBaseline ?? salePrice;
+
+    return calculateMonthlyPaymentFor({
+      salePrice: baselineSalePriceValue, // Use BASELINE sale price (key change)
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr: lenderBaselineApr, // Use lender baseline APR
+      loanTerm,
+    });
+  }, [lenderBaselineApr, apr, salePriceDiffBaseline, salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, loanTerm, equityAllocation]);
+
   const baselineSalePrice = sliders.salePrice.baseline;
   const hasCustomApr =
     lenderBaselineApr !== null &&
     Math.abs(apr - lenderBaselineApr) >= 0.001 &&
     !useLowestApr;
-  const aprPaymentDiffFromLender =
-    hasCustomApr && aprInitialPayment != null ? monthlyPayment - aprInitialPayment : null;
+
+  // Calculate pure APR diff (isolates APR impact using baseline sale price for both calculations)
+  // This is used in the tooltip breakdown
+  const aprPaymentDiffPure = useMemo(() => {
+    if (!hasCustomApr || lenderBaselineApr == null) return null;
+
+    const baselineSalePriceValue = salePriceDiffBaseline ?? salePrice;
+
+    // Payment with CURRENT APR + baseline sale price
+    const paymentWithCurrentApr = calculateMonthlyPaymentFor({
+      salePrice: baselineSalePriceValue,
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr: apr, // Current APR
+      loanTerm,
+    });
+
+    // Payment with LENDER APR + baseline sale price (already calculated as aprBaselinePayment)
+    const paymentWithLenderApr = aprBaselinePayment;
+
+    return paymentWithLenderApr != null ? paymentWithCurrentApr - paymentWithLenderApr : null;
+  }, [hasCustomApr, lenderBaselineApr, salePriceDiffBaseline, salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, equityAllocation, aprBaselinePayment]);
+
+  // Calculate total buyer perspective diff (current payment vs lender baseline with CURRENT sliders)
+  // This shows the total monthly payment change the buyer experiences
+  const aprPaymentDiffFromLender = useMemo(() => {
+    if (!hasCustomApr || lenderBaselineApr == null) return null;
+
+    // Calculate baseline payment with lender APR + CURRENT slider values
+    const baselinePaymentWithCurrentSliders = calculateMonthlyPaymentFor({
+      salePrice, // Use CURRENT sale price
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr: lenderBaselineApr, // Use lender baseline APR
+      loanTerm,
+    });
+
+    return monthlyPayment - baselinePaymentWithCurrentSliders;
+  }, [hasCustomApr, lenderBaselineApr, monthlyPayment, salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, loanTerm, equityAllocation]);
 
   const handleResetSalePrice = useCallback(() => {
-    if (salePriceDiffBaseline != null) {
-      setSliderValue('salePrice', salePriceDiffBaseline, true);
-    } else {
-      resetSlider('salePrice');
-    }
-  }, [salePriceDiffBaseline, setSliderValue, resetSlider]);
+    resetSlider('salePrice');
+  }, [resetSlider]);
 
-  useEffect(() => {
-    if (salePriceState1Baseline != null) {
-      return;
+  // Calculate baseline payments for all sliders (for payment diff tooltips)
+  const cashDownBaselinePayment = useMemo(() => {
+    const baseline = sliders.cashDown.baseline;
+    if (baseline === cashDown || !Number.isFinite(baseline)) return null;
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown: baseline, // Use baseline cash down
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.cashDown.baseline, equityAllocation]);
+
+  const tradeAllowanceBaselinePayment = useMemo(() => {
+    const baseline = sliders.tradeAllowance.baseline;
+    if (baseline === tradeAllowance || !Number.isFinite(baseline)) return null;
+
+    // Trade allowance affects appliedToBalance in equityAllocation
+    // Calculate baseline equity allocation with baseline trade allowance
+    const baselineNetTradeEquity = baseline - tradePayoff;
+    const baselinePositiveEquity = Math.max(0, baselineNetTradeEquity);
+    const baselineNegativeEquity = Math.abs(Math.min(0, baselineNetTradeEquity));
+    const hasManualDecision = equityDecision.appliedAmount > 0 || equityDecision.cashoutAmount > 0;
+
+    let baselineAppliedToBalance = 0;
+    let baselineCashoutAmount = 0;
+
+    if (baselinePositiveEquity > 0) {
+      if (hasManualDecision) {
+        baselineAppliedToBalance = Math.min(equityDecision.appliedAmount, baselinePositiveEquity);
+        const remaining = Math.max(baselinePositiveEquity - baselineAppliedToBalance, 0);
+        baselineCashoutAmount = Math.min(equityDecision.cashoutAmount, remaining);
+      } else {
+        baselineAppliedToBalance = baselinePositiveEquity;
+      }
+    } else {
+      baselineAppliedToBalance = baselineNegativeEquity;
     }
-    if (salePriceDiffBaseline != null) {
-      return;
-    }
-    if (salePrice > 0) {
-      setSalePriceDiffBaseline(salePrice);
-      salePriceLastDiffValueRef.current = salePrice;
-      setSalePricePaymentDiffOverride(null);
-    }
-  }, [salePriceState1Baseline, salePriceDiffBaseline, salePrice]);
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: baselineAppliedToBalance,
+      cashoutAmount: baselineCashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.tradeAllowance.baseline, tradeAllowance, tradePayoff, equityDecision]);
+
+  const dealerFeesBaselinePayment = useMemo(() => {
+    const baseline = sliders.dealerFees.baseline;
+    if (baseline === dealerFees || !Number.isFinite(baseline)) return null;
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown,
+      dealerFees: baseline, // Use baseline dealer fees
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.dealerFees.baseline, equityAllocation]);
+
+  const customerAddonsBaselinePayment = useMemo(() => {
+    const baseline = sliders.customerAddons.baseline;
+    if (baseline === customerAddons || !Number.isFinite(baseline)) return null;
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown,
+      dealerFees,
+      customerAddons: baseline, // Use baseline customer add-ons
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.customerAddons.baseline, equityAllocation]);
+
+  const govtFeesBaselinePayment = useMemo(() => {
+    const baseline = sliders.govtFees.baseline;
+    if (baseline === govtFees || !Number.isFinite(baseline)) return null;
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees: baseline, // Use baseline gov't fees
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.govtFees.baseline, equityAllocation]);
+
+  // Calculate State 0 (persistent) baseline payments for diff display
+  // These always compare against the original/asking values, never update
+
+  // Cash Down State 0: Always $0 down
+  const cashDownState0Payment = useMemo(() => {
+    if (cashDown === 0) return null; // Already at State 0
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown: 0, // State 0 = $0 down
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, equityAllocation]);
+
+  // Sale Price State 0: Original asking price
+  const salePriceState0Payment = useMemo(() => {
+    const state0SalePrice = selectedVehicleSaleValue ?? salePrice;
+    if (Math.abs(salePrice - state0SalePrice) < 0.01) return null; // At State 0
+
+    return calculateMonthlyPaymentFor({
+      salePrice: state0SalePrice, // Use original asking price
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [selectedVehicleSaleValue, salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, equityAllocation]);
+
+  // Calculate persistent Sale Price diff for APR control display
+  const salePriceState0Diff = useMemo(() => {
+    if (salePriceState0Payment == null) return null;
+    return monthlyPayment - salePriceState0Payment;
+  }, [monthlyPayment, salePriceState0Payment]);
+
+  // Trade Allowance State 0: Always $0 trade-in
+  const tradeAllowanceState0Payment = useMemo(() => {
+    if (tradeAllowance === 0) return null; // Already at State 0
+
+    // Calculate equity with NO trade-in (State 0)
+    const state0NetEquity = 0 - tradePayoff; // Usually negative if there's a payoff
+    const state0PositiveEquity = Math.max(0, state0NetEquity);
+    const state0NegativeEquity = Math.abs(Math.min(0, state0NetEquity));
+
+    // With no trade-in, negative equity (payoff) is rolled into loan
+    const state0AppliedToBalance = state0NegativeEquity;
+
+    return calculateMonthlyPaymentFor({
+      salePrice,
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: state0AppliedToBalance,
+      cashoutAmount: 0,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
+  }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, tradeAllowance, tradePayoff]);
 
   const selectedVehicleSaleLabel =
     isGarageSelectedVehicle
@@ -1292,25 +1619,25 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     diff?: TilDiff | null;
   }) => (
     <div
-      className="rounded-2xl border border-blue-50 p-5 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus:border-blue-300 focus:outline-none cursor-default"
+      className="rounded-2xl border border-white/10 p-5 text-center bg-white/5 backdrop-blur-sm transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/30 focus:border-emerald-400/50 focus:outline-none cursor-default"
       tabIndex={0}
     >
-      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+      <div className="text-xs font-semibold uppercase tracking-[0.08em] text-emerald-300/70">
         {label}
       </div>
-      <div className="mt-2 text-3xl font-bold text-blue-600 tracking-tight">{value}</div>
+      <div className="mt-2 text-3xl font-bold text-white tracking-tight">{value}</div>
       {diff && diff.isSignificant && (
-        <div className={`text-xs font-semibold mt-1 ${diff.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+        <div className={`text-xs font-semibold mt-1 ${diff.isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
           {diff.isPositive ? '↓' : '↑'} {diff.formatted}
         </div>
       )}
-      <div className="mt-2 text-xs text-slate-500">{helper}</div>
+      <div className="mt-2 text-xs text-white/50">{helper}</div>
     </div>
   );
 
   // Handle selecting a saved vehicle from dropdown
   const handleSelectSavedVehicle = (vehicle: any) => {
-    setSelectedVehicle({ ...vehicle, __source: 'saved' });
+    setSelectedVehicle({ ...normalizeDealerData(vehicle), __source: 'saved' });
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
     setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
@@ -1330,7 +1657,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   };
 
   const handleSelectGarageVehicle = (vehicle: any) => {
-    setSelectedVehicle({ ...vehicle, __source: 'garage' });
+    setSelectedVehicle({ ...normalizeDealerData(vehicle), __source: 'garage' });
     setVin(vehicle.vin || '');
     setShowVehicleDropdown(false);
     setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
@@ -1367,11 +1694,77 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   };
 
   // Handle edit vehicle from VIN dropdown
-  const handleEditVehicle = (e: React.MouseEvent | React.KeyboardEvent, vehicle: any) => {
-    e.stopPropagation(); // Prevent vehicle selection
+  const handleEditVehicle = (vehicle: any) => {
     setVehicleToEdit(vehicle);
     setShowManageVehiclesModal(true);
     setShowVehicleDropdown(false); // Close dropdown
+  };
+
+  // Handle delete vehicle from VIN dropdown
+  const handleDeleteVehicle = async (vehicle: any) => {
+    if (!currentUser || !supabase) {
+      toast.push({
+        kind: 'error',
+        title: 'Not Authenticated',
+        detail: 'Please sign in to delete vehicles',
+      });
+      return;
+    }
+
+    // Confirm deletion
+    const vehicleName = `${vehicle.year} ${vehicle.make} ${vehicle.model}`;
+    if (!window.confirm(`Are you sure you want to delete ${vehicleName}?`)) {
+      return;
+    }
+
+    try {
+      // Determine if this is a garage vehicle or saved vehicle
+      const isGarageVehicle = vehicle.source === 'garage' || garageVehicles?.some(v => v.id === vehicle.id);
+      const table = isGarageVehicle ? 'garage_vehicles' : 'saved_vehicles';
+
+      // Delete from database
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq('id', vehicle.id)
+        .eq('user_id', currentUser.id);
+
+      if (error) throw error;
+
+      // Reload vehicles to reflect changes
+      if (isGarageVehicle) {
+        const { data: updatedVehicles, error: loadError } = await supabase
+          .from('garage_vehicles')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (loadError) throw loadError;
+        setGarageVehicles(updatedVehicles || []);
+      } else {
+        const { data: updatedVehicles, error: loadError } = await supabase
+          .from('saved_vehicles')
+          .select('*')
+          .eq('user_id', currentUser.id)
+          .order('created_at', { ascending: false });
+
+        if (loadError) throw loadError;
+        setSavedVehicles(updatedVehicles || []);
+      }
+
+      toast.push({
+        kind: 'success',
+        title: 'Vehicle Deleted',
+        detail: `${vehicleName} has been removed`,
+      });
+    } catch (error: any) {
+      console.error('Error deleting vehicle:', error);
+      toast.push({
+        kind: 'error',
+        title: 'Delete Failed',
+        detail: error.message || 'Could not delete vehicle',
+      });
+    }
   };
 
   // Handle vehicle save/update from modal (for garage_vehicles table)
@@ -1522,7 +1915,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       }) as any;
 
       if (result && result.listing) {
-        setSelectedVehicle({ ...result.listing, __source: 'market' });
+        setSelectedVehicle({ ...normalizeDealerData(result.listing), __source: 'market' });
 
         const saleValue = getVehicleSalePrice(result.listing);
         if (saleValue != null) {
@@ -1642,290 +2035,109 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
             {/* Location & Vehicle Section */}
             <Card variant="elevated" padding="md" className="overflow-visible transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-              <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                Location & Vehicle
-              </h2>
+              <div className="mb-4 pb-4 border-b border-white/10">
+                <SectionHeader
+                  title="Location & Vehicle"
+                  subtitle="Set your location and vehicle details"
+                  tone="light"
+                  accent="emerald"
+                />
+              </div>
 
               <div className="space-y-3">
-                <Input
-                  ref={locationInputRef}
-                  label="Your Location"
-                  type="text"
-                  placeholder="Enter your address or ZIP code..."
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
+                <LocationSearchPremium
+                  location={location}
+                  onLocationChange={setLocation}
+                  onPlaceSelected={(details) => {
+                    // Convert LocationDetails to PlaceDetails format for existing logic
+                    const placeDetails: PlaceDetails = {
+                      address: details.formatted_address || '',
+                      city: details.city || '',
+                      state: details.state || '',
+                      stateCode: details.state || '',
+                      county: details.county || '',
+                      countyName: details.county || '',
+                      zipCode: details.zip || '',
+                      country: 'US',
+                      lat: details.latitude || 0,
+                      lng: details.longitude || 0,
+                    };
+                    setLocation(placeDetails.address);
+                    setLocationDetails(placeDetails);
+
+                    // Lookup tax rates based on location (cached for 90 days)
+                    if (placeDetails.stateCode && placeDetails.county && placeDetails.state) {
+                      lookupTaxRates(placeDetails.stateCode, placeDetails.county, placeDetails.state)
+                        .then((taxData) => {
+                          if (taxData) {
+                            // Only update if tax rate wasn't manually set by user
+                            if (!isTaxRateManuallySet) {
+                              setStateTaxRate(taxData.stateTaxRate);
+                              setCountyTaxRate(taxData.countyTaxRate);
+                              setStateName(taxData.stateName);
+                              setCountyName(taxData.countyName);
+
+                              toast.push({
+                                kind: 'success',
+                                title: 'Tax Rates Updated',
+                                detail: `${taxData.stateName}: ${(taxData.stateTaxRate * 100).toFixed(2)}% + ${taxData.countyName}: ${(taxData.countyTaxRate * 100).toFixed(2)}%`,
+                              });
+                            }
+                          }
+                        })
+                        .catch(console.error);
                     }
                   }}
-                  icon={
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
+                  locationDetails={
+                    locationDetails
+                      ? {
+                          formatted_address: locationDetails.address,
+                          city: locationDetails.city,
+                          state: locationDetails.state,
+                          zip: locationDetails.zipCode,
+                          county: locationDetails.county,
+                          latitude: locationDetails.lat,
+                          longitude: locationDetails.lng,
+                        }
+                      : null
                   }
-                  helperText={mapsError ? 'Google Maps not available - manual entry only' : mapsLoaded ? 'Start typing for suggestions' : 'Loading location services...'}
-                  fullWidth
+                  isLoading={false}
+                  error={mapsError}
+                  mapsLoaded={mapsLoaded}
+                  placeholder="Enter your address or ZIP code..."
                 />
 
-                <div
-                  className="relative"
-                  onMouseEnter={openVehicleDropdown}
-                  onMouseLeave={scheduleCloseVehicleDropdown}
-                >
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                    VIN or Search Saved Vehicles
-                  </label>
-                  <div className="relative overflow-hidden">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-                      {isLoadingVIN ? (
-                        <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                        </svg>
-                      )}
-                    </div>
-                    <input
-                      type="text"
-                      value={vin}
-                      onChange={(e) => setVin(e.target.value.toUpperCase())}
-                      onFocus={openVehicleDropdown}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.currentTarget.blur();
-                        }
-                      }}
-                      placeholder="Paste VIN or select saved vehicle..."
-                      className={`w-full rounded-lg border py-2 pr-2 pl-12 bg-white text-gray-900 font-plexmono tracking-[0.04em] [text-indent:0.05em] box-border placeholder-gray-400 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-0 ${
-                        vinError
-                          ? 'border-red-500 focus:ring-red-500'
-                          : selectedVehicle && !isLoadingVIN
-                          ? 'border-green-500 focus:ring-green-500'
-                          : 'border-gray-300 focus:ring-blue-500'
-                      }`}
-                      maxLength={17}
-                      aria-invalid={vinError ? 'true' : 'false'}
-                    />
-                    {selectedVehicle && !isLoadingVIN && !vinError && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 pointer-events-none">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-                  {vinError ? (
-                    <p className="mt-1.5 text-sm text-red-600">{vinError}</p>
-                  ) : (
-                    <p className="mt-1.5 text-sm text-gray-500">
-                      {isLoadingVIN
-                        ? 'Looking up VIN...'
-                        : totalStoredVehicles > 0
-                        ? `Search ${totalStoredVehicles} stored vehicles (My Garage + Saved) or enter a VIN manually`
-                        : 'Enter a VIN or sign in to add vehicles to your library'}
-                    </p>
-                  )}
-
-                  {/* Stored Vehicles Dropdown */}
-                  {showVehicleDropdown && (
-                    <div
-                      className="absolute z-50 w-full top-full mt-0.5 bg-white border border-gray-300 rounded-lg shadow-lg max-h-72 overflow-y-auto"
-                      onMouseEnter={openVehicleDropdown}
-                      onMouseLeave={scheduleCloseVehicleDropdown}
-                    >
-                      <div className="p-2 border-b bg-gray-50 flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-700">
-                          {isLoadingSavedVehicles || isLoadingGarageVehicles
-                            ? 'Loading...'
-                            : filteredStoredCount > 0
-                            ? `${filteredStoredCount} vehicle${filteredStoredCount === 1 ? '' : 's'}`
-                            : totalStoredVehicles === 0
-                            ? 'No stored vehicles yet'
-                            : 'No vehicles match your search'}
-                        </span>
-                        <button
-                          onClick={() => setShowVehicleDropdown(false)}
-                          className="text-gray-400 hover:text-gray-600"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-
-                      {isLoadingSavedVehicles || isLoadingGarageVehicles ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">Loading stored vehicles...</div>
-                      ) : filteredStoredCount === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
-                          {totalStoredVehicles === 0
-                            ? 'Sign in to build your garage and saved vehicle library.'
-                            : 'No vehicles match your search'}
-                        </div>
-                      ) : (
-                        <div className="divide-y">
-                          {filteredGarageVehicles.length > 0 && (
-                            <div>
-                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-blue-900 bg-blue-50 font-semibold">
-                                My Garage
-                              </div>
-                              {filteredGarageVehicles.map((vehicle) => (
-                                <div
-                                  key={vehicle.id}
-                                  className="p-3 hover:bg-blue-50 focus-within:ring-2 focus-within:ring-blue-200 focus-within:ring-offset-2 focus-within:ring-offset-white rounded-lg transition-colors cursor-pointer"
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={() => handleSelectGarageVehicle(vehicle)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      handleSelectGarageVehicle(vehicle);
-                                    }
-                                  }}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    {/* Vehicle Photo Thumbnail */}
-                                    {vehicle.photo_url && (
-                                      <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                                        <img
-                                          src={vehicle.photo_url}
-                                          alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-
-                                    {/* Vehicle Info */}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-semibold text-gray-900">
-                                        {vehicle.year} {vehicle.make} {vehicle.model}
-                                        {vehicle.trim && ` ${vehicle.trim}`}
-                                      </div>
-                                      {vehicle.vin && (
-                                        <div className="text-xs text-gray-500 font-mono mt-1">
-                                          VIN: {vehicle.vin}
-                                        </div>
-                                      )}
-                                      <div className="text-xs text-gray-500 mt-1">
-                                        Trade Estimate: {formatCurrency(vehicle.estimated_value || 0)}
-                                        {vehicle.payoff_amount ? ` • Payoff: ${formatCurrency(vehicle.payoff_amount)}` : ''}
-                                      </div>
-                                    </div>
-
-                                    {/* Action Buttons */}
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleApplyGarageVehicleAsTrade(vehicle);
-                                        }}
-                                        className="px-3 py-1.5 text-xs font-medium text-white bg-green-600 hover:bg-green-700 rounded-md transition-colors"
-                                        title="Use as trade-in"
-                                      >
-                                        Trade-In
-                                      </button>
-                                      <div
-                                        onClick={(e) => handleEditVehicle(e, vehicle)}
-                                        className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                                        title="Edit vehicle"
-                                        role="button"
-                                        tabIndex={0}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter' || e.key === ' ') {
-                                            e.preventDefault();
-                                            handleEditVehicle(e, vehicle);
-                                          }
-                                        }}
-                                      >
-                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          {filteredSavedVehicles.length > 0 && (
-                            <div>
-                              <div className="px-3 py-2 text-xs uppercase tracking-wide text-blue-900 bg-blue-50 font-semibold">
-                                Saved Vehicles
-                              </div>
-                              {filteredSavedVehicles.map((vehicle) => (
-                                <button
-                                  key={vehicle.id}
-                                  onClick={() => handleSelectSavedVehicle(vehicle)}
-                                  className="w-full p-3 text-left hover:bg-blue-50 transition-colors focus:bg-blue-50 focus:outline-none"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    {/* Vehicle Photo Thumbnail */}
-                                    {vehicle.photo_url && (
-                                      <div className="w-20 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                                        <img
-                                          src={vehicle.photo_url}
-                                          alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            e.currentTarget.style.display = 'none';
-                                          }}
-                                        />
-                                      </div>
-                                    )}
-
-                                    {/* Vehicle Info */}
-                                    <div className="flex-1 min-w-0">
-                                      <div className="font-semibold text-gray-900">
-                                        {vehicle.year} {vehicle.make} {vehicle.model}
-                                        {vehicle.trim && ` ${vehicle.trim}`}
-                                      </div>
-                                      {vehicle.vin && (
-                                        <div className="text-xs text-gray-500 font-mono mt-1">
-                                          VIN: {vehicle.vin}
-                                        </div>
-                                      )}
-                                      {vehicle.asking_price || vehicle.estimated_value ? (
-                                        <div className="text-sm font-semibold text-green-600 mt-1">
-                                          {formatCurrency(vehicle.asking_price || vehicle.estimated_value)}
-                                        </div>
-                                      ) : null}
-                                    </div>
-
-                                    {/* Edit Button */}
-                                    <div
-                                      onClick={(e) => handleEditVehicle(e, vehicle)}
-                                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer flex-shrink-0"
-                                      title="Edit vehicle"
-                                      role="button"
-                                      tabIndex={0}
-                                      onKeyDown={(e) => {
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          handleEditVehicle(e, vehicle);
-                                        }
-                                      }}
-                                    >
-                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <VINSearchPremium
+                  vin={vin}
+                  onVinChange={(value) => setVin(value.toUpperCase())}
+                  onVinSubmit={handleManualVINLookup}
+                  isLoading={isLoadingVIN}
+                  error={vinError || null}
+                  hasSelectedVehicle={!!selectedVehicle}
+                  garageVehicles={filteredGarageVehicles.map(v => ({
+                    ...normalizeDealerData(v),
+                    source: 'garage' as const,
+                  }))}
+                  savedVehicles={filteredSavedVehicles.map(v => ({
+                    ...normalizeDealerData(v),
+                    source: 'saved' as const,
+                  }))}
+                  isLoadingVehicles={isLoadingSavedVehicles || isLoadingGarageVehicles}
+                  onSelectVehicle={(vehicle) => {
+                    if (vehicle.source === 'garage') {
+                      handleSelectGarageVehicle(vehicle as any);
+                    } else {
+                      handleSelectSavedVehicle(vehicle as any);
+                    }
+                  }}
+                  onEditVehicle={(vehicle) => {
+                    handleEditVehicle(vehicle as any);
+                  }}
+                  onDeleteVehicle={(vehicle) => {
+                    handleDeleteVehicle(vehicle as any);
+                  }}
+                  placeholder="Paste VIN or select from your garage..."
+                />
 
                 {/* Lookup VIN Button - Only shown when VIN is entered but not selected */}
                 {vin && !selectedVehicle && vin.replace(/[^A-HJ-NPR-Z0-9]/gi, '').length >= 11 && (
@@ -1961,113 +2173,62 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
                 {/* Vehicle Display Card */}
                 {selectedVehicle && (
-                  <div className="mt-4 bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
-                    {/* Vehicle Photo */}
-                    {selectedVehicle.photo_url && (
-                      <div
-                        className={`w-full h-48 bg-gray-100 ${selectedVehicle.listing_url ? 'cursor-pointer' : ''}`}
-                        onClick={() => {
-                          if (selectedVehicle.listing_url) {
-                            window.open(selectedVehicle.listing_url, '_blank', 'noopener,noreferrer');
-                          }
-                        }}
-                        title={selectedVehicle.listing_url ? 'Click to view full listing' : undefined}
-                      >
-                        <img
-                          src={selectedVehicle.photo_url}
-                          alt={`${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.currentTarget.style.display = 'none';
-                            e.currentTarget.parentElement!.style.display = 'none';
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    <div className="p-4">
-                      <div className="flex items-center justify-between mb-3">
-                      <Badge variant="info">SELECTED VEHICLE</Badge>
-                      <button
-                        onClick={() => {
-                          setSelectedVehicle(null);
-                          setVin('');
-                          setSliderValue('salePrice', 0, true);
-                        }}
-                        className="text-sm text-gray-500 hover:text-gray-700"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                    <h3 className="text-2xl font-bold text-blue-600 mb-2">
-                      {selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}
-                      {selectedVehicle.trim && ` - ${selectedVehicle.trim}`}
-                    </h3>
-                    <div className="mb-3">
-                      <div className="text-xs font-semibold uppercase text-gray-500 tracking-wide">
-                        {selectedVehicleSaleLabel || 'Sale Price'}
-                      </div>
-                      <div className={`text-3xl font-bold ${saleValueColor}`}>
-                        {formatCurrency(selectedVehicleSaleValue ?? baselineSalePrice ?? 0)}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      {selectedVehicle.vin && (
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-gray-600 text-xs">VIN</div>
-                          <div className="font-mono font-semibold">{selectedVehicle.vin}</div>
-                        </div>
-                      )}
-                      {selectedVehicleMileage != null && (
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-gray-600 text-xs">MILEAGE</div>
-                          <div className="font-semibold">
-                            {Number(selectedVehicleMileage).toLocaleString()} miles
-                          </div>
-                        </div>
-                      )}
-                      {isGarageSelectedVehicle && (
-                        <div className="bg-gray-50 p-2 rounded">
-                          <div className="text-gray-600 text-xs">Payoff Amount</div>
-                          <div className="font-semibold">
-                            {selectedVehiclePayoff != null
-                              ? formatCurrency(selectedVehiclePayoff)
-                              : '—'}
-                          </div>
-                        </div>
-                      )}
-                      {selectedVehicle.dealer_name && (
-                        <div className="bg-gray-50 p-2 rounded col-span-2">
-                          <div className="text-gray-600 text-xs">DEALER</div>
-                          <div className="font-semibold">{selectedVehicle.dealer_name}</div>
-                          {selectedVehicle.dealer_city && selectedVehicle.dealer_state && (
-                            <div className="text-gray-600 text-xs mt-1">
-                              {selectedVehicle.dealer_city}, {selectedVehicle.dealer_state}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    </div>
+                  <div className="mt-4">
+                    <VehicleCardPremium
+                      vehicle={selectedVehicle}
+                      salePrice={selectedVehicleSaleValue ?? baselineSalePrice ?? 0}
+                      mileage={selectedVehicleMileage}
+                      payoffAmount={isGarageSelectedVehicle ? selectedVehiclePayoff : null}
+                      isGarageVehicle={isGarageSelectedVehicle}
+                      salePriceLabel={selectedVehicleSaleLabel || 'Sale Price'}
+                      onClear={() => {
+                        setSelectedVehicle(null);
+                        setVin('');
+                        setSliderValue('salePrice', 0, true);
+                      }}
+                    />
                   </div>
                 )}
 
                 {/* Dealer Map */}
-                {selectedVehicle && (selectedVehicle.dealer_name || selectedVehicle.dealer_city) && (
-                  <div className="mt-4">
-                    <DealerMap
-                      dealerName={selectedVehicle.dealer_name}
-                      dealerAddress={selectedVehicle.dealer_address}
-                      dealerCity={selectedVehicle.dealer_city}
-                      dealerState={selectedVehicle.dealer_state}
-                      dealerZip={selectedVehicle.dealer_zip}
-                      dealerLat={selectedVehicle.dealer_latitude}
-                      dealerLng={selectedVehicle.dealer_longitude}
-                      userLocation={locationDetails || undefined}
-                      showRoute={!!locationDetails}
-                    />
-                  </div>
-                )}
+                {selectedVehicle && (() => {
+                  const dealerLat = typeof selectedVehicle.dealer_lat === 'number'
+                    ? selectedVehicle.dealer_lat
+                    : selectedVehicle.dealer_latitude ?? null;
+                  const dealerLng = typeof selectedVehicle.dealer_lng === 'number'
+                    ? selectedVehicle.dealer_lng
+                    : selectedVehicle.dealer_longitude ?? null;
+                  const hasCoordinates =
+                    typeof dealerLat === 'number' && typeof dealerLng === 'number';
+                  const hasAddressDetails = Boolean(
+                    selectedVehicle.dealer_address ||
+                      selectedVehicle.dealer_street ||
+                      (selectedVehicle.dealer_city && selectedVehicle.dealer_state) ||
+                      selectedVehicle.dealer_zip
+                  );
+                  const shouldShowDealerMap = hasCoordinates || hasAddressDetails;
+                  const showRoute = !!locationDetails;
+
+                  if (!shouldShowDealerMap) {
+                    return null;
+                  }
+
+                  return (
+                    <div className="mt-4">
+                      <DealerMap
+                        dealerName={selectedVehicle.dealer_name}
+                        dealerAddress={selectedVehicle.dealer_address || selectedVehicle.dealer_street}
+                        dealerCity={selectedVehicle.dealer_city}
+                        dealerState={selectedVehicle.dealer_state}
+                        dealerZip={selectedVehicle.dealer_zip}
+                        dealerLat={dealerLat ?? undefined}
+                        dealerLng={dealerLng ?? undefined}
+                        userLocation={locationDetails || undefined}
+                        showRoute={showRoute}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             </Card>
 
@@ -2076,22 +2237,38 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
           {/* RIGHT COLUMN: Summary (1/3 width, sticky) */}
           <div className="lg:col-span-1">
             <div className="sticky top-6">
-              <Card variant="elevated" padding="md" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-                {/* Card Header */}
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-                  Financing & Payment
-                </h2>
+              {/* Premium Financing Card */}
+              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950">
+                {/* Ambient Background */}
+                <div className="absolute inset-0 opacity-20">
+                  <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/30 rounded-full blur-3xl animate-pulse"
+                       style={{ animationDuration: '8s' }} />
+                  <div className="absolute bottom-0 left-0 w-80 h-80 bg-blue-500/20 rounded-full blur-3xl animate-pulse"
+                       style={{ animationDuration: '10s', animationDelay: '2s' }} />
+                </div>
 
-                {/* Financing Details Inputs */}
-                <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
-                  {/* Use Lowest APR Toggle */}
-                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="flex-1">
-                      <label className="text-sm font-medium text-gray-900">Use Lowest APR</label>
-                      <p className="text-xs text-gray-600 mt-0.5">
-                        {isFindingBestLender ? 'Comparing lenders...' : 'Automatically find the lender with the best rate'}
-                      </p>
-                    </div>
+                {/* Content */}
+                <div className="relative z-10 p-6">
+                  {/* Card Header */}
+                  <div className="mb-6 pb-4 border-b border-white/10">
+                    <SectionHeader
+                      title="Financing & Payment"
+                      subtitle="Configure your loan details"
+                      tone="light"
+                      accent="emerald"
+                    />
+                  </div>
+
+                  {/* Financing Details Inputs */}
+                  <div className="space-y-3 mb-6 pb-6 border-b border-white/10">
+                    {/* Use Lowest APR Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-emerald-500/10 rounded-xl border border-emerald-400/20 backdrop-blur-sm">
+                      <div className="flex-1">
+                        <label className="text-sm font-medium text-white">Use Lowest APR</label>
+                        <p className="text-xs text-white/60 mt-0.5">
+                          {isFindingBestLender ? 'Comparing lenders...' : 'Automatically find the lender with the best rate'}
+                        </p>
+                      </div>
                     <Switch
                       checked={useLowestApr}
                       onChange={(e) => {
@@ -2099,7 +2276,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         setUseLowestApr(nextValue);
                         if (nextValue && lenderBaselineApr !== null) {
                           setApr(lenderBaselineApr);
-                          setAprInitialPayment(null);
                         }
                       }}
                       disabled={isFindingBestLender}
@@ -2141,44 +2317,45 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                   />
                 </div>
 
-                {/* Monthly Payment Hero */}
-                <div className="text-center mb-3 p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl">
-                  <div className="text-sm font-medium text-gray-600 mb-1 flex items-center justify-center gap-2">
-                    <span>Estimated Monthly Payment</span>
-                    {useLowestApr && bestLenderLongName && (
-                      <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-2 py-0.5 rounded-full">
-                        {bestLenderLongName}
-                      </span>
-                    )}
-                    {hasCustomApr && (
-                      <span className="text-xs font-semibold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
-                        User Rate Active
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-5xl font-bold text-gray-900 mb-1">
-                    {formatCurrency(monthlyPayment)}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {loanTerm} months • {apr.toFixed(2)}% APR
-                  </div>
-                  {ratesEffectiveDateLabel && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      Rates effective {ratesEffectiveDateLabel}
+                    {/* Monthly Payment Hero - Premium */}
+                    <div className="text-center mb-6 p-6 bg-gradient-to-br from-emerald-500/20 to-blue-500/20 rounded-2xl border border-emerald-400/30 backdrop-blur-sm">
+                      <div className="text-xs font-medium text-emerald-300/80 mb-2 flex items-center justify-center gap-2 uppercase tracking-wider">
+                        <span>Estimated Monthly Payment</span>
+                      </div>
+                      {useLowestApr && bestLenderLongName && (
+                        <div className="text-xs font-semibold text-emerald-400 bg-emerald-500/20 px-3 py-1 rounded-full inline-block mb-2">
+                          {bestLenderLongName}
+                        </div>
+                      )}
+                      {hasCustomApr && (
+                        <div className="text-xs font-semibold text-amber-400 bg-amber-500/20 px-3 py-1 rounded-full inline-block mb-2">
+                          User Rate Active
+                        </div>
+                      )}
+                      <div className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white via-blue-200 to-cyan-200 mb-2"
+                           style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+                        {formatCurrency(monthlyPayment)}
+                      </div>
+                      <div className="text-sm text-white/70 font-medium">
+                        {loanTerm} months • {apr.toFixed(2)}% APR
+                      </div>
+                      {ratesEffectiveDateLabel && (
+                        <div className="text-xs text-white/40 mt-2">
+                          Rates effective {ratesEffectiveDateLabel}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
 
                 {/* Truth-in-Lending Disclosures */}
                 <div className="space-y-3">
-                  <div className="rounded-[32px] border border-slate-100 bg-gradient-to-b from-slate-50 to-white p-3 shadow-inner transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-                    <h3 className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-slate-600 mb-2">
+                  <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-500/10 to-blue-500/10 p-4 backdrop-blur-sm">
+                    <h3 className="text-center text-sm font-semibold uppercase tracking-[0.2em] text-emerald-300/80 mb-3">
                       Truth-in-Lending Disclosures
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-fr">
                       {/* APR with +/- controls */}
-                      <div className="group rounded-2xl border bg-white border-blue-50 p-4 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
+                      <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/30 focus-within:border-emerald-400/50 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={apr}
                           label="Annual Percentage Rate"
@@ -2188,8 +2365,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                           max={99.99}
                           formatValue={(val) => `${val.toFixed(2)}%`}
                           monthlyPayment={aprPaymentDiffFromLender != null ? monthlyPayment : undefined}
-                          baselinePayment={aprInitialPayment ?? undefined}
-                          paymentDiffOverride={aprPaymentDiffFromLender ?? undefined}
+                          baselinePayment={aprBaselinePayment ?? undefined}
+                          paymentDiffOverride={aprPaymentDiffPure ?? undefined}
                           className="w-full"
                           showKeyboardHint={true}
                           unstyled={true}
@@ -2197,19 +2374,30 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         {aprPaymentDiffFromLender != null && (
                           <div
                             className={`text-xs font-semibold mt-2 ${
-                              aprPaymentDiffFromLender < 0 ? 'text-green-600' : 'text-red-500'
+                              aprPaymentDiffFromLender < 0 ? 'text-emerald-400' : 'text-red-400'
                             }`}
                           >
                             {aprPaymentDiffFromLender < 0 ? '↓' : '↑'}{' '}
                             {formatCurrency(Math.abs(aprPaymentDiffFromLender))}{' '}
-                            <span className="text-gray-500">vs lender rate</span>
+                            <span className="text-white/50">vs {lenderBaselineApr?.toFixed(2)}% lender rate</span>
                           </div>
                         )}
-                        <div className="mt-2 text-xs text-slate-500">Cost of credit as yearly rate</div>
+                        {salePriceState0Diff != null && selectedVehicleSaleValue != null && (
+                          <div
+                            className={`text-xs font-semibold mt-2 ${
+                              salePriceState0Diff < 0 ? 'text-emerald-400' : 'text-red-400'
+                            }`}
+                          >
+                            {salePriceState0Diff < 0 ? '↓' : '↑'}{' '}
+                            {formatCurrency(Math.abs(salePriceState0Diff))}{' '}
+                            <span className="text-white/50">from {formatCurrency(selectedVehicleSaleValue)} asking price</span>
+                          </div>
+                        )}
+                        <div className="mt-2 text-xs text-white/50">Cost of credit as yearly rate</div>
                       </div>
 
                       {/* Term with +/- controls */}
-                      <div className="group rounded-2xl border bg-white border-blue-50 p-4 text-center shadow-[0_10px_25px_rgba(15,23,42,0.05)] flex flex-col transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200 focus-within:shadow-[0_0_24px_rgba(59,130,246,0.4)] focus-within:border-blue-300 focus-within:outline-none cursor-pointer">
+                      <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/30 focus-within:border-emerald-400/50 focus-within:outline-none cursor-pointer">
                         <EnhancedControl
                           value={loanTerm}
                           label="Term (Months)"
@@ -2232,11 +2420,11 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                           unstyled={true}
                         />
                         {diffs.term && diffs.term.isSignificant && (
-                          <div className={`text-xs font-semibold mt-2 ${diffs.term.isPositive ? 'text-green-600' : 'text-red-500'}`}>
+                          <div className={`text-xs font-semibold mt-2 ${diffs.term.isPositive ? 'text-emerald-400' : 'text-red-400'}`}>
                             {diffs.term.isPositive ? '↓' : '↑'} {diffs.term.formatted}
                           </div>
                         )}
-                        <div className="mt-2 text-xs text-slate-500">Length of loan agreement</div>
+                        <div className="mt-2 text-xs text-white/50">Length of loan agreement</div>
                       </div>
 
                       {renderTilStatCard({
@@ -2267,16 +2455,36 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             </div>
           </div>
         </div>
+        </div>
 
         {/* Sliders Section - Full Width Below */}
-        <Card variant="elevated" padding="md" className="mt-3 transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
-          <h2 className="text-2xl font-semibold text-gray-900 mb-4">
-            Adjust Pricing & Terms
-          </h2>
+        <div className="mt-3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-blue-950">
+          {/* Ambient Background */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 left-0 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '8s' }} />
+            <div className="absolute bottom-0 right-0 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '10s', animationDelay: '2s' }} />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 p-6">
+            {/* Header */}
+            <div className="mb-6 pb-4 border-b border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-10 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full" />
+                <div>
+                  <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+                    Adjust Pricing & Terms
+                  </h2>
+                  <p className="text-sm text-white/50">Fine-tune your deal structure</p>
+                </div>
+              </div>
+            </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Sale Price Slider */}
@@ -2286,18 +2494,22 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               max={saleMaxDynamic}
               step={100}
               value={salePrice}
-              onChange={(e) => setSliderValueWithSettling('salePrice', Number(e.target.value))}
+              onChange={(e) => setSliderValueWithAutoLock('salePrice', Number(e.target.value))}
               formatValue={(val) => formatCurrency(val)}
               monthlyPayment={monthlyPayment}
               buyerPerspective="lower-is-better"
               showTooltip={true}
               showReset={true}
-              baselineValue={sliders.salePrice.baseline}
-              diffBaselineValue={salePriceDiffBaseline ?? undefined}
-              diffBaselinePayment={salePricePaymentBaseline ?? undefined}
-              paymentDiffOverride={salePricePaymentDiffOverride ?? undefined}
+              baselineValue={selectedVehicleSaleValue ?? salePrice}
+              diffBaselineValue={selectedVehicleSaleValue ?? undefined}
+              diffBaselinePayment={salePriceState0Payment ?? undefined}
               snapThreshold={100}
               onReset={handleResetSalePrice}
+              showLock={true}
+              isLocked={sliders.salePrice.isLocked}
+              lockedBaseline={sliders.salePrice.lockedBaseline}
+              onToggleLock={() => toggleSliderLock('salePrice')}
+              isAutoLockPending={autoLockTimerId !== null}
               fullWidth
             />
 
@@ -2314,7 +2526,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               buyerPerspective="higher-is-better"
               showTooltip={true}
               showReset={true}
-              baselineValue={sliders.cashDown.baseline}
+              baselineValue={0}
+              diffBaselineValue={0}
+              diffBaselinePayment={cashDownState0Payment ?? undefined}
               snapThreshold={100}
               onReset={() => resetSlider('cashDown')}
               fullWidth
@@ -2333,7 +2547,9 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               buyerPerspective="higher-is-better"
               showTooltip={true}
               showReset={true}
-              baselineValue={sliders.tradeAllowance.baseline}
+              baselineValue={0}
+              diffBaselineValue={0}
+              diffBaselinePayment={tradeAllowanceState0Payment ?? undefined}
               snapThreshold={100}
               onReset={() => resetTradeIn()}
               fullWidth
@@ -2343,7 +2559,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
             <div className="my-2">
               <button
                 onClick={() => setShowFeesModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-2 text-sm font-medium text-blue-600 bg-white border-2 border-blue-600 rounded-lg hover:bg-blue-50 transition-colors shadow-sm"
+                className="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-300 shadow-lg hover:shadow-cyan-500/30 border border-cyan-400/20"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -2366,6 +2582,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               showTooltip={true}
               showReset={true}
               baselineValue={sliders.dealerFees.baseline}
+              diffBaselineValue={sliders.dealerFees.baseline}
+              diffBaselinePayment={dealerFeesBaselinePayment ?? undefined}
               snapThreshold={10}
               onReset={() => resetSlider('dealerFees')}
               fullWidth
@@ -2385,6 +2603,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               showTooltip={true}
               showReset={true}
               baselineValue={sliders.customerAddons.baseline}
+              diffBaselineValue={sliders.customerAddons.baseline}
+              diffBaselinePayment={customerAddonsBaselinePayment ?? undefined}
               snapThreshold={10}
               onReset={() => resetSlider('customerAddons')}
               fullWidth
@@ -2404,16 +2624,28 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               showTooltip={true}
               showReset={true}
               baselineValue={sliders.govtFees.baseline}
+              diffBaselineValue={sliders.govtFees.baseline}
+              diffBaselinePayment={govtFeesBaselinePayment ?? undefined}
               snapThreshold={10}
               onReset={() => resetSlider('govtFees')}
               fullWidth
             />
           </div>
-        </Card>
+          </div>
+        </div>
 
         {/* Itemization of Costs - At the End */}
-        <div className="mt-3">
-          <Card variant="elevated" padding="sm" className="transition-all duration-200 hover:shadow-[0_0_24px_rgba(59,130,246,0.3)] hover:border-blue-200">
+        <div className="mt-3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950">
+          {/* Ambient Background */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/30 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '8s' }} />
+            <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '10s', animationDelay: '2s' }} />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 p-4">
             <ItemizationCard
               salePrice={salePrice}
               cashDown={cashDown}
@@ -2445,26 +2677,37 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               monthlyPayment={monthlyPayment}
               baselineMonthlyPayment={baselineMonthlyPayment}
               onAprChange={handleAprChange}
-              aprBaselinePayment={aprInitialPayment ?? undefined}
+              aprBaselinePayment={aprBaselinePayment ?? undefined}
               aprPaymentDiffOverride={aprPaymentDiffFromLender}
               onTermChange={setLoanTerm}
               onCustomerAddonsChange={(value) => setSliderValueWithSettling('customerAddons', value)}
               onGovtFeesChange={(value) => setSliderValueWithSettling('govtFees', value)}
               onTradeInCashoutChange={handleEquityCashoutChange}
             />
-          </Card>
+          </div>
         </div>
 
         {/* Preview Offer CTA */}
-        <div className="mt-4">
-          <Button
-            variant="primary"
-            size="lg"
+        <div className="mt-4 relative group">
+          {/* Glow effect */}
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 rounded-2xl blur opacity-30 group-hover:opacity-60 transition-opacity duration-500" />
+
+          {/* Button */}
+          <button
             onClick={handleSubmit}
-            className="text-lg py-4 w-full"
+            className="relative w-full px-8 py-5 bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 hover:from-emerald-500 hover:via-cyan-500 hover:to-blue-500 text-white text-xl font-bold rounded-2xl transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 border border-emerald-400/30"
           >
-            Preview Offer
-          </Button>
+            <div className="flex items-center justify-center gap-3">
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <span>Preview Offer</span>
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
         </div>
 
       </div>
@@ -2480,6 +2723,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
           onSave={handleVehicleSave}
           vehicle={vehicleToEdit}
           onUseAsTradeIn={handleSelectGarageVehicle}
+          vehicleType={vehicleToEdit?.source === 'saved' ? 'saved' : 'garage'}
         />
       )}
 

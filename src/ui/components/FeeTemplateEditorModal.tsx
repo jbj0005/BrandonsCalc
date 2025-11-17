@@ -198,8 +198,8 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
       <div className="p-6 space-y-6">
         {/* Header */}
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Manage Fee Templates</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Manage Fee Templates</h2>
+          <p className="text-sm text-white/60 mt-1">
             Add, edit, or remove fee templates for quick entry
           </p>
         </div>
@@ -218,7 +218,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                 className={`px-4 py-2 font-medium text-sm transition-colors border-b-2 ${
                   activeTab === tab.key
                     ? `border-${tab.color}-600 text-${tab.color}-600`
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                    : 'border-transparent text-white/60 hover:text-white'
                 }`}
               >
                 {tab.label}
@@ -229,7 +229,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
 
         {/* Error message */}
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md text-sm text-red-600">
+          <div className="p-3 bg-red-500/20 border border-red-400/30 rounded-md text-sm text-red-400">
             {error}
           </div>
         )}
@@ -237,16 +237,16 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
         {/* Templates list */}
         <div className="max-h-[400px] overflow-y-auto space-y-2">
           {loading && currentTemplates.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">Loading templates...</div>
+            <div className="text-center py-8 text-white/50">Loading templates...</div>
           ) : currentTemplates.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-white/50">
               No templates yet. Click "Add Template" to create one.
             </div>
           ) : (
             currentTemplates.map((template, index) => (
               <div
                 key={template.id ?? index}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-md hover:bg-gray-100 transition-colors"
+                className="flex items-center justify-between p-3 bg-white/5 rounded-md hover:bg-white/10 transition-colors border border-white/10"
               >
                 <div className="flex-1">
                   {editing && editing.id === template.id && !editing.isNew ? (
@@ -270,8 +270,8 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                     </div>
                   ) : (
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-gray-900">{template.description}</span>
-                      <span className="text-gray-600">{formatCurrencyExact(template.amount)}</span>
+                      <span className="font-medium text-white">{template.description}</span>
+                      <span className="text-white/60">{formatCurrencyExact(template.amount)}</span>
                     </div>
                   )}
                 </div>
@@ -282,7 +282,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                       <button
                         onClick={saveTemplate}
                         disabled={loading}
-                        className="p-1 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                        className="p-1 text-green-400 hover:bg-green-500/20 rounded transition-colors disabled:opacity-50"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -291,7 +291,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                       <button
                         onClick={cancelEdit}
                         disabled={loading}
-                        className="p-1 text-gray-600 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
+                        className="p-1 text-white/60 hover:bg-white/10 rounded transition-colors disabled:opacity-50"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -303,7 +303,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                       <button
                         onClick={() => startEdit(template, activeTab)}
                         disabled={loading || !!editing || !template.id}
-                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+                        className="p-1 text-blue-400 hover:bg-blue-500/20 rounded transition-colors disabled:opacity-50"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -312,7 +312,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                       <button
                         onClick={() => handleDeleteTemplate(template, activeTab)}
                         disabled={loading || !!editing || !template.id}
-                        className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                        className="p-1 text-red-400 hover:bg-red-500/20 rounded transition-colors disabled:opacity-50"
                       >
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -358,7 +358,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
                 <button
                   onClick={cancelEdit}
                   disabled={loading}
-                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded transition-colors disabled:opacity-50"
+                  className="px-3 py-2 text-sm font-medium text-white/60 hover:bg-white/5 rounded transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -372,7 +372,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
           <button
             onClick={startAdd}
             disabled={loading || !!editing}
-            className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded transition-colors disabled:opacity-50"
           >
             + Add Template
           </button>

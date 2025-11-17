@@ -228,7 +228,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setMode('forgot')}
-                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                className="text-sm text-blue-400 hover:text-blue-300 font-medium"
               >
                 Forgot password?
               </button>
@@ -244,11 +244,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-white/60">
               Don't have an account?{' '}
               <button
                 onClick={() => setMode('signup')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-400 hover:text-blue-300 font-medium"
               >
                 Sign up
               </button>
@@ -336,11 +336,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-white/60">
               Already have an account?{' '}
               <button
                 onClick={() => setMode('signin')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-400 hover:text-blue-300 font-medium"
               >
                 Sign in
               </button>
@@ -351,7 +351,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
         {/* Forgot Password Form */}
         {mode === 'forgot' && (
           <>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-white/60">
               Enter your email address and we'll send you a link to reset your password.
             </p>
 
@@ -380,10 +380,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               {loading ? 'Sending...' : 'Send Reset Link'}
             </Button>
 
-            <div className="text-center text-sm text-gray-600">
+            <div className="text-center text-sm text-white/60">
               <button
                 onClick={() => setMode('signin')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
+                className="text-blue-400 hover:text-blue-300 font-medium"
               >
                 Back to sign in
               </button>

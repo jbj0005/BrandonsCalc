@@ -112,6 +112,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     index: number;
   } | null>(null);
 
+  // Track if cursor is over the dropdown (to prevent premature closing)
+  const isOverDropdownRef = useRef(false);
+
   // Keyboard navigation state
   const [selectedSuggestionIndex, setSelectedSuggestionIndex] = useState<number>(0);
 
@@ -454,6 +457,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
 
   // Track the currently active category for cleanup
   const activeCategoryRef = useRef<FeeCategory | null>(null);
+  const rowLeaveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Clean up empty last row in a category
   const cleanupEmptyLastRow = (category: FeeCategory) => {
@@ -497,14 +501,39 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         }}
       >
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+          <h4 className="text-sm font-semibold text-white uppercase tracking-wide">
             {title}
           </h4>
         </div>
 
         <div className="space-y-2">
           {rows.map((row, index) => (
-            <div key={index} className="flex items-center gap-2">
+            <div
+              key={index}
+              className="flex items-center gap-2"
+              onMouseEnter={() => {
+                if (rowLeaveTimerRef.current) {
+                  clearTimeout(rowLeaveTimerRef.current);
+                  rowLeaveTimerRef.current = null;
+                }
+              }}
+              onMouseLeave={() => {
+                // Debounce closing to allow moving into dropdown without flicker
+                if (rowLeaveTimerRef.current) {
+                  clearTimeout(rowLeaveTimerRef.current);
+                }
+                rowLeaveTimerRef.current = setTimeout(() => {
+                  if (
+                    activeSuggestion?.category === category &&
+                    activeSuggestion?.index === index &&
+                    !isOverDropdownRef.current
+                  ) {
+                    setActiveSuggestion(null);
+                    setSelectedSuggestionIndex(0);
+                  }
+                }, 80);
+              }}
+            >
               {/* Description input with autocomplete */}
               <div className="flex-1 relative">
                 <input
@@ -521,14 +550,32 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                     }
                   }}
                   placeholder="Description..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400/50 text-sm bg-black/20 text-white placeholder-white/20"
                 />
 
                 {/* Suggestions dropdown */}
                 {activeSuggestion?.category === category &&
-                  activeSuggestion?.index === index && (
-                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-48 overflow-auto">
-                      {getFilteredSuggestions(category, row.description).map((suggestion, i) => (
+                  activeSuggestion?.index === index && (() => {
+                    const filteredSuggestions = getFilteredSuggestions(category, row.description);
+                    const suggestionCount = filteredSuggestions.length;
+
+                    // Dynamically size dropdown based on number of suggestions
+                    const dropdownMaxHeight = suggestionCount >= 10 ? 'max-h-96' : suggestionCount >= 6 ? 'max-h-64' : 'max-h-48';
+
+                    return (
+                      <div
+                        className={`absolute z-50 w-full mt-1 bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-md shadow-lg ${dropdownMaxHeight} overflow-auto`}
+                        onMouseEnter={() => {
+                          isOverDropdownRef.current = true;
+                        }}
+                        onMouseLeave={() => {
+                          isOverDropdownRef.current = false;
+                          // Close dropdown when cursor leaves the dropdown
+                          setActiveSuggestion(null);
+                          setSelectedSuggestionIndex(0);
+                        }}
+                      >
+                        {filteredSuggestions.map((suggestion, i) => (
                         <button
                           key={i}
                           type="button"
@@ -538,19 +585,20 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                           }}
                           className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between transition-colors ${
                             i === selectedSuggestionIndex
-                              ? 'bg-blue-100 text-blue-900'
-                              : 'hover:bg-blue-50'
+                              ? 'bg-emerald-500/20 text-white'
+                              : 'text-white/70 hover:bg-white/10 hover:text-white'
                           }`}
                         >
                           <span>{suggestion.description}</span>
-                          <span className="text-gray-500">{formatCurrencyExact(suggestion.amount)}</span>
+                          <span className="text-white/50">{formatCurrencyExact(suggestion.amount)}</span>
                         </button>
                       ))}
-                      {getFilteredSuggestions(category, row.description).length === 0 && (
-                        <div className="px-3 py-2 text-sm text-gray-500">No suggestions</div>
+                      {filteredSuggestions.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-white/50">No suggestions</div>
                       )}
                     </div>
-                  )}
+                    );
+                  })()}
               </div>
 
               {/* Amount input */}
@@ -561,14 +609,14 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 onBlur={() => handleAmountFinalize(category, index, row.amount)}
                 onKeyDown={(e) => handleAmountKeyDown(e, category, index, row.amount)}
                 placeholder="$0"
-                className="w-32 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-right"
+                className="w-32 px-3 py-2 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400/50 text-sm text-right bg-black/20 text-white placeholder-white/20"
               />
 
               {/* Remove button */}
               <button
                 type="button"
                 onClick={() => removeRow(category, index)}
-                className="p-2 text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                className="p-2 text-red-400 hover:bg-red-500/20 rounded-md transition-colors border border-white/10 hover:border-red-400/30"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -579,8 +627,8 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         </div>
 
         {/* Fee sum at the bottom */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-300">
-          <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+        <div className="flex items-center justify-between pt-2 border-t border-white/10">
+          <span className="text-sm font-semibold text-white uppercase tracking-wide">
             Total
           </span>
           <span className={`text-lg font-bold ${color}`}>
@@ -592,7 +640,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         <button
           type="button"
           onClick={() => addRow(category)}
-          className="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md text-sm text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors"
+          className="w-full px-3 py-2 border border-dashed border-white/20 rounded-md text-sm text-white/60 hover:border-white/40 hover:text-white transition-colors"
         >
           + Add Row
         </button>
@@ -605,11 +653,11 @@ export const FeesModal: React.FC<FeesModalProps> = ({
       <div className="p-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-gray-900">Itemize Fees & Add-ons</h2>
+          <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
           <button
             type="button"
             onClick={onEditTemplates}
-            className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+            className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30"
           >
             Edit Fee Templates
           </button>
@@ -618,57 +666,67 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         {/* Scrollable content area */}
         <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
           {/* Dealer Fees Section */}
-          <div className="p-4 bg-blue-50 rounded-lg">
-            {renderFeeSection('Dealer Fees', 'dealer', dealerRows, dealerTotal, 'text-blue-600')}
+          <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-400/20">
+            {renderFeeSection('Dealer Fees', 'dealer', dealerRows, dealerTotal, 'text-blue-400')}
           </div>
 
           {/* Customer Add-ons Section */}
-          <div className="p-4 bg-green-50 rounded-lg">
-            {renderFeeSection('Customer Add-ons', 'customer', customerRows, customerTotal, 'text-green-600')}
+          <div className="p-4 bg-green-500/10 rounded-lg border border-green-400/20">
+            {renderFeeSection('Customer Add-ons', 'customer', customerRows, customerTotal, 'text-green-400')}
           </div>
 
           {/* Gov't Fees Section */}
-          <div className="p-4 bg-amber-50 rounded-lg">
-            {renderFeeSection("Gov't Fees", 'gov', govRows, govTotal, 'text-amber-600')}
+          <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-400/20">
+            {renderFeeSection("Gov't Fees", 'gov', govRows, govTotal, 'text-amber-400')}
           </div>
 
           {/* Tax Rates Section */}
-          <div className="p-4 bg-gray-50 rounded-lg space-y-3">
-            <h4 className="text-sm font-semibold text-gray-900 uppercase tracking-wide">
+          <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-400/20 space-y-3">
+            <h4 className="text-sm font-semibold text-white uppercase tracking-wide">
               Tax Rates
             </h4>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {stateName || 'State'} Tax Rate (%)
+                <label className="block text-xs font-medium text-emerald-300/80 mb-1">
+                  {stateName || 'State'} Tax Rate
                 </label>
-                <input
-                  type="text"
-                  value={stateTax}
-                  onChange={(e) => handlePercentChange(e.target.value, setStateTax)}
-                  placeholder="6.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={stateTax}
+                    onChange={(e) => handlePercentChange(e.target.value, setStateTax)}
+                    placeholder="6.00"
+                    className="w-full px-3 py-2 pr-8 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400/50 text-sm bg-black/20 text-white placeholder-white/20"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-white/40 pointer-events-none">
+                    %
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
-                  {countyName || 'County'} Tax Rate (%)
+                <label className="block text-xs font-medium text-emerald-300/80 mb-1">
+                  {countyName || 'County'} Tax Rate
                 </label>
-                <input
-                  type="text"
-                  value={countyTax}
-                  onChange={(e) => handlePercentChange(e.target.value, setCountyTax)}
-                  placeholder="1.00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={countyTax}
+                    onChange={(e) => handlePercentChange(e.target.value, setCountyTax)}
+                    placeholder="1.00"
+                    className="w-full px-3 py-2 pr-8 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-400/50 text-sm bg-black/20 text-white placeholder-white/20"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-white/40 pointer-events-none">
+                    %
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Summary Section */}
-          <div className="p-4 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg text-white space-y-2">
+          {/* Summary Section (on modal background, no card) */}
+          <div className="text-white space-y-2">
             <h4 className="text-sm font-semibold uppercase tracking-wide opacity-90">
               Summary
             </h4>
@@ -707,7 +765,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         </div>
 
         {/* Footer buttons */}
-        <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

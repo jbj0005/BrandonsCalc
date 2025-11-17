@@ -53,6 +53,16 @@ export interface EnhancedSliderProps extends SliderProps {
   snapThreshold?: number;
   /** Buyer perspective for color coding: "lower-is-better" means increase=red, decrease=green */
   buyerPerspective?: 'lower-is-better' | 'higher-is-better';
+  /** Enable lock/unlock baseline feature (State 2) */
+  showLock?: boolean;
+  /** Whether baseline is currently locked */
+  isLocked?: boolean;
+  /** Locked baseline value (State 2) */
+  lockedBaseline?: number | null;
+  /** Callback when lock is toggled */
+  onToggleLock?: () => void;
+  /** Auto-lock timer active */
+  isAutoLockPending?: boolean;
 }
 
 /**
@@ -85,6 +95,11 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       formatValue,
       label,
       paymentDiffOverride,
+      showLock = false,
+      isLocked = false,
+      lockedBaseline = null,
+      onToggleLock,
+      isAutoLockPending = false,
       ...props
     },
     ref
@@ -409,10 +424,50 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         {/* Input Field (optional) */}
         {showInput && label && (
           <div className="flex items-center justify-between mb-1">
-            <div className="relative flex items-center">
-              <label className="block text-sm font-medium text-gray-700">
+            <div className="relative flex items-center gap-2">
+              <label className="block text-sm font-medium text-emerald-300/80">
                 {label}
               </label>
+
+              {/* Lock/Unlock Button */}
+              {showLock && onToggleLock && (
+                <button
+                  onClick={onToggleLock}
+                  className={`p-1 rounded transition-all duration-200 ${
+                    isLocked
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                      : 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
+                  }`}
+                  title={isLocked ? 'Unlock baseline price' : 'Lock baseline price'}
+                  type="button"
+                  aria-label={isLocked ? 'Unlock baseline price' : 'Lock baseline price'}
+                >
+                  {isLocked ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6h2c0-1.66 1.34-3 3-3s3 1.34 3 3v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm0 12H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z" />
+                    </svg>
+                  )}
+                </button>
+              )}
+
+              {/* Auto-lock Progress Indicator */}
+              {showLock && isAutoLockPending && !isLocked && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 border-2 border-emerald-400/30 border-t-emerald-400 rounded-full animate-spin" />
+                  <span className="text-xs text-emerald-300/60">Setting baseline...</span>
+                </div>
+              )}
+
+              {/* Locked Baseline Indicator */}
+              {showLock && isLocked && lockedBaseline !== null && formatValue && (
+                <span className="text-xs text-emerald-400/80 font-medium">
+                  Baseline: {formatValue(lockedBaseline)}
+                </span>
+              )}
 
               {/* Inline Ribbon Tooltip - Absolutely positioned to prevent layout shift */}
               {showTooltip && isHovering && monthlyPayment > 0 && (
@@ -452,7 +507,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
               onBlur={handleInputBlur}
               onFocus={handleInputFocus}
               onKeyDown={handleInputKeyDown}
-              className="w-32 px-3 py-1.5 text-sm font-semibold text-blue-600 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-right"
+              className="w-32 px-3 py-1.5 text-sm font-semibold text-white bg-black/20 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-right"
               placeholder="$0"
             />
           </div>
@@ -471,6 +526,23 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
           label={showInput ? undefined : label}
           {...props}
         />
+
+        {/* Payment Diff Note (static display above value diff) */}
+        {paymentDiffForDisplay !== null && Math.abs(paymentDiffForDisplay) >= 0.01 && baselineValue !== undefined && (
+          <div className="mt-1 text-xs text-center font-semibold">
+            <span
+              className={
+                paymentDiffForDisplay < 0 ? 'text-emerald-400' : 'text-red-400'
+              }
+            >
+              {paymentDiffForDisplay < 0 ? '↓' : '↑'}{' '}
+              {formatCurrency(Math.abs(paymentDiffForDisplay))}{' '}
+            </span>
+            <span className="text-white/50">
+              from {formatValue ? formatValue(baselineValue) : formatCurrency(baselineValue)} baseline
+            </span>
+          </div>
+        )}
 
         {/* Diff Indicator */}
         {showTooltip && shouldShowDiff && (

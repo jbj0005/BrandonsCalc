@@ -61,13 +61,13 @@ export const Slider = forwardRef<HTMLInputElement, SliderProps>(
             {label && (
               <label
                 htmlFor={sliderId}
-                className="block text-sm font-medium text-gray-700"
+                className="block text-sm font-medium text-blue-300/80"
               >
                 {label}
               </label>
             )}
             {showValue && (
-              <span className="text-sm font-semibold text-blue-600">
+              <span className="text-sm font-semibold text-white">
                 {displayValue}
               </span>
             )}

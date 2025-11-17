@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Button, Input, Checkbox } from '../ui/components';
+import { Modal, Card, Button, Input, Checkbox, SectionHeader } from '../ui/components';
 import { ItemizationCard } from '../ui/components/ItemizationCard';
 import { generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useProfile } from '../hooks/useProfile';
@@ -51,9 +51,9 @@ interface DetailRowProps {
 }
 
 const DetailRow: React.FC<DetailRowProps> = ({ label, value, bold = false }) => (
-  <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-    <span className="text-sm text-gray-600">{label}</span>
-    <span className={`text-sm text-gray-900 ${bold ? 'font-bold text-base' : ''}`}>
+  <div className="flex justify-between items-center py-2 border-b border-white/10 last:border-0">
+    <span className="text-sm text-white/60">{label}</span>
+    <span className={`text-sm text-white ${bold ? 'font-bold text-base' : ''}`}>
       {value}
     </span>
   </div>
@@ -244,20 +244,56 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="max-h-[80vh] overflow-y-auto">
         {/* 1. Customer Offer Hero */}
-        <div className="bg-gradient-to-br from-blue-600 to-indigo-700 text-white p-8 rounded-t-xl text-center -mt-6 -mx-6 mb-6">
-          <div className="text-sm font-medium mb-2 opacity-90">Your Offer</div>
-          <div className="text-5xl font-bold mb-2">
+        <div className="bg-gradient-to-br from-emerald-600 to-blue-600 text-white p-8 rounded-t-xl text-center -mt-6 -mx-6 mb-6 border-b border-white/10">
+          <div className="text-sm font-medium mb-2 opacity-90 uppercase tracking-wider">Your Offer</div>
+          <div className="text-5xl font-bold mb-4" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
             {formatCurrencyExact(leadData.vehiclePrice || 0)}
           </div>
-          {vehicleInfo && (
-            <div className="text-base opacity-90">{vehicleInfo}</div>
-          )}
+
+          {/* Vehicle Details */}
+          <div className="space-y-1.5">
+            {/* Year, Make, Model, Trim */}
+            {vehicleInfo && (
+              <div className="text-lg font-semibold">
+                {vehicleInfo}
+                {leadData.vehicleTrim && <span> • {leadData.vehicleTrim}</span>}
+              </div>
+            )}
+
+            {/* Condition and Mileage */}
+            {(leadData.vehicleCondition || leadData.vehicleMileage) && (
+              <div className="text-sm opacity-90">
+                {leadData.vehicleCondition && (
+                  <span>{leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}</span>
+                )}
+                {leadData.vehicleCondition && leadData.vehicleMileage && <span> • </span>}
+                {leadData.vehicleMileage && (
+                  <span>{leadData.vehicleMileage.toLocaleString()} miles</span>
+                )}
+              </div>
+            )}
+
+            {/* VIN - Bottom Row */}
+            {leadData.vehicleVIN && (
+              <div className="text-xs opacity-80 tracking-wider mt-2" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>
+                VIN: {leadData.vehicleVIN}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4 px-1">
           {/* 2. Vehicle Details Card */}
           <Card padding="md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Vehicle Details</h3>
+            <SectionHeader
+              title="Vehicle Details"
+              subtitle="Confirm the listing info"
+              tone="light"
+              accent="emerald"
+              size="md"
+              as="h3"
+              className="mb-4"
+            />
             <div className="space-y-1">
               <DetailRow
                 label="Year / Make / Model"
@@ -270,7 +306,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
                 <DetailRow
                   label="VIN"
                   value={
-                    <span className="font-mono text-xs tracking-wider">
+                    <span className="text-xs tracking-wider" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>
                       {leadData.vehicleVIN}
                     </span>
                   }
@@ -292,9 +328,9 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
                 label="Stock #"
                 value={
                   leadData.stockNumber ? (
-                    <span className="font-mono">{leadData.stockNumber}</span>
+                    <span style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{leadData.stockNumber}</span>
                   ) : (
-                    <span className="text-gray-400 italic">Not Available</span>
+                    <span className="text-white/40 italic">Not Available</span>
                   )
                 }
               />
@@ -335,8 +371,16 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
 
           {/* 4. Dealer Contact (Optional) */}
           <Card padding="md">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Send to Dealer (Optional)</h3>
-            <p className="text-sm text-gray-600 mb-4">Enter dealer/salesman contact to send offer directly</p>
+            <SectionHeader
+              title="Send to Dealer (Optional)"
+              subtitle="Include dealer contact details"
+              tone="light"
+              accent="emerald"
+              size="md"
+              as="h3"
+              className="mb-4"
+            />
+            <p className="text-sm text-white/60 mb-4">Enter dealer/salesman contact to send offer directly</p>
             <div className="space-y-4">
               <Input
                 label="Dealer Email"
@@ -358,11 +402,18 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           {/* 5. Customer Contact Information Card */}
           <Card padding="md">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Your Contact Information</h3>
+              <SectionHeader
+                title="Your Contact Information"
+                subtitle="Pre-fill from your profile"
+                tone="light"
+                accent="emerald"
+                size="md"
+                as="h3"
+              />
               {profile && (
                 <button
                   onClick={handleToggleProfile}
-                  className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium"
+                  className="text-sm text-blue-400 hover:text-blue-300 hover:underline font-medium"
                   type="button"
                 >
                   {useProfileData ? '✓ Using my profile' : 'Use my profile'}
@@ -371,7 +422,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             </div>
 
             {profileLoading ? (
-              <div className="text-center py-4 text-gray-500">Loading profile...</div>
+              <div className="text-center py-4 text-white/50">Loading profile...</div>
             ) : (
               <div className="space-y-4">
                 <Input
@@ -416,25 +467,25 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
 
           {/* 6. Notification Destinations - Show where offer will be sent */}
           {(dealerEmail || dealerPhone) && (
-            <Card padding="md" className="bg-blue-50 border-blue-200">
+            <Card padding="md" className="bg-blue-500/10 border-blue-400/30">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">📧</div>
                 <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                  <h3 className="text-sm font-semibold text-blue-300 mb-2">
                     Your offer will be sent to the dealer:
                   </h3>
-                  <div className="space-y-1.5 text-sm text-blue-800">
+                  <div className="space-y-1.5 text-sm text-blue-200">
                     {dealerEmail && (
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Email:</span>
-                        <span className="font-mono bg-white/50 px-2 py-0.5 rounded">{dealerEmail}</span>
+                        <span className="bg-black/20 px-2 py-0.5 rounded" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{dealerEmail}</span>
                       </div>
                     )}
                     {dealerPhone && (
                       <div className="flex items-center gap-2">
                         <span className="font-medium">Phone:</span>
-                        <span className="font-mono bg-white/50 px-2 py-0.5 rounded">{dealerPhone}</span>
-                        <span className="text-xs text-blue-600">(SMS if available)</span>
+                        <span className="bg-black/20 px-2 py-0.5 rounded" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{dealerPhone}</span>
+                        <span className="text-xs text-blue-400">(SMS if available)</span>
                       </div>
                     )}
                   </div>

@@ -60,10 +60,10 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
     >
       <div className="space-y-6">
         {/* Warning Message */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="bg-blue-500/10 border border-blue-400/30 rounded-lg p-4">
           <div className="flex items-start gap-3">
             <svg
-              className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5"
+              className="w-6 h-6 text-blue-400 flex-shrink-0 mt-0.5"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -76,10 +76,10 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
               />
             </svg>
             <div>
-              <h4 className="text-sm font-semibold text-blue-800 mb-2">
+              <h4 className="text-sm font-semibold text-blue-300 mb-2">
                 You've manually adjusted the APR
               </h4>
-              <p className="text-sm text-blue-700">
+              <p className="text-sm text-blue-200/80">
                 Would you like to continue with your custom APR, or reset to the recommended lender rate?
               </p>
             </div>
@@ -89,9 +89,9 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
         {/* APR Comparison */}
         <div className="grid grid-cols-2 gap-4">
           {/* Lender APR */}
-          <div className="bg-gray-50 rounded-lg p-4">
-            <div className="text-xs text-gray-500 mb-1">Lender APR</div>
-            <div className="text-2xl font-bold text-gray-900 mb-1">
+          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
+            <div className="text-xs text-white/50 mb-1">Lender APR</div>
+            <div className="text-2xl font-bold text-white mb-1" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
               {formatApr(lenderApr)}
             </div>
             <Badge variant="default" size="sm">
@@ -100,14 +100,14 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
           </div>
 
           {/* Custom APR */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="text-xs text-blue-600 mb-1">Your Custom APR</div>
-            <div className="text-2xl font-bold text-blue-900 mb-1 flex items-baseline gap-2">
+          <div className="bg-blue-500/10 border border-blue-400/30 rounded-lg p-4">
+            <div className="text-xs text-blue-400 mb-1">Your Custom APR</div>
+            <div className="text-2xl font-bold text-blue-300 mb-1 flex items-baseline gap-2" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
               {formatApr(customApr)}
               {isDiffSignificant && (
                 <span
                   className={`text-sm font-semibold ${
-                    aprDiff < 0 ? 'text-green-600' : 'text-red-600'
+                    aprDiff < 0 ? 'text-green-400' : 'text-red-400'
                   }`}
                 >
                   {aprDiff < 0 ? '' : '+'}
@@ -126,15 +126,15 @@ export const AprConfirmationModal: React.FC<AprConfirmationModalProps> = ({
 
         {/* Impact Message */}
         {isDiffSignificant && (
-          <div className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+          <div className="text-sm text-white/60 bg-white/5 rounded-lg p-3 border border-white/10">
             {aprDiff < 0 ? (
               <p>
-                Your custom APR is <strong>{formatApr(Math.abs(aprDiff))}</strong> lower than the
+                Your custom APR is <strong className="text-white">{formatApr(Math.abs(aprDiff))}</strong> lower than the
                 lender rate. This will result in lower monthly payments.
               </p>
             ) : (
               <p>
-                Your custom APR is <strong>{formatApr(aprDiff)}</strong> higher than the lender
+                Your custom APR is <strong className="text-white">{formatApr(aprDiff)}</strong> higher than the lender
                 rate. This will result in higher monthly payments.
               </p>
             )}
