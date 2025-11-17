@@ -1,7 +1,7 @@
 # Brandon's Calc - AI Agent Context File
 
-**Version**: 1.0
-**Last Updated**: 2025-11-05
+**Version**: 2.0
+**Last Updated**: 2024-12-15
 **Purpose**: Complete reconstruction blueprint for AI agents
 
 > This file contains ALL successfully tested features, architecture decisions, and implementation patterns. Use this to rebuild the app from scratch or recover from critical errors.
@@ -18,13 +18,17 @@
 ### Core Features (✅ = Tested & Working)
 
 - ✅ User authentication (Supabase Auth)
-- ✅ Vehicle financing calculations
+- ✅ Vehicle financing calculations with State 0/1 diff system
 - ✅ Multi-lender rate comparison
-- ✅ Trade-in value calculations
+- ✅ Trade-in value calculations with equity allocation
 - ✅ User profile management
 - ✅ Garage (owned vehicles for trade-in)
 - ✅ Customer offers (save/share calculations)
-- 🚧 Modal system (in progress)
+- ✅ Multi-format email system (customer/dealer/lender)
+- ✅ Persistent payment diffs (State 0 baselines)
+- ✅ APR dual-diff system (pure vs buyer perspective)
+- ✅ Premium UI components (VIN search, location search, vehicle cards)
+- ✅ Enhanced modal system (ItemizationCard, OfferPreview)
 - ⏳ Saved vehicles (planned)
 
 ---
@@ -34,28 +38,54 @@
 ```
 BrandonsCalc/
 ├── .ai/                          # AI context files (this directory)
-│   ├── AGENT_CONTEXT.md          # Main reconstruction blueprint
+│   ├── AGENT_CONTEXT.md          # Main reconstruction blueprint (THIS FILE)
 │   ├── FEATURES.md               # Detailed feature documentation
 │   └── TROUBLESHOOTING.md        # Common issues & solutions
+├── docs/                         # ✅ Technical documentation
+│   ├── financial-states-diff-behavior.md  # ✅ State 0/1 system, persistent diffs
+│   └── slider-polarity-system.md          # ✅ Buyer polarity & color coding
 ├── src/
+│   ├── CalculatorApp.tsx         # ✅ Main React calculator (TypeScript)
+│   ├── components/               # ✅ Feature components
+│   │   ├── DealerMap.tsx         # ✅ Google Maps dealer locator
+│   │   ├── OfferPreviewModal.tsx # ✅ Offer preview with vehicle details
+│   │   └── UserProfileModal.tsx  # ✅ User profile editor
 │   ├── core/                     # Core utilities
 │   ├── features/
 │   │   ├── auth/                 # Authentication
 │   │   │   ├── auth-manager.ts   # ✅ Main auth controller
 │   │   │   └── auth-modal.ts     # ✅ Auth UI
 │   │   └── garage/               # Vehicle garage
+│   ├── hooks/                    # ✅ React hooks
+│   │   ├── useProfile.ts         # ✅ Profile data loading
+│   │   ├── useSliderBaseline.ts  # ✅ Slider baseline tracking
+│   │   └── useTilBaselines.ts    # ✅ Truth-in-Lending baselines
 │   ├── lib/
 │   │   └── supabase.ts           # ✅ Supabase client & helpers
+│   ├── services/
+│   │   └── leadSubmission.ts     # ✅ Offer submission, multi-format emails
 │   ├── stores/
 │   │   ├── auth.ts               # ✅ Zustand auth store
+│   │   ├── calculatorStore.ts    # ✅ Zustand calculator store (sliders)
 │   │   └── garage.ts             # ✅ Zustand garage store
-│   └── types/
-│       ├── index.ts              # ✅ Main type definitions
-│       └── database.types.ts     # ✅ Supabase generated types
+│   ├── types/
+│   │   ├── index.ts              # ✅ Main type definitions
+│   │   └── database.types.ts     # ✅ Supabase generated types
+│   └── ui/components/            # ✅ Reusable UI components
+│       ├── EnhancedControl.tsx   # ✅ APR/Term controls with tooltips
+│       ├── EnhancedSlider.tsx    # ✅ Slider with persistent diffs
+│       ├── ItemizationCard.tsx   # ✅ Cost breakdown with payment controls
+│       ├── SectionHeader.tsx     # ✅ Premium section headers
+│       ├── VehicleCardPremium.tsx    # ✅ Premium vehicle listing cards
+│       ├── VINSearchPremium.tsx      # ✅ Premium VIN decoder
+│       ├── LocationSearchPremium.tsx # ✅ Premium location autocomplete
+│       └── index.ts              # ✅ Component exports
 ├── server/
 │   └── server.js                 # ✅ Express API (rates, SMS)
 ├── supabase/
 │   └── migrations/               # Database migrations
+├── EMAIL_FORMATS.md              # ✅ Email format documentation
+├── PREMIUM_COMPONENTS_GUIDE.md   # ✅ Premium component usage guide
 ├── app.js                        # ✅ Main application (legacy, 8000+ lines)
 ├── index.html                    # ✅ Main entry point
 ├── offer.html                    # ✅ Offer sharing page
@@ -608,14 +638,204 @@ const { data } = await supabase.from("table_name").insert({
 
 ---
 
-## 📚 Related Documentation
+---
 
-- `FEATURES.md` - Detailed feature specifications
-- `TROUBLESHOOTING.md` - Common issues and solutions
-- `API.md` - API endpoint documentation
-- `DATABASE.md` - Complete database schema
+## 💰 Financial State System (✅ Working)
+
+### State 0/1/2 Architecture
+
+**Purpose**: Persistent payment diffs that remain visible even after sliders settle
+
+#### State Definitions
+
+| State | Sliders | APR | Purpose |
+|-------|---------|-----|---------|
+| **State 0** | Original/asking value | Lender baseline APR | Persistent baseline (NEVER updates) |
+| **State 1** | Settled value (after 2s) | N/A (removed) | Dynamic baseline (updates on settle) |
+| **State 2** | Current value | Current APR | Live edits during interaction |
+
+#### Key Components
+
+**State 0 Payment Calculations** (Persistent Diffs):
+```typescript
+// Cash Down: Compare to $0 down
+const cashDownState0Payment = calculateMonthlyPaymentFor({
+  ...currentSliders,
+  cashDown: 0, // State 0
+});
+
+// Sale Price: Compare to dealer asking price
+const salePriceState0Payment = calculateMonthlyPaymentFor({
+  ...currentSliders,
+  salePrice: selectedVehicleSaleValue, // State 0
+});
+
+// Trade Allowance: Compare to $0 trade-in
+const tradeAllowanceState0Payment = calculateMonthlyPaymentFor({
+  ...currentSliders,
+  tradeAllowance: 0,
+  appliedToBalance: calculateEquityWithNoTrade(),
+});
+```
+
+**APR Dual-Diff System**:
+```typescript
+// Dynamic baseline (recalculates with current sliders)
+const aprBaselinePayment = calculateMonthlyPaymentFor({
+  salePrice: salePriceDiffBaseline ?? salePrice, // Use settled price
+  apr: lenderBaselineApr, // Use lender APR
+  ...otherCurrentSliders
+});
+
+// Pure APR impact (isolates APR from sale price changes)
+const aprPaymentDiffPure = paymentWithCurrentApr - aprBaselinePayment;
+
+// Buyer perspective (total impact with current sliders)
+const aprPaymentDiffFromLender = monthlyPayment - paymentWithLenderApr;
+```
+
+#### EnhancedSlider Props
+
+```typescript
+interface EnhancedSliderProps {
+  baselineValue?: number;           // State 0 for reset & display
+  diffBaselineValue?: number;        // State 1 for VALUE diff (+/- number)
+  diffBaselinePayment?: number;      // State 0 PAYMENT for payment diff note
+  monthlyPayment?: number;           // Current monthly payment
+}
+```
+
+**CRITICAL**: Don't confuse `diffBaselineValue` (State 1, dynamic) with `diffBaselinePayment` (State 0, persistent)
+
+### Testing Pattern
+
+```javascript
+// 1. Select vehicle with asking price $30,000 (State 0 set)
+// 2. Negotiate to $28,000
+// 3. Wait 2s for settle (State 1 set to $28,000)
+// 4. Payment diff should STILL show savings vs $30,000 asking ✅
+// 5. Value diff shows $0 (at State 1) ✅
+```
+
+**Documentation**: See `docs/financial-states-diff-behavior.md` for complete details
 
 ---
 
-**Last Verified Working**: 2025-11-05
-**Next Review**: After modal system completion
+## 📧 Multi-Format Email System (✅ Working)
+
+### Email Formats
+
+**Customer Format** (default):
+- Full details including financing, fees, trade-in financials
+- Shows savings if negotiated below asking
+- Includes all sections
+
+**Dealer Format**:
+- Vehicle details + trade-in VEHICLE info (not financials)
+- Customer contact info
+- NO financing details, NO fees, NO savings shown
+- Shows dealer asking price vs customer offer
+
+**Lender Format** (TBD):
+- Placeholder for future implementation
+
+### Usage
+
+```typescript
+import { generateOfferText, EmailFormat } from './services/leadSubmission';
+
+// Customer email
+const customerEmail = generateOfferText(leadData, 'customer');
+
+// Dealer email
+const dealerEmail = generateOfferText(leadData, 'dealer');
+```
+
+### Lead Data Interface
+
+```typescript
+interface LeadData {
+  vehiclePrice?: number;        // Customer's offer
+  dealerAskingPrice?: number;   // Dealer's original asking
+
+  // Trade-in financial details
+  tradeValue?: number;
+  tradePayoff?: number;
+
+  // Trade-in vehicle details (for dealer format)
+  tradeVehicleYear?: number;
+  tradeVehicleMake?: string;
+  tradeVehicleModel?: string;
+  tradeVehicleTrim?: string;
+  tradeVehicleVIN?: string;
+  tradeVehicleMileage?: number;
+  tradeVehicleCondition?: string;
+}
+```
+
+**Documentation**: See `EMAIL_FORMATS.md` for structure examples
+
+---
+
+## 🎨 Premium UI Components (✅ Working)
+
+### New Components
+
+**VehicleCardPremium**: Enhanced vehicle listing cards
+- Gradient backgrounds, hover effects
+- Dealer distance display
+- Vehicle photos
+- Price formatting
+- Located: `src/ui/components/VehicleCardPremium.tsx`
+
+**VINSearchPremium**: VIN decoder with live feedback
+- Real-time validation
+- NHTSA API integration
+- Loading states
+- Located: `src/ui/components/VINSearchPremium.tsx`
+
+**LocationSearchPremium**: Google Places autocomplete
+- Maps integration
+- County detection
+- Tax rate lookup
+- Located: `src/ui/components/LocationSearchPremium.tsx`
+
+**SectionHeader**: Consistent section headers
+- Multiple tones (light/dark/accent)
+- Size variants
+- Icon support
+- Located: `src/ui/components/SectionHeader.tsx`
+
+**ItemizationCard**: Enhanced cost breakdown
+- APR/Term payment controls
+- Aligned card layouts
+- Trade-in equity breakdown
+- Cash advance tracking
+- Located: `src/ui/components/ItemizationCard.tsx`
+
+**Documentation**: See `PREMIUM_COMPONENTS_GUIDE.md` for usage examples
+
+---
+
+## 📚 Related Documentation
+
+**Core Documentation**:
+- `FEATURES.md` - Detailed feature specifications
+- `TROUBLESHOOTING.md` - Common issues and solutions
+- `README.md` - Project overview and setup
+
+**Technical Documentation**:
+- `docs/financial-states-diff-behavior.md` - State 0/1 system, persistent diffs
+- `docs/slider-polarity-system.md` - Buyer polarity & color coding
+- `EMAIL_FORMATS.md` - Multi-format email structure
+- `PREMIUM_COMPONENTS_GUIDE.md` - Premium component usage
+
+**Setup & Configuration**:
+- `GOOGLE_MAPS_SETUP.md` - Google Maps integration
+- `SETUP_AND_TEST.md` - Development setup guide
+
+---
+
+**Last Verified Working**: 2024-12-15
+**Version**: 2.0
+**Major Updates**: State 0/1 system, multi-format emails, premium components
