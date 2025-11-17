@@ -2,129 +2,353 @@
 
 This document explains how pricing sliders, APR controls, and their diff indicators work so another engineer can rebuild the experience from scratch.
 
+**Last Updated:** 2024-12-15 (includes persistent diff changes, APR dual-diff system, and State 0 payment baselines)
+
 ---
 
 ### 1. Terminology
 
 | Term | Meaning |
 | --- | --- |
-| **State 0 (Sliders)** | The theoretical zero point ($0) before any vehicle or slider baseline is set. We never display diffs against State 0 once a real baseline exists. |
-| **State 1 (Sliders)** | The baseline value we consider “the offer on the table.” For sale price this is the vehicle’s ask when a vehicle is selected, or the first settled slider value (after 2 s of inactivity) when no vehicle is loaded. |
-| **State 2 (Sliders)** | The user’s live edits after State 1 is locked. Diffs shown under the sliders compare the current value (State 2) to State 1. |
-| **State 0 (APR)** | The lender‑recommended APR loaded when the page/rates load. |
-| **State 1 (APR)** | The first custom APR after the user stops adjusting for 2 s. |
-| **State 2 (APR)** | Any subsequent APR change. The diff compares State 2 to State 1, while the confirmation modal compares State 2 to State 0. |
+| **State 0 (Sliders)** | The original/asking baseline value. For sale price, this is `selectedVehicleSaleValue` (dealer's asking price). For cash down/trade allowance, this is $0. This is used for PERSISTENT diffs that never update. |
+| **State 1 (Sliders)** | The settled/baseline value after 2s of inactivity. Used for value diff display (the +/- number shown below slider). Updates dynamically when slider settles. |
+| **State 2 (Sliders)** | The user's live edits after State 1 is locked. Current slider value during interaction. |
+| **State 0 (APR)** | The lender-recommended APR (`lenderBaselineApr`) loaded when rates load. Used in APR confirmation modal. |
+| **State 1 (APR)** | No longer captured. We removed `aprUserBaseline` in favor of dynamic calculations. |
+| **State 2 (APR)** | Current APR value set by user. |
 
-The term **“settling delay”** refers to the 2 s timer we reuse whenever we need to promote a value to State 1.
+The term **"settling delay"** refers to the 2s timer we use for slider State 1 promotion.
+
+**CRITICAL CHANGE**: We now maintain **State 0 payment calculations** that are persistent and never update, used for payment diff display.
 
 ---
 
-### 2. Slider Interaction Model
+### 2. State 0 Payment Baselines (NEW - Persistent Diffs)
 
-#### 2.1 Hover‑activated keyboard control
-* Each `EnhancedSlider` registers itself with a global “active slider” store.
-* On mouse enter or focus, the slider claims keyboard control; moving the mouse away or blurring releases control (unless another slider already claimed it).
-* Arrow keys are handled only if the slider is active; this prevents previously selected sliders from reacting when the user hovers elsewhere.
+These payment calculations are computed once and never update, ensuring diffs remain visible even after sliders settle:
 
-#### 2.2 Rounding, snapping, and increments
+#### 2.1 Cash Down State 0 Payment
+```typescript
+const cashDownState0Payment = useMemo(() => {
+  if (cashDown === 0) return null; // Already at State 0
+
+  return calculateMonthlyPaymentFor({
+    ...currentSliders,
+    cashDown: 0, // State 0 = $0 down
+  });
+}, [dependencies]);
+```
+- **Purpose**: Show monthly payment impact of having cash down vs $0 down
+- **Baseline**: Always $0 cash down
+- **Display**: "↓ $XX from $0 baseline"
+
+#### 2.2 Sale Price State 0 Payment
+```typescript
+const salePriceState0Payment = useMemo(() => {
+  const state0SalePrice = selectedVehicleSaleValue ?? salePrice;
+  if (Math.abs(salePrice - state0SalePrice) < 0.01) return null;
+
+  return calculateMonthlyPaymentFor({
+    ...currentSliders,
+    salePrice: state0SalePrice, // Use original asking price
+  });
+}, [dependencies]);
+```
+- **Purpose**: Show monthly payment savings from negotiating below asking price
+- **Baseline**: Always original asking price (`selectedVehicleSaleValue`)
+- **Display**: "↓ $XX from $XX,XXX asking price"
+
+#### 2.3 Trade Allowance State 0 Payment
+```typescript
+const tradeAllowanceState0Payment = useMemo(() => {
+  if (tradeAllowance === 0) return null;
+
+  const state0NetEquity = 0 - tradePayoff;
+  const state0AppliedToBalance = Math.abs(Math.min(0, state0NetEquity));
+
+  return calculateMonthlyPaymentFor({
+    ...currentSliders,
+    appliedToBalance: state0AppliedToBalance,
+    cashoutAmount: 0,
+  });
+}, [dependencies]);
+```
+- **Purpose**: Show monthly payment impact of trade-in vs no trade-in
+- **Baseline**: Always $0 trade-in allowance
+- **Handles**: Both positive equity (reduces payment) and negative equity (increases payment)
+
+---
+
+### 3. APR Baseline System (Updated)
+
+#### 3.1 Removed Concepts
+- ❌ `aprInitialPayment` (static snapshot) - REMOVED
+- ❌ `aprUserBaseline` (State 1 tracking) - REMOVED
+- ❌ `aprUserBaselinePayment` - REMOVED
+
+#### 3.2 Current APR System (Dual-Diff Approach)
+
+**Dynamic Baseline Payment:**
+```typescript
+const aprBaselinePayment = useMemo(() => {
+  if (!hasCustomApr || lenderBaselineApr == null) return null;
+
+  const baselineSalePriceValue = salePriceDiffBaseline ?? salePrice;
+
+  return calculateMonthlyPaymentFor({
+    salePrice: baselineSalePriceValue, // Use settled sale price
+    apr: lenderBaselineApr, // Use lender APR
+    ...otherCurrentSliders
+  });
+}, [dependencies]);
+```
+
+**Pure APR Diff (for tooltip breakdown):**
+```typescript
+const aprPaymentDiffPure = useMemo(() => {
+  const baselineSalePriceValue = salePriceDiffBaseline ?? salePrice;
+
+  const paymentWithCurrentApr = calculateMonthlyPaymentFor({
+    salePrice: baselineSalePriceValue, // Baseline sale price
+    apr: apr, // Current APR
+    ...
+  });
+
+  return paymentWithCurrentApr - aprBaselinePayment;
+}, [dependencies]);
+```
+- **Purpose**: Isolate the APR impact from sale price changes
+- **Used in**: Tooltip breakdown showing pure APR vs sale price impact
+
+**Buyer Perspective APR Diff:**
+```typescript
+const aprPaymentDiffFromLender = useMemo(() => {
+  const baselinePaymentWithCurrentSliders = calculateMonthlyPaymentFor({
+    salePrice, // CURRENT sale price
+    apr: lenderBaselineApr, // Lender baseline APR
+    ...
+  });
+
+  return monthlyPayment - baselinePaymentWithCurrentSliders;
+}, [dependencies]);
+```
+- **Purpose**: Total impact from buyer's perspective with current sliders
+- **Used in**: Static diff note below APR control
+
+#### 3.3 Sale Price State 0 Diff (for APR control display)
+```typescript
+const salePriceState0Diff = useMemo(() => {
+  const state0Price = selectedVehicleSaleValue;
+  if (!state0Price || Math.abs(salePrice - state0Price) < 0.01) return null;
+
+  return salePriceState0Payment != null
+    ? monthlyPayment - salePriceState0Payment
+    : null;
+}, [dependencies]);
+```
+- **Purpose**: Show sale price impact as separate note below APR control
+- **Display**: "↓ $XX from $XX,XXX asking price"
+
+---
+
+### 4. Slider Interaction Model
+
+#### 4.1 Hover-activated keyboard control
+* Each `EnhancedSlider` registers itself with a global "active slider" store.
+* On mouse enter or focus, the slider claims keyboard control; moving the mouse away or blurring releases control.
+* Arrow keys are handled only if the slider is active.
+
+#### 4.2 Rounding, snapping, and increments
 * Every slider value change runs through `normalizeSliderValue`:
-  * Snap to baseline (State 1) whenever the new value sits within the snap threshold.
-  * Otherwise round to the slider’s configured step (`step` prop). If no step is provided, round to cents (0.01).
-* Arrow keys inherit the same logic. To prevent “sticky” behavior, we temporarily disable snapping on the very first key press leaving the baseline.
-* Dragging, arrow keys, and manual inputs all write back the rounded value before notifying React, so the UI and store always agree about the canonical number.
+  * Snap to baseline (State 1) whenever the new value sits within the snap threshold.
+  * Otherwise round to the slider's configured step.
+* Arrow keys inherit the same logic with temporary snap-disable on first keypress from baseline.
 
-#### 2.3 Diff visibility
-* The inline diff text and tooltips only render once a State 1 baseline exists.  
-* Diffs never reference State 0; until we have State 1 we simply hide them.
-* After a diff is visible, it stays visible even if the user steers back toward baseline. It only disappears when the value snaps exactly to the baseline.
+#### 4.3 Diff visibility - UPDATED
+* **Value Diff**: Shows difference from State 1 (settled baseline) - updates when slider settles
+* **Payment Diff**: Shows difference from State 0 (persistent baseline) - NEVER updates
+* Both diffs remain visible even if user steers back toward baseline
+* Only disappears when value snaps exactly to baseline
 
-#### 2.4 Baseline promotion (State 1)
-* Vehicle selected → immediately sets sale price State 1 (`salePriceDiffBaseline`) plus its baseline payment snapshot.
-* When no vehicle is selected:
-  * The slider store constantly tracks user edits.
-  * After 2 s of inactivity the store copies the current values into its internal baselines; `CalculatorApp` watches for “baseline == value > 0 and diff baseline is null” to capture State 1.
-  * Once captured we also snapshot the current monthly payment (used by the tooltip).
+#### 4.4 Baseline promotion (State 1)
+* Vehicle selected → immediately sets `selectedVehicleSaleValue` as State 0
+* After 2s of inactivity:
+  * Slider store updates State 1 baselines
+  * `CalculatorApp` captures `salePriceDiffBaseline` when detected
+  * Payment snapshots are NOT taken (we use State 0 payments instead)
 
-#### 2.5 Reset link behavior
-* “Reset” sets the slider back to State 1 when one exists (sale price uses `setSliderValue(..., true)` so both value and baseline stay aligned).  
-* If State 1 does not exist yet, Reset falls back to the slider store baseline (which mirrors the last settled value).
+#### 4.5 EnhancedSlider Props - UPDATED
+```typescript
+interface EnhancedSliderProps {
+  baselineValue?: number;           // State 0 for reset and display
+  diffBaselineValue?: number;        // State 1 for VALUE diff (+/- number)
+  diffBaselinePayment?: number;      // State 0 PAYMENT for payment diff note
+  monthlyPayment?: number;           // Current monthly payment
+  // ... other props
+}
+```
 
-#### 2.6 Tooltips & payment diffs
-* Hovering reveals a tooltip that shows the current monthly payment plus the diff against the State 1 payment baseline.
-* The tooltip diff remains hidden until the payment baseline is known (for sliders, that’s the first time we capture State 1).
+**Key Distinction:**
+- `diffBaselineValue`: Used for STATE 1 (dynamic, updates when slider settles)
+- `diffBaselinePayment`: Used for STATE 0 (persistent, never updates)
 
----
+**Example (Sale Price slider):**
+```typescript
+<EnhancedSlider
+  label="Sale Price"
+  value={salePrice}
+  baselineValue={selectedVehicleSaleValue ?? salePrice}  // State 0
+  diffBaselineValue={selectedVehicleSaleValue ?? undefined}  // State 0 (persistent)
+  diffBaselinePayment={salePriceState0Payment ?? undefined}  // State 0 payment
+  monthlyPayment={monthlyPayment}
+/>
+```
 
-### 3. APR & Term Baselines
+**Example (Cash Down slider):**
+```typescript
+<EnhancedSlider
+  label="Cash Down"
+  value={cashDown}
+  baselineValue={0}  // State 0
+  diffBaselineValue={0}  // State 0 (persistent)
+  diffBaselinePayment={cashDownState0Payment ?? undefined}  // State 0 payment
+  monthlyPayment={monthlyPayment}
+/>
+```
 
-#### 3.1 APR State 0 vs State 1
-* State 0 is `lenderBaselineApr`, captured whenever lender rates load or change. The APR confirmation modal compares the current APR against this value.
-* State 1 (`aprUserBaseline`) is captured via the same 2 s settling delay used for sliders:
-  * Every APR change schedules a timeout.
-  * If the user continues editing, the timeout is cleared/rescheduled.
-  * When the timer fires we promote the current APR to State 1 and snapshot the current monthly payment.
-
-#### 3.2 Payment baselines
-* `aprInitialPayment` stores the monthly payment associated with State 0 (first time we compute a non‑zero payment after lender rates load).
-* `aprUserBaselinePayment` stores the payment at the moment APR becomes State 1.
-* Tooltips and inline diffs show `currentPayment – (State 1 payment if it exists, else State 0 payment)`.
-
-#### 3.3 Reset logic
-* Resetting to lender APR clears the settle timer, erases State 1, and restores APR to State 0 so the diff once again references the lender rate.
-* Changing lenders also clears the timer and baselines so the new lender’s State 0 takes effect immediately.
-
----
-
-### 4. Truth-in-Lending diffs
-
-* `useTilBaselines` tracks the immutable baseline for APR/term/finance charge, etc. It only updates when we call `resetBaselines` (vehicle change) or when we first call `updateBaselines`.
-* `calculateDiffs` compares the live calculator values to those baselines, applying thresholds (e.g., $1 for currency, 1 month for terms) so tiny differences stay hidden.
-* Finance charge/amount financed diffs are suppressed unless APR or term actually changed, keeping the TIL readout focused on meaningful adjustments.
-
----
-
-### 5. Settling Timer & Store Coordination
-
-* The slider store keeps a single timer ID; every slider movement resets the 2 s delay. When the delay fires, all slider baselines are updated to the current values.
-* A similar timer exists for APR; it’s managed directly inside `CalculatorApp` because APR isn’t part of the slider store.
-* When timers are cleared (component unmount, vehicle change, lender change) we must always `clearTimeout` to avoid promoting stale values.
-
----
-
-### 6. Key Gotchas
-
-1. **Payment snapshots must be kept in sync.** Always update refs such as `latestAprPaymentRef` inside a `useEffect` on `monthlyPayment` before using them in timer callbacks.
-2. **Diff baselines should reset on major state changes.** Selecting a vehicle, clearing a vehicle, changing lenders, or resetting to lender APR must null out the State 1 baselines so we don’t show old diffs.
-3. **Keyboard focus vs hover.** Because sllders can be tabbed, we claim keyboard control both on focus and on hover. Remember to release control when either focus or hover ends.
-4. **Rounding order matters.** Round before updating slider state to avoid mismatches between the UI thumb and the store value.
-5. **Snap threshold interacts with step sizes.** For large steps (e.g., $100 increments) set the snap threshold to the same value so users can land on State 1 precisely even if the base value isn’t divisible by the step.
-6. **APR confirmation depends on State 0 vs State 1.** Even if the diff display uses State 1, the confirmation modal should compare to State 0 so users are warned only when they deviated from the lender’s offer.
+#### 4.6 Tooltips & payment diffs - UPDATED
+* Hovering reveals tooltip showing current monthly payment
+* Payment diff note (static, below slider) compares to State 0 payment (persistent)
+* Format: "↓ $XX from $XX,XXX baseline"
 
 ---
 
-### 7. Testing Expectations
+### 5. Truth-in-Lending Diffs
 
-* `__tests__/enhanced-slider.test.ts` covers rounding/snap helpers (including disable‑snap for arrow keys).
-* `__tests__/calculator-store.test.ts` ensures the slider store’s 2 s settling delay updates baselines for *all* sliders and resets timers correctly.
-* Manual QA instructions should include:
-  * Hover over a slider, use arrow keys, confirm only that slider moves.
-  * Select a vehicle, tweak sale price, observe diff and payment tooltip show changes from vehicle ask.
-  * Change APR, wait for 2 s, tweak again, confirm diff is relative to the previous settled APR.
-  * Change lender, confirm APR diff resets and the confirmation modal references the new lender rate.
+* `useTilBaselines` tracks immutable baselines for TIL disclosures
+* Updates only on `resetBaselines` (vehicle change) or first `updateBaselines`
+* `calculateDiffs` compares live values to baselines with thresholds
+* Finance charge/amount financed diffs suppressed unless APR or term changed
 
 ---
 
-### 8. Recreating the Feature Set
+### 6. Settling Timer & Store Coordination
+
+* Slider store keeps single timer for all sliders (2s delay)
+* When timer fires, all slider baselines update to current values (State 1)
+* APR has no settle timer anymore (we removed State 1 tracking)
+* Always `clearTimeout` on unmount, vehicle change, lender change
+
+---
+
+### 7. Key Gotchas - UPDATED
+
+1. **State 0 vs State 1 distinction is critical:**
+   - State 0 = Persistent baseline for payment diffs (never updates)
+   - State 1 = Dynamic baseline for value diffs (updates on settle)
+
+2. **APR baseline must recalculate dynamically:**
+   - No static snapshots
+   - `aprBaselinePayment` uses current sale price with lender APR
+   - Ensures APR diff updates when sale price changes
+
+3. **Persistent diffs require State 0 calculations:**
+   - Each slider with persistent diff needs its own State 0 payment calculation
+   - Must handle edge cases (e.g., already at State 0)
+
+4. **Sale Price has special State 0:**
+   - State 0 is `selectedVehicleSaleValue` (dealer asking price)
+   - NOT $0 like other sliders
+
+5. **EnhancedSlider prop mapping:**
+   - `diffBaselineValue` → State 1 (for value diff)
+   - `diffBaselinePayment` → State 0 payment (for payment diff)
+   - Don't confuse these!
+
+6. **Trade allowance State 0 includes equity calculation:**
+   - Must calculate equity with $0 trade-in
+   - Handle negative equity (payoff with no trade becomes balance increase)
+
+7. **APR confirmation depends on lender baseline:**
+   - Modal compares to `lenderBaselineApr` (State 0)
+   - Even though diff display uses dynamic calculation
+
+---
+
+### 8. Testing Expectations
+
+* Slider persistence:
+  * Select vehicle with asking price $30,000
+  * Negotiate to $28,000
+  * Wait 2s for settle
+  * Payment diff should STILL show savings vs $30,000 asking
+  * Value diff shows $0 (at State 1)
+
+* Cash Down persistence:
+  * Set cash down to $5,000
+  * Wait 2s for settle
+  * Payment diff should STILL show impact vs $0 down
+
+* APR dynamic baseline:
+  * Select vehicle, negotiate price down
+  * Change APR
+  * APR diff should reflect new negotiated price, not original asking
+
+* Sale Price dual usage:
+  * Sale Price slider uses State 0 for BOTH value and payment diffs
+  * Ensures persistence for both types
+
+---
+
+### 9. Recreating the Feature Set
 
 When reimplementing, follow this sequence:
 
-1. Implement baseline tracking hooks (`useTilBaselines`, slider store baselines).
-2. Implement the hover/focus keyboard store so arrow keys affect the correct slider.
-3. Implement the settling timers for sliders (already in the store) and APR (inside the calculator component).
-4. Wire up diff baselines:
-   * For sliders: `salePriceDiffBaseline`, `salePricePaymentBaseline`, etc.
-   * For APR: `aprUserBaseline`, `aprInitialPayment`, `aprUserBaselinePayment`.
-5. Add reset handlers that prefer State 1 when present.
-6. Render diffs only when State 1 exists; keep tooltips and inline text in sync with the same baseline.
+1. **Implement State 0 payment calculations:**
+   - `cashDownState0Payment`
+   - `salePriceState0Payment`
+   - `tradeAllowanceState0Payment`
 
-With these concepts captured, a new engineer should be able to rebuild the calculator’s negotiation UX without reading the existing implementation.
+2. **Implement dynamic APR baseline:**
+   - `aprBaselinePayment` (recalculates with current sliders)
+   - `aprPaymentDiffPure` (isolates APR impact)
+   - `aprPaymentDiffFromLender` (buyer perspective)
+
+3. **Wire up EnhancedSlider props correctly:**
+   - `diffBaselineValue` = State 1 or State 0 (depending on slider)
+   - `diffBaselinePayment` = State 0 payment calculation
+
+4. **Implement dual-diff display:**
+   - Tooltip: Shows current payment
+   - Static note: Shows payment diff from State 0
+   - Value diff: Shows value diff from State 1
+
+5. **Handle edge cases:**
+   - Null checks when already at State 0
+   - Sale price special case (State 0 = asking price)
+   - Trade allowance equity calculation
+
+With these concepts captured, a new engineer should be able to rebuild the calculator's persistent diff system and understand why we have both State 0 and State 1 baselines.
+
+---
+
+## Appendix: Data Flow Diagram
+
+```
+Vehicle Selected
+       ↓
+selectedVehicleSaleValue = $30,000 (State 0)
+       ↓
+User negotiates to $28,000
+       ↓
+Wait 2s → Settle
+       ↓
+salePriceDiffBaseline = $28,000 (State 1)
+       ↓
+User continues to $27,500
+       ↓
+VALUE DIFF: $27,500 - $28,000 = -$500 (vs State 1)
+PAYMENT DIFF: payment($27,500) - payment($30,000) = -$XX (vs State 0)
+                                                      ↑
+                                             PERSISTENT - never changes
+```
