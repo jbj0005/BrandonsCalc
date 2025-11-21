@@ -42,15 +42,21 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  // Always call latest onClose without retriggering focus effects
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   // Handle ESC key
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (closeOnEsc && e.key === 'Escape') {
-        onClose();
+        onCloseRef.current();
       }
     },
-    [closeOnEsc, onClose]
+    [closeOnEsc]
   );
 
   // Handle backdrop click
