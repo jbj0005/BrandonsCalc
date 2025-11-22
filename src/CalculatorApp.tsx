@@ -335,6 +335,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   // Calculated values
   const [apr, setApr] = useState(5.99);
   const [lenderBaselineApr, setLenderBaselineApr] = useState<number | null>(null);
+  const [hasLenderAprLoaded, setHasLenderAprLoaded] = useState(false);
+  const [hasShownDefaultAprWarning, setHasShownDefaultAprWarning] = useState(false);
   const [monthlyPayment, setMonthlyPayment] = useState(0);
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
@@ -486,6 +488,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     }
 
     resetBaselines();
+    setHasLenderAprLoaded(false); // Reset flag so TIL baselines can be set fresh for new vehicle
+    setHasShownDefaultAprWarning(false); // Reset warning flag for new vehicle
     lastVehicleBaselineKeyRef.current = nextVehicleKey ?? null;
   }, [selectedVehicle, resetBaselines]);
 
@@ -543,6 +547,8 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
       setIsLoadingRates(true);
       setRatesEffectiveDate(null);
+      setHasLenderAprLoaded(false); // Reset flag when lender changes
+      setHasShownDefaultAprWarning(false); // Reset warning flag when lender changes
       try {
         const response = await fetchLenderRates(lender);
         setLenderRates(response.rates);
@@ -587,10 +593,14 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
           setBestLenderApr(bestLender.apr);
           setApr(bestLender.apr); // Mirror winner APR immediately
           setLenderBaselineApr(bestLender.apr);
+          const wasUsingDefault = !hasLenderAprLoaded;
+          if (!hasLenderAprLoaded) {
+            setHasLenderAprLoaded(true); // Mark as loaded when best rate is found
+          }
           toast.push({
             kind: 'success',
-            title: 'Best Rate Applied',
-            detail: `${bestLender.lenderName} at ${bestLender.apr.toFixed(2)}% APR is now applied to your payment.`,
+            title: wasUsingDefault ? 'Best Rate Loaded' : 'Best Rate Applied',
+            detail: `${bestLender.lenderName} at ${bestLender.apr.toFixed(2)}% APR${wasUsingDefault ? ' loaded and' : ''} is now applied to your payment.`,
           });
         }
       } catch (error) {
@@ -613,8 +623,33 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       const normalized = parseFloat(bestLenderApr.toFixed(2));
       setApr(normalized);
       setLenderBaselineApr(normalized);
+      if (!hasLenderAprLoaded) {
+        setHasLenderAprLoaded(true); // Mark as loaded when using lowest APR
+      }
     }
-  }, [useLowestApr, bestLenderApr]);
+  }, [useLowestApr, bestLenderApr, hasLenderAprLoaded]);
+
+  // Show warning toast when using default APR
+  useEffect(() => {
+    // Don't show warning if rates are loading or if we've already shown it
+    if (isLoadingRates || hasShownDefaultAprWarning || hasLenderAprLoaded) {
+      return;
+    }
+
+    // Wait a short delay to allow rates to load first
+    const warningTimer = setTimeout(() => {
+      if (!hasLenderAprLoaded && selectedVehicle && monthlyPayment > 0) {
+        toast.push({
+          kind: 'warning',
+          title: 'Using Default APR',
+          detail: `Calculations are based on ${apr.toFixed(2)}% default rate. Waiting for lender rates to load for accurate pricing.`,
+        });
+        setHasShownDefaultAprWarning(true);
+      }
+    }, 1000); // 1 second delay
+
+    return () => clearTimeout(warningTimer);
+  }, [hasLenderAprLoaded, isLoadingRates, hasShownDefaultAprWarning, selectedVehicle, monthlyPayment, apr, toast]);
 
   // Calculate APR based on credit score, term, and vehicle condition
   useEffect(() => {
@@ -630,8 +665,21 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       setApr(calculatedAPR);
       // Store lender's recommended APR as baseline for comparison
       setLenderBaselineApr(calculatedAPR);
+
+      // Mark that lender APR has been loaded (used to prevent TIL baselines from being set with hard-coded default)
+      if (!hasLenderAprLoaded) {
+        setHasLenderAprLoaded(true);
+        // Show success toast when real rates load (if we previously showed warning)
+        if (hasShownDefaultAprWarning) {
+          toast.push({
+            kind: 'success',
+            title: 'Lender Rates Loaded',
+            detail: `Updated to ${calculatedAPR.toFixed(2)}% APR based on your credit profile and loan terms.`,
+          });
+        }
+      }
     }
-  }, [lenderRates, creditScore, loanTerm, vehicleCondition]);
+  }, [lenderRates, creditScore, loanTerm, vehicleCondition, hasLenderAprLoaded, hasShownDefaultAprWarning, toast]);
 
   // Calculate loan on any change (including equity decision)
   useEffect(() => {
@@ -1038,18 +1086,22 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     setTotalOfPayments(total);
     setFinanceCharge(total - financed);
 
-    // Update TIL baselines and calculate diffs
-    const tilValues = {
-      apr: apr / 100, // Convert to decimal for hook
-      term: loanTerm,
-      financeCharge: total - financed,
-      amountFinanced: financed,
-      totalPayments: total,
-      monthlyFinanceCharge: loanTerm > 0 ? (total - financed) / loanTerm : 0,
-      monthlyPayment: payment,
-    };
-    updateBaselines(tilValues);
-    calculateDiffs(tilValues);
+    // Only update TIL baselines after lender APR has loaded
+    // This prevents baselines from being set with the hard-coded 5.99% default
+    if (hasLenderAprLoaded) {
+      // Update TIL baselines and calculate diffs
+      const tilValues = {
+        apr: apr / 100, // Convert to decimal for hook
+        term: loanTerm,
+        financeCharge: total - financed,
+        amountFinanced: financed,
+        totalPayments: total,
+        monthlyFinanceCharge: loanTerm > 0 ? (total - financed) / loanTerm : 0,
+        monthlyPayment: payment,
+      };
+      updateBaselines(tilValues);
+      calculateDiffs(tilValues);
+    }
   };
 
   // Helper to prepare lead data from calculator state
@@ -1407,27 +1459,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     resetSlider('salePrice');
   }, [resetSlider]);
 
-  // Savings panel calculations
-  const savingsFromSalePrice = useMemo(() => {
-    const baseline = selectedVehicleSaleValue ?? salePrice;
-    const diff = baseline - salePrice;
-    return diff > 0 ? diff : 0;
-  }, [salePrice, selectedVehicleSaleValue]);
-
-  const savingsFromTrade = useMemo(() => {
-    // Positive trade equity applied to balance is considered savings
-    return effectiveAppliedTrade > 0 ? effectiveAppliedTrade : 0;
-  }, [effectiveAppliedTrade]);
-
-  const savingsFromApr = useMemo(() => {
-    // Use payment diff vs lender baseline if available, otherwise null
-    if (aprBaselinePayment == null) return 0;
-    const diff = (aprBaselinePayment - monthlyPayment) * (loanTerm > 0 ? 1 : 0);
-    return diff > 0 ? diff : 0;
-  }, [aprBaselinePayment, monthlyPayment, loanTerm]);
-
-  const totalSavings = savingsFromSalePrice + savingsFromTrade + savingsFromApr;
-
   // Calculate baseline payments for all sliders (for payment diff tooltips)
   const cashDownBaselinePayment = useMemo(() => {
     const baseline = sliders.cashDown.baseline;
@@ -1545,6 +1576,45 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
       loanTerm,
     });
   }, [salePrice, cashDown, dealerFees, customerAddons, govtFees, stateTaxRate, countyTaxRate, apr, loanTerm, sliders.govtFees.baseline, equityAllocation]);
+
+  // Savings panel calculations - all expressed as MONTHLY savings
+  // These use the actual monthly payment diffs that are calculated for the sliders
+  const savingsFromSalePrice = useMemo(() => {
+    // Sale price savings = reduction in monthly payment from baseline
+    // salePricePaymentDiffOverride is positive when payment increases (bad)
+    // So negate it to get savings (positive = good)
+    if (salePricePaymentDiffOverride == null) return 0;
+    const savings = -salePricePaymentDiffOverride;
+    return savings > 0 ? savings : 0;
+  }, [salePricePaymentDiffOverride]);
+
+  const savingsFromTrade = useMemo(() => {
+    // Trade allowance savings = monthly payment reduction from baseline trade allowance
+    // This matches what the slider shows (diff from baseline)
+    if (tradeAllowanceBaselinePayment == null) return 0;
+    const savings = tradeAllowanceBaselinePayment - monthlyPayment;
+    return savings > 0 ? savings : 0;
+  }, [tradeAllowanceBaselinePayment, monthlyPayment]);
+
+  const savingsFromApr = useMemo(() => {
+    // APR savings = monthly payment reduction vs lender baseline APR
+    // aprPaymentDiffFromLender is positive when payment increases (bad for customer)
+    // So negate it to get savings (positive = good)
+    if (aprPaymentDiffFromLender == null) return 0;
+    const savings = -aprPaymentDiffFromLender;
+    return savings > 0 ? savings : 0;
+  }, [aprPaymentDiffFromLender]);
+
+  const totalSavings = savingsFromSalePrice + savingsFromTrade + savingsFromApr;
+
+  // Get current lender name for display
+  const currentLenderName = useMemo(() => {
+    if (useLowestApr && bestLenderLongName) {
+      return bestLenderLongName;
+    }
+    const lenderOption = lenderOptions.find(opt => opt.value === lender);
+    return lenderOption?.label || 'Lender';
+  }, [useLowestApr, bestLenderLongName, lenderOptions, lender]);
 
   // Calculate State 0 (persistent) baseline payments for diff display
   // These always compare against the original/asking values, never update
@@ -2489,6 +2559,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         helper: 'Total after all payments',
                       })}
 
+                      {renderTilStatCard({
+                        label: 'Monthly Finance Charge',
+                        value: formatCurrencyWithCents(loanTerm > 0 ? financeCharge / loanTerm : 0),
+                        helper: 'Interest portion per month',
+                      })}
+
                     </div>
                   </div>
                 </div>
@@ -2661,42 +2737,67 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                 <div className="w-1 h-10 bg-gradient-to-b from-emerald-400 to-cyan-400 rounded-full" />
                 <div>
                   <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-                    Your Savings
+                    Your Monthly Savings Summary
                   </h2>
-                  <p className="text-sm text-white/60">Line-by-line savings you’ve secured</p>
+                  <p className="text-sm text-white/60">Line-by-line savings you've secured</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {savingsFromSalePrice > 0 && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">Sale Price</div>
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">Sale Price Savings</div>
                     <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromSalePrice)}</div>
-                    <div className="text-xs text-white/50 mt-1">Savings vs baseline price</div>
+                    <div className="text-xs text-white/50 mt-1">
+                      Saving vs. {formatCurrency(salePriceDiffBaseline ?? selectedVehicleSaleValue ?? salePrice)} Asking Price
+                    </div>
                   </div>
                 )}
                 {savingsFromTrade > 0 && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">Trade-In</div>
                     <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromTrade)}</div>
-                    <div className="text-xs text-white/50 mt-1">Applied equity to balance</div>
+                    <div className="text-xs text-white/50 mt-1">
+                      Saving vs. {formatCurrency(sliders.tradeAllowance.baseline)} baseline trade
+                    </div>
                   </div>
                 )}
                 {savingsFromApr > 0 && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">APR</div>
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">APR Savings</div>
                     <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromApr)}</div>
-                    <div className="text-xs text-white/50 mt-1">Payment savings vs lender APR</div>
+                    <div className="text-xs text-white/50 mt-1">
+                      Saving vs. {lenderBaselineApr?.toFixed(2)}% {currentLenderName} rate
+                    </div>
                   </div>
                 )}
               </div>
 
               <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
                 <div className="text-sm font-semibold text-white/80 uppercase tracking-[0.15em]">
-                  Total Savings
+                  Total Monthly Savings
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrencyWithCents(totalSavings)}
+                </div>
+              </div>
+
+              {/* Monthly Payment Comparison */}
+              <div className="pt-3 border-t border-white/10">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-white/60 mb-2">Before Savings</div>
+                    <div className="text-2xl font-bold text-white/70">
+                      {formatCurrencyWithCents(monthlyPayment + totalSavings)}
+                    </div>
+                    <div className="text-xs text-white/40 mt-1">Baseline monthly payment</div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80 mb-2">Current Payment</div>
+                    <div className="text-2xl font-bold text-white">
+                      {formatCurrencyWithCents(monthlyPayment)}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
