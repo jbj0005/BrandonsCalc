@@ -1407,6 +1407,27 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     resetSlider('salePrice');
   }, [resetSlider]);
 
+  // Savings panel calculations
+  const savingsFromSalePrice = useMemo(() => {
+    const baseline = selectedVehicleSaleValue ?? salePrice;
+    const diff = baseline - salePrice;
+    return diff > 0 ? diff : 0;
+  }, [salePrice, selectedVehicleSaleValue]);
+
+  const savingsFromTrade = useMemo(() => {
+    // Positive trade equity applied to balance is considered savings
+    return effectiveAppliedTrade > 0 ? effectiveAppliedTrade : 0;
+  }, [effectiveAppliedTrade]);
+
+  const savingsFromApr = useMemo(() => {
+    // Use payment diff vs lender baseline if available, otherwise null
+    if (aprBaselinePayment == null) return 0;
+    const diff = (aprBaselinePayment - monthlyPayment) * (loanTerm > 0 ? 1 : 0);
+    return diff > 0 ? diff : 0;
+  }, [aprBaselinePayment, monthlyPayment, loanTerm]);
+
+  const totalSavings = savingsFromSalePrice + savingsFromTrade + savingsFromApr;
+
   // Calculate baseline payments for all sliders (for payment diff tooltips)
   const cashDownBaselinePayment = useMemo(() => {
     const baseline = sliders.cashDown.baseline;
@@ -2468,11 +2489,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                         helper: 'Total after all payments',
                       })}
 
-                      {renderTilStatCard({
-                        label: 'Monthly Finance Charge',
-                        value: formatCurrencyWithCents(loanTerm > 0 ? financeCharge / loanTerm : 0),
-                        helper: 'Interest portion per month',
-                      })}
                     </div>
                   </div>
                 </div>
@@ -2630,6 +2646,62 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
             </div>
           </div>
         </div>
+
+        {/* Savings Summary */}
+        {totalSavings > 0 && (
+          <div className="mt-3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-emerald-900 to-cyan-950 border border-emerald-500/20">
+            <div className="absolute inset-0 opacity-25">
+              <div className="absolute top-0 right-0 w-72 h-72 bg-emerald-500/30 rounded-full blur-3xl animate-pulse"
+                   style={{ animationDuration: '9s' }} />
+              <div className="absolute bottom-0 left-0 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
+                   style={{ animationDuration: '11s', animationDelay: '2s' }} />
+            </div>
+            <div className="relative z-10 p-6 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-10 bg-gradient-to-b from-emerald-400 to-cyan-400 rounded-full" />
+                <div>
+                  <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+                    Your Savings
+                  </h2>
+                  <p className="text-sm text-white/60">Line-by-line savings you’ve secured</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {savingsFromSalePrice > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">Sale Price</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromSalePrice)}</div>
+                    <div className="text-xs text-white/50 mt-1">Savings vs baseline price</div>
+                  </div>
+                )}
+                {savingsFromTrade > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">Trade-In</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromTrade)}</div>
+                    <div className="text-xs text-white/50 mt-1">Applied equity to balance</div>
+                  </div>
+                )}
+                {savingsFromApr > 0 && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">APR</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrencyWithCents(savingsFromApr)}</div>
+                    <div className="text-xs text-white/50 mt-1">Payment savings vs lender APR</div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+                <div className="text-sm font-semibold text-white/80 uppercase tracking-[0.15em]">
+                  Total Savings
+                </div>
+                <div className="text-2xl font-bold text-white">
+                  {formatCurrencyWithCents(totalSavings)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Itemization of Costs - At the End */}
         <div className="mt-3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950">
