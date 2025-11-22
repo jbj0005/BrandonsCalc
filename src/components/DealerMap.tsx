@@ -41,7 +41,7 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   const [distance, setDistance] = useState<string | null>(null);
   const [duration, setDuration] = useState<string | null>(null);
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
-  const dealerMarker = useRef<google.maps.marker.AdvancedMarkerElement | null>(null);
+  const dealerMarker = useRef<google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null>(null);
   const infoWindow = useRef<google.maps.InfoWindow | null>(null);
 
   // Load Google Maps
@@ -57,27 +57,31 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   useEffect(() => {
     if (!isLoaded || !mapRef.current || map) return;
 
-    // CRITICAL: Map ID is required for AdvancedMarkerElement to work
     const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
+    const usingVectorMap = Boolean(mapId);
 
-    if (!mapId) {
-      setError('Map configuration error - contact support');
+    if (!usingVectorMap) {
+      // Track the misconfiguration but keep going with a classic map fallback
       trackGoogleMapsError(
         GoogleMapsErrorType.MAP_ERROR,
-        'Map ID not configured in environment variables',
-        { component: 'DealerMap' }
+        'Map ID not configured; falling back to default map style',
+        { component: 'DealerMap', fallback: 'classic_map' }
       );
-      return;
     }
 
-    const newMap = new google.maps.Map(mapRef.current, {
-      mapId, // REQUIRED for AdvancedMarkerElement
+    const mapOptions: google.maps.MapOptions = {
       zoom: 10,
       center: { lat: 28.5383, lng: -81.3792 }, // Orlando, FL default
       mapTypeControl: false,
       streetViewControl: false,
       fullscreenControl: true,
-    });
+    };
+
+    if (mapId) {
+      mapOptions.mapId = mapId; // Enables vector map / AdvancedMarkerElement styling
+    }
+
+    const newMap = new google.maps.Map(mapRef.current, mapOptions);
 
     setMap(newMap);
   }, [isLoaded, map]);
@@ -88,7 +92,11 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
     // Clear existing marker
     if (dealerMarker.current) {
-      dealerMarker.current.map = null;
+      if ('map' in dealerMarker.current) {
+        dealerMarker.current.map = null;
+      } else if ('setMap' in dealerMarker.current) {
+        dealerMarker.current.setMap(null);
+      }
       dealerMarker.current = null;
     }
 
@@ -97,27 +105,49 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       infoWindow.current.close();
     }
 
+    const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
+    const supportsAdvancedMarkers = Boolean(
+      mapId && google.maps.marker?.AdvancedMarkerElement && google.maps.marker?.PinElement
+    );
+
     // If we have exact coordinates, use them
     if (dealerLat && dealerLng) {
       const position = { lat: dealerLat, lng: dealerLng };
       const markerStartTime = Date.now();
 
       try {
-        // Create custom pin element (replaces icon option)
-        const pinElement = new google.maps.marker.PinElement({
-          background: '#DC2626', // Red color
-          borderColor: '#991B1B',
-          glyphColor: '#FFFFFF',
-          scale: 1.2,
-        });
+        if (supportsAdvancedMarkers) {
+          // Create custom pin element (replaces icon option)
+          const pinElement = new google.maps.marker.PinElement({
+            background: '#DC2626', // Red color
+            borderColor: '#991B1B',
+            glyphColor: '#FFFFFF',
+            scale: 1.2,
+          });
 
-        // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
-        dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
-          position,
-          map,
-          title: dealerName || 'Dealer Location',
-          content: pinElement.element,
-        });
+          // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
+          dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
+            position,
+            map,
+            title: dealerName || 'Dealer Location',
+            content: pinElement.element,
+          });
+        } else {
+          // Fallback to classic marker if mapId/advanced markers are unavailable
+          dealerMarker.current = new google.maps.Marker({
+            position,
+            map,
+            title: dealerName || 'Dealer Location',
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              fillColor: '#DC2626',
+              fillOpacity: 1,
+              strokeColor: '#991B1B',
+              strokeWeight: 2,
+              scale: 10,
+            },
+          });
+        }
 
         // Create info window
         infoWindow.current = new google.maps.InfoWindow({
@@ -166,21 +196,38 @@ export const DealerMap: React.FC<DealerMapProps> = ({
         trackGoogleMapsPerformance('dealer_geocode', geocodeStartTime, true);
 
         try {
-          // Create custom pin element (replaces icon option)
-          const pinElement = new google.maps.marker.PinElement({
-            background: '#DC2626', // Red color
-            borderColor: '#991B1B',
-            glyphColor: '#FFFFFF',
-            scale: 1.2,
-          });
+          if (supportsAdvancedMarkers) {
+            // Create custom pin element (replaces icon option)
+            const pinElement = new google.maps.marker.PinElement({
+              background: '#DC2626', // Red color
+              borderColor: '#991B1B',
+              glyphColor: '#FFFFFF',
+              scale: 1.2,
+            });
 
-          // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
-          dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
-            position,
-            map,
-            title: dealerName || 'Dealer Location',
-            content: pinElement.element,
-          });
+            // Create AdvancedMarkerElement (modern replacement for google.maps.Marker)
+            dealerMarker.current = new google.maps.marker.AdvancedMarkerElement({
+              position,
+              map,
+              title: dealerName || 'Dealer Location',
+              content: pinElement.element,
+            });
+          } else {
+            // Fallback to classic marker if mapId/advanced markers are unavailable
+            dealerMarker.current = new google.maps.Marker({
+              position,
+              map,
+              title: dealerName || 'Dealer Location',
+              icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                fillColor: '#DC2626',
+                fillOpacity: 1,
+                strokeColor: '#991B1B',
+                strokeWeight: 2,
+                scale: 10,
+              },
+            });
+          }
 
           // Create info window
           infoWindow.current = new google.maps.InfoWindow({

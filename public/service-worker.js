@@ -1,10 +1,8 @@
-const CACHE_NAME = "excelcalc-cache-v4";
+const CACHE_NAME = "excelcalc-cache-v5";
 const BASE_PATH = self.location.pathname.replace(/service-worker\.js$/, "");
 const PRECACHE_URLS = [
   "",
   "index.html",
-  "styles.css",
-  "app.js",
   "site.webmanifest",
   "assets/brandons_calculator_patch_1_120px.png",
 ].map((path) => new URL(path, self.registration.scope).toString());

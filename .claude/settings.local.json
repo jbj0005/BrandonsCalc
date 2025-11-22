@@ -3,7 +3,12 @@
     "allow": [
       "Bash(npm run dev:*)",
       "Bash(npm install:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(npm start)",
+      "Bash(npm run:*)",
+      "Bash(rm:*)",
+      "Bash(git fetch:*)",
+      "WebFetch(domain:jbj0005.github.io)"
     ],
     "deny": [],
     "ask": []

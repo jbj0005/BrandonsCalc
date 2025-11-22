@@ -2,6 +2,7 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ToastProvider } from './ui/components/Toast';
 import CalculatorApp from './CalculatorApp';
+import './index.css';
 // import ComponentDemo from './examples/ComponentDemo';
 
 // Mount React component to #react-root
