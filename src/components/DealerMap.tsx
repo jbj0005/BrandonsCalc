@@ -43,6 +43,10 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   const directionsRenderer = useRef<google.maps.DirectionsRenderer | null>(null);
   const dealerMarker = useRef<google.maps.marker.AdvancedMarkerElement | google.maps.Marker | null>(null);
   const infoWindow = useRef<google.maps.InfoWindow | null>(null);
+  // Track last dealer context so address edits force refresh even if stale coords are present
+  const lastDealerContextRef = useRef<{ address: string | null; lat?: number; lng?: number }>({
+    address: null,
+  });
 
   // Load Google Maps
   useEffect(() => {
@@ -90,6 +94,11 @@ export const DealerMap: React.FC<DealerMapProps> = ({
   useEffect(() => {
     if (!map || !isLoaded) return;
 
+    // Reset any previous error so new attempts can render
+    if (error) {
+      setError(null);
+    }
+
     // Clear existing marker
     if (dealerMarker.current) {
       if ('map' in dealerMarker.current) {
@@ -110,8 +119,19 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       mapId && google.maps.marker?.AdvancedMarkerElement && google.maps.marker?.PinElement
     );
 
-    // If we have exact coordinates, use them
-    if (dealerLat && dealerLng) {
+    const fullAddress = [dealerAddress, dealerCity, dealerState, dealerZip]
+      .filter(Boolean)
+      .join(', ');
+    const addressString = fullAddress.trim() || null;
+    const coordsProvided = typeof dealerLat === 'number' && typeof dealerLng === 'number';
+
+    const lastCtx = lastDealerContextRef.current;
+    const addressChanged = Boolean(addressString && lastCtx.address !== addressString);
+    // Prefer geocoding when the address changed, even if stale coords are present
+    const shouldUseCoords = coordsProvided && !addressChanged;
+
+    // If we have exact coordinates and the address wasn't changed, use them
+    if (shouldUseCoords) {
       const position = { lat: dealerLat, lng: dealerLng };
       const markerStartTime = Date.now();
 
@@ -168,6 +188,11 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
         map.setCenter(position);
         map.setZoom(13);
+        lastDealerContextRef.current = {
+          address: addressString,
+          lat: dealerLat,
+          lng: dealerLng,
+        };
         trackGoogleMapsPerformance('dealer_marker_create', markerStartTime, true);
         return;
       } catch (err) {
@@ -181,16 +206,12 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       }
     }
 
-    // Otherwise, geocode the address
-    const fullAddress = [dealerAddress, dealerCity, dealerState, dealerZip]
-      .filter(Boolean)
-      .join(', ');
-
-    if (!fullAddress) return;
+    // Otherwise, geocode the address (or if coords changed/address changed)
+    if (!addressString) return;
 
     const geocodeStartTime = Date.now();
     const geocoder = new google.maps.Geocoder();
-    geocoder.geocode({ address: fullAddress }, (results, status) => {
+    geocoder.geocode({ address: addressString }, (results, status) => {
       if (status === 'OK' && results && results[0]) {
         const position = results[0].geometry.location;
         trackGoogleMapsPerformance('dealer_geocode', geocodeStartTime, true);
@@ -233,7 +254,7 @@ export const DealerMap: React.FC<DealerMapProps> = ({
           infoWindow.current = new google.maps.InfoWindow({
             content: `<div style="padding: 8px;">
               <h3 style="margin: 0 0 4px; font-weight: 600;">${dealerName || 'Dealer'}</h3>
-              <p style="margin: 0; font-size: 13px;">${fullAddress}</p>
+              <p style="margin: 0; font-size: 13px;">${addressString}</p>
             </div>`,
           });
 
@@ -247,6 +268,11 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
           map.setCenter(position);
           map.setZoom(13);
+          lastDealerContextRef.current = {
+            address: addressString,
+            lat: position.lat(),
+            lng: position.lng(),
+          };
         } catch (err) {
           trackGoogleMapsError(
             GoogleMapsErrorType.MARKER_ERROR,
@@ -260,7 +286,7 @@ export const DealerMap: React.FC<DealerMapProps> = ({
         trackGoogleMapsError(
           GoogleMapsErrorType.GEOCODING_ERROR,
           `Geocoding failed with status: ${status}`,
-          { component: 'DealerMap', address: fullAddress }
+          { component: 'DealerMap', address: addressString }
         );
         setError('Unable to locate dealer address');
       }
