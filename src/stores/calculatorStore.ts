@@ -50,6 +50,7 @@ export interface CalculatorState {
 
   // Auto-lock timer for sale price State 2
   autoLockTimerId: NodeJS.Timeout | null;
+  settlingTimerId: NodeJS.Timeout | null;
 }
 
 export interface CalculatorActions {
@@ -183,43 +184,21 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
   },
 
   setSliderValueWithSettling: (key, value) => {
-    const SETTLING_DELAY = 3000; // 3 seconds
-
     set((state) => {
-      // Clear existing timer
+      // Clear any pending settling timer (we no longer auto-baseline)
       if (state.settlingTimerId) {
         clearTimeout(state.settlingTimerId);
       }
 
-      // Update slider value immediately
       const newSliders = { ...state.sliders };
       newSliders[key] = {
         ...newSliders[key],
         value,
       };
 
-      // Start new settling timer
-      const timerId = setTimeout(() => {
-        // After 3s, update ALL 5 baselines to their current values (State 1)
-        set((currentState) => {
-          const updatedSliders = { ...currentState.sliders };
-          (Object.keys(updatedSliders) as SliderKey[]).forEach((sliderKey) => {
-            updatedSliders[sliderKey] = {
-              ...updatedSliders[sliderKey],
-              baseline: updatedSliders[sliderKey].value,
-            };
-          });
-
-          return {
-            sliders: updatedSliders,
-            settlingTimerId: null,
-          };
-        });
-      }, SETTLING_DELAY);
-
       return {
         sliders: newSliders,
-        settlingTimerId: timerId,
+        settlingTimerId: null,
         lastSliderInteraction: Date.now(),
       };
     });
@@ -237,46 +216,21 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
   },
 
   setSliderValueWithAutoLock: (key, value) => {
-    const AUTO_LOCK_DELAY = 3000; // 3 seconds
-
     set((state) => {
-      // Clear existing auto-lock timer
+      // Clear existing auto-lock timer (auto-lock removed)
       if (state.autoLockTimerId) {
         clearTimeout(state.autoLockTimerId);
       }
 
-      // Update slider value immediately
       const newSliders = { ...state.sliders };
       newSliders[key] = {
         ...newSliders[key],
         value,
-        // If locked, don't unlock on value change
       };
-
-      // Start new auto-lock timer (only if not manually locked)
-      let timerId: NodeJS.Timeout | null = null;
-      if (!newSliders[key].isLocked) {
-        timerId = setTimeout(() => {
-          // After 3s, set lockedBaseline to current value (State 2)
-          set((currentState) => {
-            const updatedSliders = { ...currentState.sliders };
-            updatedSliders[key] = {
-              ...updatedSliders[key],
-              lockedBaseline: updatedSliders[key].value,
-              isLocked: true,
-            };
-
-            return {
-              sliders: updatedSliders,
-              autoLockTimerId: null,
-            };
-          });
-        }, AUTO_LOCK_DELAY);
-      }
 
       return {
         sliders: newSliders,
-        autoLockTimerId: timerId,
+        autoLockTimerId: null,
       };
     });
   },
@@ -343,10 +297,9 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   resetSlider: (key) => {
     set((state) => {
-      // Clear auto-lock timer
-      if (state.autoLockTimerId) {
-        clearTimeout(state.autoLockTimerId);
-      }
+      // Clear timers
+      if (state.autoLockTimerId) clearTimeout(state.autoLockTimerId);
+      if (state.settlingTimerId) clearTimeout(state.settlingTimerId);
 
       const newSliders = { ...state.sliders };
       newSliders[key] = {
@@ -365,10 +318,8 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   resetAllSliders: () => {
     set((state) => {
-      // Clear auto-lock timer
-      if (state.autoLockTimerId) {
-        clearTimeout(state.autoLockTimerId);
-      }
+      if (state.autoLockTimerId) clearTimeout(state.autoLockTimerId);
+      if (state.settlingTimerId) clearTimeout(state.settlingTimerId);
 
       const newSliders = { ...state.sliders };
       (Object.keys(newSliders) as SliderKey[]).forEach((key) => {
@@ -383,6 +334,7 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
       return {
         sliders: newSliders,
         autoLockTimerId: null,
+        settlingTimerId: null,
       };
     });
   },
@@ -478,11 +430,6 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   applyVehicle: (vehicle) => {
     set((state) => {
-      // Clear auto-lock timer when applying new vehicle
-      if (state.autoLockTimerId) {
-        clearTimeout(state.autoLockTimerId);
-      }
-
       const newSliders = { ...state.sliders };
       const updates: Partial<CalculatorState> = {};
 
@@ -504,7 +451,6 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
       return {
         sliders: newSliders,
-        autoLockTimerId: null,
         ...(updates.tradePayoff !== undefined ? { tradePayoff: updates.tradePayoff } : {}),
       };
     });
@@ -512,11 +458,6 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   applyGarageVehicle: (vehicle, enableSalePriceSync = false) => {
     set((state) => {
-      // Clear auto-lock timer when applying garage vehicle
-      if (state.autoLockTimerId) {
-        clearTimeout(state.autoLockTimerId);
-      }
-
       const newSliders = { ...state.sliders };
       const newSelectedVehicles = new Set(state.selectedTradeInVehicles);
 

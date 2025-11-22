@@ -656,7 +656,10 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
           <button
             type="button"
-            onClick={onEditTemplates}
+            onClick={() => {
+              handleSave();
+              onEditTemplates();
+            }}
             className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30"
           >
             Edit Fee Templates

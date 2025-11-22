@@ -2568,54 +2568,66 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               buyerPerspective="higher-is-better"
               showTooltip={true}
               showReset={true}
-              baselineValue={0}
-              diffBaselineValue={0}
-              diffBaselinePayment={tradeAllowanceState0Payment ?? undefined}
+              baselineValue={sliders.tradeAllowance.baseline}
+              diffBaselineValue={sliders.tradeAllowance.baseline}
+              diffBaselinePayment={tradeAllowanceBaselinePayment ?? undefined}
               snapThreshold={100}
               onReset={() => resetTradeIn()}
               fullWidth
             />
 
-            {/* Fees Card (replaces fee sliders) */}
-            <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-white/10">
-              <div className="absolute inset-0 opacity-20">
-                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/25 rounded-full blur-3xl animate-pulse"
-                     style={{ animationDuration: '8s' }} />
-                <div className="absolute bottom-0 left-0 w-72 h-72 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
-                     style={{ animationDuration: '10s', animationDelay: '2s' }} />
+          </div>
+          </div>
+        </div>
+
+        {/* Fees & Customer Add-ons Card */}
+        <div className="mt-3 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-white/10">
+          {/* Ambient Background */}
+          <div className="absolute inset-0 opacity-20">
+            <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/25 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '8s' }} />
+            <div className="absolute bottom-0 left-0 w-72 h-72 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
+                 style={{ animationDuration: '10s', animationDelay: '2s' }} />
+          </div>
+
+          {/* Content */}
+          <div className="relative z-10 p-6">
+            {/* Header */}
+            <div className="mb-4 pb-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-1 h-10 bg-gradient-to-b from-emerald-400 to-cyan-500 rounded-full" />
+                <div>
+                  <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+                    Fees & Customer Add-ons
+                  </h2>
+                  <p className="text-sm text-white/50">Dealer fees, add-ons, and government fees</p>
+                </div>
               </div>
-              <div className="relative z-10 p-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Fees & Customer Add-ons</div>
-                  </div>
-                  <button
-                    onClick={() => setShowFeesModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-200 border border-cyan-400/30 shadow-lg shadow-emerald-500/10"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                    Edit Fees
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-xs text-white/60 mb-1">Dealer Fees</div>
-                    <div className="text-lg font-semibold text-white">{formatCurrency(dealerFees)}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-xs text-white/60 mb-1">Customer Add-ons</div>
-                    <div className="text-lg font-semibold text-white">{formatCurrency(customerAddons)}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                    <div className="text-xs text-white/60 mb-1">Gov't Fees</div>
-                    <div className="text-lg font-semibold text-white">{formatCurrency(govtFees)}</div>
-                  </div>
-                </div>
+              <button
+                onClick={() => setShowFeesModal(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-200 border border-cyan-400/30 shadow-lg shadow-emerald-500/10"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Edit Fees
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="text-xs text-white/60 mb-1">Dealer Fees</div>
+                <div className="text-lg font-semibold text-white">{formatCurrency(dealerFees)}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="text-xs text-white/60 mb-1">Customer Add-ons</div>
+                <div className="text-lg font-semibold text-white">{formatCurrency(customerAddons)}</div>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                <div className="text-xs text-white/60 mb-1">Gov't Fees</div>
+                <div className="text-lg font-semibold text-white">{formatCurrency(govtFees)}</div>
               </div>
             </div>
-          </div>
           </div>
         </div>
 
