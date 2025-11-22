@@ -321,6 +321,7 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
     { value: 'nfcu', label: 'Navy Federal Credit Union' }, // Default fallback
   ]);
   const [bestLenderLongName, setBestLenderLongName] = useState<string | null>(null);
+  const [bestLenderApr, setBestLenderApr] = useState<number | null>(null);
   const [isLoadingLenders, setIsLoadingLenders] = useState(true);
   const [loanTerm, setLoanTerm] = useState(72);
   const [creditScore, setCreditScore] = useState('excellent');
@@ -563,10 +564,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   useEffect(() => {
     if (!useLowestApr || lenderOptions.length === 0) {
       setBestLenderLongName(null);
+      setBestLenderApr(null);
       return;
     }
 
     setBestLenderLongName(null);
+    setBestLenderApr(null);
 
     const findBest = async () => {
       setIsFindingBestLender(true);
@@ -578,10 +581,13 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
         if (bestLender) {
           setLender(bestLender.lenderSource);
           setBestLenderLongName(bestLender.lenderName);
+          setBestLenderApr(bestLender.apr);
+          setApr(bestLender.apr); // Mirror winner APR immediately
+          setLenderBaselineApr(bestLender.apr);
           toast.push({
             kind: 'success',
-            title: 'Best Rate Found',
-            detail: `${bestLender.lenderName} has the lowest APR at ${bestLender.apr.toFixed(2)}%`,
+            title: 'Best Rate Applied',
+            detail: `${bestLender.lenderName} at ${bestLender.apr.toFixed(2)}% APR is now applied to your payment.`,
           });
         }
       } catch (error) {
@@ -597,6 +603,15 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
     findBest();
   }, [useLowestApr, creditScore, loanTerm, vehicleCondition, lenderOptions, toast]);
+
+  // Keep APR synced with the winner when using lowest APR
+  useEffect(() => {
+    if (useLowestApr && bestLenderApr != null) {
+      const normalized = parseFloat(bestLenderApr.toFixed(2));
+      setApr(normalized);
+      setLenderBaselineApr(normalized);
+    }
+  }, [useLowestApr, bestLenderApr]);
 
   // Calculate APR based on credit score, term, and vehicle condition
   useEffect(() => {
@@ -2322,9 +2337,12 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
                       <div className="text-xs font-medium text-emerald-300/80 mb-2 flex items-center justify-center gap-2 uppercase tracking-wider">
                         <span>Estimated Monthly Payment</span>
                       </div>
-                      {useLowestApr && bestLenderLongName && (
-                        <div className="text-xs font-semibold text-emerald-400 bg-emerald-500/20 px-3 py-1 rounded-full inline-block mb-2">
-                          {bestLenderLongName}
+                      {useLowestApr && bestLenderLongName && bestLenderApr != null && (
+                        <div className="text-xs font-semibold text-emerald-100 bg-emerald-500/30 px-3 py-1 rounded-full inline-flex items-center gap-2 mb-2">
+                          <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_0_4px_rgba(16,185,129,0.25)]"></span>
+                          <span>Best rate locked</span>
+                          <span className="text-emerald-50/80">• {bestLenderLongName}</span>
+                          <span className="text-emerald-50/80">• {bestLenderApr.toFixed(2)}% APR</span>
                         </div>
                       )}
                       {hasCustomApr && (
