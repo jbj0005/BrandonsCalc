@@ -1401,11 +1401,20 @@ app.get("/api/mc/trims", async (req, res) => {
 });
 
 // GET /api/lenders
-// Get list of active lenders from database
+// Get list of active lenders from database; fall back to config/lenders.json
 app.get("/api/lenders", async (req, res) => {
+  const loadFromFile = async () => {
+    const { readFile } = await import('fs/promises');
+    const lendersPath = join(__dirname, '..', 'config', 'lenders.json');
+    const lendersData = await readFile(lendersPath, 'utf-8');
+    return JSON.parse(lendersData);
+  };
+
   try {
+    // If Supabase is not configured, use local config immediately
     if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      return res.status(500).json({ error: "Supabase not configured" });
+      const lenders = await loadFromFile();
+      return res.json(lenders);
     }
 
     // Fetch active lenders from database, sorted by display_order
@@ -1430,12 +1439,51 @@ app.get("/api/lenders", async (req, res) => {
     res.json(lenders);
   } catch (err) {
     console.error("[/api/lenders] error:", err);
+    try {
+      const lenders = await loadFromFile();
+      return res.json(lenders);
+    } catch (fileErr) {
+      console.error("[/api/lenders] fallback error:", fileErr);
+    }
+
     res.status(500).json({
       error: "Failed to fetch lenders",
       detail: err?.message || "Unknown error"
     });
   }
 });
+
+// Simple stub rates (fallback) keyed by lender source
+const STUB_RATES_BY_SOURCE = {
+  NFCU: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 72, base_apr: 4.99 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.49 },
+  ],
+  SCCU: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 84, base_apr: 5.25 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.75 },
+  ],
+  PENFED: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 84, base_apr: 5.15 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.65 },
+  ],
+  DCU: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 84, base_apr: 5.35 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.85 },
+  ],
+  LAUNCH: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 72, base_apr: 5.6 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 6.0 },
+  ],
+  NGFCU: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 72, base_apr: 5.4 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.9 },
+  ],
+  CCUFL: [
+    { vehicle_condition: 'new', term_min: 36, term_max: 72, base_apr: 5.45 },
+    { vehicle_condition: 'used', term_min: 36, term_max: 72, base_apr: 5.95 },
+  ],
+};
 
 // GET /api/rates?source=NFCU
 // Get lender rates from Supabase or fall back to stub rates
@@ -1520,6 +1568,32 @@ app.get("/api/rates", async (req, res) => {
         lenderName: lender.longName,
         rates: liveRates,
         dataSource: 'supabase'
+      });
+    }
+
+    // Fallback to stub rates from config map
+    const stubRatesConfig = STUB_RATES_BY_SOURCE[lender.source?.toUpperCase()];
+    if (stubRatesConfig && stubRatesConfig.length) {
+      const effectiveDate = new Date().toISOString();
+      const stubRates = stubRatesConfig.map((rate) => ({
+        source: lender.source,
+        vehicle_condition: rate.vehicle_condition,
+        loan_type: 'purchase',
+        term_min: rate.term_min,
+        term_max: rate.term_max,
+        base_apr: rate.base_apr,
+        credit_score_min: 620,
+        credit_score_max: 850,
+        effective_date: effectiveDate,
+      }));
+
+      return res.json({
+        ok: true,
+        source: lender.source,
+        lenderId: lender.id,
+        lenderName: lender.longName,
+        rates: stubRates,
+        dataSource: 'stub',
       });
     }
 

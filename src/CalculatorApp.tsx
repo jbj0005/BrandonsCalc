@@ -376,9 +376,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   const saleMaxDynamic = Math.max(salePrice * 1.15, 150000);
   const cashDownMaxDynamic = Math.max(cashDown * 1.15, 50000);
   const tradeAllowanceMaxDynamic = Math.max(tradeAllowance * 1.15, 75000);
-  const dealerFeesMaxDynamic = Math.max(dealerFees * 1.15, 5000);
-  const customerAddonsMaxDynamic = Math.max(customerAddons * 1.15, 10000);
-  const govtFeesMaxDynamic = Math.max(govtFees * 1.15, 5000);
 
   // Fee modal handlers
   const handleFeesModalSave = (data: {
@@ -411,11 +408,13 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
   };
 
   const handleOpenFeeTemplateEditor = () => {
+    // Keep fees as-is; just toggle modals
     setShowFeesModal(false);
     setShowFeeTemplateModal(true);
   };
 
   const handleCloseFeeTemplateEditor = () => {
+    // Restore the fees modal without resetting existing fee values
     setShowFeeTemplateModal(false);
     setShowFeesModal(true);
   };
@@ -511,11 +510,15 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
           const response = await fetch('/api/lenders');
           if (response.ok) {
             const data = await response.json();
-            const apiLenders = data.map((lender: any) => ({
-              value: lender.id,
-              label: lender.long_name,
-            }));
-            setLenderOptions(apiLenders);
+            const apiLenders = data
+              .map((lender: any) => {
+                const value = lender.id || lender.source || lender.short_name || lender.shortName;
+                const label = lender.long_name || lender.longName || lender.short_name || lender.shortName || value;
+                if (!value || !label) return null;
+                return { value: String(value), label: String(label) };
+              })
+              .filter(Boolean);
+            setLenderOptions(apiLenders.length ? apiLenders : fallbackLenders);
           } else {
             setLenderOptions(fallbackLenders);
           }
@@ -2573,81 +2576,45 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               fullWidth
             />
 
-            {/* Add Fees Button */}
-            <div className="my-2">
-              <button
-                onClick={() => setShowFeesModal(true)}
-                className="inline-flex items-center gap-2 px-5 py-3 text-sm font-medium text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-300 shadow-lg hover:shadow-cyan-500/30 border border-cyan-400/20"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Fees
-              </button>
+            {/* Fees Card (replaces fee sliders) */}
+            <div className="mt-4 relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 border border-white/10">
+              <div className="absolute inset-0 opacity-20">
+                <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-500/25 rounded-full blur-3xl animate-pulse"
+                     style={{ animationDuration: '8s' }} />
+                <div className="absolute bottom-0 left-0 w-72 h-72 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
+                     style={{ animationDuration: '10s', animationDelay: '2s' }} />
+              </div>
+              <div className="relative z-10 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Fees & Customer Add-ons</div>
+                  </div>
+                  <button
+                    onClick={() => setShowFeesModal(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-200 border border-cyan-400/30 shadow-lg shadow-emerald-500/10"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Edit Fees
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs text-white/60 mb-1">Dealer Fees</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrency(dealerFees)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs text-white/60 mb-1">Customer Add-ons</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrency(customerAddons)}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs text-white/60 mb-1">Gov't Fees</div>
+                    <div className="text-lg font-semibold text-white">{formatCurrency(govtFees)}</div>
+                  </div>
+                </div>
+              </div>
             </div>
-
-            {/* Dealer Fees Slider */}
-            <EnhancedSlider
-              label="Total Dealer Fees"
-              min={0}
-              max={dealerFeesMaxDynamic}
-              step={10}
-              value={dealerFees}
-              onChange={(e) => setSliderValueWithSettling('dealerFees', Number(e.target.value))}
-              formatValue={(val) => formatCurrency(val)}
-              monthlyPayment={monthlyPayment}
-              buyerPerspective="lower-is-better"
-              showTooltip={true}
-              showReset={true}
-              baselineValue={sliders.dealerFees.baseline}
-              diffBaselineValue={sliders.dealerFees.baseline}
-              diffBaselinePayment={dealerFeesBaselinePayment ?? undefined}
-              snapThreshold={10}
-              onReset={() => resetSlider('dealerFees')}
-              fullWidth
-            />
-
-            {/* Customer Add-ons Slider */}
-            <EnhancedSlider
-              label="Total Customer Add-ons"
-              min={0}
-              max={customerAddonsMaxDynamic}
-              step={10}
-              value={customerAddons}
-              onChange={(e) => setSliderValueWithSettling('customerAddons', Number(e.target.value))}
-              formatValue={(val) => formatCurrency(val)}
-              monthlyPayment={monthlyPayment}
-              buyerPerspective="lower-is-better"
-              showTooltip={true}
-              showReset={true}
-              baselineValue={sliders.customerAddons.baseline}
-              diffBaselineValue={sliders.customerAddons.baseline}
-              diffBaselinePayment={customerAddonsBaselinePayment ?? undefined}
-              snapThreshold={10}
-              onReset={() => resetSlider('customerAddons')}
-              fullWidth
-            />
-
-            {/* Gov't Fees Slider */}
-            <EnhancedSlider
-              label="Total Gov't Fees"
-              min={0}
-              max={govtFeesMaxDynamic}
-              step={10}
-              value={govtFees}
-              onChange={(e) => setSliderValueWithSettling('govtFees', Number(e.target.value))}
-              formatValue={(val) => formatCurrency(val)}
-              monthlyPayment={monthlyPayment}
-              buyerPerspective="lower-is-better"
-              showTooltip={true}
-              showReset={true}
-              baselineValue={sliders.govtFees.baseline}
-              diffBaselineValue={sliders.govtFees.baseline}
-              diffBaselinePayment={govtFeesBaselinePayment ?? undefined}
-              snapThreshold={10}
-              onReset={() => resetSlider('govtFees')}
-              fullWidth
-            />
           </div>
           </div>
         </div>
@@ -2689,7 +2656,6 @@ const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
               onCashDownChange={(value) => setSliderValueWithSettling('cashDown', value)}
               onTradeAllowanceChange={(value) => setSliderValueWithSettling('tradeAllowance', value)}
               onTradePayoffChange={(value) => setTradePayoff(value)}
-              onDealerFeesChange={(value) => setSliderValueWithSettling('dealerFees', value)}
               apr={apr}
               loanTerm={loanTerm}
               monthlyPayment={monthlyPayment}

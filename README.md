@@ -66,6 +66,10 @@ See [OFFER_MANAGEMENT_SYSTEM.md](docs/OFFER_MANAGEMENT_SYSTEM.md) for complete d
   - Google Maps JavaScript + Map ID (dealership map embed).
   - Google Custom Search or Brave Search (lead enrichment, optional).
 
+### Backend fallbacks (local/dev)
+- `/api/lenders` falls back to `config/lenders.json` when Supabase creds aren’t set.
+- `/api/rates` returns stub APR grids when Supabase has no `auto_rates` rows, so the UI keeps working while you wire up live data.
+
 ## Environment Configuration
 The Vite client no longer requires local `.env` keys for MarketCheck or Google Maps. At runtime it calls the Express proxy (`/api/config`), which hydrates settings from Supabase.
 

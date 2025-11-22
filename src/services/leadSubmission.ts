@@ -321,7 +321,6 @@ export const submitOfferWithProgress = async (
         vehicle_mileage: leadData.vehicleMileage || null,
         vehicle_condition: leadData.vehicleCondition || null,
         vehicle_price: leadData.vehiclePrice || null, // Customer's offer
-        dealer_asking_price: leadData.dealerAskingPrice || null, // Dealer's asking price
         vehicle_stock_number: leadData.stockNumber || null, // NEW
         vehicle_photo_url: leadData.vehiclePhotoUrl || null, // Vehicle photo
 
