@@ -173,24 +173,24 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black bg-opacity-20 backdrop-blur-sm z-500" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-500" onClick={onClose} />
 
       {/* Dropdown - Apple-esque Design */}
       <div
         ref={dropdownRef}
-        className="fixed right-4 top-16 w-96 max-w-[calc(100vw-2rem)] max-h-[calc(100vh-5rem)] bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 overflow-hidden z-600 flex flex-col"
+        className="fixed right-4 top-16 w-[clamp(360px,85vw,960px)] max-h-[calc(100vh-5rem)] bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white backdrop-blur-xl rounded-2xl shadow-2xl border border-white/10 overflow-hidden z-600 flex flex-col"
         style={{
-          boxShadow: '0 20px 60px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.1)'
+          boxShadow: '0 25px 80px rgba(0, 0, 0, 0.45), 0 0 1px rgba(255, 255, 255, 0.08)'
         }}
       >
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-200/50 bg-white/50 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 tracking-tight">My Account</h3>
+        <div className="px-5 py-4 border-b border-white/10 bg-white/5 flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-white tracking-tight">My Account</h3>
           <button
             onClick={onClose}
-            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center"
+            className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 transition-colors flex items-center justify-center border border-white/10"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-gray-600">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -200,20 +200,20 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
         <div className="flex-1 overflow-y-auto">
           {/* Section List (when no section is active) */}
           {!activeSection && (
-            <div className="divide-y">
+            <div className="space-y-3 px-3 py-3">
               {/* My Profile Section */}
               <button
                 onClick={() => setActiveSection('profile')}
                 onMouseEnter={() => !isTouchDevice && setHoveredSection('profile')}
                 onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
-                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
+                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group rounded-xl backdrop-blur-sm border ${
                   hoveredSection === 'profile'
-                    ? 'bg-blue-50 scale-[1.01]'
-                    : 'hover:bg-gray-50/80 active:bg-gray-100/80'
+                    ? 'bg-emerald-500/10 border-emerald-400/30 shadow-lg shadow-emerald-500/15'
+                    : 'border-white/5 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-sm transition-all duration-200 ${
+                  <div className={`w-11 h-11 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-sm transition-all duration-200 ${
                     hoveredSection === 'profile' ? 'shadow-md scale-105' : ''
                   }`}>
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-white" strokeWidth={2}>
@@ -222,13 +222,13 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   </div>
                   <div>
                     <div className={`font-semibold text-sm transition-colors duration-200 ${
-                      hoveredSection === 'profile' ? 'text-blue-700' : 'text-gray-900'
+                      hoveredSection === 'profile' ? 'text-emerald-100' : 'text-white'
                     }`}>My Profile</div>
-                    <div className="text-xs text-gray-500">Contact & preferences</div>
+                    <div className="text-xs text-white/60">Contact & preferences</div>
                   </div>
                 </div>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
-                  hoveredSection === 'profile' ? 'text-blue-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
+                  hoveredSection === 'profile' ? 'text-emerald-200 translate-x-1' : 'text-white/40 group-hover:text-white/60'
                 }`}>
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                 </svg>
@@ -239,10 +239,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 onClick={() => setActiveSection('garage')}
                 onMouseEnter={() => !isTouchDevice && setHoveredSection('garage')}
                 onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
-                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
+                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group rounded-xl backdrop-blur-sm border ${
                   hoveredSection === 'garage'
-                    ? 'bg-green-50 scale-[1.01]'
-                    : 'hover:bg-gray-50/80 active:bg-gray-100/80'
+                    ? 'bg-green-500/10 border-green-400/30 shadow-lg shadow-green-500/15'
+                    : 'border-white/5 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -255,17 +255,17 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   </div>
                   <div>
                     <div className={`font-semibold text-sm transition-colors duration-200 ${
-                      hoveredSection === 'garage' ? 'text-green-700' : 'text-gray-900'
+                      hoveredSection === 'garage' ? 'text-green-100' : 'text-white'
                     }`}>My Garage</div>
-                    <div className="text-xs text-gray-500">Your vehicles</div>
+                    <div className="text-xs text-white/60">Your vehicles</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 text-xs font-semibold rounded-full transition-colors duration-200 ${
-                    hoveredSection === 'garage' ? 'bg-green-200 text-green-800' : 'bg-gray-200 text-gray-700'
+                    hoveredSection === 'garage' ? 'bg-green-500/20 text-green-100 border border-green-500/40' : 'bg-white/5 text-white/80 border border-white/10'
                   }`}>{garageVehicles.length}</span>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
-                    hoveredSection === 'garage' ? 'text-green-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
+                    hoveredSection === 'garage' ? 'text-green-200 translate-x-1' : 'text-white/40 group-hover:text-white/60'
                   }`}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
@@ -277,10 +277,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 onClick={() => setActiveSection('saved')}
                 onMouseEnter={() => !isTouchDevice && setHoveredSection('saved')}
                 onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
-                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
+                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group rounded-xl backdrop-blur-sm border ${
                   hoveredSection === 'saved'
-                    ? 'bg-purple-50 scale-[1.01]'
-                    : 'hover:bg-gray-50/80 active:bg-gray-100/80'
+                    ? 'bg-purple-500/10 border-purple-400/30 shadow-lg shadow-purple-500/15'
+                    : 'border-white/5 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -293,17 +293,17 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   </div>
                   <div>
                     <div className={`font-semibold text-sm transition-colors duration-200 ${
-                      hoveredSection === 'saved' ? 'text-purple-700' : 'text-gray-900'
+                      hoveredSection === 'saved' ? 'text-purple-100' : 'text-white'
                     }`}>Saved Vehicles</div>
-                    <div className="text-xs text-gray-500">Marketplace listings</div>
+                    <div className="text-xs text-white/60">Marketplace listings</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 text-xs font-semibold rounded-full transition-colors duration-200 ${
-                    hoveredSection === 'saved' ? 'bg-purple-200 text-purple-800' : 'bg-gray-200 text-gray-700'
+                    hoveredSection === 'saved' ? 'bg-purple-500/20 text-purple-100 border border-purple-500/40' : 'bg-white/5 text-white/80 border border-white/10'
                   }`}>{savedVehicles.length}</span>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
-                    hoveredSection === 'saved' ? 'text-purple-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
+                    hoveredSection === 'saved' ? 'text-purple-200 translate-x-1' : 'text-white/40 group-hover:text-white/60'
                   }`}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
@@ -320,10 +320,10 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 }}
                 onMouseEnter={() => !isTouchDevice && setHoveredSection('offers')}
                 onMouseLeave={() => !isTouchDevice && setHoveredSection(null)}
-                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group ${
+                className={`w-full px-5 py-4 text-left transition-all duration-200 flex items-center justify-between group rounded-xl backdrop-blur-sm border ${
                   hoveredSection === 'offers'
-                    ? 'bg-orange-50 scale-[1.01]'
-                    : 'hover:bg-gray-50/80 active:bg-gray-100/80'
+                    ? 'bg-orange-500/10 border-orange-400/30 shadow-lg shadow-orange-500/15'
+                    : 'border-white/5 hover:bg-white/5'
                 }`}
               >
                 <div className="flex items-center gap-3">
@@ -336,14 +336,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   </div>
                   <div>
                     <div className={`font-semibold text-sm transition-colors duration-200 ${
-                      hoveredSection === 'offers' ? 'text-orange-700' : 'text-gray-900'
+                      hoveredSection === 'offers' ? 'text-orange-100' : 'text-white'
                     }`}>My Offers</div>
-                    <div className="text-xs text-gray-500">Submitted offers</div>
+                    <div className="text-xs text-white/60">Submitted offers</div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" className={`transition-all duration-200 ${
-                    hoveredSection === 'offers' ? 'text-orange-600 translate-x-1' : 'text-gray-400 group-hover:text-gray-600'
+                    hoveredSection === 'offers' ? 'text-orange-200 translate-x-1' : 'text-white/40 group-hover:text-white/60'
                   }`}>
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
@@ -357,32 +357,32 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                     onOpenDisplayPreferences();
                     onClose();
                   }}
-                  className="w-full p-4 hover:bg-gradient-to-r hover:from-blue-50/50 hover:to-purple-50/50 transition-all duration-200 flex items-center gap-4 border-b border-gray-200/50"
+                  className="w-full p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-gradient-to-r hover:from-emerald-500/10 hover:to-purple-500/10 transition-all duration-200 flex items-center gap-4 group"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center shadow-md">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-purple-600 flex items-center justify-center shadow-md shadow-purple-500/20">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
                     </svg>
                   </div>
                   <div>
-                    <div className="font-semibold text-sm text-gray-900">Display Preferences</div>
-                    <div className="text-xs text-gray-500">Customize what you see</div>
+                    <div className="font-semibold text-sm text-white">Display Preferences</div>
+                    <div className="text-xs text-white/60">Customize what you see</div>
                   </div>
-                  <svg className="ml-auto w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="ml-auto w-5 h-5 text-white/50 group-hover:text-white/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
                   </svg>
                 </button>
               )}
 
               {/* Sign In/Out Button */}
-              <div className="p-5 border-t border-gray-200/50 bg-white/50">
+              <div className="p-5 border border-white/5 bg-white/5 rounded-xl shadow-inner shadow-black/20">
                 {onSignOut ? (
                   <button
                     onClick={() => {
                       onSignOut();
                       onClose();
                     }}
-                    className="w-full px-4 py-2.5 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="w-full px-4 py-2.5 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 active:from-red-700 active:to-red-800 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-red-500/25 flex items-center justify-center gap-2"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -395,7 +395,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                       onSignIn();
                       onClose();
                     }}
-                    className="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 active:from-blue-700 active:to-blue-800 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -409,11 +409,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
           {/* My Profile Section Content */}
           {activeSection === 'profile' && (
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {/* Back Button */}
               <button
                 onClick={() => setActiveSection(null)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+                className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -421,11 +421,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 Back
               </button>
 
-              <h4 className="text-lg font-semibold text-gray-900">My Profile</h4>
+              <h4 className="text-lg font-semibold text-white">My Profile</h4>
 
               {/* Contact Information */}
               <div className="space-y-3">
-                <h5 className="text-sm font-medium text-gray-700">Contact Information</h5>
+                <h5 className="text-sm font-medium text-white/70">Contact Information</h5>
 
                 <Input
                   label="Full Name"
@@ -456,8 +456,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
               </div>
 
               {/* Address Information */}
-              <div className="space-y-3 pt-3 border-t">
-                <h5 className="text-sm font-medium text-gray-700">Address (Optional)</h5>
+              <div className="space-y-3 pt-3 border-t border-white/10">
+                <h5 className="text-sm font-medium text-white/70">Address (Optional)</h5>
 
                 <Input
                   label="Street Address"
@@ -503,17 +503,17 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
               </div>
 
               {/* Preferences */}
-              <div className="space-y-3 pt-3 border-t">
-                <h5 className="text-sm font-medium text-gray-700">Preferences</h5>
+              <div className="space-y-3 pt-3 border-t border-white/10">
+                <h5 className="text-sm font-medium text-white/70">Preferences</h5>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  <label className="block text-sm font-medium text-white/70 mb-1.5">
                     Credit Score Range
                   </label>
                   <select
                     value={profile?.preferred_credit_score || profile?.credit_score_range || ''}
                     onChange={(e) => onUpdateField('preferred_credit_score', e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2 text-base bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="block w-full rounded-lg border border-white/15 px-4 py-2 text-base bg-black/30 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
                   >
                     <option value="">Select credit score range</option>
                     {CREDIT_SCORE_OPTIONS.map((option) => (
@@ -543,13 +543,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
               </div>
 
               {/* Save Button */}
-              <div className="pt-3 border-t flex gap-2">
+              <div className="pt-3 border-t border-white/10 flex gap-2">
                 <Button
                   variant="primary"
                   size="sm"
                   onClick={handleSaveProfile}
                   fullWidth
                   disabled={!isDirty}
+                  className="shadow-lg shadow-blue-500/25"
                 >
                   Save Changes
                 </Button>
@@ -558,6 +559,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   size="sm"
                   onClick={() => setActiveSection(null)}
                   fullWidth
+                  className="!border-white/25 !text-white hover:!bg-white/10 hover:!text-white"
                 >
                   Cancel
                 </Button>
@@ -567,11 +569,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
           {/* My Garage Section Content */}
           {activeSection === 'garage' && (
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {/* Back Button */}
               <button
                 onClick={() => setActiveSection(null)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+                className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -579,36 +581,36 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 Back
               </button>
 
-              <h4 className="text-lg font-semibold text-gray-900">My Garage</h4>
+              <h4 className="text-lg font-semibold text-white">My Garage</h4>
 
               {garageVehicles.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center py-8 text-white/60">
+                  <svg className="w-16 h-16 mx-auto mb-3 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 17a5 5 0 01-.916-9.916 5.002 5.002 0 019.832 0A5.002 5.002 0 0116 17m-7-5l3-3m0 0l3 3m-3-3v12" />
                   </svg>
-                  <p className="text-sm">No vehicles in your garage</p>
+                  <p className="text-sm text-white/70">No vehicles in your garage</p>
                 </div>
               ) : (
                 <>
                   {/* Trade-In Summary */}
                   {selectedTradeInVehicles.size > 0 && (
-                    <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="mb-4 p-3 bg-blue-500/10 border border-blue-400/30 rounded-lg">
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div className="text-center">
-                          <div className="text-xs text-blue-600 mb-1">Trade Value</div>
-                          <div className="text-blue-900 font-bold">
+                          <div className="text-xs text-blue-200 mb-1">Trade Value</div>
+                          <div className="text-blue-100 font-bold">
                             {formatCurrencyExact(tradeAllowance)}
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-blue-600 mb-1">Payoff</div>
-                          <div className="text-blue-900 font-bold">
+                          <div className="text-xs text-blue-200 mb-1">Payoff</div>
+                          <div className="text-blue-100 font-bold">
                             {formatCurrencyExact(tradePayoff)}
                           </div>
                         </div>
                         <div className="text-center">
-                          <div className="text-xs text-blue-600 mb-1">Net Trade-in</div>
-                          <div className={`font-bold ${tradeAllowance - tradePayoff >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                          <div className="text-xs text-blue-200 mb-1">Net Trade-in</div>
+                          <div className={`font-bold ${tradeAllowance - tradePayoff >= 0 ? 'text-emerald-200' : 'text-rose-200'}`}>
                             {formatCurrencyExact(tradeAllowance - tradePayoff)}
                           </div>
                         </div>
@@ -621,29 +623,48 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                     {garageVehicles.map((vehicle) => (
                       <div
                         key={vehicle.id}
-                        className={`p-3 border rounded-lg transition-all ${
+                        className={`p-3 border rounded-lg transition-all group ${
                           selectedTradeInVehicles.has(vehicle.id)
-                            ? 'border-blue-400 bg-blue-50 shadow-md ring-2 ring-blue-200'
-                            : 'border-gray-200 hover:bg-gray-50'
+                            ? 'border-emerald-400/50 bg-white/5 shadow-lg shadow-emerald-500/10 ring-2 ring-emerald-400/20'
+                            : 'border-white/10 hover:bg-white/5'
                         }`}
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className="w-20 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 relative">
+                            {vehicle.photo_url ? (
+                              <img
+                                src={vehicle.photo_url}
+                                alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-white/30">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 17a5 5 0 01-.916-9.916 5.002 5.002 0 019.832 0A5.002 5.002 0 0116 17m-7-5l3-3m0 0l3 3m-3-3v12" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+
                           <div className="flex-1 min-w-0">
                             {vehicle.nickname && (
-                              <p className="text-xs font-semibold text-blue-600 mb-1 truncate">
+                              <p className="text-xs font-semibold text-emerald-200 mb-1 truncate">
                                 {vehicle.nickname}
                               </p>
                             )}
-                            <p className="text-sm font-semibold text-gray-900 truncate">
+                            <p className="text-sm font-semibold text-white truncate">
                               {vehicle.year} {vehicle.make} {vehicle.model}
                             </p>
                             {vehicle.vin && (
-                              <p className="text-xs text-gray-500 font-mono mt-1 truncate uppercase">
+                              <p className="text-xs text-white/50 font-mono mt-1 truncate uppercase">
                                 {vehicle.vin}
                               </p>
                             )}
                             {vehicle.estimated_value != null && (
-                              <p className="text-sm font-medium text-green-600 mt-1">
+                              <p className="text-sm font-medium text-emerald-200 mt-1">
                                 {formatCurrency(vehicle.estimated_value)}
                               </p>
                             )}
@@ -656,11 +677,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                                 onChange={(e) => toggleTradeInVehicle(vehicle.id, garageVehicles)}
                                 size="sm"
                               />
-                                <span className={`text-xs font-medium transition-colors ${
-                                  selectedTradeInVehicles.has(vehicle.id)
-                                    ? 'text-blue-600'
-                                    : 'text-gray-500'
-                                }`}>
+                              <span className={`text-xs font-medium transition-colors ${
+                                selectedTradeInVehicles.has(vehicle.id)
+                                  ? 'text-emerald-200'
+                                  : 'text-white/60'
+                              }`}>
                                 Trade-In
                               </span>
                             </div>
@@ -669,7 +690,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                             {onEditGarageVehicle && (
                               <button
                                 onClick={() => onEditGarageVehicle(vehicle)}
-                                className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                className="p-1.5 text-white/50 hover:text-emerald-200 hover:bg-white/10 rounded transition-colors"
                                 title="Edit"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -682,7 +703,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                             {onDeleteGarageVehicle && (
                               <button
                                 onClick={() => onDeleteGarageVehicle(vehicle)}
-                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                className="p-1.5 text-white/50 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
                                 title="Delete"
                               >
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -702,11 +723,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
           {/* Saved Vehicles Section Content */}
           {activeSection === 'saved' && (
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {/* Back Button */}
               <button
                 onClick={() => setActiveSection(null)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
+                className="flex items-center gap-2 text-sm text-white/70 hover:text-white mb-2 transition-colors"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -714,42 +735,63 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 Back
               </button>
 
-              <h4 className="text-lg font-semibold text-gray-900">Saved Vehicles</h4>
+              <h4 className="text-lg font-semibold text-white">Saved Vehicles</h4>
 
               {savedVehicles.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center py-8 text-white/60">
+                  <svg className="w-16 h-16 mx-auto mb-3 text-white/30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                   </svg>
-                  <p className="text-sm">No saved vehicles</p>
+                  <p className="text-sm text-white/70">No saved vehicles</p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {savedVehicles.map((vehicle) => (
                     <div
                       key={vehicle.id}
-                      className="p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                      className="p-3 border border-white/10 rounded-lg hover:bg-white/5 transition-colors group"
                     >
                       <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {vehicle.year} {vehicle.make} {vehicle.model}
-                          </p>
-                          {vehicle.vin && (
-                            <p className="text-xs text-gray-500 font-mono mt-1 truncate uppercase">
-                              {vehicle.vin}
+                        <div className="flex items-start gap-3 flex-1 min-w-0">
+                          <div className="w-20 h-16 flex-shrink-0 rounded-lg overflow-hidden bg-gradient-to-br from-slate-800 to-slate-900 border border-white/10 relative">
+                            {vehicle.photo_url ? (
+                              <img
+                                src={vehicle.photo_url}
+                                alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="absolute inset-0 flex items-center justify-center text-white/30">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 17a5 5 0 01-.916-9.916 5.002 5.002 0 019.832 0A5.002 5.002 0 0116 17m-7-5l3-3m0 0l3 3m-3-3v12" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-white truncate">
+                              {vehicle.year} {vehicle.make} {vehicle.model}
                             </p>
-                          )}
-                          {vehicle.asking_price != null && (
-                            <p className="text-sm font-medium text-blue-600 mt-1">
-                              {formatCurrency(vehicle.asking_price)}
-                            </p>
-                          )}
-                          {vehicle.dealer_name && (
-                            <p className="text-xs text-gray-500 mt-1 truncate">
-                              {vehicle.dealer_name}
-                            </p>
-                          )}
+                            {vehicle.vin && (
+                              <p className="text-xs text-white/50 font-mono mt-1 truncate uppercase">
+                                {vehicle.vin}
+                              </p>
+                            )}
+                            {vehicle.asking_price != null && (
+                              <p className="text-sm font-medium text-blue-200 mt-1">
+                                {formatCurrency(vehicle.asking_price)}
+                              </p>
+                            )}
+                            {vehicle.dealer_name && (
+                              <p className="text-xs text-white/60 mt-1 truncate">
+                                {vehicle.dealer_name}
+                              </p>
+                            )}
+                          </div>
                         </div>
                         <div className="flex gap-1 ml-2">
                           {onSelectVehicle && (
@@ -758,7 +800,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                                 onSelectVehicle(vehicle);
                                 onClose();
                               }}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              className="p-1.5 text-white/50 hover:text-emerald-200 hover:bg-white/10 rounded transition-colors"
                               title="Select"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -769,7 +811,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                           {onEditSavedVehicle && (
                             <button
                               onClick={() => onEditSavedVehicle(vehicle)}
-                              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              className="p-1.5 text-white/50 hover:text-emerald-200 hover:bg-white/10 rounded transition-colors"
                               title="Edit"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -780,7 +822,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                           {onRemoveSavedVehicle && (
                             <button
                               onClick={() => onRemoveSavedVehicle(vehicle)}
-                              className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              className="p-1.5 text-white/50 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
                               title="Remove"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
