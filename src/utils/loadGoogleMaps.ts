@@ -1,145 +1,56 @@
 // Extend Window interface
+import { Loader } from "@googlemaps/js-api-loader";
+
 declare global {
   interface Window {
     google?: typeof google;
-    __googleMapsLoaded?: boolean;
-    __googleMapsWebComponentsLoaded?: boolean;
   }
 }
 
-/**
- * Check if browser supports web components (needed for new Google Maps APIs)
- */
-const supportsWebComponents = (): boolean => {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return false; // SSR environment
-  }
-
-  try {
-    const testElement = document.createElement('div');
-    return !!(
-      window.customElements &&
-      typeof window.customElements.define === 'function' &&
-      typeof testElement.attachShadow === 'function'
-    );
-  } catch {
-    return false;
-  }
-};
+// Shared loader instance to avoid multiple script injections
+let loadPromise: Promise<void> | null = null;
 
 /**
- * Dynamically loads the Google Maps JavaScript API with beta features
- * Includes support for new PlaceAutocompleteElement and AdvancedMarkerElement
- *
- * Migration notes:
- * - Using v=weekly for stable beta features (v=beta is too unstable for production)
- * - Loads extended-component-library for web component support
- * - PlaceAutocompleteElement replaces deprecated google.maps.places.Autocomplete
- * - AdvancedMarkerElement replaces deprecated google.maps.Marker
+ * Load Google Maps JS API using the official Loader (supports vector maps / mapId).
  */
 export const loadGoogleMapsScript = (): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    // Check for web component support
-    if (!supportsWebComponents()) {
-      reject(new Error('Browser does not support web components required for Google Maps'));
-      return;
-    }
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Google Maps can only load in the browser"));
+  }
 
-    // Check if already loaded
-    if (
-      window.google &&
-      window.google.maps &&
-      window.google.maps.places &&
-      window.__googleMapsWebComponentsLoaded
-    ) {
-      resolve();
-      return;
-    }
+  if (window.google?.maps?.places) {
+    return Promise.resolve();
+  }
 
-    // Check if script is already being loaded
-    const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
-    if (existingScript) {
-      // Wait for both legacy API and web components to be available
-      const checkReady = setInterval(() => {
-        if (
-          window.google &&
-          window.google.maps &&
-          window.google.maps.places &&
-          window.__googleMapsWebComponentsLoaded
-        ) {
-          clearInterval(checkReady);
-          resolve();
-        }
-      }, 100);
+  if (loadPromise) {
+    return loadPromise;
+  }
 
-      // Timeout after 15 seconds (longer because we need to load web components too)
-      setTimeout(() => {
-        clearInterval(checkReady);
-        reject(new Error('Timeout waiting for Google Maps API and web components'));
-      }, 15000);
-      return;
-    }
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID;
 
-    // Get API key from environment
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  if (!apiKey || apiKey === "YOUR_GOOGLE_MAPS_API_KEY") {
+    return Promise.reject(new Error("Google Maps API key not configured"));
+  }
 
-    if (!apiKey || apiKey === 'YOUR_GOOGLE_MAPS_API_KEY') {
-      reject(new Error('Google Maps API key not configured'));
-      return;
-    }
-
-    // Create and load Google Maps script with beta features
-    // Using v=weekly instead of v=beta for more stability while still getting new features
-    // solutionChannel helps Google track usage of new web components
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,marker&v=weekly&loading=async&solution_channel=GMP_modernization_autocomplete_marker`;
-    script.async = true;
-    script.defer = true;
-
-    script.onload = async () => {
-      // Wait for google.maps.places to be available
-      const checkPlaces = setInterval(() => {
-        if (window.google && window.google.maps && window.google.maps.places) {
-          clearInterval(checkPlaces);
-          loadWebComponents();
-        }
-      }, 100);
-
-      // Timeout after 10 seconds for legacy API
-      setTimeout(() => {
-        clearInterval(checkPlaces);
-        reject(new Error('Timeout waiting for Google Maps Places API'));
-      }, 10000);
-    };
-
-    script.onerror = () => {
-      reject(new Error('Failed to load Google Maps API'));
-    };
-
-    // Load web components library after core API loads
-    const loadWebComponents = async () => {
-      try {
-        // Load extended component library from CDN (npm package has build issues)
-        // This provides PlaceAutocompleteElement and other web components
-        const webComponentScript = document.createElement('script');
-        webComponentScript.src = 'https://unpkg.com/@googlemaps/extended-component-library@0.6';
-        webComponentScript.type = 'module';
-
-        await new Promise<void>((resolveScript, rejectScript) => {
-          webComponentScript.onload = () => resolveScript();
-          webComponentScript.onerror = () => rejectScript(new Error('Failed to load web components script'));
-          document.head.appendChild(webComponentScript);
-        });
-
-        // Mark as loaded
-        window.__googleMapsWebComponentsLoaded = true;
-
-        resolve();
-      } catch (error) {
-        reject(new Error('Failed to load Google Maps web components'));
-      }
-    };
-
-    document.head.appendChild(script);
+  const loader = new Loader({
+    apiKey,
+    version: "weekly",
+    libraries: ["places", "marker"],
+    mapIds: mapId ? [mapId] : undefined,
   });
+
+  loadPromise = loader
+    .load()
+    .then(() => {
+      if (!window.google?.maps?.places) {
+        throw new Error("Google Maps Places library failed to load");
+      }
+    })
+    .catch((err) => {
+      loadPromise = null;
+      throw err;
+    });
+
+  return loadPromise;
 };
