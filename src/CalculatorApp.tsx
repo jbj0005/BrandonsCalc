@@ -3228,7 +3228,10 @@ export const CalculatorApp: React.FC = () => {
                 diffBaselineValue={sliders.tradeAllowance.baseline}
                 diffBaselinePayment={tradeAllowanceBaselinePayment ?? undefined}
                 snapThreshold={100}
-                onReset={() => resetTradeIn()}
+                onReset={() => {
+                  resetTradeIn();
+                  setSliderValueWithSettling("tradeAllowance", 0);
+                }}
                 fullWidth
               />
             </div>

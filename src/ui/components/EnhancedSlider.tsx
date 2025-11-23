@@ -403,10 +403,15 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       onChange(event);
     };
 
+    const glowClass =
+      isFocused || isHovering
+        ? 'before:absolute before:inset-x-0 before:top-0 before:h-10 before:rounded-md before:bg-emerald-500/25 before:blur-xl before:opacity-70'
+        : '';
+
     return (
       <div
         ref={containerRef}
-        className="relative focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-lg"
+        className={`relative rounded-lg focus:outline-none ${glowClass}`}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onFocus={() => {
@@ -425,7 +430,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         {showInput && label && (
           <div className="flex items-center justify-between mb-1">
             <div className="relative flex items-center gap-2">
-              <label className="block text-sm font-medium text-emerald-300/80">
+              <label className="relative z-10 block text-sm font-medium text-emerald-300/80">
                 {label}
               </label>
 
