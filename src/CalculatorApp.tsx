@@ -1473,6 +1473,26 @@ export const CalculatorApp: React.FC = () => {
   const totalStoredVehicles = savedVehicles.length + garageVehicles.length;
   const filteredStoredCount = totalStoredVehicles;
 
+  // Apply profile preferences immediately after a successful save so sliders reflect the new data.
+  const handleProfileSave = useCallback(
+    async (data: Partial<typeof profile>) => {
+      await saveProfile(data);
+
+      const mergedProfile = {
+        ...(profile || {}),
+        ...data,
+      };
+
+      if (
+        mergedProfile.preferred_down_payment !== undefined &&
+        mergedProfile.preferred_down_payment !== null
+      ) {
+        applyProfilePreferences(mergedProfile as any);
+      }
+    },
+    [saveProfile, profile, applyProfilePreferences]
+  );
+
   const isGarageSelectedVehicle = selectedVehicle?.__source === "garage";
 
   const getVehicleSalePrice = (vehicle: any): number | null => {
@@ -3701,7 +3721,7 @@ export const CalculatorApp: React.FC = () => {
         isOpen={showProfileDropdown}
         onClose={() => setShowProfileDropdown(false)}
         profile={profile}
-        onSaveProfile={saveProfile}
+        onSaveProfile={handleProfileSave}
         onUpdateField={updateProfileField}
         garageVehicles={garageVehicles}
         savedVehicles={savedVehicles}
