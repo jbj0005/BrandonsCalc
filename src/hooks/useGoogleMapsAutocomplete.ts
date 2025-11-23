@@ -81,6 +81,12 @@ export const useGoogleMapsAutocomplete = (
   useEffect(() => {
     if (!isLoaded || !inputRef.current) return;
 
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+      setError('Google Maps API key not configured');
+      return;
+    }
+
     const inputEl = inputRef.current;
     const parent = inputEl.parentElement;
 
@@ -95,6 +101,7 @@ export const useGoogleMapsAutocomplete = (
       const placeEl = document.createElement(
         'gmpx-place-autocomplete'
       ) as PlaceAutocompleteElement;
+      placeEl.setAttribute('api-key', apiKey);
 
       // Configure restrictions/types if provided
       if (componentRestrictions?.country) {

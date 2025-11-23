@@ -36,6 +36,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<PlaceAutocompleteElement | null>(null);
   const [mapsReady, setMapsReady] = useState(false);
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   // Load Google Maps (with key) if not already provided via mapsLoaded
   useEffect(() => {
@@ -43,12 +44,16 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       setMapsReady(true);
       return;
     }
+    if (!apiKey) {
+      console.error('Google Maps API key not configured');
+      return;
+    }
     loadGoogleMapsScript()
       .then(() => setMapsReady(true))
       .catch((err) => {
         console.error('Failed to load Google Maps', err);
       });
-  }, [mapsLoaded]);
+  }, [mapsLoaded, apiKey]);
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
@@ -66,6 +71,9 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       placeEl.country = ['us'];
       placeEl.types = ['geocode'];
       placeEl.setAttribute('placeholder', placeholder);
+      if (apiKey) {
+        placeEl.setAttribute('api-key', apiKey);
+      }
 
       inputEl.setAttribute('slot', 'input');
       placeEl.appendChild(inputEl);
