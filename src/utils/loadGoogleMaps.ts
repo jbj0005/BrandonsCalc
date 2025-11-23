@@ -1,5 +1,5 @@
 // Extend Window interface
-import { Loader } from "@googlemaps/js-api-loader";
+import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 
 declare global {
   interface Window {
@@ -33,20 +33,19 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     return Promise.reject(new Error("Google Maps API key not configured"));
   }
 
-  const loader = new Loader({
+  // Configure loader options once, then import required libraries
+  setOptions({
     apiKey,
     version: "weekly",
-    libraries: ["places", "marker"],
     mapIds: mapId ? [mapId] : undefined,
   });
 
-  loadPromise = loader
-    .load()
-    .then(() => {
-      if (!window.google?.maps?.places) {
-        throw new Error("Google Maps Places library failed to load");
-      }
-    })
+  loadPromise = Promise.all([
+    importLibrary("maps"),
+    importLibrary("places"),
+    importLibrary("marker"),
+  ])
+    .then(() => undefined)
     .catch((err) => {
       loadPromise = null;
       throw err;
