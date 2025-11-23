@@ -69,21 +69,34 @@ export class ProfileService {
    */
   async saveProfile(userId: string, profileData: Partial<ProfileData>): Promise<ProfileData> {
     try {
-      const dataToSave = {
+      const baseData = {
         ...profileData,
         user_id: userId,
         updated_at: new Date().toISOString(),
       };
 
-      const { data, error } = await this.supabase
+      // Manually upsert to avoid ON CONFLICT requirement for missing unique indexes
+      const { data: existing } = await this.supabase
         .from('customer_profiles')
-        .upsert(dataToSave, {
-          onConflict: 'user_id',
-        })
-        .select()
-        .single();
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-      if (error) throw error;
+      const query = existing?.id
+        ? this.supabase
+            .from('customer_profiles')
+            .update(baseData)
+            .eq('user_id', userId)
+            .select()
+            .single()
+        : this.supabase
+            .from('customer_profiles')
+            .insert(baseData)
+            .select()
+            .single();
+
+      const { data, error } = await query;
+      if (error || !data) throw error || new Error('Failed to save profile');
 
       // Emit profile-updated event for legacy compatibility
       if (typeof window !== 'undefined') {
@@ -175,20 +188,30 @@ export class ProfileService {
     preferences: DisplayPreferences
   ): Promise<void> {
     try {
-      const { error } = await this.supabase
-        .from('customer_profiles')
-        .upsert(
-          {
-            user_id: userId,
-            display_preferences: preferences as any,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: 'user_id',
-          }
-        );
+      const payload = {
+        user_id: userId,
+        display_preferences: preferences as any,
+        updated_at: new Date().toISOString(),
+      };
 
-      if (error) throw error;
+      const { data: existing } = await this.supabase
+        .from('customer_profiles')
+        .select('id')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const { error } = existing?.id
+        ? await this.supabase
+            .from('customer_profiles')
+            .update(payload)
+            .eq('user_id', userId)
+        : await this.supabase
+            .from('customer_profiles')
+            .insert(payload);
+
+      if (error) {
+        throw error;
+      }
 
       // Emit display-preferences-updated event
       if (typeof window !== 'undefined') {
