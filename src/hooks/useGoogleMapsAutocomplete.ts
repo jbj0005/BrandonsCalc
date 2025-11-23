@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadGoogleMapsScript } from '../utils/loadGoogleMaps';
-import { PlaceAutocompleteElement, PlaceChangeEvent } from '../types/google-maps-web-components';
+import { PlaceAutocompleteElement } from '../types/google-maps-web-components';
 import {
   trackGoogleMapsError,
   trackGoogleMapsPerformance,
@@ -77,54 +77,54 @@ export const useGoogleMapsAutocomplete = (
       });
   }, []);
 
-  // Initialize Autocomplete (using legacy API temporarily)
-  // TODO: Migrate to PlaceAutocompleteElement web component when we have time to properly test
-  // The web component requires a different implementation pattern (creates its own input)
-  // Legacy API works until March 2026, giving us 15 months to migrate properly
+  // Initialize Autocomplete using PlaceAutocompleteElement web component
   useEffect(() => {
     if (!isLoaded || !inputRef.current) return;
 
-    // Safety check - ensure Google Maps is loaded
-    if (!window.google || !window.google.maps || !window.google.maps.places) {
-      return;
-    }
+    const inputEl = inputRef.current;
+    const parent = inputEl.parentElement;
+
+    if (!parent) return;
 
     // Don't recreate if already initialized
-    if (autocompleteElementRef.current) {
-      return;
-    }
+    if (autocompleteElementRef.current) return;
 
     const initStartTime = Date.now();
 
     try {
-      // Using legacy Autocomplete API (works until March 2026)
-      // This attaches to existing input elements properly
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        ...(types ? { types } : {}),
-        componentRestrictions,
-        fields: ['address_components', 'formatted_address', 'geometry', 'name'],
-      });
+      const placeEl = document.createElement(
+        'gmpx-place-autocomplete'
+      ) as PlaceAutocompleteElement;
 
-      // Store reference (type assertion for compatibility)
-      autocompleteElementRef.current = autocomplete as any;
+      // Configure restrictions/types if provided
+      if (componentRestrictions?.country) {
+        placeEl.country = Array.isArray(componentRestrictions.country)
+          ? componentRestrictions.country
+          : [componentRestrictions.country];
+      }
+      if (types && types.length > 0) {
+        placeEl.types = types;
+      }
 
-      // Listen for place selection
-      const listener = autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
+      // Move the existing input into the web component (slot="input")
+      inputEl.setAttribute('slot', 'input');
+      placeEl.appendChild(inputEl);
+      parent.appendChild(placeEl);
 
-        if (!place || !place.address_components || !place.geometry) {
-          trackGoogleMapsError(
-            GoogleMapsErrorType.AUTOCOMPLETE_ERROR,
-            'Invalid place result from autocomplete',
-            { hasPlace: !!place, hasComponents: !!place?.address_components, hasGeometry: !!place?.geometry }
-          );
+      const handlePlaceChange = () => {
+        const place: any = (placeEl as any).value;
+        if (!place) {
           return;
         }
 
-        const addressComponents = place.address_components;
-        const getComponent = (type: string, nameType: 'long_name' | 'short_name' = 'long_name') => {
+        const addressComponents =
+          place.address_components || place.addressComponents || [];
+        const getComponent = (
+          type: string,
+          nameType: 'long_name' | 'short_name' = 'long_name'
+        ) => {
           const component = addressComponents.find((c: google.maps.GeocoderAddressComponent) =>
-            c.types.includes(type)
+            c.types?.includes(type)
           );
           return component ? component[nameType] : '';
         };
@@ -135,7 +135,9 @@ export const useGoogleMapsAutocomplete = (
           if (!components) {
             return { countyRaw: '', countyNormalized: '' };
           }
-          const countyComponent = components.find((c) => c.types.includes('administrative_area_level_2'));
+          const countyComponent = components.find((c) =>
+            c.types?.includes('administrative_area_level_2')
+          );
           const countyRawValue = countyComponent?.long_name || '';
           return {
             countyRaw: countyRawValue,
@@ -145,18 +147,11 @@ export const useGoogleMapsAutocomplete = (
 
         const { countyRaw, countyNormalized } = extractCounty(addressComponents);
 
-        // Extract lat/lng (handle both method and property access)
-        let lat = 0;
-        let lng = 0;
-        if (place.geometry.location) {
-          const location = place.geometry.location;
-          // LatLng object has lat() and lng() methods
-          lat = typeof location.lat === 'function' ? location.lat() : (location.lat as any);
-          lng = typeof location.lng === 'function' ? location.lng() : (location.lng as any);
-        }
+        const lat = place.geometry?.location?.lat?.() ?? place.location?.lat ?? 0;
+        const lng = place.geometry?.location?.lng?.() ?? place.location?.lng ?? 0;
 
         const placeDetailsBase: PlaceDetails = {
-          address: place.formatted_address || '',
+          address: place.formatted_address || place.displayName || '',
           city: getComponent('locality') || getComponent('sublocality'),
           state: getComponent('administrative_area_level_1'),
           stateCode: getComponent('administrative_area_level_1', 'short_name'),
@@ -172,18 +167,29 @@ export const useGoogleMapsAutocomplete = (
           onPlaceSelectedRef.current?.(details);
         };
 
-        if (!placeDetailsBase.county && window.google?.maps?.Geocoder && Number.isFinite(lat) && Number.isFinite(lng)) {
+        if (
+          !placeDetailsBase.county &&
+          window.google?.maps?.Geocoder &&
+          Number.isFinite(lat) &&
+          Number.isFinite(lng)
+        ) {
           const geocoder = new google.maps.Geocoder();
           geocoder.geocode({ location: { lat, lng } }, (results, status) => {
             if (status === 'OK' && results && results.length > 0) {
-              const combinedComponents = results.reduce<google.maps.GeocoderAddressComponent[]>((acc, result) => {
-                if (result.address_components) {
-                  acc.push(...result.address_components);
-                }
-                return acc;
-              }, []);
-              const { countyRaw: fallbackCountyRaw, countyNormalized: fallbackCountyNormalized } =
-                extractCounty(combinedComponents);
+              const combinedComponents =
+                results.reduce<google.maps.GeocoderAddressComponent[]>(
+                  (acc, result) => {
+                    if (result.address_components) {
+                      acc.push(...result.address_components);
+                    }
+                    return acc;
+                  },
+                  []
+                );
+              const {
+                countyRaw: fallbackCountyRaw,
+                countyNormalized: fallbackCountyNormalized,
+              } = extractCounty(combinedComponents);
 
               emitPlaceDetails({
                 ...placeDetailsBase,
@@ -202,13 +208,22 @@ export const useGoogleMapsAutocomplete = (
         } else {
           emitPlaceDetails(placeDetailsBase);
         }
-      });
+      };
+
+      placeEl.addEventListener('gmpx-placechange', handlePlaceChange);
+
+      autocompleteElementRef.current = placeEl;
 
       trackGoogleMapsPerformance('autocomplete_init', initStartTime, true);
 
-      // Cleanup
+      // Cleanup: move input back out and remove element
       return () => {
-        google.maps.event.removeListener(listener);
+        placeEl.removeEventListener('gmpx-placechange', handlePlaceChange);
+        if (placeEl.parentElement) {
+          placeEl.parentElement.removeChild(placeEl);
+        }
+        inputEl.removeAttribute('slot');
+        parent.appendChild(inputEl);
         autocompleteElementRef.current = null;
       };
     } catch (err) {

@@ -8,7 +8,11 @@
       "Bash(npm run:*)",
       "Bash(rm:*)",
       "Bash(git fetch:*)",
-      "WebFetch(domain:jbj0005.github.io)"
+      "WebFetch(domain:jbj0005.github.io)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:developers.google.com)"
     ],
     "deny": [],
     "ask": []
