@@ -20,6 +20,7 @@ import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
 import { useGoogleMapsAutocomplete, PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 import { useCalculatorStore } from '../../stores/calculatorStore';
+import { useToast } from './Toast';
 
 export interface UserProfileDropdownProps {
   isOpen: boolean;
@@ -83,6 +84,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
   const addressInputRef = useRef<HTMLInputElement>(null);
+  const toast = useToast();
+  const [isSaving, setIsSaving] = useState(false);
 
   // Handle place selection from autocomplete
   const handlePlaceSelected = (placeDetails: PlaceDetails) => {
@@ -135,22 +138,38 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   }, [isOpen, onClose]);
 
   const handleSaveProfile = async () => {
-    if (!profile) return;
+    if (!profile || isSaving) return;
 
-    await onSaveProfile({
-      full_name: profile.full_name,
-      email: profile.email,
-      phone: profile.phone,
-      street_address: profile.street_address,
-      city: profile.city,
-      state: profile.state,
-      state_code: profile.state_code,
-      zip_code: profile.zip_code,
-      google_place_id: profile.google_place_id,
-      preferred_credit_score: profile.preferred_credit_score,
-      credit_score_range: profile.credit_score_range,
-      preferred_down_payment: profile.preferred_down_payment,
-    });
+    try {
+      setIsSaving(true);
+      await onSaveProfile({
+        full_name: profile.full_name,
+        email: profile.email,
+        phone: profile.phone,
+        street_address: profile.street_address,
+        city: profile.city,
+        state: profile.state,
+        state_code: profile.state_code,
+        zip_code: profile.zip_code,
+        google_place_id: profile.google_place_id,
+        preferred_credit_score: profile.preferred_credit_score,
+        credit_score_range: profile.credit_score_range,
+        preferred_down_payment: profile.preferred_down_payment,
+      });
+      toast.push({
+        kind: 'success',
+        title: 'Profile saved',
+        detail: 'Your info has been updated.',
+      });
+    } catch (error: any) {
+      toast.push({
+        kind: 'error',
+        title: 'Failed to save profile',
+        detail: error?.message || 'Please try again.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const formatCurrency = (value?: number) => {
@@ -549,7 +568,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   size="sm"
                   onClick={handleSaveProfile}
                   fullWidth
-                  disabled={!isDirty}
+                  disabled={!isDirty || isSaving}
+                  loading={isSaving}
                   className="shadow-lg shadow-blue-500/25"
                 >
                   Save Changes
