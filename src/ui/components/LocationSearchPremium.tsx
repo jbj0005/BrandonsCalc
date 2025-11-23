@@ -1,4 +1,6 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
+import { loadGoogleMapsScript } from '../../utils/loadGoogleMaps';
+import { PlaceAutocompleteElement } from '../../types/google-maps-web-components';
 
 export interface LocationDetails {
   formatted_address?: string;
@@ -32,71 +34,113 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   mapsLoaded = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
+  const autocompleteRef = useRef<PlaceAutocompleteElement | null>(null);
+  const [mapsReady, setMapsReady] = useState(false);
+
+  // Load Google Maps (with key) if not already provided via mapsLoaded
+  useEffect(() => {
+    if (mapsLoaded) {
+      setMapsReady(true);
+      return;
+    }
+    loadGoogleMapsScript()
+      .then(() => setMapsReady(true))
+      .catch((err) => {
+        console.error('Failed to load Google Maps', err);
+      });
+  }, [mapsLoaded]);
 
   // Initialize Google Places Autocomplete
   useEffect(() => {
-    if (!mapsLoaded || !inputRef.current || autocompleteRef.current) return;
+    if (!mapsReady || !inputRef.current || autocompleteRef.current) return;
 
     try {
-      const autocomplete = new google.maps.places.Autocomplete(inputRef.current, {
-        types: ['geocode'],
-        componentRestrictions: { country: 'us' },
-        fields: ['formatted_address', 'address_components', 'geometry'],
-      });
+      const inputEl = inputRef.current;
+      const parent = inputEl.parentElement;
+      if (!parent) return;
 
-      autocomplete.addListener('place_changed', () => {
-        const place = autocomplete.getPlace();
+      const placeEl = document.createElement(
+        'gmpx-place-autocomplete'
+      ) as PlaceAutocompleteElement;
 
-        if (!place.geometry?.location) {
-          return;
-        }
+      placeEl.country = ['us'];
+      placeEl.types = ['geocode'];
+      placeEl.setAttribute('placeholder', placeholder);
+
+      inputEl.setAttribute('slot', 'input');
+      placeEl.appendChild(inputEl);
+      parent.appendChild(placeEl);
+
+      const handlePlaceChange = () => {
+        const place: any = (placeEl as any).value;
+        if (!place?.geometry?.location) return;
 
         let city = '';
         let state = '';
         let zip = '';
         let county = '';
 
-        place.address_components?.forEach((component) => {
-          const types = component.types;
-          if (types.includes('locality')) {
-            city = component.long_name;
+        (place.address_components || place.addressComponents || []).forEach(
+          (component: any) => {
+            const types = component.types || [];
+            if (types.includes('locality')) {
+              city = component.long_name;
+            }
+            if (types.includes('administrative_area_level_1')) {
+              state = component.short_name;
+            }
+            if (types.includes('postal_code')) {
+              zip = component.long_name;
+            }
+            if (types.includes('administrative_area_level_2')) {
+              county = component.long_name.replace(/ County$/i, '');
+            }
           }
-          if (types.includes('administrative_area_level_1')) {
-            state = component.short_name;
-          }
-          if (types.includes('postal_code')) {
-            zip = component.long_name;
-          }
-          if (types.includes('administrative_area_level_2')) {
-            county = component.long_name.replace(' County', '');
-          }
-        });
+        );
+
+        const lat =
+          place.geometry?.location?.lat?.() ?? place.location?.lat ?? 0;
+        const lng =
+          place.geometry?.location?.lng?.() ?? place.location?.lng ?? 0;
 
         const details: LocationDetails = {
-          formatted_address: place.formatted_address,
+          formatted_address: place.formatted_address || place.displayName,
           city,
           state,
           zip,
           county,
-          latitude: place.geometry.location.lat(),
-          longitude: place.geometry.location.lng(),
+          latitude: lat,
+          longitude: lng,
         };
 
         onPlaceSelected?.(details);
-      });
+      };
 
-      autocompleteRef.current = autocomplete;
+      placeEl.addEventListener('gmpx-placechange', handlePlaceChange);
+      autocompleteRef.current = placeEl;
     } catch (err) {
       console.error('Failed to initialize autocomplete:', err);
     }
 
     return () => {
       if (autocompleteRef.current) {
-        google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current.removeEventListener(
+          'gmpx-placechange',
+          () => {}
+        );
+        // Move input back out
+        const el = autocompleteRef.current;
+        const slotted = el.querySelector('input[slot="input"]');
+        if (slotted && el.parentElement) {
+          el.parentElement.appendChild(slotted);
+          slotted.removeAttribute('slot');
+        }
+        if (el.parentElement) {
+          el.parentElement.removeChild(el);
+        }
       }
     };
-  }, [mapsLoaded, onPlaceSelected]);
+  }, [mapsReady, onPlaceSelected, placeholder]);
 
   const hasLocation = locationDetails && locationDetails.city && locationDetails.state;
 
