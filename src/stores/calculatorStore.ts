@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { FeeItems, FeeItem, FeeCategory } from '../types/fees';
+import type { ScenarioResult } from '../../packages/fee-engine/src';
 
 // ============================================================================
 // Types
@@ -44,13 +45,15 @@ export interface CalculatorState {
   countyTaxRate: number | null;
   userTaxOverride: boolean;
 
+  // Fee engine scenario result
+  feeEngineResult: ScenarioResult | null;
+
   // Settling timer for baseline updates
   settlingTimerId: NodeJS.Timeout | null;
   lastSliderInteraction: number;
 
   // Auto-lock timer for sale price State 2
   autoLockTimerId: NodeJS.Timeout | null;
-  settlingTimerId: NodeJS.Timeout | null;
 }
 
 export interface CalculatorActions {
@@ -74,6 +77,8 @@ export interface CalculatorActions {
   updateFeeItem: (category: FeeCategory, index: number, item: FeeItem) => void;
   setTaxRates: (stateTaxRate: number, countyTaxRate: number, userOverride?: boolean) => void;
   syncFeeSliders: () => void;
+  setFeeEngineResult: (result: ScenarioResult | null) => void;
+  applyFeeEngineResult: (result: ScenarioResult) => void;
 
   // Coordinated vehicle actions
   applyVehicle: (vehicle: {
@@ -122,6 +127,7 @@ const INITIAL_STATE: CalculatorState = {
   stateTaxRate: null,
   countyTaxRate: null,
   userTaxOverride: false,
+  feeEngineResult: null,
   settlingTimerId: null,
   lastSliderInteraction: 0,
   autoLockTimerId: null,
@@ -421,6 +427,77 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
       };
 
       return { sliders: newSliders };
+    });
+  },
+
+  setFeeEngineResult: (result) => {
+    set({ feeEngineResult: result });
+  },
+
+  applyFeeEngineResult: (result) => {
+    set((state) => {
+      const newFeeItems = { ...state.feeItems };
+      const newSliders = { ...state.sliders };
+
+      const isInitialRegistration = (item: any) => {
+        const code = (item?.code || '').toString().toLowerCase();
+        const desc = (item?.description || '').toString().toLowerCase();
+        return (
+          code.includes('initial_registration') ||
+          code === 'initial' ||
+          desc.includes('initial registration')
+        );
+      };
+
+      const filteredLineItems = result.lineItems.filter(
+        (item) => item.category !== 'dealer' && !isInitialRegistration(item)
+      );
+
+      const govFees = filteredLineItems
+        .filter((item) => item.category === 'government')
+        .map((item) => ({
+          description: item.description,
+          amount: item.amount,
+        }));
+
+      const govTotal = govFees.reduce((sum, item) => sum + item.amount, 0);
+      const salesTaxTotal = result.totals?.salesTax ?? 0;
+      const sanitizedTotals = {
+        ...result.totals,
+        governmentFees: govTotal,
+        dealerFees: 0,
+        totalFees: govTotal + salesTaxTotal,
+      };
+
+      const sanitizedResult = {
+        ...result,
+        lineItems: filteredLineItems,
+        totals: sanitizedTotals,
+      };
+
+      // Update fee items (government only; leave dealer as user-entered)
+      newFeeItems.gov = govFees;
+
+      // Update tax rates from result
+      const stateTaxRate = result.taxBreakdown.stateTaxRate;
+      const countyTaxRate = result.taxBreakdown.countyTaxRate;
+
+      // Update government fees slider
+      newSliders.govtFees = {
+        value: govTotal,
+        baseline: govTotal,
+        lockedBaseline: null,
+        isLocked: false,
+      };
+
+      return {
+        feeItems: newFeeItems,
+        sliders: newSliders,
+        stateTaxRate,
+        countyTaxRate,
+        userTaxOverride: false, // Reset override flag since we just auto-calculated
+        feeEngineResult: sanitizedResult,
+      };
     });
   },
 

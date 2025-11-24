@@ -4,6 +4,8 @@ import { Button } from './Button';
 import type { FeeItem, FeeCategory, FeeSuggestion } from '../../types/fees';
 import { fetchFeeSuggestions, FEE_TEMPLATES_UPDATED_EVENT } from '../../services/feeSuggestionsService';
 import { formatCurrencyExact, parseCurrency, formatCurrencyInput } from '../../utils/formatters';
+import { ScenarioDetectionPanel } from './ScenarioDetectionPanel';
+import type { ScenarioResult } from '../../../packages/fee-engine/src';
 
 interface FeesModalProps {
   isOpen: boolean;
@@ -24,6 +26,9 @@ interface FeesModalProps {
     userTaxOverride: boolean;
   }) => void;
   onEditTemplates: () => void;
+  scenarioResult?: ScenarioResult | null;
+  isCalculatingFees?: boolean;
+  onRecalculateFees?: () => void;
 }
 
 interface FeeRow {
@@ -43,6 +48,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   countyName,
   onSave,
   onEditTemplates,
+  scenarioResult,
+  isCalculatingFees = false,
+  onRecalculateFees,
 }) => {
   // Fee rows state
   const [dealerRows, setDealerRows] = useState<FeeRow[]>([]);
@@ -201,6 +209,8 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     window.addEventListener(FEE_TEMPLATES_UPDATED_EVENT, handler);
     return () => window.removeEventListener(FEE_TEMPLATES_UPDATED_EVENT, handler);
   }, [loadSuggestions]);
+
+  const showScenarioPanel = scenarioResult || isCalculatingFees;
 
   // Add row
   const addRow = (category: FeeCategory) => {
@@ -665,6 +675,15 @@ export const FeesModal: React.FC<FeesModalProps> = ({
             Edit Fee Templates
           </button>
         </div>
+
+        {/* Fee Engine Scenario Panel */}
+        {showScenarioPanel && (
+          <ScenarioDetectionPanel
+            scenarioResult={scenarioResult || null}
+            isCalculating={isCalculatingFees}
+            onRecalculate={onRecalculateFees}
+          />
+        )}
 
         {/* Scrollable content area */}
         <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">

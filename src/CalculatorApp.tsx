@@ -3250,12 +3250,6 @@ export const CalculatorApp: React.FC = () => {
               </div>
             </div>
 
-            <ScenarioDetectionPanel
-              scenarioResult={feeEngineResult || feeScenarioResult}
-              isCalculating={isCalculatingFees}
-              onRecalculate={recalcFeeEngine}
-            />
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Sale Price Slider */}
               <EnhancedSlider
@@ -3452,7 +3446,8 @@ export const CalculatorApp: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {savingsFromSalePrice > 0 && (
+                {salePricePaymentDiffOverride !== null &&
+                  savingsSaleBaseline !== null && (
                   <div className="rounded-xl border border-white/10 bg-white/5 p-4">
                     <div className="text-xs uppercase tracking-[0.15em] text-emerald-300/80">
                       Sale Price Savings
@@ -3817,6 +3812,9 @@ export const CalculatorApp: React.FC = () => {
         countyName={countyName}
         onSave={handleFeesModalSave}
         onEditTemplates={handleOpenFeeTemplateEditor}
+        scenarioResult={feeEngineResult || feeScenarioResult}
+        isCalculatingFees={isCalculatingFees}
+        onRecalculateFees={recalcFeeEngine}
       />
 
       {/* Fee Template Editor Modal */}

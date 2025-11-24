@@ -130,6 +130,7 @@ export type { SubmissionProgressModalProps, ProgressStage } from './SubmissionPr
 export { MyOffersModal } from './MyOffersModal';
 export type { MyOffersModalProps } from './MyOffersModal';
 
+
 export { PositiveEquityModal } from './PositiveEquityModal';
 export type { PositiveEquityModalProps } from './PositiveEquityModal';
 
@@ -139,3 +140,7 @@ export type { UserProfileDropdownProps } from './UserProfileDropdown';
 
 export { CurrencyInput } from './CurrencyInput';
 export type { CurrencyInputProps } from './CurrencyInput';
+
+// Fee Engine Components
+export { ScenarioDetectionPanel } from './ScenarioDetectionPanel';
+export type { ScenarioDetectionPanelProps } from './ScenarioDetectionPanel';

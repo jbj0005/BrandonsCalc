@@ -1,0 +1,18 @@
+{
+  "name": "scripts",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "migrate-florida-fees": "tsx migrate-florida-fees.ts",
+    "test-fee-engine": "tsx test-fee-engine.ts",
+    "test-simple": "tsx test-fee-engine-simple.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "@types/node": "^20.10.0"
+  }
+}

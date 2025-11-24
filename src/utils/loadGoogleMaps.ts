@@ -34,10 +34,11 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     return Promise.reject(new Error("Google Maps API key not configured"));
   }
 
-  // Configure loader options once, then import required libraries
+  // Configure loader options once BEFORE importing libraries
+  // CRITICAL: Use 'key' not 'apiKey'
   setOptions({
-    apiKey,
-    version: "weekly",
+    key: apiKey,
+    v: "weekly",
     mapIds: mapId ? [mapId] : undefined,
   });
 
@@ -45,6 +46,8 @@ export const loadGoogleMapsScript = (): Promise<void> => {
     importLibrary("maps"),
     importLibrary("places"),
     importLibrary("marker"),
+    importLibrary("geocoding"),
+    importLibrary("routes"),
   ])
     .then(() => loadExtendedComponentLibrary())
     .catch((err) => {
