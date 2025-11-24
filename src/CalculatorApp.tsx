@@ -26,6 +26,7 @@ import {
   VehicleCardPremium,
   VINSearchPremium,
   LocationSearchPremium,
+  ScenarioDetectionPanel,
 } from "./ui/components";
 import type { VehicleOption, LocationDetails } from "./ui/components";
 import { SectionHeader } from "./ui/components";
@@ -38,6 +39,7 @@ import {
   type PlaceDetails,
 } from "./hooks/useGoogleMapsAutocomplete";
 import { useProfile } from "./hooks/useProfile";
+import { useFeeEngine } from "./hooks/useFeeEngine";
 import { useTilBaselines, type TilDiff } from "./hooks/useTilBaselines";
 import {
   fetchLenderRates,
@@ -355,18 +357,21 @@ export const CalculatorApp: React.FC = () => {
     setSliderValueWithAutoLock,
     setSliderBaseline,
     toggleSliderLock,
-    getEffectiveBaseline,
-    resetSlider,
-    applyVehicle,
-    applyGarageVehicle,
-    applyProfilePreferences,
-    toggleTradeInVehicle,
-    resetTradeIn,
-    setTradePayoff,
-    setFeeItems,
-    setTaxRates,
-    syncFeeSliders,
-  } = useCalculatorStore();
+  getEffectiveBaseline,
+  resetSlider,
+  applyVehicle,
+  applyGarageVehicle,
+  applyProfilePreferences,
+  toggleTradeInVehicle,
+  resetTradeIn,
+  setTradePayoff,
+  setFeeItems,
+  setTaxRates,
+  syncFeeSliders,
+  setFeeEngineResult,
+  applyFeeEngineResult,
+  feeEngineResult,
+} = useCalculatorStore();
 
   // Extract slider values for convenient access
   const salePrice = sliders.salePrice.value;
@@ -1515,6 +1520,100 @@ export const CalculatorApp: React.FC = () => {
     () => (selectedVehicle ? getVehicleSalePrice(selectedVehicle) : null),
     [selectedVehicle]
   );
+  const selectedTradeIns = useMemo(
+    () =>
+      Array.from(selectedTradeInVehicles)
+        .map((vehicleId) => garageVehicles.find((v) => v.id === vehicleId))
+        .filter(Boolean)
+        .map((v) => ({
+          id: v!.id,
+          vin: v!.vin,
+          estimated_value: v!.estimated_value || v!.asking_price || 0,
+          payoff_amount: v!.payoff_amount || 0,
+        })),
+    [selectedTradeInVehicles, garageVehicles]
+  );
+
+  const feeEngineUserProfile = useMemo(() => {
+    if (!profile) return undefined;
+    return {
+      state_code: profile.state_code || profile.state,
+      county_name: profile.county_name || profile.county,
+      city: profile.city || undefined,
+      zip_code: profile.zip_code || undefined,
+    };
+  }, [profile]);
+
+  const feeEngineSelectedVehicle = useMemo(() => {
+    if (!selectedVehicle) return undefined;
+
+    const rawCondition =
+      selectedVehicle.condition ||
+      selectedVehicle.vehicle_condition ||
+      selectedVehicle.usage ||
+      "";
+    const normalizedCondition =
+      typeof rawCondition === "string"
+        ? rawCondition.toLowerCase() === "new"
+          ? "new"
+          : rawCondition.toLowerCase() === "used"
+          ? "used"
+          : undefined
+        : undefined;
+
+    return {
+      vin: selectedVehicle.vin,
+      year: selectedVehicle.year,
+      make: selectedVehicle.make,
+      model: selectedVehicle.model,
+      trim: selectedVehicle.trim,
+      condition: normalizedCondition,
+      odometer:
+        selectedVehicle.mileage ||
+        selectedVehicle.odometer ||
+        selectedVehicle.odometer_reading ||
+        undefined,
+    };
+  }, [selectedVehicle]);
+
+  const {
+    scenarioResult: feeScenarioResult,
+    isCalculating: isCalculatingFees,
+    error: feeEngineError,
+    recalculate: recalcFeeEngine,
+  } = useFeeEngine({
+    salePrice,
+    cashDown,
+    loanTerm,
+    apr,
+    selectedTradeInVehicles: selectedTradeIns,
+    userProfile: feeEngineUserProfile,
+    selectedVehicle: feeEngineSelectedVehicle,
+    preferredLender:
+      lenderOptions.find((opt) => opt.value === lender)?.label || lender,
+    enabled: Boolean(feeEngineUserProfile?.state_code),
+  });
+
+  const lastFeeEngineErrorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (feeScenarioResult && !isCalculatingFees) {
+      applyFeeEngineResult(feeScenarioResult);
+      lastFeeEngineErrorRef.current = null;
+    }
+  }, [feeScenarioResult, isCalculatingFees, applyFeeEngineResult]);
+
+  useEffect(() => {
+    if (feeEngineError && feeEngineError.message !== lastFeeEngineErrorRef.current) {
+      lastFeeEngineErrorRef.current = feeEngineError.message;
+      setFeeEngineResult(null);
+      toast.push({
+        kind: "error",
+        title: "Fee engine error",
+        detail: feeEngineError.message,
+      });
+    }
+  }, [feeEngineError, setFeeEngineResult, toast]);
   const salePriceState1Baseline = useMemo(() => {
     if (
       selectedVehicleSaleValue != null &&
@@ -3150,6 +3249,12 @@ export const CalculatorApp: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            <ScenarioDetectionPanel
+              scenarioResult={feeEngineResult || feeScenarioResult}
+              isCalculating={isCalculatingFees}
+              onRecalculate={recalcFeeEngine}
+            />
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Sale Price Slider */}
