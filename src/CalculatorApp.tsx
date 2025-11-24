@@ -1585,6 +1585,21 @@ export const CalculatorApp: React.FC = () => {
     enabled?: boolean;
   }>({});
 
+  // Dev snapshot logger to validate fee engine inputs vs keywords
+  const logScenarioSnapshot = useCallback(
+    (label: string, extras: Record<string, any> = {}) => {
+      if (typeof console === "undefined") return;
+      console.log("[FeeEngine Snapshot]", label, {
+        overrides: scenarioOverrides,
+        selectedTradeIns: selectedTradeIns.map((t) => t.id),
+        vehicleCondition: feeEngineSelectedVehicle?.condition,
+        state: feeEngineUserProfile?.state_code,
+        ...extras,
+      });
+    },
+    [scenarioOverrides, selectedTradeIns, feeEngineSelectedVehicle, feeEngineUserProfile]
+  );
+
   useEffect(() => {
     if (scenarioOverrides?.enabled === false) {
       setFeeEngineResult(null);
@@ -1618,6 +1633,18 @@ export const CalculatorApp: React.FC = () => {
     });
   }, [hasTradeInSelected]);
 
+  // Default tag mode to new plate when there is no trade selected
+  useEffect(() => {
+    if (!hasTradeInSelected) {
+      setScenarioOverrides((prev) => {
+        if (prev.tagMode === undefined) {
+          return { ...prev, tagMode: "new_plate" };
+        }
+        return prev;
+      });
+    }
+  }, [hasTradeInSelected]);
+
   const {
     scenarioResult: feeScenarioResult,
     isCalculating: isCalculatingFees,
@@ -1643,8 +1670,16 @@ export const CalculatorApp: React.FC = () => {
     if (feeScenarioResult && !isCalculatingFees) {
       applyFeeEngineResult(feeScenarioResult);
       lastFeeEngineErrorRef.current = null;
+      logScenarioSnapshot("engine_result_applied", {
+        govFees: feeScenarioResult.totals.governmentFees,
+        salesTax: feeScenarioResult.totals.salesTax,
+        totalFees: feeScenarioResult.totals.totalFees,
+        tagMode: feeScenarioResult.detectedScenario.isTagTransfer
+          ? "transfer_existing_plate"
+          : scenarioOverrides.tagMode,
+      });
     }
-  }, [feeScenarioResult, isCalculatingFees, applyFeeEngineResult]);
+  }, [feeScenarioResult, isCalculatingFees, applyFeeEngineResult, logScenarioSnapshot, scenarioOverrides.tagMode]);
 
   useEffect(() => {
     if (feeEngineError && feeEngineError.message !== lastFeeEngineErrorRef.current) {
