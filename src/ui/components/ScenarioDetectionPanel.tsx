@@ -17,7 +17,6 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   onRecalculate,
   onToggleAutoMode,
   autoModeEnabled = true,
-  taxOverride,
   showRules = false,
 }) => {
   const [showRulesList, setShowRulesList] = useState(false);
