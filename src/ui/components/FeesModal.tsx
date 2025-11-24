@@ -17,6 +17,9 @@ interface FeesModalProps {
   countyTaxRate: number;
   stateName: string;
   countyName: string;
+  taxableBase: number;
+  stateTaxAmount: number;
+  countyTaxAmount: number;
   onSave: (data: {
     dealerFees: FeeItem[];
     customerAddons: FeeItem[];
@@ -61,6 +64,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   countyTaxRate: initialCountyTaxRate,
   stateName,
   countyName,
+  taxableBase,
+  stateTaxAmount,
+  countyTaxAmount,
   onSave,
   onEditTemplates,
   scenarioResult,
@@ -566,27 +572,13 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   const stateTaxValue = parseFloat(stateTax) || 0;
   const countyTaxValue = parseFloat(countyTax) || 0;
 
-  // If engine data is unavailable, we don't fabricate a taxable base.
-  // Fallback taxes default to 0; engine-provided values take precedence.
-  const estimatedStateTax = 0;
-  const estimatedCountyTax = 0;
-
-  const stateTaxDisplay =
-    scenarioResult?.taxBreakdown?.stateTax ?? estimatedStateTax;
-  const countyTaxDisplay =
-    scenarioResult?.taxBreakdown?.countyTax ?? estimatedCountyTax;
-
-  const stateRateDisplay =
-    scenarioResult?.taxBreakdown?.stateTaxRate != null
-      ? (scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(2)
-      : stateTaxValue.toFixed(2);
-  const countyRateDisplay =
-    scenarioResult?.taxBreakdown?.countyTaxRate != null
-      ? (scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(2)
-      : countyTaxValue.toFixed(2);
-
+  // Use main app taxes as single source of truth
+  const stateTaxDisplay = stateTaxAmount;
+  const countyTaxDisplay = countyTaxAmount;
   const totalOtherCharges =
     dealerTotal + customerTotal + govTotal + stateTaxDisplay + countyTaxDisplay;
+  const stateRateDisplay = stateTaxValue.toFixed(2);
+  const countyRateDisplay = countyTaxValue.toFixed(2);
 
   // Handle save
   const handleSave = () => {
@@ -854,13 +846,20 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           {/* Purchase Assumptions / Scenario Panel with keywords */}
           <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3">
             {renderPills()}
-            {showScenarioPanel && (
-              <ScenarioDetectionPanel
-                scenarioResult={scenarioResult || null}
-                isCalculating={isCalculatingFees}
-                onRecalculate={onRecalculateFees}
-              />
-            )}
+          {showScenarioPanel && (
+            <ScenarioDetectionPanel
+              scenarioResult={scenarioResult || null}
+              isCalculating={isCalculatingFees}
+              onRecalculate={onRecalculateFees}
+              taxOverride={{
+                taxableBase,
+                stateTaxAmount: stateTaxAmount,
+                countyTaxAmount: countyTaxAmount,
+                stateTaxRate: stateTaxValue,
+                countyTaxRate: countyTaxValue,
+              }}
+            />
+          )}
           </div>
 
           {/* Gov't Fees Section */}

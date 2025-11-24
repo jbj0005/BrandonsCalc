@@ -441,6 +441,7 @@ export const CalculatorApp: React.FC = () => {
   const [stateTaxAmount, setStateTaxAmount] = useState(0);
   const [countyTaxAmount, setCountyTaxAmount] = useState(0);
   const [totalTaxes, setTotalTaxes] = useState(0);
+  const [taxableBase, setTaxableBase] = useState(0);
   const [stateName, setStateName] = useState<string>("Florida");
   const [countyName, setCountyName] = useState<string>("");
   const [isTaxRateManuallySet, setIsTaxRateManuallySet] = useState(false);
@@ -1230,6 +1231,7 @@ export const CalculatorApp: React.FC = () => {
     const countyTax = Math.min(taxableBase, 5000) * (countyTaxRate / 100); // FL caps county tax at $5k
     const totalTax = stateTax + countyTax;
 
+    setTaxableBase(taxableBase);
     setStateTaxAmount(stateTax);
     setCountyTaxAmount(countyTax);
     setTotalTaxes(totalTax);
@@ -3886,6 +3888,9 @@ export const CalculatorApp: React.FC = () => {
         countyTaxRate={
           userTaxOverride ? storeTaxCounty || countyTaxRate : countyTaxRate
         }
+        taxableBase={taxableBase}
+        stateTaxAmount={stateTaxAmount}
+        countyTaxAmount={countyTaxAmount}
         stateName={stateName}
         countyName={countyName}
         onSave={handleFeesModalSave}

@@ -8,6 +8,13 @@ export interface ScenarioDetectionPanelProps {
   onRecalculate?: () => void;
   onToggleAutoMode?: (enabled: boolean) => void;
   autoModeEnabled?: boolean;
+  taxOverride?: {
+    taxableBase: number;
+    stateTaxAmount: number;
+    countyTaxAmount: number;
+    stateTaxRate: number;
+    countyTaxRate: number;
+  };
 }
 
 export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
@@ -16,6 +23,7 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   onRecalculate,
   onToggleAutoMode,
   autoModeEnabled = true,
+  taxOverride,
 }) => {
   if (!scenarioResult && !isCalculating) {
     return (
@@ -58,9 +66,24 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   const scenario = scenarioResult.detectedScenario;
 
   const formatCurrency = (amount: number) => formatCurrencyExact(amount);
-  const stateTaxAmount = scenarioResult.taxBreakdown.stateTax;
-  const countyTaxAmount = scenarioResult.taxBreakdown.countyTax;
+  const stateTaxAmount =
+    taxOverride?.stateTaxAmount ?? scenarioResult.taxBreakdown.stateTax;
+  const countyTaxAmount =
+    taxOverride?.countyTaxAmount ?? scenarioResult.taxBreakdown.countyTax;
   const totalTaxAmount = stateTaxAmount + countyTaxAmount;
+  const salesTaxDisplay = taxOverride ? totalTaxAmount : scenarioResult.totals.salesTax;
+  const totalFeesDisplay =
+    scenarioResult.totals.governmentFees + salesTaxDisplay;
+  const taxableBase =
+    taxOverride?.taxableBase ?? scenarioResult.taxBreakdown.taxableBase;
+  const stateTaxRateDisplay =
+    taxOverride?.stateTaxRate != null
+      ? taxOverride.stateTaxRate.toFixed(2)
+      : (scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(1);
+  const countyTaxRateDisplay =
+    taxOverride?.countyTaxRate != null
+      ? taxOverride.countyTaxRate.toFixed(2)
+      : (scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(1);
 
   return (
     <div className="scenario-detection-panel rounded-xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-5 text-white shadow-inner">
@@ -96,11 +119,11 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <div className="text-xs text-white/60 mb-1">Sales Tax</div>
-          <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.salesTax)}</div>
+          <div className="text-lg font-semibold">{formatCurrency(salesTaxDisplay)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
           <div className="text-xs text-white/60 mb-1">Total Taxes & Gov't Fees</div>
-          <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.totalFees)}</div>
+          <div className="text-lg font-semibold">{formatCurrency(totalFeesDisplay)}</div>
         </div>
       </div>
 
@@ -110,19 +133,19 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
         <div className="space-y-1 text-xs text-white/80">
           <div className="flex justify-between">
             <span>Taxable Base:</span>
-            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.taxableBase)}</span>
+            <span className="font-semibold text-white">{formatCurrency(taxableBase)}</span>
           </div>
           <div className="flex justify-between">
             <span>
-              State Tax ({(scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(1)}%):
+              State Tax ({stateTaxRateDisplay}%):
             </span>
-            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.stateTax)}</span>
+            <span className="font-semibold text-white">{formatCurrency(stateTaxAmount)}</span>
           </div>
           <div className="flex justify-between items-center">
             <span>
-              County Tax ({(scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(1)}%):
+              County Tax ({countyTaxRateDisplay}%):
             </span>
-            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.countyTax)}</span>
+            <span className="font-semibold text-white">{formatCurrency(countyTaxAmount)}</span>
           </div>
         </div>
         <div className="mt-3 pt-3 border-t border-white/10 text-sm font-semibold text-white flex justify-between">
