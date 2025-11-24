@@ -1533,6 +1533,7 @@ export const CalculatorApp: React.FC = () => {
         })),
     [selectedTradeInVehicles, garageVehicles]
   );
+  const hasTradeInSelected = selectedTradeIns.length > 0;
 
   const feeEngineUserProfile = useMemo(() => {
     if (!profile) return undefined;
@@ -1576,6 +1577,47 @@ export const CalculatorApp: React.FC = () => {
     };
   }, [selectedVehicle]);
 
+  const [scenarioOverrides, setScenarioOverrides] = useState<{
+    cashPurchase?: boolean;
+    includeTradeIn?: boolean;
+    tagMode?: "new_plate" | "transfer_existing_plate" | "temp_tag";
+    firstTimeRegistration?: boolean;
+    enabled?: boolean;
+  }>({});
+
+  useEffect(() => {
+    if (scenarioOverrides?.enabled === false) {
+      setFeeEngineResult(null);
+      setFeeItems("gov", []);
+      setSliderValue("govtFees", 0, true);
+    }
+  }, [scenarioOverrides?.enabled, setFeeEngineResult, setFeeItems, setSliderValue]);
+
+  // Keep trade-in pill in sync with My Garage trade-in toggle
+  useEffect(() => {
+    setScenarioOverrides((prev) => {
+      const includeTradeIn = hasTradeInSelected;
+      const next: typeof prev = { ...prev };
+      next.includeTradeIn = includeTradeIn;
+
+      // When a trade-in is selected, assume plate transfer by default
+      if (includeTradeIn) {
+        next.tagMode = 'transfer_existing_plate';
+      } else if (next.tagMode === 'transfer_existing_plate') {
+        next.tagMode = undefined;
+      }
+
+      if (
+        prev.includeTradeIn === next.includeTradeIn &&
+        prev.tagMode === next.tagMode
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, [hasTradeInSelected]);
+
   const {
     scenarioResult: feeScenarioResult,
     isCalculating: isCalculatingFees,
@@ -1592,6 +1634,7 @@ export const CalculatorApp: React.FC = () => {
     preferredLender:
       lenderOptions.find((opt) => opt.value === lender)?.label || lender,
     enabled: Boolean(feeEngineUserProfile?.state_code),
+    scenarioOverrides,
   });
 
   const lastFeeEngineErrorRef = useRef<string | null>(null);
@@ -2620,8 +2663,8 @@ export const CalculatorApp: React.FC = () => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(value);
   };
 
@@ -3815,6 +3858,11 @@ export const CalculatorApp: React.FC = () => {
         scenarioResult={feeEngineResult || feeScenarioResult}
         isCalculatingFees={isCalculatingFees}
         onRecalculateFees={recalcFeeEngine}
+        scenarioOverrides={scenarioOverrides}
+        hasTradeIn={hasTradeInSelected}
+        onScenarioOverridesChange={(next) => {
+          setScenarioOverrides(next);
+        }}
       />
 
       {/* Fee Template Editor Modal */}

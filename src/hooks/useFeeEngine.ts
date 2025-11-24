@@ -46,6 +46,15 @@ export interface UseFeeEngineParams {
   // Dealer ID
   dealerId?: string;
 
+  // Scenario overrides (manual toggles)
+  scenarioOverrides?: {
+    cashPurchase?: boolean;
+    includeTradeIn?: boolean;
+    tagMode?: 'new_plate' | 'transfer_existing_plate' | 'temp_tag';
+    firstTimeRegistration?: boolean;
+    enabled?: boolean;
+  };
+
   // Whether to auto-calculate (can be disabled)
   enabled?: boolean;
 }
@@ -75,21 +84,35 @@ export function useFeeEngine(params: UseFeeEngineParams): UseFeeEngineResult {
   const lastParamsRef = useRef<string>('');
 
   const calculate = useCallback(async () => {
+    const disabled =
+      params.enabled === false ||
+      params.scenarioOverrides?.enabled === false ||
+      !params.userProfile?.state_code;
+
     // Skip if disabled or missing critical data
-    if (params.enabled === false || !params.userProfile?.state_code) {
+    if (disabled) {
+      setScenarioResult(null);
+      setError(null);
+      lastParamsRef.current = '';
       return;
     }
+
+    const isCash = params.scenarioOverrides?.cashPurchase === true;
+    const includeTrade = params.scenarioOverrides?.includeTradeIn !== false;
 
     // Create calculation params
     const calcParams = {
       salePrice: params.salePrice,
       cashDown: params.cashDown,
-      loanTerm: params.loanTerm,
-      apr: params.apr,
-      selectedTradeInVehicles: params.selectedTradeInVehicles || [],
+      loanTerm: isCash ? 0 : params.loanTerm,
+      apr: isCash ? 0 : params.apr,
+      selectedTradeInVehicles: includeTrade
+        ? params.selectedTradeInVehicles || []
+        : [],
       userProfile: params.userProfile,
       selectedVehicle: params.selectedVehicle,
       preferredLender: params.preferredLender,
+      scenarioOverrides: params.scenarioOverrides,
     };
 
     // Check if params changed (avoid redundant calculations)
@@ -141,6 +164,7 @@ export function useFeeEngine(params: UseFeeEngineParams): UseFeeEngineResult {
     params.preferredLender,
     params.dealerId,
     params.enabled,
+    params.scenarioOverrides,
   ]);
 
   // Auto-calculate when params change (debounced)

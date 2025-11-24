@@ -29,6 +29,21 @@ interface FeesModalProps {
   scenarioResult?: ScenarioResult | null;
   isCalculatingFees?: boolean;
   onRecalculateFees?: () => void;
+  scenarioOverrides?: {
+    cashPurchase?: boolean;
+    includeTradeIn?: boolean;
+    tagMode?: 'new_plate' | 'transfer_existing_plate' | 'temp_tag';
+    firstTimeRegistration?: boolean;
+    enabled?: boolean;
+  };
+  onScenarioOverridesChange?: (overrides: {
+    cashPurchase?: boolean;
+    includeTradeIn?: boolean;
+    tagMode?: 'new_plate' | 'transfer_existing_plate' | 'temp_tag';
+    firstTimeRegistration?: boolean;
+    enabled?: boolean;
+  }) => void;
+  hasTradeIn?: boolean;
 }
 
 interface FeeRow {
@@ -51,6 +66,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   scenarioResult,
   isCalculatingFees = false,
   onRecalculateFees,
+  scenarioOverrides,
+  onScenarioOverridesChange,
+  hasTradeIn = false,
 }) => {
   // Fee rows state
   const [dealerRows, setDealerRows] = useState<FeeRow[]>([]);
@@ -85,7 +103,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   };
 
   const handleAmountFinalize = (category: FeeCategory, index: number, value: string) => {
-    const formatted = value ? formatCurrencyInput(value) : '';
+    const formatted = value ? formatCurrencyExact(parseCurrency(value)) : '';
     updateRow(category, index, 'amount', formatted);
   };
 
@@ -147,6 +165,144 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   // Track if we just auto-focused a new row (to skip showing dropdown)
   const skipNextFocusRef = useRef(false);
 
+  const handleTogglePill = (
+    key:
+      | 'enabled'
+      | 'cashPurchase'
+      | 'includeTradeIn'
+      | 'tag_new'
+      | 'tag_transfer'
+      | 'firstTimeRegistration'
+  ) => {
+    if (!onScenarioOverridesChange) return;
+
+    const next = {
+      enabled: scenarioOverrides?.enabled !== false,
+      cashPurchase: scenarioOverrides?.cashPurchase || false,
+      includeTradeIn: scenarioOverrides?.includeTradeIn ?? true,
+      tagMode: scenarioOverrides?.tagMode,
+      firstTimeRegistration: scenarioOverrides?.firstTimeRegistration || false,
+    };
+
+    switch (key) {
+      case 'enabled':
+        next.enabled = !next.enabled;
+        break;
+      case 'cashPurchase':
+        next.cashPurchase = !next.cashPurchase;
+        break;
+      case 'includeTradeIn':
+        if (!hasTradeIn) {
+          return;
+        }
+        // Include Trade-In mirrors the My Garage toggle; keep it true when a trade is selected
+        next.includeTradeIn = true;
+        break;
+      case 'tag_new':
+        if (hasTradeIn) {
+          return;
+        }
+        next.tagMode = next.tagMode === 'new_plate' ? undefined : 'new_plate';
+        break;
+      case 'tag_transfer':
+        next.tagMode =
+          next.tagMode === 'transfer_existing_plate'
+            ? undefined
+            : 'transfer_existing_plate';
+        break;
+      case 'firstTimeRegistration':
+        next.firstTimeRegistration = !next.firstTimeRegistration;
+        break;
+      default:
+        break;
+    }
+
+    // If auto-calc disabled, clear other overrides
+    if (key === 'enabled' && next.enabled === false) {
+      next.cashPurchase = false;
+      next.includeTradeIn = true;
+      next.tagMode = undefined;
+      next.firstTimeRegistration = false;
+    }
+
+    onScenarioOverridesChange(next);
+  };
+
+  const renderPills = () => {
+    const pills = [
+      {
+        key: 'enabled' as const,
+        label: 'Auto Calculate',
+        active: scenarioOverrides?.enabled !== false,
+        description: 'Enable/disable automatic gov fee calculation',
+      },
+      {
+        key: 'cashPurchase' as const,
+        label: 'Cash Purchase',
+        active: scenarioOverrides?.cashPurchase || false,
+        description: 'Sets APR & term to 0',
+      },
+      {
+        key: 'includeTradeIn' as const,
+        label: 'Include Trade-In',
+        active: scenarioOverrides?.includeTradeIn !== false,
+        description: hasTradeIn
+          ? 'Linked to My Garage trade-in toggle'
+          : 'Select a trade-in vehicle in My Garage to enable',
+        disabled: !hasTradeIn,
+      },
+      {
+        key: 'tag_new' as const,
+        label: 'New Tag',
+        active: scenarioOverrides?.tagMode === 'new_plate',
+        description: hasTradeIn
+          ? 'Trade-in selected; tag transfer assumed'
+          : 'Issue a new plate',
+        disabled: hasTradeIn,
+      },
+      {
+        key: 'tag_transfer' as const,
+        label: 'Tag Transfer',
+        active: scenarioOverrides?.tagMode === 'transfer_existing_plate',
+        description: 'Transfer existing plate',
+      },
+      {
+        key: 'firstTimeRegistration' as const,
+        label: 'First-Time FL Reg',
+        active: scenarioOverrides?.firstTimeRegistration || false,
+        description: 'Applies initial registration fees',
+      },
+    ];
+
+    return (
+      <div className="space-y-2">
+        <div className="text-sm text-white/70">
+          Select keywords to adjust your purchase details. Turn off "Auto Calculate" to set custom gov't fees.
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {pills.map((pill) => (
+            <button
+              key={pill.key}
+              type="button"
+              onClick={() => handleTogglePill(pill.key)}
+              disabled={pill.disabled}
+              className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
+                pill.disabled
+                  ? 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                  : pill.active
+                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100 shadow-emerald-500/20 shadow'
+                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+              }`}
+              title={pill.description}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   // Initialize form when modal opens
   useEffect(() => {
     if (isOpen && !initializedRef.current) {
@@ -157,7 +313,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         dealerSource.length > 0
           ? dealerSource.map((f) => ({
               description: f.description,
-              amount: formatCurrencyInput(f.amount.toString()),
+              amount: formatCurrencyExact(f.amount),
             }))
           : [{ description: '', amount: '' }]
       );
@@ -167,7 +323,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         customerSource.length > 0
           ? customerSource.map((f) => ({
               description: f.description,
-              amount: formatCurrencyInput(f.amount.toString()),
+              amount: formatCurrencyExact(f.amount),
             }))
           : [{ description: '', amount: '' }]
       );
@@ -177,7 +333,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         govSource.length > 0
           ? govSource.map((f) => ({
               description: f.description,
-              amount: formatCurrencyInput(f.amount.toString()),
+              amount: formatCurrencyExact(f.amount),
             }))
           : [{ description: '', amount: '' }]
       );
@@ -410,20 +566,27 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   const stateTaxValue = parseFloat(stateTax) || 0;
   const countyTaxValue = parseFloat(countyTax) || 0;
 
-  // For tax calculation estimate (assuming $50k sale price minus $5k down as rough estimate)
-  const estimatedTaxBase = 45000 + dealerTotal + customerTotal + govTotal;
+  // If engine data is unavailable, we don't fabricate a taxable base.
+  // Fallback taxes default to 0; engine-provided values take precedence.
+  const estimatedStateTax = 0;
+  const estimatedCountyTax = 0;
 
-  // Calculate state tax on full base
-  const estimatedStateTax = estimatedTaxBase * (stateTaxValue / 100);
+  const stateTaxDisplay =
+    scenarioResult?.taxBreakdown?.stateTax ?? estimatedStateTax;
+  const countyTaxDisplay =
+    scenarioResult?.taxBreakdown?.countyTax ?? estimatedCountyTax;
 
-  // Calculate county tax with $5k cap on base
-  const countyTaxBase = Math.min(estimatedTaxBase, 5000);
-  const estimatedCountyTax = countyTaxBase * (countyTaxValue / 100);
+  const stateRateDisplay =
+    scenarioResult?.taxBreakdown?.stateTaxRate != null
+      ? (scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(2)
+      : stateTaxValue.toFixed(2);
+  const countyRateDisplay =
+    scenarioResult?.taxBreakdown?.countyTaxRate != null
+      ? (scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(2)
+      : countyTaxValue.toFixed(2);
 
-  // Total taxes
-  const estimatedTaxes = estimatedStateTax + estimatedCountyTax;
-
-  const totalOtherCharges = dealerTotal + customerTotal + govTotal + estimatedTaxes;
+  const totalOtherCharges =
+    dealerTotal + customerTotal + govTotal + stateTaxDisplay + countyTaxDisplay;
 
   // Handle save
   const handleSave = () => {
@@ -676,15 +839,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           </button>
         </div>
 
-        {/* Fee Engine Scenario Panel */}
-        {showScenarioPanel && (
-          <ScenarioDetectionPanel
-            scenarioResult={scenarioResult || null}
-            isCalculating={isCalculatingFees}
-            onRecalculate={onRecalculateFees}
-          />
-        )}
-
         {/* Scrollable content area */}
         <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
           {/* Dealer Fees Section */}
@@ -695,6 +849,18 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           {/* Customer Add-ons Section */}
           <div className="p-4 bg-green-500/10 rounded-lg border border-green-400/20">
             {renderFeeSection('Customer Add-ons', 'customer', customerRows, customerTotal, 'text-green-400')}
+          </div>
+
+          {/* Purchase Assumptions / Scenario Panel with keywords */}
+          <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3">
+            {renderPills()}
+            {showScenarioPanel && (
+              <ScenarioDetectionPanel
+                scenarioResult={scenarioResult || null}
+                isCalculating={isCalculatingFees}
+                onRecalculate={onRecalculateFees}
+              />
+            )}
           </div>
 
           {/* Gov't Fees Section */}
@@ -767,12 +933,12 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 <span className="font-semibold">{formatCurrencyExact(govTotal)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-white/20">
-                <span>{stateName || 'State'} Tax ({stateTaxValue.toFixed(2)}%)</span>
-                <span className="font-semibold">{formatCurrencyExact(estimatedStateTax)}</span>
+                <span>{stateName || 'State'} Tax ({stateRateDisplay}%)</span>
+                <span className="font-semibold">{formatCurrencyExact(stateTaxDisplay)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>{countyName || 'County'} Tax ({countyTaxValue.toFixed(2)}%)</span>
-                <span className="font-semibold">{formatCurrencyExact(estimatedCountyTax)}</span>
+                <span>{countyName || 'County'} Tax ({countyRateDisplay}%)</span>
+                <span className="font-semibold">{formatCurrencyExact(countyTaxDisplay)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-white/20">
                 <span className="text-base">Total Other Charges</span>

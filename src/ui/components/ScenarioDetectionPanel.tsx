@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ScenarioResult } from '../../../packages/fee-engine/src';
-import { Badge } from './Badge';
+import { formatCurrencyExact } from '../../utils/formatters';
 
 export interface ScenarioDetectionPanelProps {
   scenarioResult: ScenarioResult | null;
@@ -57,123 +57,88 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
 
   const scenario = scenarioResult.detectedScenario;
 
+  const formatCurrency = (amount: number) => formatCurrencyExact(amount);
+  const stateTaxAmount = scenarioResult.taxBreakdown.stateTax;
+  const countyTaxAmount = scenarioResult.taxBreakdown.countyTax;
+  const totalTaxAmount = stateTaxAmount + countyTaxAmount;
+
   return (
-    <div className="scenario-detection-panel bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg p-4 mb-4 border border-blue-200 dark:border-blue-800">
-      {/* Header */}
+    <div className="scenario-detection-panel rounded-xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-5 text-white shadow-inner">
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-          <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
-            Scenario Detected
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <h3 className="text-sm font-semibold text-white/90">
+            Purchase Assumptions
           </h3>
         </div>
         {onToggleAutoMode && (
           <button
             onClick={() => onToggleAutoMode(!autoModeEnabled)}
-            className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors"
+            className="text-xs text-white/60 hover:text-white transition-colors"
           >
             {autoModeEnabled ? 'Switch to Manual' : 'Use Auto-Calculate'}
           </button>
         )}
       </div>
 
-      {/* Scenario Info */}
-      <div className="mb-3">
-        <div className="flex items-center gap-2 mb-2">
-          <Badge variant="info" size="sm">
-            {scenario.type.replace(/_/g, ' ').toUpperCase()}
-          </Badge>
-          {scenario.hasTradeIn && (
-            <Badge variant="success" size="sm">
-              Trade-in
-            </Badge>
-          )}
-          {scenario.isFinanced && (
-            <Badge variant="default" size="sm">
-              Financed
-            </Badge>
-          )}
-          {scenario.isTagTransfer && (
-            <Badge variant="warning" size="sm">
-              Tag Transfer
-            </Badge>
-          )}
+      {/* Scenario description and notes */}
+      <div className="mb-4 text-sm text-white/80">
+        <div className="text-white/70">
+          Deal type: {scenario.isFinanced ? 'Financed' : 'Cash'}{scenario.hasTradeIn ? ' · Includes trade-in' : ''}{scenario.isTagTransfer ? ' · Tag transfer' : ''}
         </div>
-        <p className="text-sm text-gray-700 dark:text-gray-300">
-          {scenario.description}
-        </p>
       </div>
 
       {/* Fee Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
-        <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Gov Fees</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            ${scenarioResult.totals.governmentFees.toFixed(2)}
-          </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="text-xs text-white/60 mb-1">Gov Fees</div>
+          <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.governmentFees)}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Sales Tax</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            ${scenarioResult.totals.salesTax.toFixed(2)}
-          </div>
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="text-xs text-white/60 mb-1">Sales Tax</div>
+          <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.salesTax)}</div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded p-2 border border-gray-200 dark:border-gray-700">
-          <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Total Fees</div>
-          <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            ${scenarioResult.totals.totalFees.toFixed(2)}
-          </div>
+        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="text-xs text-white/60 mb-1">Total Taxes & Gov't Fees</div>
+          <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.totalFees)}</div>
         </div>
       </div>
 
       {/* Tax Breakdown */}
-      <div className="bg-white dark:bg-gray-800 rounded p-3 border border-gray-200 dark:border-gray-700">
-        <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-          Tax Breakdown
-        </div>
-        <div className="space-y-1 text-xs">
+      <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+        <div className="text-xs font-semibold text-white/70 mb-2">Tax Breakdown</div>
+        <div className="space-y-1 text-xs text-white/80">
           <div className="flex justify-between">
-            <span className="text-gray-600 dark:text-gray-400">Taxable Base:</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
-              ${scenarioResult.taxBreakdown.taxableBase.toFixed(2)}
-            </span>
+            <span>Taxable Base:</span>
+            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.taxableBase)}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600 dark:text-gray-400">
+            <span>
               State Tax ({(scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(1)}%):
             </span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
-              ${scenarioResult.taxBreakdown.stateTax.toFixed(2)}
-            </span>
+            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.stateTax)}</span>
           </div>
           <div className="flex justify-between items-center">
-            <span className="text-gray-600 dark:text-gray-400">
+            <span>
               County Tax ({(scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(1)}%):
             </span>
-            <div className="flex items-center gap-1">
-              <span className="font-medium text-gray-900 dark:text-gray-100">
-                ${scenarioResult.taxBreakdown.countyTax.toFixed(2)}
-              </span>
-              {scenarioResult.taxBreakdown.countyTaxCapped && (
-                <span className="text-xs text-orange-600 dark:text-orange-400" title="Capped at $5,000 taxable base per FL law">
-                  (capped)
-                </span>
-              )}
-            </div>
+            <span className="font-semibold text-white">{formatCurrency(scenarioResult.taxBreakdown.countyTax)}</span>
           </div>
+        </div>
+        <div className="mt-3 pt-3 border-t border-white/10 text-sm font-semibold text-white flex justify-between">
+          <span>Total Taxes</span>
+          <span>{formatCurrency(totalTaxAmount)}</span>
         </div>
       </div>
 
       {/* Applied Rules Count */}
-      <div className="mt-3 flex items-center justify-between">
-        <span className="text-xs text-gray-500 dark:text-gray-400">
-          {scenarioResult.appliedRuleIds.length} rules applied
-        </span>
+      <div className="mt-3 flex items-center justify-between text-xs text-white/60">
+        <span>{scenarioResult.appliedRuleIds.length} rules applied</span>
         {onRecalculate && (
           <button
             onClick={onRecalculate}
             disabled={isCalculating}
-            className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-emerald-300 hover:text-emerald-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Recalculate
           </button>

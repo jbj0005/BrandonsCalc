@@ -10,6 +10,13 @@ export interface CalculatorState {
   cashDown: number;
   loanTerm: number;
   apr: number;
+  scenarioOverrides?: {
+    cashPurchase?: boolean;
+    includeTradeIn?: boolean;
+    tagMode?: 'new_plate' | 'transfer_existing_plate' | 'temp_tag';
+    firstTimeRegistration?: boolean;
+    enabled?: boolean;
+  };
 
   // Trade-ins
   selectedTradeInVehicles: Array<{
@@ -61,10 +68,19 @@ export class CalculatorAdapter {
     calculatorState: CalculatorState,
     dealerId: string = 'default'
   ): ScenarioInput {
-    const hasTradeIn = calculatorState.selectedTradeInVehicles.length > 0;
-    const isFinanced = calculatorState.loanTerm > 0;
+    const hasTradeIn =
+      calculatorState.scenarioOverrides?.includeTradeIn !== false &&
+      calculatorState.selectedTradeInVehicles.length > 0;
+    const isCash = calculatorState.scenarioOverrides?.cashPurchase === true;
+    const isFinanced = !isCash && calculatorState.loanTerm > 0;
 
     const profile = calculatorState.userProfile || {};
+    const tagMode =
+      calculatorState.scenarioOverrides?.tagMode ||
+      (hasTradeIn ? 'transfer_existing_plate' : 'new_plate');
+    const firstTimeRegistration =
+      calculatorState.scenarioOverrides?.firstTimeRegistration ??
+      (!hasTradeIn && tagMode === 'new_plate');
 
     return {
       scenarioId: uuidv4(),
@@ -88,11 +104,11 @@ export class CalculatorAdapter {
 
       // Deal economics
       deal: {
-        dealType: isFinanced ? 'retail' : 'cash',
+        dealType: isCash ? 'cash' : isFinanced ? 'retail' : 'cash',
         sellingPrice: calculatorState.salePrice,
         cashDown: calculatorState.cashDown,
-        termMonths: calculatorState.loanTerm,
-        apr: calculatorState.apr,
+        termMonths: isCash ? 0 : calculatorState.loanTerm,
+        apr: isCash ? 0 : calculatorState.apr,
         lenderName: calculatorState.preferredLender || '',
         lenderType: this.determineLenderType(calculatorState.preferredLender),
       },
@@ -121,8 +137,8 @@ export class CalculatorAdapter {
 
       // Registration scenario
       registration: {
-        plateScenario: hasTradeIn ? 'transfer_existing_plate' : 'new_plate',
-        firstTimeRegisteredInState: !hasTradeIn,
+        plateScenario: tagMode,
+        firstTimeRegisteredInState: firstTimeRegistration,
         existingPlateNumber: hasTradeIn ? 'TRADE_IN_PLATE' : undefined,
         garagingAddressPostalCode: profile.zip_code,
       },
@@ -135,7 +151,10 @@ export class CalculatorAdapter {
       },
 
       // No overrides by default
-      overrides: undefined,
+      overrides:
+        firstTimeRegistration === true
+          ? { isInitialRegistration: true }
+          : undefined,
     };
   }
 
