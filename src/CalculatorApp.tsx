@@ -3509,6 +3509,7 @@ export const CalculatorApp: React.FC = () => {
                 setSliderValueWithSettling("govtFees", value)
               }
               onTradeInCashoutChange={handleEquityCashoutChange}
+              showHeader={false}
             />
           </div>
         </div>

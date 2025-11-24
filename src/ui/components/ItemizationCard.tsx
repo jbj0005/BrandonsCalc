@@ -45,6 +45,8 @@ export interface ItemizationCardProps {
   aprPaymentDiffOverride?: number | null;
   onAprChange?: (value: number) => void;
   onTermChange?: (value: number) => void;
+  /** Hide the built-in header when a parent renders its own */
+  showHeader?: boolean;
 }
 
 /**
@@ -96,6 +98,7 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   aprPaymentDiffOverride,
   onAprChange,
   onTermChange,
+  showHeader = true,
 }) => {
   const netTradeIn = tradeAllowance - tradePayoff;
   const otherCharges = dealerFees + customerAddons + govtFees;
@@ -108,9 +111,11 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   return (
     <div className="space-y-4">
       {/* Header with Payment Controls */}
-      <div className="space-y-3">
-        <h3 className="text-2xl font-bold text-white">Itemization of Costs</h3>
-      </div>
+      {showHeader && (
+        <div className="space-y-3">
+          <h3 className="text-2xl font-bold text-white">Itemization of Costs</h3>
+        </div>
+      )}
 
       {/* Breakdown Card */}
       <div className="rounded-xl border border-white/10 bg-gradient-to-br from-slate-900 to-slate-950 p-6 shadow-lg relative">
