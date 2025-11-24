@@ -23,8 +23,10 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   onRecalculate,
   onToggleAutoMode,
   autoModeEnabled = true,
-  taxOverride,
+  showRules = false,
 }) => {
+  const [showRulesList, setShowRulesList] = useState(false);
+
   if (!scenarioResult && !isCalculating) {
     return (
       <div className="scenario-detection-panel bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 mb-4 border border-gray-200 dark:border-gray-700">
@@ -64,26 +66,15 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   if (!scenarioResult) return null;
 
   const scenario = scenarioResult.detectedScenario;
-
   const formatCurrency = (amount: number) => formatCurrencyExact(amount);
-  const stateTaxAmount =
-    taxOverride?.stateTaxAmount ?? scenarioResult.taxBreakdown.stateTax;
-  const countyTaxAmount =
-    taxOverride?.countyTaxAmount ?? scenarioResult.taxBreakdown.countyTax;
-  const totalTaxAmount = stateTaxAmount + countyTaxAmount;
-  const salesTaxDisplay = taxOverride ? totalTaxAmount : scenarioResult.totals.salesTax;
-  const totalFeesDisplay =
-    scenarioResult.totals.governmentFees + salesTaxDisplay;
-  const taxableBase =
-    taxOverride?.taxableBase ?? scenarioResult.taxBreakdown.taxableBase;
-  const stateTaxRateDisplay =
-    taxOverride?.stateTaxRate != null
-      ? taxOverride.stateTaxRate.toFixed(2)
-      : (scenarioResult.taxBreakdown.stateTaxRate * 100).toFixed(1);
-  const countyTaxRateDisplay =
-    taxOverride?.countyTaxRate != null
-      ? taxOverride.countyTaxRate.toFixed(2)
-      : (scenarioResult.taxBreakdown.countyTaxRate * 100).toFixed(1);
+  const govLineItems = useMemo(
+    () =>
+      (scenarioResult.lineItems || []).filter(
+        (item) => item.category === 'government'
+      ),
+    [scenarioResult.lineItems]
+  );
+  const topGovItems = govLineItems.slice(0, 5);
 
   return (
     <div className="scenario-detection-panel rounded-xl border border-white/10 bg-gradient-to-br from-slate-900/80 to-slate-950/80 p-5 text-white shadow-inner">
@@ -111,46 +102,50 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
         </div>
       </div>
 
-      {/* Fee Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      {/* Gov Fee Summary */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <div className="text-xs text-white/60 mb-1">Gov Fees</div>
+          <div className="text-xs text-white/60 mb-1">Gov Fees Total</div>
           <div className="text-lg font-semibold">{formatCurrency(scenarioResult.totals.governmentFees)}</div>
         </div>
         <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <div className="text-xs text-white/60 mb-1">Sales Tax</div>
-          <div className="text-lg font-semibold">{formatCurrency(salesTaxDisplay)}</div>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-          <div className="text-xs text-white/60 mb-1">Total Taxes & Gov't Fees</div>
-          <div className="text-lg font-semibold">{formatCurrency(totalFeesDisplay)}</div>
+          <div className="text-xs text-white/60 mb-1">Items Returned</div>
+          <div className="text-lg font-semibold">{govLineItems.length}</div>
         </div>
       </div>
 
-      {/* Tax Breakdown */}
+      {/* Engine diagram: inputs -> gov fees */}
       <div className="rounded-lg border border-white/10 bg-white/5 p-3">
-        <div className="text-xs font-semibold text-white/70 mb-2">Tax Breakdown</div>
-        <div className="space-y-1 text-xs text-white/80">
-          <div className="flex justify-between">
-            <span>Taxable Base:</span>
-            <span className="font-semibold text-white">{formatCurrency(taxableBase)}</span>
+        <div className="text-xs font-semibold text-white/70 mb-3">How we computed your gov fees</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-start">
+          <div className="rounded-lg border border-white/10 bg-black/10 p-3 space-y-1">
+            <div className="text-xs uppercase tracking-wide text-white/60">Inputs</div>
+            <div className="text-sm text-white/80">Deal: {scenario.isFinanced ? 'Financed' : 'Cash'}</div>
+            <div className="text-sm text-white/80">Tag: {scenario.isTagTransfer ? 'Transfer existing plate' : 'New plate'}</div>
+            <div className="text-sm text-white/80">Trade-in: {scenario.hasTradeIn ? 'Included' : 'None'}</div>
+            <div className="text-sm text-white/80">First-time reg: {scenario.firstTimeRegistration ? 'Yes' : 'No'}</div>
           </div>
-          <div className="flex justify-between">
-            <span>
-              State Tax ({stateTaxRateDisplay}%):
-            </span>
-            <span className="font-semibold text-white">{formatCurrency(stateTaxAmount)}</span>
+          <div className="flex items-center justify-center">
+            <div className="text-white/60 text-sm">→ Fee Engine →</div>
           </div>
-          <div className="flex justify-between items-center">
-            <span>
-              County Tax ({countyTaxRateDisplay}%):
-            </span>
-            <span className="font-semibold text-white">{formatCurrency(countyTaxAmount)}</span>
+          <div className="rounded-lg border border-white/10 bg-black/10 p-3 space-y-2">
+            <div className="text-xs uppercase tracking-wide text-white/60">Gov Fee Outputs</div>
+            <div className="text-sm text-white/80">Total: {formatCurrency(scenarioResult.totals.governmentFees)}</div>
+            <div className="space-y-1">
+              {topGovItems.length === 0 && (
+                <div className="text-xs text-white/50">No gov fee line items returned.</div>
+              )}
+              {topGovItems.map((item, idx) => (
+                <div key={`${item.code || item.description || idx}`} className="text-xs text-white/70 flex justify-between gap-2">
+                  <span className="truncate">{item.description || 'Government fee'}</span>
+                  <span className="font-semibold text-white">{formatCurrency(item.amount)}</span>
+                </div>
+              ))}
+              {govLineItems.length > topGovItems.length && (
+                <div className="text-xs text-white/50">+{govLineItems.length - topGovItems.length} more</div>
+              )}
+            </div>
           </div>
-        </div>
-        <div className="mt-3 pt-3 border-t border-white/10 text-sm font-semibold text-white flex justify-between">
-          <span>Total Taxes</span>
-          <span>{formatCurrency(totalTaxAmount)}</span>
         </div>
       </div>
 
@@ -167,6 +162,30 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
           </button>
         )}
       </div>
+      {showRules && scenarioResult.appliedRuleIds.length > 0 && (
+        <div className="mt-2 rounded-lg border border-white/10 bg-white/5 p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-semibold text-white/70">Applied Rules</div>
+            <button
+              type="button"
+              className="text-xs text-emerald-300 hover:text-emerald-200"
+              onClick={() => setShowRulesList((prev) => !prev)}
+            >
+              {showRulesList ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showRulesList && (
+            <div className="mt-2 space-y-1 text-xs text-white/80 max-h-48 overflow-auto">
+              {scenarioResult.appliedRuleIds.map((ruleId) => (
+                <div key={ruleId} className="flex items-center justify-between gap-2 border-b border-white/5 py-1">
+                  <span className="truncate">{ruleId}</span>
+                  <span className="text-white/50">gov fee rule</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

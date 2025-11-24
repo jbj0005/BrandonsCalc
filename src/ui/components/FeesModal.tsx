@@ -76,6 +76,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   onScenarioOverridesChange,
   hasTradeIn = false,
 }) => {
+  const [showAssumptionsModal, setShowAssumptionsModal] = useState(false);
   // Fee rows state
   const [dealerRows, setDealerRows] = useState<FeeRow[]>([]);
   const [customerRows, setCustomerRows] = useState<FeeRow[]>([]);
@@ -836,30 +837,23 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           {/* Dealer Fees Section */}
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-400/20">
             {renderFeeSection('Dealer Fees', 'dealer', dealerRows, dealerTotal, 'text-blue-400')}
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-white/70">
+              <div>
+                Gov't fees are being computed automatically from your purchase assumptions.
+              </div>
+              <Button
+                variant="ghost"
+                className="border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100"
+                onClick={() => setShowAssumptionsModal(true)}
+              >
+                View Purchase Assumptions
+              </Button>
+            </div>
           </div>
 
           {/* Customer Add-ons Section */}
           <div className="p-4 bg-green-500/10 rounded-lg border border-green-400/20">
             {renderFeeSection('Customer Add-ons', 'customer', customerRows, customerTotal, 'text-green-400')}
-          </div>
-
-          {/* Purchase Assumptions / Scenario Panel with keywords */}
-          <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3">
-            {renderPills()}
-          {showScenarioPanel && (
-            <ScenarioDetectionPanel
-              scenarioResult={scenarioResult || null}
-              isCalculating={isCalculatingFees}
-              onRecalculate={onRecalculateFees}
-              taxOverride={{
-                taxableBase,
-                stateTaxAmount: stateTaxAmount,
-                countyTaxAmount: countyTaxAmount,
-                stateTaxRate: stateTaxValue,
-                countyTaxRate: countyTaxValue,
-              }}
-            />
-          )}
           </div>
 
           {/* Gov't Fees Section */}
@@ -961,6 +955,34 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           </Button>
         </div>
       </div>
+
+      {/* Purchase Assumptions Modal (power users) */}
+      <Modal isOpen={showAssumptionsModal} onClose={() => setShowAssumptionsModal(false)} size="lg">
+        <div className="p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xl font-semibold text-white">Purchase Assumptions</h3>
+              <p className="text-sm text-white/70">
+                Keywords and detected inputs driving your gov't fee calculation.
+              </p>
+            </div>
+            <Button variant="ghost" onClick={() => setShowAssumptionsModal(false)}>
+              Close
+            </Button>
+          </div>
+          <div className="space-y-3">
+            {renderPills()}
+            {showScenarioPanel && (
+              <ScenarioDetectionPanel
+                scenarioResult={scenarioResult || null}
+                isCalculating={isCalculatingFees}
+                onRecalculate={onRecalculateFees}
+                showRules
+              />
+            )}
+          </div>
+        </div>
+      </Modal>
     </Modal>
   );
 };
