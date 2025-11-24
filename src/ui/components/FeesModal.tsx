@@ -862,35 +862,48 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               <div className="text-sm text-white/70">
                 Gov't fees are being computed automatically from your purchase assumptions.
               </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  className={`border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100 ${autoComputeGov ? 'bg-emerald-500/20' : ''}`}
-                  onClick={() => {
-                    const nextAuto = !autoComputeGov;
-                    setAutoComputeGov(nextAuto);
-                    if (onScenarioOverridesChange) {
-                      onScenarioOverridesChange({
-                        ...(scenarioOverrides || {}),
-                        enabled: nextAuto,
-                      });
-                    }
-                    if (!nextAuto) {
-                      // Clear gov rows for manual entry
-                      setGovRows([{ description: '', amount: '' }]);
-                    } else {
-                      // Restore gov rows from initial props when re-enabling auto
-                      setGovRows(
-                        (initialGovtFees ?? []).map((f) => ({
-                          description: f.description,
-                          amount: formatCurrencyExact(f.amount),
-                        }))
-                      );
-                    }
-                  }}
-                >
-                  {autoComputeGov ? 'Switch to Manual' : 'Use Auto-Compute'}
-                </Button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/70">Auto-compute</span>
+                  <button
+                    type="button"
+                    aria-pressed={autoComputeGov}
+                    onClick={() => {
+                      const nextAuto = !autoComputeGov;
+                      setAutoComputeGov(nextAuto);
+                      if (onScenarioOverridesChange) {
+                        onScenarioOverridesChange({
+                          ...(scenarioOverrides || {}),
+                          enabled: nextAuto,
+                        });
+                      }
+                      if (!nextAuto) {
+                        // Clear gov rows for manual entry
+                        setGovRows([{ description: '', amount: '' }]);
+                      } else {
+                        // Restore gov rows from initial props when re-enabling auto
+                        setGovRows(
+                          (initialGovtFees ?? []).map((f) => ({
+                            description: f.description,
+                            amount: formatCurrencyExact(f.amount),
+                          }))
+                        );
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full border border-white/20 transition-colors ${
+                      autoComputeGov ? 'bg-emerald-500/70' : 'bg-white/10'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        autoComputeGov ? 'translate-x-5' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                  <span className="text-xs text-white/70">
+                    {autoComputeGov ? 'On' : 'Manual'}
+                  </span>
+                </div>
                 <Button
                   variant="ghost"
                   className="border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100"
