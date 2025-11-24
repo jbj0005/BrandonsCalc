@@ -85,6 +85,13 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   // Tax rate state
   const [stateTax, setStateTax] = useState<string>('');
   const [countyTax, setCountyTax] = useState<string>('');
+  const [autoComputeGov, setAutoComputeGov] = useState(
+    scenarioOverrides?.enabled !== false
+  );
+
+  useEffect(() => {
+    setAutoComputeGov(scenarioOverrides?.enabled !== false);
+  }, [scenarioOverrides?.enabled]);
 
   // Format percent input (allow numbers and decimal, format to 2 decimal places)
   const handlePercentChange = (value: string, setter: (val: string) => void) => {
@@ -654,11 +661,12 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     category: FeeCategory,
     rows: FeeRow[],
     total: number,
-    color: string
+    color: string,
+    disabled?: boolean
   ) => {
     return (
       <div
-        className="space-y-3"
+        className={`space-y-3 ${disabled ? 'opacity-60 pointer-events-none' : ''}`}
         onMouseLeave={() => {
           if (activeCategoryRef.current === category) {
             cleanupEmptyLastRow(category);
@@ -704,6 +712,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               <div className="flex-1 relative">
                 <input
                   type="text"
+                  disabled={disabled}
                   value={row.description}
                   onChange={(e) => updateRow(category, index, 'description', e.target.value)}
                   onFocus={() => handleDescriptionFocus(category, index)}
@@ -770,6 +779,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               {/* Amount input */}
               <input
                 type="text"
+                disabled={disabled}
                 value={row.amount}
                 onChange={(e) => handleAmountChange(category, index, e.target.value)}
                 onBlur={() => handleAmountFinalize(category, index, row.amount)}
@@ -781,6 +791,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               {/* Remove button */}
               <button
                 type="button"
+                disabled={disabled}
                 onClick={() => removeRow(category, index)}
                 className="p-2 text-red-400 hover:bg-red-500/20 rounded-md transition-colors border border-white/10 hover:border-red-400/30"
               >
@@ -806,6 +817,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         <button
           type="button"
           onClick={() => addRow(category)}
+          disabled={disabled}
           className="w-full px-3 py-2 border border-dashed border-white/20 rounded-md text-sm text-white/60 hover:border-white/40 hover:text-white transition-colors"
         >
           + Add Row
@@ -837,18 +849,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           {/* Dealer Fees Section */}
           <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-400/20">
             {renderFeeSection('Dealer Fees', 'dealer', dealerRows, dealerTotal, 'text-blue-400')}
-            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-white/70">
-              <div>
-                Gov't fees are being computed automatically from your purchase assumptions.
-              </div>
-              <Button
-                variant="ghost"
-                className="border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100"
-                onClick={() => setShowAssumptionsModal(true)}
-              >
-                View Purchase Assumptions
-              </Button>
-            </div>
           </div>
 
           {/* Customer Add-ons Section */}
@@ -858,7 +858,50 @@ export const FeesModal: React.FC<FeesModalProps> = ({
 
           {/* Gov't Fees Section */}
           <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-400/20">
-            {renderFeeSection("Gov't Fees", 'gov', govRows, govTotal, 'text-amber-400')}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+              <div className="text-sm text-white/70">
+                Gov't fees are being computed automatically from your purchase assumptions.
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  className={`border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100 ${autoComputeGov ? 'bg-emerald-500/20' : ''}`}
+                  onClick={() => {
+                    const nextAuto = !autoComputeGov;
+                    setAutoComputeGov(nextAuto);
+                    if (onScenarioOverridesChange) {
+                      onScenarioOverridesChange({
+                        ...(scenarioOverrides || {}),
+                        enabled: nextAuto,
+                      });
+                    }
+                    if (!nextAuto) {
+                      // Clear gov rows for manual entry
+                      setGovRows([{ description: '', amount: '' }]);
+                    } else {
+                      // Restore gov rows from initial props when re-enabling auto
+                      setGovRows(
+                        (initialGovtFees ?? []).map((f) => ({
+                          description: f.description,
+                          amount: formatCurrencyExact(f.amount),
+                        }))
+                      );
+                    }
+                  }}
+                >
+                  {autoComputeGov ? 'Switch to Manual' : 'Use Auto-Compute'}
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100"
+                  onClick={() => setShowAssumptionsModal(true)}
+                >
+                  View Purchase Assumptions
+                </Button>
+              </div>
+            </div>
+
+            {renderFeeSection("Gov't Fees", 'gov', govRows, govTotal, 'text-amber-400', autoComputeGov)}
           </div>
 
           {/* Tax Rates Section */}

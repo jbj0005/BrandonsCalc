@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import type { ScenarioResult } from '../../../packages/fee-engine/src';
 import { formatCurrencyExact } from '../../utils/formatters';
 
@@ -8,13 +8,7 @@ export interface ScenarioDetectionPanelProps {
   onRecalculate?: () => void;
   onToggleAutoMode?: (enabled: boolean) => void;
   autoModeEnabled?: boolean;
-  taxOverride?: {
-    taxableBase: number;
-    stateTaxAmount: number;
-    countyTaxAmount: number;
-    stateTaxRate: number;
-    countyTaxRate: number;
-  };
+  showRules?: boolean;
 }
 
 export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
@@ -23,6 +17,7 @@ export const ScenarioDetectionPanel: React.FC<ScenarioDetectionPanelProps> = ({
   onRecalculate,
   onToggleAutoMode,
   autoModeEnabled = true,
+  taxOverride,
   showRules = false,
 }) => {
   const [showRulesList, setShowRulesList] = useState(false);
