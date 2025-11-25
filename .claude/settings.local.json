@@ -20,7 +20,10 @@
       "WebSearch",
       "WebFetch(domain:www.flhsmv.gov)",
       "Bash(npx tsx:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(npm test:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": [],
     "ask": []

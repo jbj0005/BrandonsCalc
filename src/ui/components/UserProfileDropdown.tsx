@@ -152,7 +152,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
         state_code: profile.state_code,
         zip_code: profile.zip_code,
         google_place_id: profile.google_place_id,
-        preferred_credit_score: profile.preferred_credit_score,
         credit_score_range: profile.credit_score_range,
         preferred_down_payment: profile.preferred_down_payment,
       });
@@ -530,8 +529,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                     Credit Score Range
                   </label>
                   <select
-                    value={profile?.preferred_credit_score || profile?.credit_score_range || ''}
-                    onChange={(e) => onUpdateField('preferred_credit_score', e.target.value)}
+                    value={profile?.credit_score_range || ''}
+                    onChange={(e) => onUpdateField('credit_score_range', e.target.value)}
                     className="block w-full rounded-lg border border-white/15 px-4 py-2 text-base bg-black/30 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
                   >
                     <option value="">Select credit score range</option>

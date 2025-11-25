@@ -181,7 +181,7 @@ export const Modal: React.FC<ModalProps> = ({
           {showCloseButton && (
             <button
               onClick={onClose}
-              className={`absolute top-4 right-4 w-10 h-10 rounded-full
+              className={`absolute top-5 right-5 w-10 h-10 rounded-full
                 bg-white/10 hover:bg-white/20 active:bg-white/30
                 text-white/60 hover:text-white
                 flex items-center justify-center

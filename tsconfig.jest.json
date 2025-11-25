@@ -1,6 +1,14 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["vite/client", "google.maps", "jest"]
-  }
+    "types": ["vite/client", "google.maps", "jest"],
+    "allowImportingTsExtensions": false,
+    "noEmit": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "__tests__/**/*.ts",
+    "packages/**/*.ts"
+  ]
 }

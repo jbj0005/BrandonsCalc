@@ -78,9 +78,10 @@ export class CalculatorAdapter {
     const tagMode =
       calculatorState.scenarioOverrides?.tagMode ||
       (hasTradeIn ? 'transfer_existing_plate' : 'new_plate');
+    // Default to false - most customers already have existing FL registrations
+    // Only set to true when explicitly specified via scenarioOverrides
     const firstTimeRegistration =
-      calculatorState.scenarioOverrides?.firstTimeRegistration ??
-      (!hasTradeIn && tagMode === 'new_plate');
+      calculatorState.scenarioOverrides?.firstTimeRegistration ?? false;
 
     return {
       scenarioId: uuidv4(),

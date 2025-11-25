@@ -92,13 +92,16 @@ export class AuthManager {
     
     // Listen for auth state changes
     supabase.auth.onAuthStateChange(async (event, session) => {
-      
+
       if (event === 'SIGNED_IN' && session) {
         await this.handleUserSession(session.user);
       } else if (event === 'SIGNED_OUT') {
         this.handleSignOut();
       } else if (event === 'TOKEN_REFRESHED' && session) {
         useAuthStore.getState().setUser(normalizeSupabaseUser(session.user));
+      } else if (event === 'PASSWORD_RECOVERY') {
+        // Show password reset modal when user clicks reset link
+        this.showPasswordResetModal();
       }
     });
 
@@ -114,12 +117,23 @@ export class AuthManager {
    * Handle user session
    */
   private async handleUserSession(user: SupabaseAuthUser): Promise<void> {
+    // Check if email is verified (required for app access)
+    if (!user.email_confirmed_at) {
+      if (window.showToast) {
+        window.showToast('Please verify your email before signing in. Check your inbox for a verification link.', 'warning');
+      }
+      // Sign out the unverified user
+      await supabase.auth.signOut();
+      useAuthStore.getState().setIsLoading(false);
+      return;
+    }
+
     const normalizedUser = normalizeSupabaseUser(user);
     const authStore = useAuthStore.getState();
-    
+
     authStore.setUser(normalizedUser);
     authStore.setIsAuthenticated(true);
-    
+
     // Load user profile
     const profile = await getUserProfile(normalizedUser.id);
     
@@ -486,6 +500,78 @@ export class AuthManager {
                 <span data-show="signin">Sign In</span>
                 <span data-show="signup" style="display: none;">Create Account</span>
               </button>
+
+              <!-- Forgot Password Link (sign in only) -->
+              <div class="forgot-password-link" data-show="signin">
+                <button type="button" id="btn-forgot-password">Forgot password?</button>
+              </div>
+
+              <!-- OAuth Divider -->
+              <div class="oauth-divider">
+                <span>or continue with</span>
+              </div>
+
+              <!-- OAuth Buttons -->
+              <div class="oauth-buttons">
+                <button type="button" class="oauth-btn" data-provider="google">
+                  <svg width="18" height="18" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                  </svg>
+                  <span>Google</span>
+                </button>
+                <button type="button" class="oauth-btn" data-provider="apple">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                  </svg>
+                  <span>Apple</span>
+                </button>
+              </div>
+            </form>
+
+            <!-- Forgot Password Form (hidden by default) -->
+            <form id="forgot-password-form" class="auth-form" style="display: none;">
+              <p class="forgot-password-desc">Enter your email and we'll send you a link to reset your password.</p>
+              <div class="form-group">
+                <label>Email</label>
+                <input type="email" id="forgot-email" name="email" required
+                       placeholder="Enter your email" autocomplete="email">
+              </div>
+              <button type="submit" class="btn-primary" id="btn-forgot-submit">
+                Send Reset Link
+              </button>
+              <button type="button" class="btn-secondary" id="btn-back-to-signin">
+                Back to Sign In
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <!-- Password Reset Modal (shown when user clicks reset link in email) -->
+        <div id="password-reset-modal" class="auth-modal">
+          <div class="modal-backdrop"></div>
+          <div class="modal-content">
+            <div class="modal-header">
+              <h2 class="modal-title">Set New Password</h2>
+              <button id="btn-close-reset" class="modal-close">&times;</button>
+            </div>
+            <form id="password-reset-form" class="auth-form">
+              <p class="reset-password-desc">Enter your new password below.</p>
+              <div class="form-group">
+                <label>New Password</label>
+                <input type="password" id="new-password" name="newPassword" required
+                       minlength="6" placeholder="Enter new password" autocomplete="new-password">
+              </div>
+              <div class="form-group">
+                <label>Confirm Password</label>
+                <input type="password" id="confirm-password" name="confirmPassword" required
+                       minlength="6" placeholder="Confirm new password" autocomplete="new-password">
+              </div>
+              <button type="submit" class="btn-primary" id="btn-reset-submit">
+                Update Password
+              </button>
             </form>
           </div>
         </div>
@@ -540,15 +626,15 @@ export class AuthManager {
     const closeBtn = document.getElementById('btn-close-auth');
     const form = document.getElementById('auth-form') as HTMLFormElement;
     const tabs = document.querySelectorAll('.auth-tabs .tab');
-    
+
     // Close modal
     closeBtn?.addEventListener('click', () => this.hideAuthModal());
-    
+
     // Backdrop click
     modal?.querySelector('.modal-backdrop')?.addEventListener('click', () => {
       this.hideAuthModal();
     });
-    
+
     // Tab switching
     tabs.forEach(tab => {
       tab.addEventListener('click', () => {
@@ -556,12 +642,141 @@ export class AuthManager {
         this.switchAuthMode(mode);
       });
     });
-    
+
     // Form submission
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
       await this.handleAuthSubmit(form);
     });
+
+    // OAuth buttons
+    document.querySelectorAll('.oauth-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const provider = btn.getAttribute('data-provider') as 'google' | 'apple';
+        try {
+          await this.signInWithOAuth(provider);
+        } catch (error: any) {
+          if (window.showToast) {
+            window.showToast(error.message || 'OAuth sign in failed', 'error');
+          }
+        }
+      });
+    });
+
+    // Forgot password button
+    document.getElementById('btn-forgot-password')?.addEventListener('click', () => {
+      this.showForgotPasswordUI();
+    });
+
+    // Forgot password form submission
+    const forgotForm = document.getElementById('forgot-password-form') as HTMLFormElement;
+    forgotForm?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await this.handleForgotPasswordSubmit(forgotForm);
+    });
+
+    // Back to sign in button
+    document.getElementById('btn-back-to-signin')?.addEventListener('click', () => {
+      this.resetAuthModalState();
+      this.switchAuthMode('signin');
+    });
+
+    // Setup password reset modal
+    this.setupPasswordResetModal();
+  }
+
+  /**
+   * Setup password reset modal (for when user clicks reset link in email)
+   */
+  private setupPasswordResetModal(): void {
+    const modal = document.getElementById('password-reset-modal');
+    const closeBtn = document.getElementById('btn-close-reset');
+    const form = document.getElementById('password-reset-form') as HTMLFormElement;
+
+    // Close modal
+    closeBtn?.addEventListener('click', () => this.hidePasswordResetModal());
+
+    // Backdrop click
+    modal?.querySelector('.modal-backdrop')?.addEventListener('click', () => {
+      this.hidePasswordResetModal();
+    });
+
+    // Form submission
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await this.handlePasswordResetSubmit(form);
+    });
+  }
+
+  /**
+   * Handle forgot password form submission
+   */
+  private async handleForgotPasswordSubmit(form: HTMLFormElement): Promise<void> {
+    const formData = new FormData(form);
+    const email = formData.get('email') as string;
+    const submitBtn = document.getElementById('btn-forgot-submit') as HTMLButtonElement;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Sending...';
+
+    try {
+      await this.sendPasswordResetEmail(email);
+
+      if (window.showToast) {
+        window.showToast('Password reset link sent! Check your email.', 'success');
+      }
+
+      // Go back to sign in
+      this.resetAuthModalState();
+      this.switchAuthMode('signin');
+      form.reset();
+    } catch (error: any) {
+      if (window.showToast) {
+        window.showToast(error.message || 'Failed to send reset email', 'error');
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Reset Link';
+    }
+  }
+
+  /**
+   * Handle password reset form submission (new password)
+   */
+  private async handlePasswordResetSubmit(form: HTMLFormElement): Promise<void> {
+    const formData = new FormData(form);
+    const newPassword = formData.get('newPassword') as string;
+    const confirmPassword = formData.get('confirmPassword') as string;
+    const submitBtn = document.getElementById('btn-reset-submit') as HTMLButtonElement;
+
+    // Validate passwords match
+    if (newPassword !== confirmPassword) {
+      if (window.showToast) {
+        window.showToast('Passwords do not match', 'error');
+      }
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating...';
+
+    try {
+      await this.updatePassword(newPassword);
+
+      if (window.showToast) {
+        window.showToast('Password updated successfully!', 'success');
+      }
+
+      this.hidePasswordResetModal();
+      form.reset();
+    } catch (error: any) {
+      if (window.showToast) {
+        window.showToast(error.message || 'Failed to update password', 'error');
+      }
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Update Password';
+    }
   }
   
   /**
@@ -579,10 +794,15 @@ export class AuthManager {
   private hideAuthModal(): void {
     const modal = document.getElementById('auth-modal');
     modal?.classList.remove('active');
-    
-    // Reset form
+
+    // Reset forms
     const form = document.getElementById('auth-form') as HTMLFormElement;
+    const forgotForm = document.getElementById('forgot-password-form') as HTMLFormElement;
     form?.reset();
+    forgotForm?.reset();
+
+    // Reset modal state (show auth form, hide forgot password form)
+    this.resetAuthModalState();
   }
   
   /**
@@ -770,12 +990,23 @@ export class AuthManager {
         data: {
           full_name: data.fullName,
           phone: data.phone
-        }
+        },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
       }
     });
-    
+
     if (error) throw error;
-    
+
+    // Check if email confirmation is required
+    if (authData.user && !authData.session) {
+      // Email confirmation required - notify user with success message
+      if (window.showToast) {
+        window.showToast('Account created! Please check your email to verify your account.', 'success');
+      }
+      // Return normally - this is a success, not an error
+      return;
+    }
+
     // Session will be handled by auth state change listener
   }
   
@@ -801,21 +1032,117 @@ export class AuthManager {
    */
   public async updateProfile(updates: Partial<UserProfile>): Promise<void> {
     const user = useAuthStore.getState().user;
-    
+
     if (!user) {
       throw new Error('No user logged in');
     }
-    
+
     const updatedProfile = await updateUserProfile(user.id, updates);
-    
+
     if (updatedProfile) {
       useAuthStore.getState().setProfile(updatedProfile);
       this.autoPopulateFields(updatedProfile);
-      
+
       if (window.showToast) {
         window.showToast('Profile updated successfully', 'success');
       }
     }
+  }
+
+  /**
+   * Sign in with OAuth provider (Google or Apple)
+   */
+  public async signInWithOAuth(provider: 'google' | 'apple'): Promise<void> {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      }
+    });
+
+    if (error) throw error;
+  }
+
+  /**
+   * Send password reset email
+   */
+  public async sendPasswordResetEmail(email: string): Promise<void> {
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    });
+
+    if (error) throw error;
+  }
+
+  /**
+   * Update password (after reset link clicked)
+   */
+  public async updatePassword(newPassword: string): Promise<void> {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword
+    });
+
+    if (error) throw error;
+  }
+
+  /**
+   * Show password reset modal (called when PASSWORD_RECOVERY event fires)
+   */
+  public showPasswordResetModal(): void {
+    const modal = document.getElementById('password-reset-modal');
+    modal?.classList.add('active');
+  }
+
+  /**
+   * Hide password reset modal
+   */
+  private hidePasswordResetModal(): void {
+    const modal = document.getElementById('password-reset-modal');
+    modal?.classList.remove('active');
+
+    // Reset form
+    const form = document.getElementById('password-reset-form') as HTMLFormElement;
+    form?.reset();
+  }
+
+  /**
+   * Show forgot password UI in auth modal
+   */
+  public showForgotPasswordUI(): void {
+    // Update modal to show forgot password view
+    const title = document.getElementById('auth-modal-title');
+    if (title) {
+      title.textContent = 'Reset Password';
+    }
+
+    // Hide tabs
+    const tabs = document.querySelector('.auth-tabs') as HTMLElement;
+    if (tabs) {
+      tabs.style.display = 'none';
+    }
+
+    // Show forgot password form, hide regular form
+    const authForm = document.getElementById('auth-form') as HTMLElement;
+    const forgotForm = document.getElementById('forgot-password-form') as HTMLElement;
+    if (authForm) authForm.style.display = 'none';
+    if (forgotForm) forgotForm.style.display = 'block';
+  }
+
+  /**
+   * Reset auth modal to default state
+   */
+  private resetAuthModalState(): void {
+    // Show tabs
+    const tabs = document.querySelector('.auth-tabs') as HTMLElement;
+    if (tabs) {
+      tabs.style.display = '';
+    }
+
+    // Show auth form, hide forgot password form
+    const authForm = document.getElementById('auth-form') as HTMLElement;
+    const forgotForm = document.getElementById('forgot-password-form') as HTMLElement;
+    if (authForm) authForm.style.display = '';
+    if (forgotForm) forgotForm.style.display = 'none';
   }
 }
 

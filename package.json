@@ -11,13 +11,18 @@
     "show:lenders": "node scripts/show-lenders.mjs",
     "show:rates": "node scripts/show-rates.mjs",
     "insert:launch-rates": "node scripts/insert-launch-cu-rates.mjs",
-    "test": "NODE_OPTIONS=--experimental-vm-modules jest"
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/jest": "^30.0.0",
     "@types/json-logic-js": "^2.0.8",

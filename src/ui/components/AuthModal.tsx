@@ -146,7 +146,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setLoading(true);
     try {
       await onSignUp?.(email, password, fullName, phone);
-      toast.push({ kind: 'success', title: 'Account created!', detail: 'Welcome aboard!' });
+      // Toast is handled by auth-manager (includes email verification message)
       resetForm();
       onClose();
     } catch (error: any) {

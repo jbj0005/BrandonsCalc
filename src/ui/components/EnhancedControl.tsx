@@ -67,13 +67,28 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeKeyRef = useRef<string | null>(null);
 
-  const HOLD_DELAY_MS = 300;
-  const HOLD_INTERVAL_MS = 120;
+  const HOLD_DELAY_MS = 250;
+  const HOLD_INTERVAL_MS = 80;
 
   // Handle value change
   const handleChange = (delta: number) => {
     const newValue = Math.max(min, Math.min(max, value + delta * step));
     onChange(newValue);
+  };
+
+  // Stop hold
+  const stopHold = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdIntervalRef.current) {
+      clearInterval(holdIntervalRef.current);
+      holdIntervalRef.current = null;
+    }
+    // Remove global listeners
+    document.removeEventListener('mouseup', stopHold);
+    document.removeEventListener('touchend', stopHold);
   };
 
   const startRepeat = (delta: number) => {
@@ -89,22 +104,14 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   };
 
   // Start hold (initial delay, then interval)
-  const startHold = (delta: number, event?: React.MouseEvent) => {
+  const startHold = (delta: number, event?: React.MouseEvent | React.TouchEvent) => {
     event?.preventDefault();
 
-    startRepeat(delta);
-  };
+    // Add global listeners to catch release anywhere
+    document.addEventListener('mouseup', stopHold);
+    document.addEventListener('touchend', stopHold);
 
-  // Stop hold
-  const stopHold = () => {
-    if (holdTimerRef.current) {
-      clearTimeout(holdTimerRef.current);
-      holdTimerRef.current = null;
-    }
-    if (holdIntervalRef.current) {
-      clearInterval(holdIntervalRef.current);
-      holdIntervalRef.current = null;
-    }
+    startRepeat(delta);
   };
 
   // Cleanup on unmount
@@ -224,6 +231,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
         {/* Decrease Button */}
         <button
           onMouseDown={(e) => startHold(-1, e)}
+          onTouchStart={(e) => startHold(-1, e)}
           onMouseUp={stopHold}
           onMouseLeave={() => {
             stopHold();
@@ -252,6 +260,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
         {/* Increase Button */}
         <button
           onMouseDown={(e) => startHold(1, e)}
+          onTouchStart={(e) => startHold(1, e)}
           onMouseUp={stopHold}
           onMouseLeave={() => {
             stopHold();

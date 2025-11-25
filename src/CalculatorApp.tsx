@@ -1016,6 +1016,25 @@ export const CalculatorApp: React.FC = () => {
     };
   }, []);
 
+  // Handle auth callback URLs (OAuth redirects, email verification, password recovery)
+  useEffect(() => {
+    const handleAuthCallback = async () => {
+      // Check for auth params in URL hash (Supabase uses hash-based routing for auth)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const type = hashParams.get("type");
+      const accessToken = hashParams.get("access_token");
+
+      // If there's a recovery type, Supabase's onAuthStateChange will fire PASSWORD_RECOVERY
+      // but we should clean up the URL regardless
+      if (type || accessToken) {
+        // Clear the hash after processing to clean up the URL
+        window.history.replaceState(null, "", window.location.pathname);
+      }
+    };
+
+    handleAuthCallback();
+  }, []);
+
   // Initialize savedVehiclesCache with supabase and userId
   useEffect(() => {
     if (currentUser && supabase) {

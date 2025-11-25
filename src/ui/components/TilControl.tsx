@@ -59,22 +59,6 @@ export const TilControl: React.FC<TilControlProps> = ({
     onChange(newValue);
   };
 
-  // Start hold (initial delay, then interval)
-  const startHold = (delta: number, event?: React.MouseEvent) => {
-    if (disabled) return;
-    event?.preventDefault();
-
-    // Immediate change on mousedown
-    handleChange(delta);
-
-    // Delay before continuous hold
-    holdTimerRef.current = setTimeout(() => {
-      holdIntervalRef.current = setInterval(() => {
-        handleChange(delta);
-      }, 100); // Adjust every 100ms during hold
-    }, 300); // 300ms initial delay
-  };
-
   // Stop hold
   const stopHold = () => {
     if (holdTimerRef.current) {
@@ -85,6 +69,29 @@ export const TilControl: React.FC<TilControlProps> = ({
       clearInterval(holdIntervalRef.current);
       holdIntervalRef.current = null;
     }
+    // Remove global mouseup listener
+    document.removeEventListener('mouseup', stopHold);
+    document.removeEventListener('touchend', stopHold);
+  };
+
+  // Start hold (initial delay, then interval)
+  const startHold = (delta: number, event?: React.MouseEvent | React.TouchEvent) => {
+    if (disabled) return;
+    event?.preventDefault();
+
+    // Add global mouseup/touchend listener to catch release anywhere
+    document.addEventListener('mouseup', stopHold);
+    document.addEventListener('touchend', stopHold);
+
+    // Immediate change on press
+    handleChange(delta);
+
+    // Delay before continuous hold
+    holdTimerRef.current = setTimeout(() => {
+      holdIntervalRef.current = setInterval(() => {
+        handleChange(delta);
+      }, 80); // Faster repeat: 80ms during hold
+    }, 250); // Shorter initial delay: 250ms
   };
 
   // Cleanup on unmount
@@ -131,6 +138,7 @@ export const TilControl: React.FC<TilControlProps> = ({
             className="quick-til-arrow left"
             id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowLeft`}
             onMouseDown={(e) => startHold(-1, e)}
+            onTouchStart={(e) => startHold(-1, e)}
             onMouseUp={stopHold}
             onMouseLeave={stopHold}
             onClick={(e) => e.preventDefault()}
@@ -173,6 +181,7 @@ export const TilControl: React.FC<TilControlProps> = ({
             className="quick-til-arrow right"
             id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowRight`}
             onMouseDown={(e) => startHold(1, e)}
+            onTouchStart={(e) => startHold(1, e)}
             onMouseUp={stopHold}
             onMouseLeave={stopHold}
             onClick={(e) => e.preventDefault()}
