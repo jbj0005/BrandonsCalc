@@ -4,7 +4,9 @@ import { Button } from './Button';
 import type { FeeItem, FeeCategory, FeeSuggestion } from '../../types/fees';
 import { fetchFeeSuggestions, FEE_TEMPLATES_UPDATED_EVENT } from '../../services/feeSuggestionsService';
 import { formatCurrencyExact, parseCurrency, formatCurrencyInput } from '../../utils/formatters';
-import { ScenarioDetectionPanel } from './ScenarioDetectionPanel';
+import { ScenarioDetectionPanelV2 } from './ScenarioDetectionPanelV2';
+import { GovFeesSection } from './GovFeesSection';
+import { ModernFeeSection } from './ModernFeeSection';
 import type { ScenarioResult } from '../../../packages/fee-engine/src';
 
 interface FeesModalProps {
@@ -161,8 +163,38 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   // Ref for auto-focusing new rows
   const inputRefs = React.useRef<Map<string, HTMLInputElement>>(new Map());
 
+  // Ref for dropdown containers (to detect clicks outside)
+  const dropdownRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+
   // Track if we've initialized for current modal session
   const initializedRef = useRef(false);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    if (!activeSuggestion) return undefined;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      const key = `${activeSuggestion.category}-${activeSuggestion.index}`;
+      const dropdownEl = dropdownRefs.current.get(key);
+      const inputEl = inputRefs.current.get(key);
+
+      // Check if click is outside both the dropdown and the input
+      if (
+        dropdownEl &&
+        inputEl &&
+        !dropdownEl.contains(event.target as Node) &&
+        !inputEl.contains(event.target as Node)
+      ) {
+        setActiveSuggestion(null);
+        setSelectedSuggestionIndex(0);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [activeSuggestion]);
 
   const loadSuggestions = useCallback(async () => {
     const [dealer, customer, gov] = await Promise.all([
@@ -198,6 +230,12 @@ export const FeesModal: React.FC<FeesModalProps> = ({
       firstTimeRegistration: scenarioOverrides?.firstTimeRegistration || false,
     };
 
+    console.log('[FeesModal] handleTogglePill called:', {
+      key,
+      currentOverrides: scenarioOverrides,
+      nextOverrides: next,
+    });
+
     switch (key) {
       case 'enabled':
         next.enabled = !next.enabled;
@@ -209,8 +247,13 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         if (!hasTradeIn) {
           return;
         }
-        // Include Trade-In mirrors the My Garage toggle; keep it true when a trade is selected
-        next.includeTradeIn = true;
+        // Toggle includeTradeIn
+        next.includeTradeIn = !next.includeTradeIn;
+
+        // COUPLING: When trade-in is included, automatically enable Tag Transfer
+        if (next.includeTradeIn && hasTradeIn) {
+          next.tagMode = 'transfer_existing_plate';
+        }
         break;
       case 'tag_new':
         if (hasTradeIn) {
@@ -240,16 +283,12 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     }
 
     onScenarioOverridesChange(next);
+    console.log('[FeesModal] Scenario overrides updated. Fee engine should recalculate automatically.');
+    // Note: Fee recalculation happens automatically via useFeeEngine hook when scenarioOverrides changes
   };
 
   const renderPills = () => {
     const pills = [
-      {
-        key: 'enabled' as const,
-        label: 'Auto Calculate',
-        active: scenarioOverrides?.enabled !== false,
-        description: 'Enable/disable automatic gov fee calculation',
-      },
       {
         key: 'cashPurchase' as const,
         label: 'Cash Purchase',
@@ -288,31 +327,61 @@ export const FeesModal: React.FC<FeesModalProps> = ({
       },
     ];
 
+    const isAutoEnabled = scenarioOverrides?.enabled !== false;
+
     return (
-      <div className="space-y-2">
-        <div className="text-sm text-white/70">
-          Select keywords to adjust your purchase details. Turn off "Auto Calculate" to set custom gov't fees.
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {pills.map((pill) => (
-            <button
-              key={pill.key}
-              type="button"
-              onClick={() => handleTogglePill(pill.key)}
-              disabled={pill.disabled}
-              className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
-                pill.disabled
-                  ? 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
-                  : pill.active
-                  ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100 shadow-emerald-500/20 shadow'
-                  : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+      <div className="space-y-4">
+        {/* Auto Calculate Toggle */}
+        <div className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
+          <div>
+            <div className="text-sm font-medium text-white">Auto Calculate Government Fees</div>
+            <div className="text-xs text-white/50 mt-0.5">
+              {isAutoEnabled ? 'Fees calculated automatically based on purchase details' : 'Enter custom government fees manually'}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleTogglePill('enabled')}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              isAutoEnabled ? 'bg-emerald-500' : 'bg-white/20'
+            }`}
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                isAutoEnabled ? 'translate-x-6' : 'translate-x-1'
               }`}
-              title={pill.description}
-            >
-              {pill.label}
-            </button>
-          ))}
+            />
+          </button>
         </div>
+
+        {/* Scenario Keywords */}
+        {isAutoEnabled && (
+          <div className="space-y-2">
+            <div className="text-sm text-white/70">
+              Select keywords to adjust your purchase details:
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {pills.map((pill) => (
+                <button
+                  key={pill.key}
+                  type="button"
+                  onClick={() => handleTogglePill(pill.key)}
+                  disabled={pill.disabled}
+                  className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
+                    pill.disabled
+                      ? 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                      : pill.active
+                      ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100 shadow-emerald-500/20 shadow'
+                      : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                  }`}
+                  title={pill.description}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -739,6 +808,11 @@ export const FeesModal: React.FC<FeesModalProps> = ({
 
                     return (
                       <div
+                        ref={(el) => {
+                          if (el) {
+                            dropdownRefs.current.set(`${category}-${index}`, el);
+                          }
+                        }}
                         className={`absolute z-50 w-full mt-1 bg-gradient-to-br from-slate-900 to-slate-950 border border-white/10 rounded-md shadow-lg ${dropdownMaxHeight} overflow-auto`}
                         onMouseEnter={() => {
                           isOverDropdownRef.current = true;
@@ -830,7 +904,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
           <button
             type="button"
@@ -838,84 +912,105 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               handleSave();
               onEditTemplates();
             }}
-            className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30"
+            className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30 whitespace-nowrap"
           >
             Edit Fee Templates
           </button>
         </div>
 
         {/* Scrollable content area */}
-        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-2">
+        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-4 mr-1">
           {/* Dealer Fees Section */}
-          <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-400/20">
-            {renderFeeSection('Dealer Fees', 'dealer', dealerRows, dealerTotal, 'text-blue-400')}
-          </div>
+          <ModernFeeSection
+            title="Dealer Fees"
+            category="dealer"
+            fees={dealerRows}
+            total={dealerTotal}
+            onAddFee={() => addRow('dealer')}
+            onRemoveFee={(index) => removeRow('dealer', index)}
+            onUpdateFee={(index, field, value) => updateRow('dealer', index, field, value)}
+            suggestions={dealerSuggestions}
+            onSuggestionSelect={(index, suggestion) => selectSuggestion('dealer', index, suggestion)}
+            inputRefs={inputRefs}
+            onDescriptionFocus={handleDescriptionFocus}
+            onDescriptionKeyDown={handleKeyDown}
+            onDescriptionBlur={() => setTimeout(() => setActiveSuggestion(null), 300)}
+            onSectionMouseLeave={() => {
+              if (activeCategoryRef.current === 'dealer') {
+                cleanupEmptyLastRow('dealer');
+                activeCategoryRef.current = null;
+              }
+            }}
+          />
 
           {/* Customer Add-ons Section */}
-          <div className="p-4 bg-green-500/10 rounded-lg border border-green-400/20">
-            {renderFeeSection('Customer Add-ons', 'customer', customerRows, customerTotal, 'text-green-400')}
-          </div>
+          <ModernFeeSection
+            title="Customer Add-ons"
+            category="customer"
+            fees={customerRows}
+            total={customerTotal}
+            onAddFee={() => addRow('customer')}
+            onRemoveFee={(index) => removeRow('customer', index)}
+            onUpdateFee={(index, field, value) => updateRow('customer', index, field, value)}
+            suggestions={customerSuggestions}
+            onSuggestionSelect={(index, suggestion) => selectSuggestion('customer', index, suggestion)}
+            inputRefs={inputRefs}
+            onDescriptionFocus={handleDescriptionFocus}
+            onDescriptionKeyDown={handleKeyDown}
+            onDescriptionBlur={() => setTimeout(() => setActiveSuggestion(null), 300)}
+            onSectionMouseLeave={() => {
+              if (activeCategoryRef.current === 'customer') {
+                cleanupEmptyLastRow('customer');
+                activeCategoryRef.current = null;
+              }
+            }}
+          />
 
           {/* Gov't Fees Section */}
-          <div className="p-4 bg-amber-500/10 rounded-lg border border-amber-400/20">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-              <div className="text-sm text-white/70">
-                Gov't fees are being computed automatically from your purchase assumptions.
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/70">Auto-compute</span>
-                  <button
-                    type="button"
-                    aria-pressed={autoComputeGov}
-                    onClick={() => {
-                      const nextAuto = !autoComputeGov;
-                      setAutoComputeGov(nextAuto);
-                      if (onScenarioOverridesChange) {
-                        onScenarioOverridesChange({
-                          ...(scenarioOverrides || {}),
-                          enabled: nextAuto,
-                        });
-                      }
-                      if (!nextAuto) {
-                        // Clear gov rows for manual entry
-                        setGovRows([{ description: '', amount: '' }]);
-                      } else {
-                        // Restore gov rows from initial props when re-enabling auto
-                        setGovRows(
-                          (initialGovtFees ?? []).map((f) => ({
-                            description: f.description,
-                            amount: formatCurrencyExact(f.amount),
-                          }))
-                        );
-                      }
-                    }}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full border border-white/20 transition-colors ${
-                      autoComputeGov ? 'bg-emerald-500/70' : 'bg-white/10'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                        autoComputeGov ? 'translate-x-5' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                  <span className="text-xs text-white/70">
-                    {autoComputeGov ? 'On' : 'Manual'}
-                  </span>
-                </div>
-                <Button
-                  variant="ghost"
-                  className="border border-white/15 text-white hover:border-emerald-400/40 hover:text-emerald-100"
-                  onClick={() => setShowAssumptionsModal(true)}
-                >
-                  View Purchase Assumptions
-                </Button>
-              </div>
-            </div>
-
-            {renderFeeSection("Gov't Fees", 'gov', govRows, govTotal, 'text-amber-400', autoComputeGov)}
-          </div>
+          <ModernFeeSection
+            title="Government Fees"
+            category="gov"
+            fees={govRows}
+            total={govTotal}
+            autoModeEnabled={autoComputeGov}
+            onToggleAutoMode={(enabled) => {
+              setAutoComputeGov(enabled);
+              if (onScenarioOverridesChange) {
+                onScenarioOverridesChange({
+                  ...(scenarioOverrides || {}),
+                  enabled: enabled,
+                });
+              }
+              if (!enabled) {
+                // Clear gov rows for manual entry
+                setGovRows([{ description: '', amount: '' }]);
+              } else {
+                // Restore gov rows from initial props when re-enabling auto
+                setGovRows(
+                  (initialGovtFees ?? []).map((f) => ({
+                    description: f.description,
+                    amount: formatCurrencyExact(f.amount),
+                  }))
+                );
+              }
+            }}
+            onViewDetails={() => setShowAssumptionsModal(true)}
+            onAddFee={() => addRow('gov')}
+            onRemoveFee={(index) => removeRow('gov', index)}
+            onUpdateFee={(index, field, value) => updateRow('gov', index, field, value)}
+            suggestions={govSuggestions}
+            onSuggestionSelect={(index, suggestion) => selectSuggestion('gov', index, suggestion)}
+            inputRefs={inputRefs}
+            onDescriptionFocus={handleDescriptionFocus}
+            onDescriptionKeyDown={handleKeyDown}
+            onDescriptionBlur={() => setTimeout(() => setActiveSuggestion(null), 300)}
+            onSectionMouseLeave={() => {
+              if (activeCategoryRef.current === 'gov') {
+                cleanupEmptyLastRow('gov');
+                activeCategoryRef.current = null;
+              }
+            }}
+          />
 
           {/* Tax Rates Section */}
           <div className="p-4 bg-emerald-500/10 rounded-lg border border-emerald-400/20 space-y-3">
@@ -1013,7 +1108,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
       </div>
 
       {/* Purchase Assumptions Modal (power users) */}
-      <Modal isOpen={showAssumptionsModal} onClose={() => setShowAssumptionsModal(false)} size="lg">
+      <Modal isOpen={showAssumptionsModal} onClose={() => setShowAssumptionsModal(false)} size="lg" isNested>
         <div className="p-6 space-y-4">
           <div className="flex items-center justify-between">
             <div>
@@ -1029,7 +1124,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
           <div className="space-y-3">
             {renderPills()}
             {showScenarioPanel && (
-              <ScenarioDetectionPanel
+              <ScenarioDetectionPanelV2
                 scenarioResult={scenarioResult || null}
                 isCalculating={isCalculatingFees}
                 onRecalculate={onRecalculateFees}

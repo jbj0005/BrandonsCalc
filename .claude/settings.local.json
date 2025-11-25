@@ -12,7 +12,15 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "WebFetch(domain:developers.google.com)"
+      "WebFetch(domain:developers.google.com)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(cat:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "WebFetch(domain:www.flhsmv.gov)",
+      "Bash(npx tsx:*)",
+      "Bash(git log:*)"
     ],
     "deny": [],
     "ask": []

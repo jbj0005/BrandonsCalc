@@ -20,6 +20,8 @@ export interface ModalProps {
   closeOnEsc?: boolean;
   /** Additional className for content */
   className?: string;
+  /** Nested modal with enhanced backdrop */
+  isNested?: boolean;
 }
 
 const sizeClasses = {
@@ -39,6 +41,7 @@ export const Modal: React.FC<ModalProps> = ({
   closeOnBackdropClick = true,
   closeOnEsc = true,
   className = '',
+  isNested = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -140,16 +143,22 @@ export const Modal: React.FC<ModalProps> = ({
 
   const modalContent = (
     <>
-      {/* Backdrop - Layer 5 (z-500) */}
+      {/* Backdrop - Layer 5 (z-500) or Layer 8 (z-800) for nested */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-500 transition-opacity duration-300"
+        className={`fixed inset-0 transition-opacity duration-300 ${
+          isNested
+            ? 'bg-black/75 backdrop-blur-md z-800'
+            : 'bg-black/60 backdrop-blur-sm z-500'
+        }`}
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
-      {/* Modal Container - Layer 6 (z-600) */}
+      {/* Modal Container - Layer 6 (z-600) or Layer 9 (z-900) for nested */}
       <div
-        className="fixed inset-0 z-600 flex items-center justify-center p-4 sm:p-6 overflow-y-auto"
+        className={`fixed inset-0 flex items-center justify-center p-4 sm:p-6 overflow-y-auto ${
+          isNested ? 'z-900' : 'z-600'
+        }`}
         onClick={handleBackdropClick}
       >
         {/* Modal Content */}
@@ -168,15 +177,17 @@ export const Modal: React.FC<ModalProps> = ({
           `}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Close Button - Layer 7 (z-700) */}
+          {/* Close Button - Layer 7 (z-700) or Layer 10 (z-1000) for nested */}
           {showCloseButton && (
             <button
               onClick={onClose}
-              className="absolute top-4 right-4 z-700 w-10 h-10 rounded-full
+              className={`absolute top-4 right-4 w-10 h-10 rounded-full
                 bg-white/10 hover:bg-white/20 active:bg-white/30
                 text-white/60 hover:text-white
                 flex items-center justify-center
-                transition-all duration-200 hover:rotate-90 border border-white/10"
+                transition-all duration-200 hover:rotate-90 border border-white/10 ${
+                  isNested ? 'z-1000' : 'z-700'
+                }`}
               aria-label="Close modal"
             >
               <svg

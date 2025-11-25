@@ -1720,7 +1720,6 @@ export const CalculatorApp: React.FC = () => {
   >(null);
   const [salePricePaymentDiffOverride, setSalePricePaymentDiffOverride] =
     useState<number | null>(null);
-  const salePriceLastDiffValueRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (salePriceDiffBaseline == null) {
@@ -1730,7 +1729,6 @@ export const CalculatorApp: React.FC = () => {
       if (salePricePaymentDiffOverride !== null) {
         setSalePricePaymentDiffOverride(null);
       }
-      salePriceLastDiffValueRef.current = null;
       return;
     }
     if (salePricePaymentBaseline == null && monthlyPayment > 0) {
@@ -1752,29 +1750,44 @@ export const CalculatorApp: React.FC = () => {
       if (salePricePaymentDiffOverride !== null) {
         setSalePricePaymentDiffOverride(null);
       }
-      salePriceLastDiffValueRef.current = null;
       return;
     }
+
+    // Recompute the baseline payment at the sale price baseline using current fees/taxes
+    const baselinePayment = calculateMonthlyPaymentFor({
+      salePrice: salePriceDiffBaseline,
+      cashDown,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      appliedToBalance: equityAllocation.appliedToBalance,
+      cashoutAmount: equityAllocation.cashoutAmount,
+      stateTaxRate,
+      countyTaxRate,
+      apr,
+      loanTerm,
+    });
 
     const valueDiff = salePrice - salePriceDiffBaseline;
     const atBaseline = Math.abs(valueDiff) < 0.01;
 
     if (atBaseline) {
-      if (salePricePaymentDiffOverride !== null) {
-        setSalePricePaymentDiffOverride(null);
-      }
-      salePriceLastDiffValueRef.current = salePriceDiffBaseline;
+      setSalePricePaymentDiffOverride(null);
       return;
     }
-
-    if (salePriceLastDiffValueRef.current === salePrice) {
-      return;
-    }
-
-    salePriceLastDiffValueRef.current = salePrice;
-    setSalePricePaymentDiffOverride(monthlyPayment - salePricePaymentBaseline);
+    setSalePricePaymentDiffOverride(monthlyPayment - baselinePayment);
   }, [
     salePrice,
+    cashDown,
+    dealerFees,
+    customerAddons,
+    govtFees,
+    equityAllocation.appliedToBalance,
+    equityAllocation.cashoutAmount,
+    stateTaxRate,
+    countyTaxRate,
+    apr,
+    loanTerm,
     salePriceDiffBaseline,
     salePricePaymentBaseline,
     monthlyPayment,

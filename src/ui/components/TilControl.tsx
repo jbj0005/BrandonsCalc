@@ -121,20 +121,26 @@ export const TilControl: React.FC<TilControlProps> = ({
       <div className="quick-til-label">{label}</div>
       <div className="quick-til-value-row">
         {/* Decrease Button */}
-        <button
-          type="button"
-          className="quick-til-arrow left"
-          id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowLeft`}
-          onMouseDown={(e) => startHold(-1, e)}
-          onMouseUp={stopHold}
-          onMouseLeave={stopHold}
-          onClick={(e) => e.preventDefault()}
-          disabled={disabled}
-          tabIndex={0}
-          aria-label={`Decrease ${label}`}
-        >
-          ◀
-        </button>
+        <div className="relative inline-block">
+          {/* Pulsing glow when hovering */}
+          {isHovering && !disabled && (
+            <div className="absolute inset-0 bg-blue-500/40 animate-pulse -z-10 blur-md rounded-full" />
+          )}
+          <button
+            type="button"
+            className="quick-til-arrow left"
+            id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowLeft`}
+            onMouseDown={(e) => startHold(-1, e)}
+            onMouseUp={stopHold}
+            onMouseLeave={stopHold}
+            onClick={(e) => e.preventDefault()}
+            disabled={disabled}
+            tabIndex={0}
+            aria-label={`Decrease ${label}`}
+          >
+            ◀
+          </button>
+        </div>
 
         {/* Value Display */}
         <div
@@ -157,26 +163,27 @@ export const TilControl: React.FC<TilControlProps> = ({
         </div>
 
         {/* Increase Button */}
-        <button
-          type="button"
-          className="quick-til-arrow right"
-          id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowRight`}
-          onMouseDown={(e) => startHold(1, e)}
-          onMouseUp={stopHold}
-          onMouseLeave={stopHold}
-          onClick={(e) => e.preventDefault()}
-          disabled={disabled}
-          tabIndex={0}
-          aria-label={`Increase ${label}`}
-        >
-          ▶
-        </button>
+        <div className="relative inline-block">
+          {/* Pulsing glow when hovering */}
+          {isHovering && !disabled && (
+            <div className="absolute inset-0 bg-blue-500/40 animate-pulse -z-10 blur-md rounded-full" />
+          )}
+          <button
+            type="button"
+            className="quick-til-arrow right"
+            id={`${label.toLowerCase().replace(/\s+/g, '')}ArrowRight`}
+            onMouseDown={(e) => startHold(1, e)}
+            onMouseUp={stopHold}
+            onMouseLeave={stopHold}
+            onClick={(e) => e.preventDefault()}
+            disabled={disabled}
+            tabIndex={0}
+            aria-label={`Increase ${label}`}
+          >
+            ▶
+          </button>
+        </div>
       </div>
-
-      {/* Keyboard Hint */}
-      {isHovering && !disabled && (
-        <div className="keyboard-hint">Use arrow keys ← →</div>
-      )}
     </div>
   );
 };

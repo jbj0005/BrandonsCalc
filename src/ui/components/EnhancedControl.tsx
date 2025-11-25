@@ -231,10 +231,14 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           }}
           onMouseEnter={handleButtonMouseEnter}
           onClick={(e) => e.preventDefault()}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
+          className="relative w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
           aria-label={`Decrease ${label}`}
           type="button"
         >
+          {/* Pulsing glow when hovering */}
+          {(isHovering || isFocused) && (
+            <div className="absolute inset-0 rounded-full bg-blue-500/40 animate-pulse -z-10 blur-md" />
+          )}
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M7 2L3 6l4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -255,10 +259,14 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
           }}
           onMouseEnter={handleButtonMouseEnter}
           onClick={(e) => e.preventDefault()}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
+          className="relative w-9 h-9 flex items-center justify-center rounded-full border border-white/20 text-white bg-white/10 hover:bg-white/20 transition-colors"
           aria-label={`Increase ${label}`}
           type="button"
         >
+          {/* Pulsing glow when hovering */}
+          {(isHovering || isFocused) && (
+            <div className="absolute inset-0 rounded-full bg-blue-500/40 animate-pulse -z-10 blur-md" />
+          )}
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M5 2l4 4-4 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -318,13 +326,6 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
               </div>
             )
           )}
-        </div>
-      )}
-
-      {/* Keyboard Hint */}
-      {showKeyboardHint && (isHovering || isFocused) && (
-        <div className="text-xs text-blue-600 text-center mt-2 animate-fade-in">
-          Use ← → to fine tune
         </div>
       )}
     </div>
