@@ -1,6 +1,5 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { loadGoogleMapsScript } from '../../utils/loadGoogleMaps';
-import { PlaceAutocompleteElement } from '../../types/google-maps-web-components';
 
 export interface LocationDetails {
   formatted_address?: string;
@@ -30,11 +29,11 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   locationDetails,
   isLoading = false,
   error = null,
-  placeholder = "Enter dealer or customer location...",
+  placeholder = 'Enter dealer or customer location...',
   mapsLoaded = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<PlaceAutocompleteElement | null>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [mapsReady, setMapsReady] = useState(false);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -55,100 +54,65 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       });
   }, [mapsLoaded, apiKey]);
 
-  // Initialize Google Places Autocomplete
+  // Initialize Places Autocomplete (classic JS API) to keep suggestions while preserving focus
   useEffect(() => {
     if (!mapsReady || !inputRef.current || autocompleteRef.current) return;
-
     try {
-      const inputEl = inputRef.current;
-      const parent = inputEl.parentElement;
-      if (!parent) return;
-
-      const placeEl = document.createElement(
-        'gmpx-place-autocomplete'
-      ) as PlaceAutocompleteElement;
-
-      placeEl.country = ['us'];
-      placeEl.types = ['geocode'];
-      placeEl.setAttribute('placeholder', placeholder);
-      if (apiKey) {
-        placeEl.setAttribute('api-key', apiKey);
-      }
-
-      inputEl.setAttribute('slot', 'input');
-      placeEl.appendChild(inputEl);
-      parent.appendChild(placeEl);
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+        types: ['geocode'],
+        componentRestrictions: { country: ['us'] },
+      });
+      autocompleteRef.current = autocomplete;
 
       const handlePlaceChange = () => {
-        const place: any = (placeEl as any).value;
-        if (!place?.geometry?.location) return;
+        const place = autocomplete.getPlace();
+        if (!place) return;
 
         let city = '';
         let state = '';
         let zip = '';
         let county = '';
 
-        (place.address_components || place.addressComponents || []).forEach(
-          (component: any) => {
-            const types = component.types || [];
-            if (types.includes('locality')) {
-              city = component.long_name;
-            }
-            if (types.includes('administrative_area_level_1')) {
-              state = component.short_name;
-            }
-            if (types.includes('postal_code')) {
-              zip = component.long_name;
-            }
-            if (types.includes('administrative_area_level_2')) {
-              county = component.long_name.replace(/ County$/i, '');
-            }
-          }
-        );
+        (place.address_components || []).forEach((component) => {
+          const types = component.types || [];
+          if (types.includes('locality')) city = component.long_name;
+          if (types.includes('administrative_area_level_1')) state = component.short_name;
+          if (types.includes('postal_code')) zip = component.long_name;
+          if (types.includes('administrative_area_level_2')) county = component.long_name.replace(/ County$/i, '');
+        });
 
-        const lat =
-          place.geometry?.location?.lat?.() ?? place.location?.lat ?? 0;
-        const lng =
-          place.geometry?.location?.lng?.() ?? place.location?.lng ?? 0;
+        const lat = place.geometry?.location?.lat?.();
+        const lng = place.geometry?.location?.lng?.();
 
         const details: LocationDetails = {
-          formatted_address: place.formatted_address || place.displayName,
+          formatted_address: place.formatted_address,
           city,
           state,
           zip,
           county,
-          latitude: lat,
-          longitude: lng,
+          latitude: lat ?? undefined,
+          longitude: lng ?? undefined,
         };
 
+        if (details.formatted_address) {
+          onLocationChange(details.formatted_address);
+        }
         onPlaceSelected?.(details);
       };
 
-      placeEl.addEventListener('gmpx-placechange', handlePlaceChange);
-      autocompleteRef.current = placeEl;
+      autocomplete.addListener('place_changed', handlePlaceChange);
     } catch (err) {
-      console.error('Failed to initialize autocomplete:', err);
+      console.error('Failed to init Places Autocomplete', err);
     }
 
     return () => {
       if (autocompleteRef.current) {
-        autocompleteRef.current.removeEventListener(
-          'gmpx-placechange',
-          () => {}
-        );
-        // Move input back out
-        const el = autocompleteRef.current;
-        const slotted = el.querySelector('input[slot="input"]');
-        if (slotted && el.parentElement) {
-          el.parentElement.appendChild(slotted);
-          slotted.removeAttribute('slot');
-        }
-        if (el.parentElement) {
-          el.parentElement.removeChild(el);
-        }
+        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        autocompleteRef.current.unbindAll?.();
+        autocompleteRef.current = null;
       }
     };
-  }, [mapsReady, onPlaceSelected, placeholder]);
+  }, [mapsReady, onLocationChange, onPlaceSelected]);
 
   const hasLocation = locationDetails && locationDetails.city && locationDetails.state;
 
@@ -157,17 +121,20 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       {/* Main Search Container */}
       <div className="relative">
         {/* Ambient Glow Effect */}
-        <div className={`absolute -inset-0.5 rounded-2xl transition-all duration-500 ${
-          hasLocation
-            ? 'bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 opacity-20 blur-lg'
-            : error
-            ? 'bg-gradient-to-r from-red-500 via-rose-500 to-pink-500 opacity-20 blur-lg'
-            : 'bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-500 opacity-0 group-hover:opacity-20 blur-lg'
-        }`} />
+        <div
+          className={`absolute -inset-0.5 rounded-2xl transition-all duration-500 ${
+            hasLocation
+              ? 'bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 opacity-20 blur-lg'
+              : error
+              ? 'bg-gradient-to-r from-red-500 via-rose-500 to-pink-500 opacity-20 blur-lg'
+              : 'bg-gradient-to-r from-blue-500 via-cyan-500 to-emerald-500 opacity-0 group-hover:opacity-20 blur-lg'
+          }`}
+        />
 
         {/* Input Container */}
         <div className="relative group">
-          <div className={`
+          <div
+            className={`
             relative overflow-hidden rounded-2xl transition-all duration-300
             ${hasLocation
               ? 'bg-gradient-to-br from-blue-950 to-cyan-950 border-2 border-blue-400/30'
@@ -175,13 +142,18 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
               ? 'bg-gradient-to-br from-red-950 to-rose-950 border-2 border-red-400/30'
               : 'bg-gradient-to-br from-slate-900 to-slate-950 border-2 border-white/10 hover:border-blue-400/30'
             }
-          `}>
+          `}
+          >
             {/* Animated Background Pattern */}
             <div className="absolute inset-0 opacity-5">
-              <div className="absolute inset-0" style={{
-                backgroundImage: 'radial-gradient(circle at 2px 2px, rgba(255,255,255,.05) 1px, transparent 0)',
-                backgroundSize: '32px 32px',
-              }} />
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundImage:
+                    'radial-gradient(circle at 2px 2px, rgba(255,255,255,.05) 1px, transparent 0)',
+                  backgroundSize: '32px 32px',
+                }}
+              />
             </div>
 
             {/* Label */}
@@ -203,12 +175,31 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
                     </div>
                   ) : hasLocation ? (
                     <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                      <path
+                        fillRule="evenodd"
+                        d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   ) : (
-                    <svg className="w-5 h-5 text-blue-300/50 transition-colors group-hover:text-blue-300/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <svg
+                      className="w-5 h-5 text-blue-300/50 transition-colors group-hover:text-blue-300/70"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                      />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
                     </svg>
                   )}
                 </div>
@@ -244,7 +235,11 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
               {error && (
                 <div className="mt-2 flex items-start gap-2 text-red-400 text-xs animate-in slide-in-from-top-2 duration-300">
                   <svg className="w-4 h-4 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    <path
+                      fillRule="evenodd"
+                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                      clipRule="evenodd"
+                    />
                   </svg>
                   <span>{error}</span>
                 </div>
@@ -257,43 +252,6 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       <style>{`
         .location-search-premium {
           position: relative;
-        }
-
-        /* Hide Google Places attribution */
-        .pac-container {
-          background-color: rgb(15, 23, 42) !important;
-          border: 1px solid rgba(255, 255, 255, 0.1) !important;
-          border-radius: 0.75rem !important;
-          margin-top: 0.5rem !important;
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5) !important;
-          overflow: hidden;
-        }
-
-        .pac-item {
-          background-color: transparent !important;
-          color: rgba(255, 255, 255, 0.9) !important;
-          border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
-          padding: 0.75rem 1rem !important;
-          cursor: pointer !important;
-          transition: all 0.2s ease !important;
-        }
-
-        .pac-item:hover {
-          background-color: rgba(16, 185, 129, 0.1) !important;
-        }
-
-        .pac-item-query {
-          color: rgba(255, 255, 255, 0.9) !important;
-          font-size: 0.875rem !important;
-        }
-
-        .pac-matched {
-          color: rgb(96, 165, 250) !important;
-          font-weight: 600 !important;
-        }
-
-        .pac-icon {
-          display: none !important;
         }
 
         @keyframes slide-in-from-top-2 {
@@ -318,3 +276,4 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     </div>
   );
 };
+

@@ -24,6 +24,8 @@ interface UseGoogleMapsAutocompleteOptions {
   onPlaceSelected?: (place: PlaceDetails) => void;
   types?: string[];
   componentRestrictions?: { country: string | string[] };
+  /** Set to true to enable autocomplete (useful for conditionally rendered inputs) */
+  enabled?: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ export const useGoogleMapsAutocomplete = (
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autocompleteElementRef = useRef<PlaceAutocompleteElement | null>(null);
-  const { onPlaceSelected, types, componentRestrictions = { country: 'us' } } = options;
+  const { onPlaceSelected, types, componentRestrictions = { country: 'us' }, enabled = true } = options;
 
   // Store callback in ref to avoid re-creating autocomplete on callback changes
   const onPlaceSelectedRef = useRef(onPlaceSelected);
@@ -79,7 +81,7 @@ export const useGoogleMapsAutocomplete = (
 
   // Initialize Autocomplete using PlaceAutocompleteElement web component
   useEffect(() => {
-    if (!isLoaded || !inputRef.current) return;
+    if (!enabled || !isLoaded || !inputRef.current) return;
 
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     if (!apiKey) {
@@ -242,7 +244,7 @@ export const useGoogleMapsAutocomplete = (
       trackGoogleMapsPerformance('autocomplete_init', initStartTime, false);
       setError('Failed to initialize autocomplete');
     }
-  }, [isLoaded, inputRef, types, JSON.stringify(componentRestrictions)]);
+  }, [enabled, isLoaded, inputRef, types, JSON.stringify(componentRestrictions)]);
 
   return {
     isLoaded,

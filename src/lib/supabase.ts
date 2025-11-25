@@ -6,6 +6,9 @@ import type {
   User,
   UserProfile,
   GarageVehicle,
+  GarageShareLink,
+  GarageInvite,
+  GarageMember,
   CustomerOffer,
   SMSLog,
   RateSheet
@@ -71,6 +74,50 @@ export interface Database {
         Insert: Omit<GarageVehicle, 'id' | 'created_at' | 'updated_at'>;
         Update: Partial<Omit<GarageVehicle, 'id'>>;
       };
+      garage_members: {
+        Row: GarageMember;
+        Insert: Omit<GarageMember, 'id' | 'created_at' | 'updated_at'>;
+        Update: Partial<Omit<GarageMember, 'id'>>;
+      };
+      garage_invites: {
+        Row: GarageInvite;
+        Insert: Omit<GarageInvite, 'id' | 'created_at' | 'updated_at' | 'accepted_at' | 'accepted_by'>;
+        Update: Partial<Omit<GarageInvite, 'id'>>;
+      };
+      garage_share_links: {
+        Row: GarageShareLink;
+        Insert: Omit<GarageShareLink, 'id' | 'created_at'>;
+        Update: Partial<Omit<GarageShareLink, 'id'>>;
+      };
+      vehicle_copies: {
+        Row: {
+          id: string;
+          source_vehicle_id: string | null;
+          source_garage_owner_id: string | null;
+          target_user_id: string;
+          target_garage_owner_id: string | null;
+          copy_type: 'garage' | 'saved';
+          created_at: string;
+        };
+        Insert: Omit<{
+          id: string;
+          source_vehicle_id: string | null;
+          source_garage_owner_id: string | null;
+          target_user_id: string;
+          target_garage_owner_id: string | null;
+          copy_type: 'garage' | 'saved';
+          created_at: string;
+        }, 'id' | 'created_at'>;
+        Update: Partial<{
+          id: string;
+          source_vehicle_id: string | null;
+          source_garage_owner_id: string | null;
+          target_user_id: string;
+          target_garage_owner_id: string | null;
+          copy_type: 'garage' | 'saved';
+          created_at: string;
+        }>;
+      };
       customer_offers: {
         Row: CustomerOffer;
         Insert: Omit<CustomerOffer, 'id' | 'created_at' | 'updated_at'>;
@@ -100,6 +147,57 @@ export interface Database {
           message_sid?: string;
           error?: string;
         };
+      };
+      get_accessible_garage_vehicles: {
+        Args: Record<PropertyKey, never>;
+        Returns: (GarageVehicle & {
+          garage_owner_id: string;
+          access_role: string;
+          source: 'own' | 'shared';
+        })[];
+      };
+      create_garage_share_link: {
+        Args: {
+          p_garage_owner_id?: string | null;
+          p_expires_at?: string | null;
+          p_max_views?: number | null;
+        };
+        Returns: {
+          id: string;
+          token: string;
+          expires_at: string | null;
+          max_views: number | null;
+          role: string;
+          created_at: string;
+        }[];
+      };
+      revoke_garage_share_link: {
+        Args: {
+          p_link_id: string;
+        };
+        Returns: boolean;
+      };
+      get_shared_garage_vehicles: {
+        Args: {
+          p_token: string;
+        };
+        Returns: (GarageVehicle & {
+          garage_owner_id: string;
+          source: string;
+        })[];
+      };
+      accept_garage_invite: {
+        Args: {
+          p_token: string;
+        };
+        Returns: boolean;
+      };
+      copy_garage_vehicle_to_user: {
+        Args: {
+          p_vehicle_id: string;
+          p_target_garage_owner_id?: string | null;
+        };
+        Returns: GarageVehicle[];
       };
     };
   };
@@ -174,6 +272,191 @@ export async function getGarageVehicles(userId: string): Promise<GarageVehicle[]
   }
 
   return data || [];
+}
+
+/**
+ * Get all garage vehicles the current user can access (own + shared)
+ */
+export async function getAccessibleGarageVehicles(): Promise<GarageVehicle[]> {
+  const { data, error } = await supabase.rpc('get_accessible_garage_vehicles');
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * List garage members for a given garage (owner's garage)
+ */
+export async function listGarageMembers(garageOwnerId?: string): Promise<GarageMember[]> {
+  let query = supabase.from('garage_members').select('*');
+  if (garageOwnerId) {
+    query = query.eq('garage_owner_id', garageOwnerId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * List active share links for a garage
+ */
+export async function listGarageShareLinks(garageOwnerId?: string): Promise<GarageShareLink[]> {
+  let query = supabase.from('garage_share_links').select('*').order('created_at', { ascending: false });
+  if (garageOwnerId) {
+    query = query.eq('garage_owner_id', garageOwnerId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * List invites for a garage
+ */
+export async function listGarageInvites(garageOwnerId?: string): Promise<GarageInvite[]> {
+  let query = supabase.from('garage_invites').select('*').order('created_at', { ascending: false });
+  if (garageOwnerId) {
+    query = query.eq('garage_owner_id', garageOwnerId);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * Create a garage invite for an email
+ */
+export async function createGarageInvite(params: {
+  garageOwnerId: string;
+  email: string;
+  role: 'viewer' | 'manager';
+  expiresAt?: string | Date | null;
+  invitedBy?: string | null;
+}): Promise<GarageInvite | null> {
+  const inviteToken = generateShareToken();
+
+  const { data, error } = await supabase.from('garage_invites').insert({
+    garage_owner_id: params.garageOwnerId,
+    email: params.email,
+    role: params.role,
+    token: inviteToken,
+    expires_at: params.expiresAt
+      ? params.expiresAt instanceof Date
+        ? params.expiresAt.toISOString()
+        : params.expiresAt
+      : null,
+    invited_by: params.invitedBy ?? null,
+  }).select().single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+}
+
+/**
+ * Create a new view-only share link
+ */
+export async function createGarageShareLink(params?: {
+  garageOwnerId?: string;
+  expiresAt?: string | Date | null;
+  maxViews?: number | null;
+}): Promise<GarageShareLink | null> {
+  const { data, error } = await supabase.rpc('create_garage_share_link', {
+    p_garage_owner_id: params?.garageOwnerId ?? null,
+    p_expires_at: params?.expiresAt
+      ? params.expiresAt instanceof Date
+        ? params.expiresAt.toISOString()
+        : params.expiresAt
+      : null,
+    p_max_views: params?.maxViews ?? null
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
+}
+
+/**
+ * Revoke a share link
+ */
+export async function revokeGarageShareLink(linkId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('revoke_garage_share_link', {
+    p_link_id: linkId
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+/**
+ * Fetch vehicles using a share token (no auth required)
+ */
+export async function getSharedGarageVehiclesByToken(token: string): Promise<GarageVehicle[]> {
+  const { data, error } = await supabase.rpc('get_shared_garage_vehicles', {
+    p_token: token
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data || [];
+}
+
+/**
+ * Accept an invite by token (auth required)
+ */
+export async function acceptGarageInvite(token: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('accept_garage_invite', {
+    p_token: token
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
+/**
+ * Copy a shared garage vehicle into the current user's garage
+ */
+export async function copyGarageVehicleToUser(vehicleId: string, targetGarageOwnerId?: string): Promise<GarageVehicle | null> {
+  const { data, error } = await supabase.rpc('copy_garage_vehicle_to_user', {
+    p_vehicle_id: vehicleId,
+    p_target_garage_owner_id: targetGarageOwnerId ?? null
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.[0] || null;
 }
 
 /**

@@ -180,6 +180,19 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     onClose();
   };
 
+  // Unified submit handler so Enter key works across modes
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (loading) return;
+    if (mode === 'signin') {
+      handleSignIn();
+    } else if (mode === 'signup') {
+      handleSignUp();
+    } else if (mode === 'forgot') {
+      handleForgotPassword();
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -193,7 +206,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       }
       size="sm"
     >
-      <div className="space-y-4">
+      <form className="space-y-4" onSubmit={handleSubmit}>
         {/* Sign In Form */}
         {mode === 'signin' && (
           <>
@@ -239,7 +252,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               size="lg"
               fullWidth
               loading={loading}
-              onClick={handleSignIn}
+              type="submit"
             >
               {loading ? 'Signing in...' : 'Sign In'}
             </Button>
@@ -247,6 +260,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="text-center text-sm text-white/60">
               Don't have an account?{' '}
               <button
+                type="button"
                 onClick={() => setMode('signup')}
                 className="text-blue-400 hover:text-blue-300 font-medium"
               >
@@ -331,7 +345,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               size="lg"
               fullWidth
               loading={loading}
-              onClick={handleSignUp}
+              type="submit"
             >
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
@@ -339,6 +353,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             <div className="text-center text-sm text-white/60">
               Already have an account?{' '}
               <button
+                type="button"
                 onClick={() => setMode('signin')}
                 className="text-blue-400 hover:text-blue-300 font-medium"
               >
@@ -375,13 +390,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({
               size="lg"
               fullWidth
               loading={loading}
-              onClick={handleForgotPassword}
+              type="submit"
             >
               {loading ? 'Sending...' : 'Send Reset Link'}
             </Button>
 
             <div className="text-center text-sm text-white/60">
               <button
+                type="button"
                 onClick={() => setMode('signin')}
                 className="text-blue-400 hover:text-blue-300 font-medium"
               >
@@ -390,7 +406,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
             </div>
           </>
         )}
-      </div>
+      </form>
     </Modal>
   );
 };

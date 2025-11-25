@@ -158,6 +158,63 @@ export interface GarageVehicle {
   last_used_at?: string;
   created_at: string;
   updated_at: string;
+  // Sharing / provenance metadata
+  shared_from_garage_owner_id?: string;
+  shared_from_vehicle_id?: string;
+  garage_owner_id?: string;
+  access_role?: GarageAccessRole;
+  source?: 'own' | 'shared';
+}
+
+export type GarageAccessRole = 'owner' | 'manager' | 'viewer';
+
+export interface GarageMember {
+  id: string;
+  garage_owner_id: string;
+  member_user_id: string;
+  role: GarageAccessRole;
+  status: 'active' | 'invited' | 'revoked';
+  invited_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GarageInvite {
+  id: string;
+  garage_owner_id: string;
+  email: string;
+  role: Exclude<GarageAccessRole, 'owner'>;
+  token: string;
+  expires_at?: string;
+  status: 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
+  invited_by?: string;
+  accepted_by?: string;
+  accepted_at?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GarageShareLink {
+  id: string;
+  garage_owner_id: string;
+  token: string;
+  role: 'viewer';
+  expires_at?: string;
+  max_views?: number | null;
+  current_views?: number | null;
+  revoked_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+}
+
+export interface VehicleCopyAudit {
+  id: string;
+  source_vehicle_id: string | null;
+  source_garage_owner_id: string | null;
+  target_user_id: string;
+  target_garage_owner_id: string | null;
+  copy_type: 'garage' | 'saved';
+  created_at: string;
 }
 
 // ========================================

@@ -95,6 +95,8 @@ export interface Database {
           last_used_at: string | null
           created_at: string
           updated_at: string
+          shared_from_garage_owner_id: string | null
+          shared_from_vehicle_id: string | null
         }
         Insert: {
           id?: string
@@ -116,6 +118,8 @@ export interface Database {
           last_used_at?: string | null
           created_at?: string
           updated_at?: string
+          shared_from_garage_owner_id?: string | null
+          shared_from_vehicle_id?: string | null
         }
         Update: {
           id?: string
@@ -137,6 +141,151 @@ export interface Database {
           last_used_at?: string | null
           created_at?: string
           updated_at?: string
+          shared_from_garage_owner_id?: string | null
+          shared_from_vehicle_id?: string | null
+        }
+      }
+      garage_members: {
+        Row: {
+          id: string
+          garage_owner_id: string
+          member_user_id: string
+          role: string
+          status: string
+          invited_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          garage_owner_id: string
+          member_user_id: string
+          role: string
+          status?: string
+          invited_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          garage_owner_id?: string
+          member_user_id?: string
+          role?: string
+          status?: string
+          invited_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      garage_invites: {
+        Row: {
+          id: string
+          garage_owner_id: string
+          email: string
+          role: string
+          token: string
+          expires_at: string | null
+          status: string
+          invited_by: string | null
+          accepted_by: string | null
+          accepted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          garage_owner_id: string
+          email: string
+          role: string
+          token: string
+          expires_at?: string | null
+          status?: string
+          invited_by?: string | null
+          accepted_by?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          garage_owner_id?: string
+          email?: string
+          role?: string
+          token?: string
+          expires_at?: string | null
+          status?: string
+          invited_by?: string | null
+          accepted_by?: string | null
+          accepted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      garage_share_links: {
+        Row: {
+          id: string
+          garage_owner_id: string
+          token: string
+          role: string
+          expires_at: string | null
+          max_views: number | null
+          current_views: number | null
+          revoked_at: string | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          garage_owner_id: string
+          token: string
+          role?: string
+          expires_at?: string | null
+          max_views?: number | null
+          current_views?: number | null
+          revoked_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          garage_owner_id?: string
+          token?: string
+          role?: string
+          expires_at?: string | null
+          max_views?: number | null
+          current_views?: number | null
+          revoked_at?: string | null
+          created_by?: string | null
+          created_at?: string
+        }
+      }
+      vehicle_copies: {
+        Row: {
+          id: string
+          source_vehicle_id: string | null
+          source_garage_owner_id: string | null
+          target_user_id: string
+          target_garage_owner_id: string | null
+          copy_type: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          source_vehicle_id?: string | null
+          source_garage_owner_id?: string | null
+          target_user_id: string
+          target_garage_owner_id?: string | null
+          copy_type: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          source_vehicle_id?: string | null
+          source_garage_owner_id?: string | null
+          target_user_id?: string
+          target_garage_owner_id?: string | null
+          copy_type?: string
+          created_at?: string
         }
       }
       customer_profiles: {
@@ -514,7 +663,119 @@ export interface Database {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_accessible_garage_vehicles: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          user_id: string
+          nickname: string | null
+          year: number
+          make: string
+          model: string
+          trim: string | null
+          vin: string | null
+          mileage: number | null
+          condition: string | null
+          estimated_value: number | null
+          payoff_amount: number | null
+          photo_url: string | null
+          photo_storage_path: string | null
+          notes: string | null
+          times_used: number | null
+          last_used_at: string | null
+          created_at: string
+          updated_at: string
+          shared_from_garage_owner_id: string | null
+          shared_from_vehicle_id: string | null
+          garage_owner_id: string
+          access_role: string
+          source: string
+        }[]
+      }
+      create_garage_share_link: {
+        Args: {
+          p_garage_owner_id?: string | null
+          p_expires_at?: string | null
+          p_max_views?: number | null
+        }
+        Returns: {
+          id: string
+          token: string
+          expires_at: string | null
+          max_views: number | null
+          role: string
+          created_at: string
+        }[]
+      }
+      revoke_garage_share_link: {
+        Args: {
+          p_link_id: string
+        }
+        Returns: boolean
+      }
+      get_shared_garage_vehicles: {
+        Args: {
+          p_token: string
+        }
+        Returns: {
+          id: string
+          user_id: string
+          nickname: string | null
+          year: number
+          make: string
+          model: string
+          trim: string | null
+          vin: string | null
+          mileage: number | null
+          condition: string | null
+          estimated_value: number | null
+          payoff_amount: number | null
+          photo_url: string | null
+          photo_storage_path: string | null
+          notes: string | null
+          times_used: number | null
+          last_used_at: string | null
+          created_at: string
+          updated_at: string
+          garage_owner_id: string
+          source: string
+        }[]
+      }
+      accept_garage_invite: {
+        Args: {
+          p_token: string
+        }
+        Returns: boolean
+      }
+      copy_garage_vehicle_to_user: {
+        Args: {
+          p_vehicle_id: string
+          p_target_garage_owner_id?: string | null
+        }
+        Returns: {
+          id: string
+          user_id: string
+          nickname: string | null
+          year: number
+          make: string
+          model: string
+          trim: string | null
+          vin: string | null
+          mileage: number | null
+          condition: string | null
+          estimated_value: number | null
+          payoff_amount: number | null
+          photo_url: string | null
+          photo_storage_path: string | null
+          notes: string | null
+          times_used: number | null
+          last_used_at: string | null
+          created_at: string
+          updated_at: string
+          shared_from_garage_owner_id: string | null
+          shared_from_vehicle_id: string | null
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

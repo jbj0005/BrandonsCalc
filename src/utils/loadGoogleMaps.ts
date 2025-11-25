@@ -20,7 +20,8 @@ export const loadGoogleMapsScript = (): Promise<void> => {
   }
 
   if (window.google?.maps?.places) {
-    return Promise.resolve();
+    // Maps already present—ensure extended components are loaded too.
+    return loadExtendedComponentLibrary();
   }
 
   if (loadPromise) {

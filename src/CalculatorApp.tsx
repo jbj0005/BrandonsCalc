@@ -69,7 +69,7 @@ import savedVehiclesCache from "./features/vehicles/saved-vehicles-cache.js";
 // @ts-ignore - TS module
 import authManager from "./features/auth/auth-manager";
 // @ts-ignore - TS module
-import { supabase } from "./lib/supabase";
+import { supabase, getAccessibleGarageVehicles, copyGarageVehicleToUser } from "./lib/supabase";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
   if (!rates || rates.length === 0) return null;
@@ -1089,14 +1089,8 @@ export const CalculatorApp: React.FC = () => {
 
       setIsLoadingGarageVehicles(true);
       try {
-        const { data, error } = await supabase
-          .from("garage_vehicles")
-          .select("*")
-          .eq("user_id", currentUser.id)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        setGarageVehicles(data || []);
+        const vehicles = await getAccessibleGarageVehicles();
+        setGarageVehicles(vehicles || []);
       } catch (error: any) {
         toast.push({
           kind: "error",
@@ -4012,6 +4006,36 @@ export const CalculatorApp: React.FC = () => {
           setShowProfileDropdown(false);
           setShowMyOffersModal(true);
         }}
+        onCopySharedVehicle={async (vehicle) => {
+          if (!currentUser) {
+            toast.push({
+              kind: "info",
+              title: "Sign in required",
+              detail: "Sign in to copy shared vehicles to your garage",
+            });
+            setShowAuthModal(true);
+            setAuthMode("signin");
+            return;
+          }
+          try {
+            const copied = await copyGarageVehicleToUser(vehicle.id, currentUser.id);
+            if (copied) {
+              setGarageVehicles((prev) => [copied, ...prev]);
+              toast.push({
+                kind: "success",
+                title: "Vehicle copied",
+                detail: `${vehicle.year} ${vehicle.make} added to your garage`,
+              });
+            }
+          } catch (error: any) {
+            toast.push({
+              kind: "error",
+              title: "Could not copy vehicle",
+              detail: error?.message || "Please try again",
+            });
+          }
+        }}
+        currentUserId={currentUser?.id ?? null}
         supabase={supabase}
         isDirty={isProfileDirty}
       />
