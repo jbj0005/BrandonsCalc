@@ -18,6 +18,10 @@ export interface AuthModalProps {
   onSignUp?: (email: string, password: string, fullName?: string, phone?: string) => Promise<void>;
   /** Forgot password handler */
   onForgotPassword?: (email: string) => Promise<void>;
+  /** Reset password handler (after recovery token) */
+  onResetPassword?: (password: string) => Promise<void>;
+  /** Force modal into a specific mode when parent changes it */
+  modeOverride?: 'signin' | 'signup' | 'forgot' | 'reset';
 }
 
 /**
@@ -30,8 +34,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onSignIn,
   onSignUp,
   onForgotPassword,
+  onResetPassword,
+  modeOverride,
 }) => {
-  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot'>(initialMode);
+  const [mode, setMode] = useState<'signin' | 'signup' | 'forgot' | 'reset'>(initialMode);
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
@@ -47,6 +53,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [passwordError, setPasswordError] = useState('');
   const [confirmPasswordError, setConfirmPasswordError] = useState('');
   const [fullNameError, setFullNameError] = useState('');
+
+  // Keep local mode in sync with parent changes when modal opens or override changes
+  React.useEffect(() => {
+    if (modeOverride) {
+      setMode(modeOverride);
+    } else {
+      setMode(initialMode);
+    }
+  }, [initialMode, modeOverride, isOpen]);
 
   // Reset form
   const resetForm = () => {
@@ -173,6 +188,25 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     }
   };
 
+  // Handle reset password (after recovery link)
+  const handleResetPassword = async () => {
+    const passwordValid = validatePassword(password, true);
+    const confirmPasswordValid = validateConfirmPassword();
+    if (!passwordValid || !confirmPasswordValid) return;
+
+    setLoading(true);
+    try {
+      await onResetPassword?.(password);
+      toast.push({ kind: 'success', title: 'Password updated', detail: 'You can now sign in with your new password.' });
+      resetForm();
+      onClose();
+    } catch (error: any) {
+      toast.push({ kind: 'error', title: 'Failed to reset password', detail: error.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle modal close
   const handleClose = () => {
     resetForm();
@@ -190,6 +224,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       handleSignUp();
     } else if (mode === 'forgot') {
       handleForgotPassword();
+    } else if (mode === 'reset') {
+      handleResetPassword();
     }
   };
 
@@ -202,7 +238,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           ? 'Sign In'
           : mode === 'signup'
           ? 'Create Account'
-          : 'Reset Password'
+          : mode === 'forgot'
+          ? 'Reset Password'
+          : 'Set New Password'
       }
       size="sm"
     >
@@ -405,6 +443,54 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 Back to sign in
               </button>
             </div>
+          </>
+        )}
+
+        {/* Reset Password Form (after recovery link) */}
+        {mode === 'reset' && (
+          <>
+            <p className="text-sm text-white/60">
+              Set a new password for your account.
+            </p>
+
+            <Input
+              label="New Password"
+              type="password"
+              placeholder="At least 8 characters"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError('');
+              }}
+              onBlur={() => validatePassword(password, true)}
+              error={passwordError}
+              autoComplete="new-password"
+              fullWidth
+            />
+            <Input
+              label="Confirm Password"
+              type="password"
+              placeholder="Re-enter your password"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                setConfirmPasswordError('');
+              }}
+              onBlur={validateConfirmPassword}
+              error={confirmPasswordError}
+              autoComplete="new-password"
+              fullWidth
+            />
+
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              loading={loading}
+              type="submit"
+            >
+              {loading ? 'Saving...' : 'Update Password'}
+            </Button>
           </>
         )}
       </form>

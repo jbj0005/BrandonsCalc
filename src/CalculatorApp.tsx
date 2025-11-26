@@ -226,6 +226,65 @@ export const CalculatorApp: React.FC = () => {
     }
   }, []);
 
+  // Handle Supabase recovery links: set session and prompt for new password
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const hashParams = new URLSearchParams(
+      window.location.hash.replace("#", "")
+    );
+    const typeParam =
+      url.searchParams.get("type") || hashParams.get("type") || "";
+    const isRecovery = typeParam === "recovery";
+    const code = url.searchParams.get("code");
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+
+    if (!isRecovery) return;
+
+    const clearRecoveryParams = () => {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete("type");
+      cleanUrl.searchParams.delete("code");
+      cleanUrl.searchParams.delete("token");
+      window.history.replaceState({}, document.title, cleanUrl.toString());
+      if (window.location.hash) {
+        window.location.hash = "";
+      }
+    };
+
+    const hydrateSession = async () => {
+      try {
+        if (code) {
+          await supabase.auth.exchangeCodeForSession(code);
+        } else if (accessToken && refreshToken) {
+          await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+        } else {
+          return;
+        }
+        setAuthMode("reset");
+        setShowAuthModal(true);
+        toast.push({
+          kind: "info",
+          title: "Set a new password",
+          detail: "Enter your new password to complete the reset.",
+        });
+        clearRecoveryParams();
+      } catch (error: any) {
+        toast.push({
+          kind: "error",
+          title: "Recovery link error",
+          detail: error?.message || "Please request a new reset link.",
+        });
+      }
+    };
+
+    hydrateSession();
+  }, [toast]);
+
   // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
   const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
   const [isLoadingGarageVehicles, setIsLoadingGarageVehicles] = useState(false);
@@ -243,7 +302,9 @@ export const CalculatorApp: React.FC = () => {
 
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "reset">(
+    "signin"
+  );
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const ensureSavedVehiclesCacheReady = useCallback(() => {
@@ -3999,12 +4060,41 @@ export const CalculatorApp: React.FC = () => {
         onSignIn={handleSignIn}
         onSignUp={handleSignUp}
         onForgotPassword={async (email) => {
-          toast.push({
-            kind: "info",
-            title: "Password Reset",
-            detail: `Reset link sent to ${email}`,
-          });
+          try {
+            const redirectTo = `${window.location.origin}/`;
+            await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+            toast.push({
+              kind: "info",
+              title: "Password Reset",
+              detail: `Reset link sent to ${email}`,
+            });
+          } catch (error: any) {
+            toast.push({
+              kind: "error",
+              title: "Reset failed",
+              detail: error?.message || "Unable to send reset email.",
+            });
+          }
         }}
+        onResetPassword={async (newPassword) => {
+          try {
+            await supabase.auth.updateUser({ password: newPassword });
+            toast.push({
+              kind: "success",
+              title: "Password updated",
+              detail: "You can now sign in with your new password.",
+            });
+            setAuthMode("signin");
+            setShowAuthModal(false);
+          } catch (error: any) {
+            toast.push({
+              kind: "error",
+              title: "Update failed",
+              detail: error?.message || "Please try again.",
+            });
+          }
+        }}
+        modeOverride={authMode}
       />
 
       {/* Offer Preview Modal */}
