@@ -390,6 +390,10 @@ export const CalculatorApp: React.FC = () => {
   const [shareModalSuccess, setShareModalSuccess] = useState<string | null>(
     null
   );
+  const [shareSendStatus, setShareSendStatus] = useState<
+    "idle" | "sending" | "success" | "error"
+  >("idle");
+  const [shareSendDetail, setShareSendDetail] = useState<string | null>(null);
   const basePath =
     (import.meta.env.BASE_URL || "/")
       .replace(/\/+$/, "")
@@ -2987,6 +2991,8 @@ export const CalculatorApp: React.FC = () => {
 
     setShareModalError(null);
     setShareEmailSending(true);
+    setShareSendStatus("sending");
+    setShareSendDetail(null);
 
     const payload = {
       recipientEmail: shareModalEmail.trim(),
@@ -3009,6 +3015,8 @@ export const CalculatorApp: React.FC = () => {
       if (res.ok) {
         setShareModalSuccess(`Sent to ${payload.recipientEmail}`);
         setShareModalEmail("");
+        setShareSendStatus("success");
+        setShareSendDetail(null);
         return;
       }
 
@@ -3044,9 +3052,13 @@ export const CalculatorApp: React.FC = () => {
       }
 
       const data = await res.json().catch(() => ({}));
-      throw new Error(data?.error || `Email failed (${res.status})`);
+      throw new Error(
+        data?.detail || data?.error || `Email failed (${res.status})`
+      );
     } catch (error: any) {
       setShareModalError(error?.message || "Could not send email.");
+      setShareSendStatus("error");
+      setShareSendDetail(error?.message || null);
       toast.push({
         kind: "error",
         title: "Email failed",
@@ -3054,6 +3066,9 @@ export const CalculatorApp: React.FC = () => {
       });
     } finally {
       setShareEmailSending(false);
+      if (shareSendStatus === "sending") {
+        setShareSendStatus("idle");
+      }
     }
   };
 
@@ -4924,6 +4939,9 @@ export const CalculatorApp: React.FC = () => {
             {shareModalSuccess && (
               <div className="text-sm text-emerald-300">{shareModalSuccess}</div>
             )}
+            {shareSendStatus === "error" && shareSendDetail && (
+              <div className="text-sm text-red-300">{shareSendDetail}</div>
+            )}
           </div>
 
           {shareModalError && (
@@ -4931,15 +4949,17 @@ export const CalculatorApp: React.FC = () => {
           )}
 
           <div className="flex items-center justify-between">
-            <div className="text-xs text-white/50">
-              {shareModalLoading
-                ? "Generating link..."
-                : "Copy or email the link to share this vehicle."}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+              <div className="text-xs text-white/50">
+                {shareModalLoading
+                  ? "Generating link..."
+                  : shareSendStatus === "sending"
+                  ? "Sending email..."
+                  : "Copy or email the link to share this vehicle."}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
                 onClick={() => {
           setShareModalOpen(false);
           setShareModalTarget(null);
@@ -4953,18 +4973,45 @@ export const CalculatorApp: React.FC = () => {
       >
                 Close
               </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={handleSendShareEmail}
-                disabled={
-                  !shareModalLink || shareModalLoading || shareEmailSending
-                }
-              >
-                {shareEmailSending ? "Sending..." : "Send email"}
-              </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSendShareEmail}
+                  disabled={
+                    !shareModalLink || shareModalLoading || shareEmailSending
+                  }
+                >
+                  {shareEmailSending ? "Sending..." : "Send email"}
+                </Button>
+              </div>
             </div>
-          </div>
+
+            {/* Progress bar */}
+            <div className="mt-3">
+              <div className="w-full h-2 rounded-full bg-white/5 border border-white/10 overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-300 ${
+                    shareSendStatus === "success"
+                      ? "bg-emerald-400"
+                      : shareSendStatus === "error"
+                      ? "bg-red-400"
+                      : shareSendStatus === "sending"
+                      ? "bg-blue-400 animate-pulse"
+                      : "bg-white/10"
+                  }`}
+                  style={{
+                    width:
+                      shareSendStatus === "sending"
+                        ? "60%"
+                        : shareSendStatus === "success"
+                        ? "100%"
+                        : shareSendStatus === "error"
+                        ? "100%"
+                        : "10%",
+                  }}
+                />
+              </div>
+            </div>
         </div>
       </Modal>
 

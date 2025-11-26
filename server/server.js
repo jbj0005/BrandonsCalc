@@ -1024,8 +1024,15 @@ ${photoUrl ? `Photo: ${photoUrl}\n` : ""}
       console.log(`[share-email] Sent to ${recipientEmail}`);
       return res.json({ ok: true });
     } catch (sendError) {
-      console.error("[share-email] SendGrid error:", sendError);
-      throw sendError;
+      const sgDetail =
+        sendError?.response?.body?.errors?.[0]?.message ||
+        sendError?.message ||
+        "Unknown SendGrid error";
+      console.error("[share-email] SendGrid error:", sgDetail);
+      return res.status(500).json({
+        error: "SendGrid failed",
+        detail: sgDetail,
+      });
     }
   } catch (err) {
     console.error("[share-email] error:", err);
