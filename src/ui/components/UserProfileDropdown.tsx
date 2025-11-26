@@ -25,6 +25,7 @@ import {
   listGarageShareLinks,
   createGarageInvite,
   revokeGarageShareLink,
+  sendGarageInviteEmail,
 } from '../../lib/supabase';
 import { LocationSearchPremium } from './LocationSearchPremium';
 
@@ -317,11 +318,35 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
         invitedBy: activeUserId,
       });
       if (invite) {
-        toast.push({
-          kind: 'success',
-          title: 'Invite created',
-          detail: `Share this code with ${invite.email}: ${invite.token}`,
-        });
+        if (invite.token) {
+          try {
+            await sendGarageInviteEmail({
+              email: invite.email,
+              token: invite.token,
+              role: inviteRole,
+              garageOwnerId: activeUserId,
+              invitedBy: activeUserId,
+              appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
+            });
+            toast.push({
+              kind: 'success',
+              title: 'Invite sent',
+              detail: `Invitation emailed to ${invite.email}`,
+            });
+          } catch (sendError: any) {
+            toast.push({
+              kind: 'warning',
+              title: 'Invite created (email not sent)',
+              detail: `Share this code with ${invite.email}: ${invite.token}`,
+            });
+          }
+        } else {
+          toast.push({
+            kind: 'success',
+            title: 'Invite created',
+            detail: `Share this code with ${invite.email}: ${invite.token}`,
+          });
+        }
         setInviteEmail('');
       }
     } catch (error: any) {

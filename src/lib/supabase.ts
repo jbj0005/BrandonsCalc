@@ -374,6 +374,33 @@ export async function createGarageInvite(params: {
 }
 
 /**
+ * Send garage invite email via Edge Function
+ */
+export async function sendGarageInviteEmail(params: {
+  email: string;
+  token: string;
+  role?: 'viewer' | 'manager';
+  garageOwnerId?: string;
+  invitedBy?: string | null;
+  appUrl?: string;
+}): Promise<void> {
+  const { error } = await supabase.functions.invoke('send-garage-invite', {
+    body: {
+      email: params.email,
+      token: params.token,
+      role: params.role,
+      garage_owner_id: params.garageOwnerId,
+      invited_by: params.invitedBy,
+      appUrl: params.appUrl,
+    },
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
+/**
  * Create a new view-only share link
  */
 export async function createGarageShareLink(params?: {
