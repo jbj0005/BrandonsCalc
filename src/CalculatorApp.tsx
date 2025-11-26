@@ -247,10 +247,16 @@ export const CalculatorApp: React.FC = () => {
       cleanUrl.searchParams.delete("type");
       cleanUrl.searchParams.delete("code");
       cleanUrl.searchParams.delete("token");
-      window.history.replaceState({}, document.title, cleanUrl.toString());
       if (window.location.hash) {
         window.location.hash = "";
       }
+
+      // Normalize to app root (handles gh-pages /BrandonsCalc/ or localhost /)
+      const basePath = cleanUrl.pathname.includes("/BrandonsCalc")
+        ? "/BrandonsCalc/"
+        : "/";
+      const normalized = `${cleanUrl.origin}${basePath}`;
+      window.history.replaceState({}, document.title, normalized);
     };
 
     const hydrateSession = async () => {
@@ -4061,7 +4067,10 @@ export const CalculatorApp: React.FC = () => {
         onSignUp={handleSignUp}
         onForgotPassword={async (email) => {
           try {
-            const redirectTo = `${window.location.origin}/`;
+            const basePath = window.location.pathname.includes("/BrandonsCalc")
+              ? "/BrandonsCalc"
+              : "";
+            const redirectTo = `${window.location.origin}${basePath}/reset-password`;
             await supabase.auth.resetPasswordForEmail(email, { redirectTo });
             toast.push({
               kind: "info",
