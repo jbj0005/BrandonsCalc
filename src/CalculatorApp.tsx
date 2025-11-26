@@ -10,6 +10,7 @@ import {
   Select,
   Slider,
   Button,
+  Modal,
   Card,
   Badge,
   VehicleEditorModal,
@@ -369,6 +370,14 @@ export const CalculatorApp: React.FC = () => {
   const [highlightOfferId, setHighlightOfferId] = useState<string | undefined>(
     undefined
   );
+  // Share Vehicle Modal State
+  const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [shareModalTarget, setShareModalTarget] = useState<any | null>(null);
+  const [shareModalLink, setShareModalLink] = useState<string>("");
+  const [shareModalEmail, setShareModalEmail] = useState<string>("");
+  const [shareModalLoading, setShareModalLoading] = useState(false);
+  const [shareEmailSending, setShareEmailSending] = useState(false);
+  const [shareModalError, setShareModalError] = useState<string | null>(null);
 
   // APR Confirmation Modal State
   const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
@@ -2674,77 +2683,8 @@ export const CalculatorApp: React.FC = () => {
 
   // Share a single garage vehicle (per-link filter)
   const handleShareVehicle = async (vehicle: any) => {
-    const isSharedView = Boolean(shareToken);
-
-    // If we have a share token (viewer or owner), reuse it to avoid creating new links
-    if (isSharedView && shareToken) {
-      const baseUrl =
-        typeof window !== "undefined" ? window.location.origin : "";
-      const shareUrl = `${baseUrl}/share/${shareToken}?vehicle=${vehicle.id}`;
-
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.push({
-          kind: "success",
-          title: "Share link copied",
-          detail: "Paste it anywhere to share this vehicle.",
-        });
-      } catch {
-        const temp = document.createElement("textarea");
-        temp.value = shareUrl;
-        document.body.appendChild(temp);
-        temp.select();
-        document.execCommand("copy");
-        document.body.removeChild(temp);
-        toast.push({
-          kind: "success",
-          title: "Share link ready",
-          detail: "Copied to clipboard. Paste it to share.",
-        });
-      }
-
-      const email = window.prompt(
-        "Optional: enter an email to send this link (leave blank to skip)"
-      );
-      if (email && email.trim()) {
-        const payload = {
-          recipientEmail: email.trim(),
-          shareUrl,
-          vehicleInfo: `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim(),
-          senderName:
-            (profile?.full_name && profile.full_name.trim()) ||
-            currentUser?.email ||
-            "",
-        };
-        fetch("/api/share/vehicle/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-          .then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              throw new Error(data?.error || `Email failed (${res.status})`);
-            }
-            toast.push({
-              kind: "success",
-              title: "Email sent",
-              detail: `Shared with ${payload.recipientEmail}`,
-            });
-          })
-          .catch((error: any) => {
-            toast.push({
-              kind: "error",
-              title: "Email failed",
-              detail: error?.message || "Could not send email.",
-            });
-          });
-      }
-      return;
-    }
-
-    // Otherwise, create a new share link for the current user
-    if (!currentUser) {
+    // Prevent opening when not signed in and no share token
+    if (!currentUser && !shareToken) {
       toast.push({
         kind: "info",
         title: "Sign in required",
@@ -2755,83 +2695,118 @@ export const CalculatorApp: React.FC = () => {
       return;
     }
 
+    setShareModalTarget(vehicle);
+    setShareModalEmail("");
+    setShareModalError(null);
+    setShareModalLink("");
+    setShareModalLoading(true);
+    setShareModalOpen(true);
+
+    const baseUrl =
+      typeof window !== "undefined" ? window.location.origin : "";
+
     try {
+      // If already viewing via share token, reuse it
+      if (shareToken) {
+        const shareUrl = `${baseUrl}/share/${shareToken}?vehicle=${vehicle.id}`;
+        setShareModalLink(shareUrl);
+        setShareModalLoading(false);
+        return;
+      }
+
+      // Otherwise create a fresh link for the owner
       const link = await createGarageShareLink({
-        garageOwnerId: currentUser.id,
+        garageOwnerId: currentUser?.id,
       });
       if (!link?.token) {
         throw new Error("Share link unavailable");
       }
-
-      const baseUrl =
-        typeof window !== "undefined" ? window.location.origin : "";
       const shareUrl = `${baseUrl}/share/${link.token}?vehicle=${vehicle.id}`;
-
-      try {
-        await navigator.clipboard.writeText(shareUrl);
-        toast.push({
-          kind: "success",
-          title: "Share link copied",
-          detail: "Paste it anywhere to share this vehicle.",
-        });
-      } catch {
-        const temp = document.createElement("textarea");
-        temp.value = shareUrl;
-        document.body.appendChild(temp);
-        temp.select();
-        document.execCommand("copy");
-        document.body.removeChild(temp);
-        toast.push({
-          kind: "success",
-          title: "Share link ready",
-          detail: "Copied to clipboard. Paste it to share.",
-        });
-      }
-
-      const email = window.prompt(
-        "Optional: enter an email to send this link (leave blank to skip)"
-      );
-      if (email && email.trim()) {
-        const payload = {
-          recipientEmail: email.trim(),
-          shareUrl,
-          vehicleInfo: `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim(),
-          senderName:
-            (profile?.full_name && profile.full_name.trim()) ||
-            currentUser?.email ||
-            "",
-        };
-
-        fetch("/api/share/vehicle/email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        })
-          .then(async (res) => {
-            if (!res.ok) {
-              const data = await res.json().catch(() => ({}));
-              throw new Error(data?.error || `Email failed (${res.status})`);
-            }
-            toast.push({
-              kind: "success",
-              title: "Email sent",
-              detail: `Shared with ${payload.recipientEmail}`,
-            });
-          })
-          .catch((error: any) => {
-            toast.push({
-              kind: "error",
-              title: "Email failed",
-              detail: error?.message || "Could not send email.",
-            });
-          });
-      }
+      setShareModalLink(shareUrl);
     } catch (error: any) {
+      setShareModalError(error?.message || "Could not create share link.");
       toast.push({
         kind: "error",
         title: "Could not share vehicle",
         detail: error?.message || "Please try again.",
       });
+    } finally {
+      setShareModalLoading(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareModalLink) return;
+    try {
+      await navigator.clipboard.writeText(shareModalLink);
+      toast.push({
+        kind: "success",
+        title: "Link copied",
+        detail: "Paste it anywhere to share.",
+      });
+    } catch {
+      const temp = document.createElement("textarea");
+      temp.value = shareModalLink;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand("copy");
+      document.body.removeChild(temp);
+      toast.push({
+        kind: "success",
+        title: "Link ready",
+        detail: "Copied to clipboard.",
+      });
+    }
+  };
+
+  const handleSendShareEmail = async () => {
+    if (!shareModalLink || !shareModalTarget) {
+      setShareModalError("Share link not ready yet.");
+      return;
+    }
+    if (!shareModalEmail.trim()) {
+      setShareModalError("Enter an email to send the link.");
+      return;
+    }
+
+    setShareModalError(null);
+    setShareEmailSending(true);
+
+    const payload = {
+      recipientEmail: shareModalEmail.trim(),
+      shareUrl: shareModalLink,
+      vehicleInfo: `${shareModalTarget.year || ""} ${shareModalTarget.make || ""} ${shareModalTarget.model || ""}`.trim(),
+      senderName:
+        (profile?.full_name && profile.full_name.trim()) ||
+        currentUser?.email ||
+        "",
+    };
+
+    try {
+      const res = await fetch("/api/share/vehicle/email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data?.error || `Email failed (${res.status})`);
+      }
+      toast.push({
+        kind: "success",
+        title: "Email sent",
+        detail: `Shared with ${payload.recipientEmail}`,
+      });
+      setShareModalEmail("");
+    } catch (error: any) {
+      setShareModalError(error?.message || "Could not send email.");
+      toast.push({
+        kind: "error",
+        title: "Email failed",
+        detail: error?.message || "Could not send email.",
+      });
+    } finally {
+      setShareEmailSending(false);
     }
   };
 
@@ -3294,6 +3269,7 @@ export const CalculatorApp: React.FC = () => {
                               <Button
                                 size="xs"
                                 variant="ghost"
+                                className="border border-white/10 bg-white/5 text-white/80 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10"
                                 onClick={() => handleShareVehicle(normalizedVehicle)}
                               >
                                 Share
@@ -3368,6 +3344,7 @@ export const CalculatorApp: React.FC = () => {
                             <Button
                               size="xs"
                               variant="ghost"
+                              className="border border-white/10 bg-white/5 text-white/80 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10"
                               onClick={() => handleShareVehicle(vehicle)}
                             >
                               Share
@@ -4578,6 +4555,113 @@ export const CalculatorApp: React.FC = () => {
         isOpen={showFeeTemplateModal}
         onClose={handleCloseFeeTemplateEditor}
       />
+
+      {/* Share Vehicle Modal */}
+      <Modal
+        isOpen={shareModalOpen}
+        onClose={() => {
+          setShareModalOpen(false);
+          setShareModalTarget(null);
+          setShareModalLink("");
+          setShareModalEmail("");
+          setShareModalError(null);
+          setShareModalLoading(false);
+          setShareEmailSending(false);
+        }}
+        title="Share Vehicle"
+        size="md"
+        isNested
+      >
+        <div className="p-6 space-y-4">
+          {shareModalTarget ? (
+            <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+              <p className="text-xs uppercase tracking-[0.15em] text-white/60 mb-1">
+                Vehicle
+              </p>
+              <p className="text-lg font-semibold text-white">
+                {`${shareModalTarget.year || ""} ${shareModalTarget.make || ""} ${shareModalTarget.model || ""}`.trim()}
+              </p>
+              {shareModalTarget.vin && (
+                <p className="text-xs text-white/50 font-mono uppercase mt-1">
+                  {shareModalTarget.vin}
+                </p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-white/80">Share link</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="flex-1">
+                <input
+                  value={shareModalLink || (shareModalLoading ? "Building link..." : "")}
+                  readOnly
+                  className="w-full rounded-lg bg-black/30 border border-white/10 text-white/80 px-3 py-2 text-sm"
+                />
+              </div>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleCopyShareLink}
+                disabled={!shareModalLink || shareModalLoading}
+                className="whitespace-nowrap"
+              >
+                Copy link
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-white/80">Send via email</p>
+            <Input
+              type="email"
+              placeholder="friend@example.com"
+              value={shareModalEmail}
+              onChange={(e) => setShareModalEmail(e.target.value)}
+              fullWidth
+            />
+          </div>
+
+          {shareModalError && (
+            <div className="text-sm text-red-300">{shareModalError}</div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-white/50">
+              {shareModalLoading
+                ? "Generating link..."
+                : "Copy or email the link to share this vehicle."}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setShareModalOpen(false);
+                  setShareModalTarget(null);
+                  setShareModalLink("");
+                  setShareModalEmail("");
+                  setShareModalError(null);
+                  setShareModalLoading(false);
+                  setShareEmailSending(false);
+                }}
+              >
+                Close
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSendShareEmail}
+                disabled={
+                  !shareModalLink || shareModalLoading || shareEmailSending
+                }
+              >
+                {shareEmailSending ? "Sending..." : "Send email"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       {/* User Profile Dropdown */}
       <UserProfileDropdown

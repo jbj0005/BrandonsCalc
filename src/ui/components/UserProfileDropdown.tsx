@@ -776,7 +776,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                               {onShareGarageVehicle && canManageVehicle && (
                                 <button
                                   onClick={() => onShareGarageVehicle(vehicle)}
-                                  className="p-1.5 text-white/50 hover:text-blue-200 hover:bg-blue-500/10 rounded transition-colors"
+                                  className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10 transition-colors"
                                   title="Share vehicle"
                                 >
                                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -919,7 +919,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                           {onShareSavedVehicle && (
                             <button
                               onClick={() => onShareSavedVehicle(vehicle)}
-                              className="p-1.5 text-white/50 hover:text-blue-200 hover:bg-blue-500/10 rounded transition-colors"
+                              className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-white/70 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10 transition-colors"
                               title="Share"
                             >
                               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
