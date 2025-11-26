@@ -58,15 +58,12 @@ const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
   ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
   : null;
 
-// SendGrid Configuration
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
-const EMAIL_FROM = process.env.EMAIL_FROM || "";
-if (SENDGRID_API_KEY) {
-  sgMail.setApiKey(SENDGRID_API_KEY);
-  console.log("[sendgrid] API key configured");
-} else {
-  console.warn("[sendgrid] API key not set; email functionality will be disabled");
-}
+// Mailtrap (sandbox) Configuration
+const MAILTRAP_TOKEN = process.env.MAILTRAP_TOKEN || "";
+const MAILTRAP_DEMO_TOKEN = process.env.MAILTRAP_DEMO_TOKEN || "";
+const USE_MAILTRAP = Boolean(MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN);
+const MAILTRAP_FROM =
+  process.env.MAILTRAP_FROM_EMAIL || process.env.EMAIL_FROM || "sandbox@mailtrap.io";
 
 let MARKETCHECK_API_KEY =
   (process.env.MARKETCHECK_API_KEY || process.env.MARKETCHECK_KEY || "").trim();
@@ -941,7 +938,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
 });
 
 /**
- * Send a single-vehicle share link via email (SendGrid)
+ * Send a single-vehicle share link via email (Mailtrap sandbox)
  */
 app.post("/api/share/vehicle/email", async (req, res) => {
   try {
@@ -960,11 +957,11 @@ app.post("/api/share/vehicle/email", async (req, res) => {
         .json({ error: "recipientEmail and shareUrl are required" });
     }
 
-    if (!SENDGRID_API_KEY || !EMAIL_FROM) {
-      console.warn("[share-email] SendGrid not configured");
+    if (!USE_MAILTRAP) {
+      console.warn("[share-email] Mailtrap not configured");
       return res.status(500).json({
         error: "Email service not configured",
-        detail: "SENDGRID_API_KEY and EMAIL_FROM must be set in .env",
+        detail: "MAILTRAP_TOKEN or MAILTRAP_DEMO_TOKEN must be set in .env",
       });
     }
 
@@ -1011,27 +1008,44 @@ ${listingUrl ? `Listing details & photos:\n${listingUrl}\n` : ""}
 ${photoUrl ? `Photo: ${photoUrl}\n` : ""}
     `.trim();
 
-    const msg = {
-      to: recipientEmail,
-      from: EMAIL_FROM,
-      subject,
-      text: textContent,
-      html: htmlContent,
-    };
-
     try {
-      await sgMail.send(msg);
-      console.log(`[share-email] Sent to ${recipientEmail}`);
+      const token = MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN;
+      const response = await fetch("https://send.api.mailtrap.io/api/send", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: {
+            email: MAILTRAP_FROM,
+            name: "Brandon's Calculator (Sandbox)",
+          },
+          to: [{ email: recipientEmail }],
+          subject,
+          text: textContent,
+          html: htmlContent,
+          category: "shared-vehicle",
+        }),
+      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        console.error("[share-email] Mailtrap error:", detail);
+        return res.status(500).json({
+          error: "Mailtrap failed",
+          detail,
+        });
+      }
+
+      console.log(`[share-email] Sent via Mailtrap to ${recipientEmail}`);
       return res.json({ ok: true });
     } catch (sendError) {
-      const sgDetail =
-        sendError?.response?.body?.errors?.[0]?.message ||
-        sendError?.message ||
-        "Unknown SendGrid error";
-      console.error("[share-email] SendGrid error:", sgDetail);
+      const detail = sendError?.message || "Unknown Mailtrap error";
+      console.error("[share-email] Mailtrap error:", detail);
       return res.status(500).json({
-        error: "SendGrid failed",
-        detail: sgDetail,
+        error: "Mailtrap failed",
+        detail,
       });
     }
   } catch (err) {
