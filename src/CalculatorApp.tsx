@@ -74,6 +74,7 @@ import {
   copyGarageVehicleToUser,
   acceptGarageInvite,
   getSharedGarageVehiclesByToken,
+  createGarageShareLink,
 } from "./lib/supabase";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
@@ -2671,6 +2672,75 @@ export const CalculatorApp: React.FC = () => {
     }
   };
 
+  // Share a single garage vehicle (per-link filter)
+  const handleShareGarageVehicle = async (vehicle: any) => {
+    if (!currentUser) {
+      toast.push({
+        kind: "info",
+        title: "Sign in required",
+        detail: "Sign in to share a vehicle.",
+      });
+      setAuthMode("signin");
+      setShowAuthModal(true);
+      return;
+    }
+
+    try {
+      const link = await createGarageShareLink({
+        garageOwnerId: currentUser.id,
+      });
+      if (!link?.token) {
+        throw new Error("Share link unavailable");
+      }
+
+      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const shareUrl = `${baseUrl}/share/${link.token}?vehicle=${vehicle.id}`;
+
+      // Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.push({
+          kind: "success",
+          title: "Share link copied",
+          detail: "Paste it anywhere to share this vehicle.",
+        });
+      } catch {
+        // Fallback: select text by creating a temporary input
+        const temp = document.createElement("textarea");
+        temp.value = shareUrl;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+        toast.push({
+          kind: "success",
+          title: "Share link ready",
+          detail: "Copied to clipboard. Paste it to share.",
+        });
+      }
+
+      // Optional email share via mailto
+      const email = window.prompt(
+        "Optional: enter an email to share via your mail app (leave blank to skip)"
+      );
+      if (email) {
+        const subject = encodeURIComponent("Check out this vehicle");
+        const body = encodeURIComponent(
+          `Hi,\n\nHere's a vehicle I want to share with you:\n${shareUrl}\n\nOpen the link to view it.`
+        );
+        window.location.href = `mailto:${encodeURIComponent(
+          email
+        )}?subject=${subject}&body=${body}`;
+      }
+    } catch (error: any) {
+      toast.push({
+        kind: "error",
+        title: "Could not share vehicle",
+        detail: error?.message || "Please try again.",
+      });
+    }
+  };
+
   // Handle toggle garage vehicle as trade-in
   const handleToggleGarageTradeIn = (vehicleId: string, isChecked: boolean) => {
     toggleTradeInVehicle(vehicleId, garageVehicles || []);
@@ -4415,6 +4485,7 @@ export const CalculatorApp: React.FC = () => {
           setVehicleToEdit(vehicle);
           setShowManageVehiclesModal(true);
         }}
+        onShareGarageVehicle={handleShareGarageVehicle}
         onEditSavedVehicle={(vehicle) => {
           setVehicleToEdit(vehicle);
           setShowManageVehiclesModal(true);

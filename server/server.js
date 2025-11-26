@@ -800,6 +800,10 @@ app.get("/api/config", async (req, res) => {
  */
 app.get("/api/share/:token/collections", async (req, res) => {
   const token = req.params.token;
+  const requestedVehicleIdRaw = req.query.vehicle;
+  const requestedVehicleId = Array.isArray(requestedVehicleIdRaw)
+    ? requestedVehicleIdRaw[0]
+    : requestedVehicleIdRaw;
 
   if (!token) {
     return res.status(400).json({ error: "Share token is required" });
@@ -826,6 +830,13 @@ app.get("/api/share/:token/collections", async (req, res) => {
       (garageVehicles && garageVehicles[0]?.garage_owner_id) ||
       (garageVehicles && garageVehicles[0]?.user_id) ||
       null;
+
+    let filteredGarageVehicles = garageVehicles || [];
+    if (requestedVehicleId) {
+      filteredGarageVehicles = filteredGarageVehicles.filter(
+        (v) => String(v.id) === String(requestedVehicleId)
+      );
+    }
 
     // If garage is empty, we still need the owner id (and to validate the link)
     if (!garageOwnerId) {
@@ -911,7 +922,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
     }
 
     return res.json({
-      garageVehicles: garageVehicles || [],
+      garageVehicles: filteredGarageVehicles,
       savedVehicles,
       garageOwnerId,
       token,
