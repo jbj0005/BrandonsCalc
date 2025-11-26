@@ -3529,6 +3529,7 @@ export const CalculatorApp: React.FC = () => {
                   onDeleteVehicle={(vehicle) => {
                     handleDeleteVehicle(vehicle as any);
                   }}
+                  onShareVehicle={(vehicle) => handleShareVehicle(vehicle as any)}
                   placeholder="Paste VIN or select from your garage..."
                 />
 
