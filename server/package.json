@@ -12,6 +12,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
     "node-cache": "^5.1.2",
+    "nodemailer": "^6.10.1",
     "twilio": "^5.10.6",
     "undici": "^6.22.0"
   }

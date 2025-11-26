@@ -8,6 +8,7 @@ import { dirname, join } from 'path';
 import twilio from 'twilio';
 import sgMail from '@sendgrid/mail';
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
 import {
   MARKETCHECK_ENDPOINTS,
   VIN_ENRICHMENT_ENDPOINTS,
@@ -58,12 +59,31 @@ const twilioClient = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN
   ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
   : null;
 
-// Mailtrap (sandbox) Configuration
+// Mailtrap Configuration
+const MAIL_MODE = process.env.MAIL_MODE || process.env.MAILTRAP_MODE || "sandbox"; // "sandbox" | "sending"
 const MAILTRAP_TOKEN = process.env.MAILTRAP_TOKEN || "";
 const MAILTRAP_DEMO_TOKEN = process.env.MAILTRAP_DEMO_TOKEN || "";
-const USE_MAILTRAP = Boolean(MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN);
 const MAILTRAP_FROM =
   process.env.MAILTRAP_FROM_EMAIL || process.env.EMAIL_FROM || "sandbox@mailtrap.io";
+const MAILTRAP_SMTP_USER = process.env.MAILTRAP_SMTP_USER || "";
+const MAILTRAP_SMTP_PASS = process.env.MAILTRAP_SMTP_PASS || "";
+const MAILTRAP_SMTP_HOST =
+  process.env.MAILTRAP_SMTP_HOST || "sandbox.smtp.mailtrap.io";
+const MAILTRAP_SMTP_PORT = Number(process.env.MAILTRAP_SMTP_PORT || 587);
+const USE_MAILTRAP = Boolean(
+  MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN || (MAILTRAP_SMTP_USER && MAILTRAP_SMTP_PASS)
+);
+const mailtrapTransporter =
+  MAIL_MODE === "sandbox" && MAILTRAP_SMTP_USER && MAILTRAP_SMTP_PASS
+    ? nodemailer.createTransport({
+        host: MAILTRAP_SMTP_HOST,
+        port: MAILTRAP_SMTP_PORT,
+        auth: {
+          user: MAILTRAP_SMTP_USER,
+          pass: MAILTRAP_SMTP_PASS,
+        },
+      })
+    : null;
 
 let MARKETCHECK_API_KEY =
   (process.env.MARKETCHECK_API_KEY || process.env.MARKETCHECK_KEY || "").trim();
@@ -938,7 +958,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
 });
 
 /**
- * Send a single-vehicle share link via email (Mailtrap sandbox)
+ * Send a single-vehicle share link via email (Mailtrap sandbox or sending)
  */
 app.post("/api/share/vehicle/email", async (req, res) => {
   try {
@@ -961,7 +981,8 @@ app.post("/api/share/vehicle/email", async (req, res) => {
       console.warn("[share-email] Mailtrap not configured");
       return res.status(500).json({
         error: "Email service not configured",
-        detail: "MAILTRAP_TOKEN or MAILTRAP_DEMO_TOKEN must be set in .env",
+        detail:
+          "MAILTRAP_TOKEN/MAILTRAP_DEMO_TOKEN or MAILTRAP_SMTP_USER/PASS must be set in .env",
       });
     }
 
@@ -1009,37 +1030,52 @@ ${photoUrl ? `Photo: ${photoUrl}\n` : ""}
     `.trim();
 
     try {
-      const token = MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN;
-      const response = await fetch("https://send.api.mailtrap.io/api/send", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: {
-            email: MAILTRAP_FROM,
-            name: "Brandon's Calculator (Sandbox)",
-          },
-          to: [{ email: recipientEmail }],
+      if (MAIL_MODE === "sandbox") {
+        if (!mailtrapTransporter) {
+          throw new Error("Mailtrap sandbox SMTP not configured");
+        }
+        const info = await mailtrapTransporter.sendMail({
+          from: MAILTRAP_FROM,
+          to: recipientEmail,
           subject,
           text: textContent,
           html: htmlContent,
-          category: "shared-vehicle",
-        }),
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        console.error("[share-email] Mailtrap error:", detail);
-        return res.status(500).json({
-          error: "Mailtrap failed",
-          detail,
         });
-      }
+        console.log(`[share-email] Sent via Mailtrap sandbox to ${recipientEmail}`, info?.messageId || "");
+        return res.json({ ok: true });
+      } else {
+        const token = MAILTRAP_TOKEN || MAILTRAP_DEMO_TOKEN;
+        const response = await fetch("https://send.api.mailtrap.io/api/send", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            from: {
+              email: MAILTRAP_FROM,
+              name: "Brandon's Calculator",
+            },
+            to: [{ email: recipientEmail }],
+            subject,
+            text: textContent,
+            html: htmlContent,
+            category: "shared-vehicle",
+          }),
+        });
 
-      console.log(`[share-email] Sent via Mailtrap to ${recipientEmail}`);
-      return res.json({ ok: true });
+        if (!response.ok) {
+          const detail = await response.text();
+          console.error("[share-email] Mailtrap sending error:", detail);
+          return res.status(500).json({
+            error: "Mailtrap failed",
+            detail,
+          });
+        }
+
+        console.log(`[share-email] Sent via Mailtrap sending to ${recipientEmail}`);
+        return res.json({ ok: true });
+      }
     } catch (sendError) {
       const detail = sendError?.message || "Unknown Mailtrap error";
       console.error("[share-email] Mailtrap error:", detail);
