@@ -888,19 +888,30 @@ export const CalculatorApp: React.FC = () => {
     const stateCode = (profile.state_code || "").trim();
     const zip = (profile.zip_code || "").trim();
 
-    const streetLower = street.toLowerCase();
-    const needsCity = city && !streetLower.includes(city.toLowerCase());
-    const needsState = stateCode && !streetLower.includes(stateCode.toLowerCase());
-    const needsZip = zip && !streetLower.includes(zip);
+    // If street looks like a complete Google formatted address (contains "USA" or has 3+ commas),
+    // use it directly without appending city/state/zip to avoid duplication
+    const isCompleteAddress = street.includes("USA") || (street.match(/,/g) || []).length >= 3;
 
-    const trailingParts: string[] = [];
-    if (needsCity) trailingParts.push(city);
-    if (needsState) trailingParts.push(stateCode);
-    if (needsZip) trailingParts.push(zip);
+    let addressString: string;
+    if (isCompleteAddress) {
+      // Street already contains full formatted address from Google Places
+      addressString = street;
+    } else {
+      // Need to build address from parts
+      const streetLower = street.toLowerCase();
+      const needsCity = city && !streetLower.includes(city.toLowerCase());
+      const needsState = stateCode && !streetLower.includes(stateCode.toLowerCase());
+      const needsZip = zip && !streetLower.includes(zip);
 
-    const addressString =
-      [street, trailingParts.join(", ")].filter(Boolean).join(", ").replace(/,\s*,+/g, ", ").trim() ||
-      [city, stateCode, zip].filter(Boolean).join(", ");
+      const trailingParts: string[] = [];
+      if (needsCity) trailingParts.push(city);
+      if (needsState) trailingParts.push(stateCode);
+      if (needsZip) trailingParts.push(zip);
+
+      addressString =
+        [street, trailingParts.join(", ")].filter(Boolean).join(", ").replace(/,\s*,+/g, ", ").trim() ||
+        [city, stateCode, zip].filter(Boolean).join(", ");
+    }
 
     if (!addressString) return;
 

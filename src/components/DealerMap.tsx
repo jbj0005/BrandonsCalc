@@ -295,7 +295,8 @@ export const DealerMap: React.FC<DealerMapProps> = ({
 
   // Show route from user location to dealer
   useEffect(() => {
-    if (!map || !isLoaded || !showRoute || !userLocation) {
+    // Require valid user location with non-zero lat/lng for routing
+    if (!map || !isLoaded || !showRoute || !userLocation || !userLocation.lat || !userLocation.lng) {
       return;
     }
 
