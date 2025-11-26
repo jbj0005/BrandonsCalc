@@ -945,7 +945,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
  */
 app.post("/api/share/vehicle/email", async (req, res) => {
   try {
-    const { recipientEmail, shareUrl, vehicleInfo, senderName } = req.body;
+    const { recipientEmail, shareUrl, vehicleInfo, senderName, listingUrl } = req.body;
 
     if (!recipientEmail || !shareUrl) {
       return res
@@ -980,6 +980,14 @@ app.post("/api/share/vehicle/email", async (req, res) => {
         </p>
         <p style="color: #555; font-size: 13px;">If the button doesn't work, copy and paste this link:</p>
         <p style="color: #2563eb; font-size: 13px; word-break: break-all;">${shareUrl}</p>
+        ${
+          listingUrl
+            ? `<div style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+                <p style="color: #444; margin: 0 0 6px 0; font-weight: 600;">Listing details & photos</p>
+                <p style="color: #2563eb; font-size: 13px; word-break: break-all;">${listingUrl}</p>
+              </div>`
+            : ""
+        }
       </div>
     `;
 
@@ -988,6 +996,8 @@ ${greeting}
 
 ${vehicleInfo ? vehicleInfo + "\n\n" : ""}Open the shared vehicle here:
 ${shareUrl}
+
+${listingUrl ? `Listing details & photos:\n${listingUrl}\n` : ""}
     `.trim();
 
     const msg = {

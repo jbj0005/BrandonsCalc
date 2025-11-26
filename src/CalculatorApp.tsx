@@ -375,6 +375,7 @@ export const CalculatorApp: React.FC = () => {
   const [shareModalTarget, setShareModalTarget] = useState<any | null>(null);
   const [shareModalLink, setShareModalLink] = useState<string>("");
   const [shareModalEmail, setShareModalEmail] = useState<string>("");
+  const [shareModalListingUrl, setShareModalListingUrl] = useState<string>("");
   const [shareModalLoading, setShareModalLoading] = useState(false);
   const [shareEmailSending, setShareEmailSending] = useState(false);
   const [shareModalError, setShareModalError] = useState<string | null>(null);
@@ -2699,6 +2700,7 @@ export const CalculatorApp: React.FC = () => {
     setShareModalEmail("");
     setShareModalError(null);
     setShareModalLink("");
+    setShareModalListingUrl(vehicle?.listing_url || "");
     setShareModalLoading(true);
     setShareModalOpen(true);
 
@@ -2780,6 +2782,7 @@ export const CalculatorApp: React.FC = () => {
         (profile?.full_name && profile.full_name.trim()) ||
         currentUser?.email ||
         "",
+      listingUrl: shareModalListingUrl || "",
     };
 
     try {
@@ -4564,6 +4567,7 @@ export const CalculatorApp: React.FC = () => {
           setShareModalTarget(null);
           setShareModalLink("");
           setShareModalEmail("");
+          setShareModalListingUrl("");
           setShareModalError(null);
           setShareModalLoading(false);
           setShareEmailSending(false);
@@ -4611,6 +4615,50 @@ export const CalculatorApp: React.FC = () => {
             </div>
           </div>
 
+          {shareModalListingUrl && (
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-white/80">Listing URL (details & photos)</p>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1">
+                  <input
+                    value={shareModalListingUrl}
+                    readOnly
+                    className="w-full rounded-lg bg-black/30 border border-white/10 text-white/80 px-3 py-2 text-sm"
+                  />
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(shareModalListingUrl);
+                      toast.push({
+                        kind: "success",
+                        title: "Listing URL copied",
+                        detail: "Paste it anywhere to share full details.",
+                      });
+                    } catch {
+                      const temp = document.createElement("textarea");
+                      temp.value = shareModalListingUrl;
+                      document.body.appendChild(temp);
+                      temp.select();
+                      document.execCommand("copy");
+                      document.body.removeChild(temp);
+                      toast.push({
+                        kind: "success",
+                        title: "Listing URL ready",
+                        detail: "Copied to clipboard.",
+                      });
+                    }
+                  }}
+                  className="whitespace-nowrap"
+                >
+                  Copy listing
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="space-y-2">
             <p className="text-sm font-medium text-white/80">Send via email</p>
             <Input
@@ -4637,15 +4685,16 @@ export const CalculatorApp: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  setShareModalOpen(false);
-                  setShareModalTarget(null);
-                  setShareModalLink("");
-                  setShareModalEmail("");
-                  setShareModalError(null);
-                  setShareModalLoading(false);
-                  setShareEmailSending(false);
-                }}
-              >
+          setShareModalOpen(false);
+          setShareModalTarget(null);
+          setShareModalLink("");
+          setShareModalEmail("");
+          setShareModalListingUrl("");
+          setShareModalError(null);
+          setShareModalLoading(false);
+          setShareEmailSending(false);
+        }}
+      >
                 Close
               </Button>
               <Button
