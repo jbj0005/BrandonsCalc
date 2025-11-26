@@ -175,8 +175,11 @@ export const CalculatorApp: React.FC = () => {
 
   // Saved Vehicles State (marketplace vehicles from 'vehicles' table)
   const [savedVehicles, setSavedVehicles] = useState<any[]>([]);
+  // Shared Vehicles imported from tokens
+  const [sharedImportedVehicles, setSharedImportedVehicles] = useState<any[]>([]);
   const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
   const [isLoadingSavedVehicles, setIsLoadingSavedVehicles] = useState(false);
+  const [isLoadingSharedImported, setIsLoadingSharedImported] = useState(false);
   const [showManageVehiclesModal, setShowManageVehiclesModal] = useState(false);
   const [vehicleToEdit, setVehicleToEdit] = useState<any>(null);
 
@@ -391,6 +394,7 @@ export const CalculatorApp: React.FC = () => {
     (import.meta.env.BASE_URL || "/")
       .replace(/\/+$/, "")
       .replace(/^\s*$/, "");
+  const lastImportedShareRef = useRef<string | null>(null);
 
   // APR Confirmation Modal State
   const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
@@ -1145,6 +1149,7 @@ export const CalculatorApp: React.FC = () => {
     const loadSavedVehicles = async () => {
       if (!currentUser) {
         setSavedVehicles([]);
+        setSharedImportedVehicles([]);
         return;
       }
 
@@ -1175,6 +1180,27 @@ export const CalculatorApp: React.FC = () => {
     };
     loadSavedVehicles();
   }, [currentUser, ensureSavedVehiclesCacheReady]);
+
+  // Load shared imported vehicles for current user
+  useEffect(() => {
+    if (!currentUser || !supabase) {
+      setSharedImportedVehicles([]);
+      return;
+    }
+
+    setIsLoadingSharedImported(true);
+    supabase
+      .from("shared_vehicles")
+      .select("*")
+      .eq("user_id", currentUser.id)
+      .order("inserted_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (!error) {
+          setSharedImportedVehicles(data || []);
+        }
+      })
+      .finally(() => setIsLoadingSharedImported(false));
+  }, [currentUser, supabase]);
 
   // Load garage vehicles on mount and when user changes
   useEffect(() => {
@@ -1247,6 +1273,178 @@ export const CalculatorApp: React.FC = () => {
 
     return () => controller.abort();
   }, [shareToken]);
+
+  // Auto-import shared vehicles into My Shared Vehicles for signed-in users
+  useEffect(() => {
+    const shouldImport =
+      shareToken &&
+      currentUser &&
+      !isLoadingSharedGarage &&
+      !sharedGarageError &&
+      (sharedGarageVehicles.length > 0 || sharedSavedVehicles.length > 0);
+    if (!shouldImport) return;
+
+    const importKey = `${currentUser.id}:${shareToken}`;
+    if (lastImportedShareRef.current === importKey) return;
+
+    const runImport = async () => {
+      try {
+        const vehiclesToImport = [
+          ...sharedGarageVehicles.map((v) => ({
+            ...normalizeDealerData(v),
+            source_type: "garage" as const,
+            shared_from_vehicle_id: v.id,
+            shared_from_owner_id: v.garage_owner_id || v.user_id || null,
+          })),
+          ...sharedSavedVehicles.map((v) => ({
+            ...normalizeDealerData(v),
+            source_type: "saved" as const,
+            shared_from_vehicle_id: v.id,
+            shared_from_owner_id: v.user_id || null,
+          })),
+        ];
+
+        const uniqueByVin = new Map<string, any>();
+        vehiclesToImport.forEach((v) => {
+          if (v.vin) {
+            uniqueByVin.set(v.vin, v);
+          }
+        });
+        const importList =
+          uniqueByVin.size > 0 ? Array.from(uniqueByVin.values()) : vehiclesToImport;
+
+        // Fetch existing VINs across garage, saved, and shared to dedupe
+        const [garageVins, savedVins, sharedVins] = await Promise.all([
+          supabase
+            .from("garage_vehicles")
+            .select("vin")
+            .eq("user_id", currentUser.id),
+          supabase.from("vehicles").select("vin").eq("user_id", currentUser.id),
+          supabase
+            .from("shared_vehicles")
+            .select("vin, shared_from_vehicle_id")
+            .eq("user_id", currentUser.id),
+        ]);
+
+        const existingVins = new Set<string>();
+        [garageVins?.data, savedVins?.data, sharedVins?.data].forEach((rows) => {
+          rows?.forEach((r: any) => {
+            if (r?.vin) existingVins.add(r.vin);
+          });
+        });
+        const existingSharedIds = new Set<string>(
+          (sharedVins?.data || [])
+            .map((r: any) => r.shared_from_vehicle_id)
+            .filter(Boolean)
+        );
+
+        const toInsert = importList.filter((v) => {
+          if (v.shared_from_vehicle_id && existingSharedIds.has(v.shared_from_vehicle_id)) {
+            return false;
+          }
+          if (v.vin && existingVins.has(v.vin)) {
+            return false;
+          }
+          return true;
+        });
+
+        if (toInsert.length === 0) {
+          toast.push({
+            kind: "info",
+            title: "Already in your account",
+            detail: "This shared vehicle already exists in your library.",
+          });
+          lastImportedShareRef.current = importKey;
+          return;
+        }
+
+        // Optional: attempt to hydrate via MarketCheck when VIN present
+        const hydrated = await Promise.all(
+          toInsert.map(async (v) => {
+            if (!v.vin) return v;
+            try {
+              const resp = await fetch(`/api/mc/by-vin/${encodeURIComponent(v.vin)}`);
+              if (!resp.ok) return v;
+              const data = await resp.json();
+              return {
+                ...v,
+                photo_url: v.photo_url || data?.summary?.photo_url || data?.photo_url,
+                listing_url: v.listing_url || data?.mc_listing_url || data?.listing_url,
+                dealer_name: v.dealer_name || data?.dealer?.name,
+                dealer_city: v.dealer_city || data?.dealer?.city,
+                dealer_state: v.dealer_state || data?.dealer?.state,
+              };
+            } catch {
+              return v;
+            }
+          })
+        );
+
+        const payload = hydrated.map((v) => ({
+          user_id: currentUser.id,
+          shared_from_owner_id: v.shared_from_owner_id || null,
+          shared_from_vehicle_id: v.shared_from_vehicle_id || null,
+          share_token: shareToken,
+          source_type: v.source_type || "garage",
+          vehicle: v.vehicle || null,
+          year: v.year || null,
+          make: v.make || null,
+          model: v.model || null,
+          asking_price: v.asking_price || v.estimated_value || null,
+          mileage: v.mileage || null,
+          trim: v.trim || null,
+          dealer_name: v.dealer_name || null,
+          dealer_street: v.dealer_street || v.dealer_address || null,
+          dealer_city: v.dealer_city || null,
+          dealer_state: v.dealer_state || null,
+          dealer_zip: v.dealer_zip || null,
+          dealer_phone: v.dealer_phone || null,
+          dealer_lat: v.dealer_lat || null,
+          dealer_lng: v.dealer_lng || null,
+          listing_id: v.listing_id || null,
+          listing_source: v.listing_source || null,
+          listing_url: v.listing_url || null,
+          vin: v.vin || null,
+          heading: v.heading || null,
+          photo_url: v.photo_url || null,
+          marketcheck_payload: v.marketcheck_payload || null,
+          condition: v.condition || null,
+          dealer_stock: v.dealer_stock || null,
+        }));
+
+        const { error: insertError } = await supabase
+          .from("shared_vehicles")
+          .upsert(payload, { onConflict: "user_id,shared_from_vehicle_id" });
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        lastImportedShareRef.current = importKey;
+        toast.push({
+          kind: "success",
+          title: "Shared vehicle added",
+          detail: `${payload.length} vehicle(s) imported to My Shared Vehicles.`,
+        });
+      } catch (error: any) {
+        toast.push({
+          kind: "error",
+          title: "Shared vehicle not imported",
+          detail: error?.message || "Try again after signing in.",
+        });
+      }
+    };
+
+    runImport();
+  }, [
+    shareToken,
+    currentUser,
+    isLoadingSharedGarage,
+    sharedGarageError,
+    sharedGarageVehicles,
+    sharedSavedVehicles,
+    toast,
+  ]);
 
   // Accept invite token (if provided in URL) once user is signed in
   useEffect(() => {
@@ -1676,6 +1874,7 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const filteredSavedVehicles = savedVehicles;
+  const filteredSharedImportedVehicles = sharedImportedVehicles;
   const normalizedSharedGarageVehicles = useMemo(
     () =>
       sharedGarageVehicles.map((v) => ({
@@ -3237,15 +3436,15 @@ export const CalculatorApp: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-3">
         {shareToken && (
-          <div className="mb-4 p-4 rounded-2xl border border-blue-400/30 bg-blue-500/10 shadow-lg shadow-blue-500/10">
+          <div className="mb-4 p-4 rounded-2xl border border-emerald-400/20 bg-slate-950/70 shadow-lg shadow-emerald-500/10">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <p className="text-sm font-semibold text-blue-100">
+                <p className="text-sm font-semibold text-emerald-100">
                   Viewing a shared garage & saved vehicles
                 </p>
-                <p className="text-xs text-blue-100/80">
+                <p className="text-xs text-white/70">
                   {sharedGarageError
-                    ? sharedGarageError
+                    ? "Could not load shared vehicles. Try again or sign in."
                     : isLoadingSharedGarage
                     ? "Loading shared vehicles..."
                     : `${sharedGarageVehicles.length} garage vehicle(s) • ${sharedSavedVehicles.length} saved vehicle(s) available from this link.`}
@@ -3522,12 +3721,18 @@ export const CalculatorApp: React.FC = () => {
                     ...normalizeDealerData(v),
                     source: "saved" as const,
                   }))}
+                  sharedVehicles={filteredSharedImportedVehicles.map((v) => ({
+                    ...normalizeDealerData(v),
+                    source: "shared" as const,
+                  }))}
                   isLoadingVehicles={
-                    isLoadingSavedVehicles || isLoadingGarageVehicles
+                    isLoadingSavedVehicles || isLoadingGarageVehicles || isLoadingSharedImported
                   }
                   onSelectVehicle={(vehicle) => {
                     if (vehicle.source === "garage") {
                       handleSelectGarageVehicle(vehicle as any);
+                    } else if (vehicle.source === "shared") {
+                      handleSelectSharedSavedVehicle(vehicle as any);
                     } else {
                       handleSelectSavedVehicle(vehicle as any);
                     }

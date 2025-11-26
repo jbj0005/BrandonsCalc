@@ -38,6 +38,7 @@ export interface VINSearchPremiumProps {
   hasSelectedVehicle?: boolean;
   garageVehicles?: VehicleOption[];
   savedVehicles?: VehicleOption[];
+  sharedVehicles?: VehicleOption[];
   isLoadingVehicles?: boolean;
   onSelectVehicle?: (vehicle: VehicleOption) => void;
   onEditVehicle?: (vehicle: VehicleOption) => void;
@@ -55,6 +56,7 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
   hasSelectedVehicle = false,
   garageVehicles = [],
   savedVehicles = [],
+  sharedVehicles = [],
   isLoadingVehicles = false,
   onSelectVehicle,
   onEditVehicle,
@@ -72,6 +74,9 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
     `${v.year} ${v.make} ${v.model} ${v.trim} ${v.vin}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
   const filteredSaved = savedVehicles.filter(v =>
+    `${v.year} ${v.make} ${v.model} ${v.trim} ${v.vin}`.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+  const filteredShared = sharedVehicles.filter(v =>
     `${v.year} ${v.make} ${v.model} ${v.trim} ${v.vin}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -243,7 +248,7 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                   {isLoadingVehicles ? (
                     'Loading...'
                   ) : (
-                    `${filteredGarage.length + filteredSaved.length} vehicle${filteredGarage.length + filteredSaved.length === 1 ? '' : 's'} found`
+                    `${filteredGarage.length + filteredSaved.length + filteredShared.length} vehicle${filteredGarage.length + filteredSaved.length + filteredShared.length === 1 ? '' : 's'} found`
                   )}
                 </span>
                 <button
@@ -300,18 +305,40 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                             </span>
                           </div>
                         </div>
-                        {filteredSaved.map((vehicle) => (
-                          <VehicleListItem
-                            key={vehicle.id}
-                            vehicle={vehicle}
-                            onSelect={() => handleSelectVehicle(vehicle)}
-                            onEdit={onEditVehicle ? () => onEditVehicle(vehicle) : undefined}
-                            onDelete={onDeleteVehicle ? () => onDeleteVehicle(vehicle) : undefined}
-                            onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
-                          />
-                        ))}
+                    {filteredSaved.map((vehicle) => (
+                      <VehicleListItem
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        onSelect={() => handleSelectVehicle(vehicle)}
+                        onEdit={onEditVehicle ? () => onEditVehicle(vehicle) : undefined}
+                        onDelete={onDeleteVehicle ? () => onDeleteVehicle(vehicle) : undefined}
+                        onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Shared Vehicles Section */}
+                {filteredShared.length > 0 && (
+                  <div>
+                    <div className="sticky top-0 px-4 py-2 bg-gradient-to-r from-emerald-900 to-slate-950 border-b border-emerald-300/30">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-4 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
+                        <span className="text-xs uppercase tracking-[0.2em] text-emerald-200 font-semibold">
+                          My Shared Vehicles
+                        </span>
                       </div>
-                    )}
+                    </div>
+                    {filteredShared.map((vehicle) => (
+                      <VehicleListItem
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        onSelect={() => handleSelectVehicle(vehicle)}
+                        onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
 
                     {filteredGarage.length === 0 && filteredSaved.length === 0 && (
                       <div className="p-8 text-center text-white/30">
