@@ -15,19 +15,13 @@ import { Button } from './Button';
 import { Badge } from './Badge';
 import { Switch } from './Switch';
 import { ProfileData } from '../../services/ProfileService';
-import type { GarageVehicle, GarageShareLink } from '../../types';
+import type { GarageVehicle } from '../../types';
 import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
 import { useCalculatorStore } from '../../stores/calculatorStore';
 import { useToast } from './Toast';
-import {
-  createGarageShareLink,
-  listGarageShareLinks,
-  createGarageInvite,
-  revokeGarageShareLink,
-  sendGarageInviteEmail,
-} from '../../lib/supabase';
 import { LocationSearchPremium } from './LocationSearchPremium';
+import { GarageSharingModal } from './GarageSharingModal';
 
 export interface UserProfileDropdownProps {
   isOpen: boolean;
@@ -98,14 +92,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const toast = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [activeUserId, setActiveUserId] = useState<string | null>(currentUserId ?? null);
-  const [shareLinks, setShareLinks] = useState<GarageShareLink[]>([]);
-  const [latestShareUrl, setLatestShareUrl] = useState<string | null>(null);
-  const [latestShareToken, setLatestShareToken] = useState<string | null>(null);
-  const [isLoadingShareLinks, setIsLoadingShareLinks] = useState(false);
-  const [isCreatingShareLink, setIsCreatingShareLink] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'viewer' | 'manager'>('viewer');
-  const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [showSharingModal, setShowSharingModal] = useState(false);
 
   // Store onUpdateField in a ref to avoid effect re-runs
   const onUpdateFieldRef = useRef(onUpdateField);
@@ -118,32 +105,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     setActiveUserId(currentUserId ?? null);
   }, [currentUserId]);
 
-  // Load share links when viewing garage
-  useEffect(() => {
-    const loadShareLinks = async () => {
-      if (!isOpen || activeSection !== 'garage' || !activeUserId) return;
-      setIsLoadingShareLinks(true);
-      try {
-        const links = await listGarageShareLinks(activeUserId);
-        setShareLinks(links || []);
-      } catch (error: any) {
-        toast.push({
-          kind: 'error',
-          title: 'Unable to load share links',
-          detail: error?.message || 'Please try again',
-        });
-      } finally {
-        setIsLoadingShareLinks(false);
-      }
-    };
-    loadShareLinks();
-  }, [activeSection, activeUserId, isOpen, toast]);
-
   // Close on outside click
   useEffect(() => {
     if (!isOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      // Keep dropdown open while nested share modal is shown
+      if (showSharingModal) return;
+
       const target = event.target as HTMLElement | null;
 
       // If the click originated from the Google Places suggestions dropdown (which
@@ -163,7 +132,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, showSharingModal]);
 
   // Close on ESC key
   useEffect(() => {
@@ -171,13 +140,14 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
     const handleEsc = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (showSharingModal) return;
         onClose();
       }
     };
 
     document.addEventListener('keydown', handleEsc);
     return () => document.removeEventListener('keydown', handleEsc);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, showSharingModal]);
 
   const handleSaveProfile = async () => {
     if (!profile || isSaving) return;
@@ -229,136 +199,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     const cleaned = value.replace(/[^0-9.]/g, '');
     return parseFloat(cleaned) || 0;
   };
-
-  const buildShareUrl = useCallback((token: string) => {
-    if (typeof window === 'undefined') return token;
-    return `${window.location.origin}/share/${token}`;
-  }, []);
-
-  const handleCreateShareLink = useCallback(async () => {
-    if (!activeUserId) {
-      toast.push({
-        kind: 'info',
-        title: 'Sign in required',
-        detail: 'Sign in to create a shareable link.',
-      });
-      return;
-    }
-    try {
-      setIsCreatingShareLink(true);
-      const link = await createGarageShareLink({
-        garageOwnerId: activeUserId,
-      });
-      if (link) {
-        const url = buildShareUrl(link.token);
-        setLatestShareUrl(url);
-        setLatestShareToken(link.token);
-        setShareLinks((prev) => [link, ...(prev || []).filter((l) => l.id !== link.id)]);
-        toast.push({
-          kind: 'success',
-          title: 'Share link created',
-          detail: 'Copy the link to share your garage.',
-        });
-      }
-    } catch (error: any) {
-      toast.push({
-        kind: 'error',
-        title: 'Could not create link',
-        detail: error?.message || 'Please try again.',
-      });
-    } finally {
-      setIsCreatingShareLink(false);
-    }
-  }, [activeUserId, buildShareUrl, toast]);
-
-  const handleCopyShareUrl = useCallback(async (token: string) => {
-    const url = buildShareUrl(token);
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.push({ kind: 'success', title: 'Link copied', detail: 'Send this to anyone to view your garage.' });
-    } catch (error) {
-      toast.push({ kind: 'error', title: 'Could not copy link', detail: url });
-    }
-  }, [buildShareUrl, toast]);
-
-  const handleRevokeShareLink = useCallback(async (linkId: string) => {
-    try {
-      await revokeGarageShareLink(linkId);
-      setShareLinks((prev) => (prev || []).filter((link) => link.id !== linkId));
-      toast.push({ kind: 'success', title: 'Link revoked' });
-    } catch (error: any) {
-      toast.push({
-        kind: 'error',
-        title: 'Could not revoke link',
-        detail: error?.message || 'Please try again.',
-      });
-    }
-  }, [toast]);
-
-  const handleCreateInvite = useCallback(async () => {
-    if (!activeUserId) {
-      toast.push({
-        kind: 'info',
-        title: 'Sign in required',
-        detail: 'Sign in to invite someone to your garage.',
-      });
-      return;
-    }
-    if (!inviteEmail) {
-      toast.push({ kind: 'info', title: 'Add an email', detail: 'Enter an email to send an invite.' });
-      return;
-    }
-    try {
-      setIsSendingInvite(true);
-      const invite = await createGarageInvite({
-        garageOwnerId: activeUserId,
-        email: inviteEmail,
-        role: inviteRole,
-        expiresAt: null,
-        invitedBy: activeUserId,
-      });
-      if (invite) {
-        if (invite.token) {
-          try {
-            await sendGarageInviteEmail({
-              email: invite.email,
-              token: invite.token,
-              role: inviteRole,
-              garageOwnerId: activeUserId,
-              invitedBy: activeUserId,
-              appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
-            });
-            toast.push({
-              kind: 'success',
-              title: 'Invite sent',
-              detail: `Invitation emailed to ${invite.email}`,
-            });
-          } catch (sendError: any) {
-            toast.push({
-              kind: 'warning',
-              title: 'Invite created (email not sent)',
-              detail: `Share this code with ${invite.email}: ${invite.token}`,
-            });
-          }
-        } else {
-          toast.push({
-            kind: 'success',
-            title: 'Invite created',
-            detail: `Share this code with ${invite.email}: ${invite.token}`,
-          });
-        }
-        setInviteEmail('');
-      }
-    } catch (error: any) {
-      toast.push({
-        kind: 'error',
-        title: 'Could not send invite',
-        detail: error?.message || 'Please try again.',
-      });
-    } finally {
-      setIsSendingInvite(false);
-    }
-  }, [activeUserId, inviteEmail, inviteRole, toast]);
 
   if (!isOpen) return null;
 
@@ -769,119 +609,22 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 Back
               </button>
 
-              <h4 className="text-lg font-semibold text-white">My Garage</h4>
-
-              {activeUserId && (
-                <div className="p-3 border border-emerald-400/30 rounded-lg bg-emerald-500/5 space-y-3">
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-semibold text-emerald-100">Share your garage</p>
-                      <p className="text-xs text-emerald-50/70">
-                        Generate a view-only link or invite someone to help manage vehicles.
-                      </p>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={handleCreateShareLink}
-                      loading={isCreatingShareLink}
-                      className="whitespace-nowrap"
-                    >
-                      Generate link
-                    </Button>
-                  </div>
-
-                  {latestShareUrl && latestShareToken && (
-                    <div className="flex items-center gap-2 text-xs bg-black/30 border border-white/10 rounded-lg px-3 py-2">
-                      <span className="truncate">{latestShareUrl}</span>
-                      <button
-                        onClick={() => handleCopyShareUrl(latestShareToken)}
-                        className="px-2 py-1 text-emerald-200 hover:text-emerald-100 hover:bg-emerald-500/10 rounded border border-emerald-400/40"
-                      >
-                        Copy
-                      </button>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 sm:grid-cols-[2fr,1fr,auto] gap-2">
-                    <Input
-                      label="Invite by email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="friend@example.com"
-                      fullWidth
-                    />
-                    <div className="space-y-1">
-                      <label className="text-xs text-white/60">Role</label>
-                      <select
-                        value={inviteRole}
-                        onChange={(e) => setInviteRole(e.target.value as 'viewer' | 'manager')}
-                        className="w-full rounded-lg border border-white/15 bg-black/30 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-                      >
-                        <option value="viewer">Viewer (read-only)</option>
-                        <option value="manager">Manager (add/update)</option>
-                      </select>
-                    </div>
-                    <div className="flex items-end">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={handleCreateInvite}
-                        loading={isSendingInvite}
-                        disabled={!inviteEmail}
-                        fullWidth
-                      >
-                        Send invite
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {isLoadingShareLinks ? (
-                      <p className="text-xs text-white/60">Loading share links...</p>
-                    ) : (
-                      <>
-                        {shareLinks.filter((l) => !l.revoked_at).length === 0 ? (
-                          <p className="text-xs text-white/60">No active links yet.</p>
-                        ) : (
-                          shareLinks
-                            .filter((l) => !l.revoked_at)
-                            .slice(0, 3)
-                            .map((link) => (
-                              <div
-                                key={link.id}
-                                className="flex items-start sm:items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-lg px-3 py-2"
-                              >
-                                <div className="min-w-0">
-                                  <p className="text-xs font-medium text-white truncate">{buildShareUrl(link.token)}</p>
-                                  <p className="text-[11px] text-white/60 mt-0.5">
-                                    {link.expires_at ? `Expires ${new Date(link.expires_at).toLocaleDateString()}` : 'No expiry'} ·
-                                    Views {link.current_views ?? 0}
-                                    {link.max_views ? ` / ${link.max_views}` : ''}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-2 flex-shrink-0">
-                                  <button
-                                    onClick={() => handleCopyShareUrl(link.token)}
-                                    className="text-xs px-2 py-1 rounded border border-white/20 text-white hover:bg-white/10"
-                                  >
-                                    Copy
-                                  </button>
-                                  <button
-                                    onClick={() => handleRevokeShareLink(link.id)}
-                                    className="text-xs px-2 py-1 rounded border border-red-300/40 text-red-100 hover:bg-red-500/10"
-                                  >
-                                    Revoke
-                                  </button>
-                                </div>
-                              </div>
-                            ))
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-lg font-semibold text-white">My Garage</h4>
+                {activeUserId && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setShowSharingModal(true)}
+                    className="flex items-center gap-1.5"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                    </svg>
+                    Share
+                  </Button>
+                )}
+              </div>
 
               {garageVehicles.length === 0 ? (
                 <div className="text-center py-8 text-white/60">
@@ -1164,6 +907,15 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
           )}
         </div>
       </div>
+
+      {/* Garage Sharing Modal */}
+      {activeUserId && (
+        <GarageSharingModal
+          isOpen={showSharingModal}
+          onClose={() => setShowSharingModal(false)}
+          userId={activeUserId}
+        />
+      )}
     </>
   );
 };

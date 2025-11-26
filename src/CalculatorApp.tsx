@@ -2939,7 +2939,13 @@ export const CalculatorApp: React.FC = () => {
             Brandon's Calculator
           </h1>
           <button
-            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+            onClick={() => {
+              if (currentUser) {
+                setShowProfileDropdown(!showProfileDropdown);
+              } else {
+                setShowAuthModal(true);
+              }
+            }}
             className="flex items-center gap-2 px-4 py-2 rounded-full bg-gray-800 hover:bg-gray-700 transition-colors text-white text-sm font-medium"
           >
             <svg

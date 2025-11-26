@@ -138,6 +138,9 @@ export type { PositiveEquityModalProps } from './PositiveEquityModal';
 export { UserProfileDropdown } from './UserProfileDropdown';
 export type { UserProfileDropdownProps } from './UserProfileDropdown';
 
+export { GarageSharingModal } from './GarageSharingModal';
+export type { GarageSharingModalProps } from './GarageSharingModal';
+
 export { CurrencyInput } from './CurrencyInput';
 export type { CurrencyInputProps } from './CurrencyInput';
 
