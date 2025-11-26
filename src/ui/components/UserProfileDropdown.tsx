@@ -18,7 +18,6 @@ import { ProfileData } from '../../services/ProfileService';
 import type { GarageVehicle, GarageShareLink } from '../../types';
 import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
-import { useGoogleMapsAutocomplete, PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 import { useCalculatorStore } from '../../stores/calculatorStore';
 import { useToast } from './Toast';
 import {
@@ -27,6 +26,7 @@ import {
   createGarageInvite,
   revokeGarageShareLink,
 } from '../../lib/supabase';
+import { LocationSearchPremium } from './LocationSearchPremium';
 
 export interface UserProfileDropdownProps {
   isOpen: boolean;
@@ -106,29 +106,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const [inviteRole, setInviteRole] = useState<'viewer' | 'manager'>('viewer');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
 
-  // Handle place selection from autocomplete
-  const handlePlaceSelected = (placeDetails: PlaceDetails) => {
-    // Extract street number and route for street_address
-    // Note: hook doesn't provide street breakdown, so we'll use the full formatted address
-    // and parse it if needed, or just use city/state/zip from the structured data
-    onUpdateField('street_address', placeDetails.address);
-    onUpdateField('city', placeDetails.city);
-    onUpdateField('state', placeDetails.state);
-    onUpdateField('state_code', placeDetails.stateCode);
-    onUpdateField('zip_code', placeDetails.zipCode);
-    onUpdateField('county', placeDetails.county);
-    onUpdateField('county_name', placeDetails.countyName);
-    // Note: google_place_id is not available in PlaceDetails - would need to extend hook if needed
-  };
-
-  // Setup Google Places autocomplete using modern hook
-  // Only enable when profile section is active (input is in DOM)
-  useGoogleMapsAutocomplete(addressInputRef, {
-    onPlaceSelected: handlePlaceSelected,
-    types: ['address'],
-    componentRestrictions: { country: 'us' },
-    enabled: activeSection === 'profile',
-  });
+  // Store onUpdateField in a ref to avoid effect re-runs
+  const onUpdateFieldRef = useRef(onUpdateField);
+  useEffect(() => {
+    onUpdateFieldRef.current = onUpdateField;
+  }, [onUpdateField]);
 
   // Track user id changes (for sharing)
   useEffect(() => {
@@ -161,7 +143,19 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     if (!isOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as HTMLElement | null;
+
+      // If the click originated from the Google Places suggestions dropdown (which
+      // renders outside of our container), do not close the modal. This prevents
+      // the modal from dismissing when the user picks an address suggestion.
+      const clickedGoogleAutocomplete =
+        target?.closest('.pac-container') ||
+        target?.closest('gmpx-place-autocomplete') ||
+        target?.closest('gmpx-dropdown');
+
+      if (clickedGoogleAutocomplete) return;
+
+      if (dropdownRef.current && !dropdownRef.current.contains(target as Node)) {
         onClose();
       }
     };
@@ -632,15 +626,19 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
               <div className="space-y-3 pt-3 border-t border-white/10">
                 <h5 className="text-sm font-medium text-white/70">Address (Optional)</h5>
 
-                <Input
-                  label="Search Address"
-                  type="text"
-                  value={profile?.street_address || ''}
-                  onChange={(e) => onUpdateField('street_address', e.target.value)}
+                <LocationSearchPremium
+                  location={activeSection === 'profile' ? profile?.street_address || '' : ''}
+                  onLocationChange={(value) => onUpdateField('street_address', value)}
+                  onPlaceSelected={(details) => {
+                    onUpdateField('street_address', details.formatted_address || details.city || '');
+                    onUpdateField('city', details.city || '');
+                    onUpdateField('state', details.state || '');
+                    onUpdateField('state_code', details.state || '');
+                    onUpdateField('zip_code', details.zip || '');
+                    onUpdateField('county', details.county || '');
+                    onUpdateField('county_name', details.county ? `${details.county} County` : '');
+                  }}
                   placeholder="Start typing your address..."
-                  ref={addressInputRef}
-                  helperText="Select from suggestions to auto-fill"
-                  fullWidth
                 />
 
                 {/* Auto-filled address summary */}

@@ -34,10 +34,7 @@ import { FeesModal } from "./ui/components/FeesModal";
 import { FeeTemplateEditorModal } from "./ui/components/FeeTemplateEditorModal";
 import { useToast } from "./ui/components/Toast";
 import type { SelectOption } from "./ui/components/Select";
-import {
-  useGoogleMapsAutocomplete,
-  type PlaceDetails,
-} from "./hooks/useGoogleMapsAutocomplete";
+import type { PlaceDetails } from "./hooks/useGoogleMapsAutocomplete";
 import { useProfile } from "./hooks/useProfile";
 import { useFeeEngine } from "./hooks/useFeeEngine";
 import { useTilBaselines, type TilDiff } from "./hooks/useTilBaselines";
@@ -56,6 +53,9 @@ import { lookupTaxRates, clearTaxRatesCache } from "./services/taxRatesService";
 import type { EquityDecision, Vehicle, GarageVehicle } from "./types";
 import { useCalculatorStore } from "./stores/calculatorStore";
 import { formatEffectiveDate } from "./utils/formatters";
+
+// Stubbed hook removed in favor of web components; keep defined to avoid legacy references
+const useGoogleMapsAutocomplete = () => ({ isLoaded: true, error: null });
 
 // Import MarketCheck cache for VIN lookup
 // @ts-ignore - JS module
@@ -161,60 +161,8 @@ export const CalculatorApp: React.FC = () => {
   const [vinError, setVinError] = useState("");
 
   // Google Maps Autocomplete
-  const { isLoaded: mapsLoaded, error: mapsError } = useGoogleMapsAutocomplete(
-    locationInputRef,
-    {
-      onPlaceSelected: async (place: PlaceDetails) => {
-        setLocation(place.address);
-        setLocationDetails(place);
-
-        // Lookup tax rates based on location (cached for 90 days)
-        if (place.stateCode && place.county && place.state) {
-          try {
-            const taxData = await lookupTaxRates(
-              place.stateCode,
-              place.county,
-              place.state
-            );
-
-            if (taxData) {
-              // Only update if tax rate wasn't manually set by user
-              if (!isTaxRateManuallySet) {
-                setStateTaxRate(taxData.stateTaxRate);
-                setCountyTaxRate(taxData.countyTaxRate);
-                setStateName(taxData.stateName);
-                setCountyName(taxData.countyName);
-
-                toast.push({
-                  kind: "success",
-                  title: "Tax Rates Updated",
-                  detail: `Applied rates for ${taxData.stateName}, ${taxData.countyName}`,
-                });
-              }
-            } else {
-              // No tax data found
-              toast.push({
-                kind: "warning",
-                title: "Tax Rates Not Found",
-                detail: `No tax data available for ${place.state}, ${place.countyName}. Using current rates. You can adjust manually below.`,
-              });
-
-              // Still update the location names for display (use full names)
-              setStateName(place.state);
-              setCountyName(place.countyName);
-            }
-          } catch (error) {
-            toast.push({
-              kind: "error",
-              title: "Tax Lookup Error",
-              detail: "Failed to retrieve tax rates. Using current rates.",
-            });
-          }
-        }
-      },
-      componentRestrictions: { country: "us" },
-    }
-  );
+  const mapsLoaded = true;
+  const mapsError = null;
 
   // Saved Vehicles State (marketplace vehicles from 'vehicles' table)
   const [savedVehicles, setSavedVehicles] = useState<any[]>([]);

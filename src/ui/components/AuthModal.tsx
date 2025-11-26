@@ -240,6 +240,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
             <div className="flex items-center justify-between">
               <button
+                type="button"
                 onClick={() => setMode('forgot')}
                 className="text-sm text-blue-400 hover:text-blue-300 font-medium"
               >
