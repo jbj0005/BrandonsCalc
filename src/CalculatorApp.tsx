@@ -4885,15 +4885,16 @@ export const CalculatorApp: React.FC = () => {
 
           {shareModalListingUrl && (
             <div className="space-y-2">
-              <p className="text-sm font-medium text-white/80">Listing URL (details & photos)</p>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <div className="flex-1">
-                  <input
-                    value={shareModalListingUrl}
-                    readOnly
-                    className="w-full rounded-lg bg-black/30 border border-white/10 text-white/80 px-3 py-2 text-sm"
-                  />
-                </div>
+              <p className="text-sm font-medium text-white/80">Dealer URL</p>
+              <div className="flex flex-col sm:flex-row gap-2 items-center">
+                <a
+                  href={shareModalListingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 rounded-lg bg-black/30 border border-white/10 text-blue-200 hover:text-blue-100 px-3 py-2 text-sm break-all underline underline-offset-2"
+                >
+                  {shareModalListingUrl}
+                </a>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -4902,7 +4903,7 @@ export const CalculatorApp: React.FC = () => {
                       await navigator.clipboard.writeText(shareModalListingUrl);
                       toast.push({
                         kind: "success",
-                        title: "Listing URL copied",
+                        title: "Dealer URL copied",
                         detail: "Paste it anywhere to share full details.",
                       });
                     } catch {
@@ -4914,14 +4915,14 @@ export const CalculatorApp: React.FC = () => {
                       document.body.removeChild(temp);
                       toast.push({
                         kind: "success",
-                        title: "Listing URL ready",
+                        title: "Dealer URL ready",
                         detail: "Copied to clipboard.",
                       });
                     }
                   }}
                   className="whitespace-nowrap"
                 >
-                  Copy listing
+                  Copy link
                 </Button>
               </div>
             </div>
