@@ -466,9 +466,12 @@ gmpx-place-autocomplete {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 0.75rem !important;
   margin-top: 0.5rem !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5) !important;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4),
+              0 0 0 1px rgba(255, 255, 255, 0.05) !important;
   overflow: hidden;
   z-index: 10000 !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
 }
 
 .pac-item {
@@ -500,4 +503,25 @@ gmpx-place-autocomplete {
 
 .pac-icon {
   display: none !important;
+}
+
+/* Hide Google's default icon markers */
+.pac-icon-marker {
+  display: none !important;
+}
+
+/* Style the "Powered by Google" logo area */
+.pac-logo::after {
+  background-image: none !important;
+  background: transparent !important;
+}
+
+.pac-container::after {
+  background: transparent !important;
+  background-image: none !important;
+}
+
+/* Ensure no internal shadows or gradients */
+.pac-item-selected {
+  background-color: rgba(16, 185, 129, 0.15) !important;
 }

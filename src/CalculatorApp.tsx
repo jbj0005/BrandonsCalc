@@ -160,6 +160,8 @@ export const CalculatorApp: React.FC = () => {
   const [locationDetails, setLocationDetails] = useState<PlaceDetails | null>(
     null
   );
+  // Track if user has manually changed location (prevents profile auto-populate from overwriting)
+  const locationManuallyChangedRef = useRef(false);
   const [vin, setVin] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
@@ -891,8 +893,8 @@ export const CalculatorApp: React.FC = () => {
 
     const addressString = addressParts.join(", ");
 
-    // Only auto-fill location string if field is empty
-    if (!location) {
+    // Only auto-fill location string if field is empty AND user hasn't manually changed it
+    if (!location && !locationManuallyChangedRef.current) {
       setLocation(addressString);
     }
 
@@ -3080,8 +3082,13 @@ export const CalculatorApp: React.FC = () => {
               <div className="space-y-3">
                 <LocationSearchPremium
                   location={location}
-                  onLocationChange={setLocation}
+                  onLocationChange={(loc) => {
+                    locationManuallyChangedRef.current = true;
+                    setLocation(loc);
+                  }}
                   onPlaceSelected={(details) => {
+                    // Mark as manually changed so profile address doesn't overwrite
+                    locationManuallyChangedRef.current = true;
                     // Convert LocationDetails to PlaceDetails format for existing logic
                     const placeDetails: PlaceDetails = {
                       address: details.formatted_address || "",

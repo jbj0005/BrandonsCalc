@@ -39,10 +39,26 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
 
   // Load Google Maps (with key) if not already provided via mapsLoaded
   useEffect(() => {
-    if (mapsLoaded) {
+    if (window.google?.maps?.places?.Autocomplete) {
       setMapsReady(true);
       return;
     }
+
+    if (mapsLoaded) {
+      // Parent says maps loaded, wait for API to be fully ready
+      const checkReady = setInterval(() => {
+        if (window.google?.maps?.places?.Autocomplete) {
+          setMapsReady(true);
+          clearInterval(checkReady);
+        }
+      }, 100);
+      const timeout = setTimeout(() => clearInterval(checkReady), 5000);
+      return () => {
+        clearInterval(checkReady);
+        clearTimeout(timeout);
+      };
+    }
+
     if (!apiKey) {
       console.error('Google Maps API key not configured');
       return;
@@ -56,9 +72,31 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
 
   // Initialize Places Autocomplete (classic JS API) to keep suggestions while preserving focus
   useEffect(() => {
-    if (!mapsReady || !inputRef.current || autocompleteRef.current) return;
-    try {
-      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
+    if (!inputRef.current || autocompleteRef.current) return;
+
+    // If API not ready yet, poll for it
+    if (!window.google?.maps?.places?.Autocomplete) {
+      if (!mapsReady && !mapsLoaded) return; // Haven't started loading
+
+      const checkReady = setInterval(() => {
+        if (window.google?.maps?.places?.Autocomplete && inputRef.current && !autocompleteRef.current) {
+          clearInterval(checkReady);
+          initAutocomplete();
+        }
+      }, 100);
+      const timeout = setTimeout(() => clearInterval(checkReady), 10000);
+      return () => {
+        clearInterval(checkReady);
+        clearTimeout(timeout);
+      };
+    }
+
+    initAutocomplete();
+
+    function initAutocomplete() {
+      if (!inputRef.current || autocompleteRef.current) return;
+      try {
+        const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
         types: ['geocode'],
         componentRestrictions: { country: ['us'] },
       });
@@ -104,6 +142,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     } catch (err) {
       console.error('Failed to init Places Autocomplete', err);
     }
+    } // end initAutocomplete
 
     return () => {
       if (autocompleteRef.current) {
