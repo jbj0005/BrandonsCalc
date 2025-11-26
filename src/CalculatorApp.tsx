@@ -2673,7 +2673,77 @@ export const CalculatorApp: React.FC = () => {
   };
 
   // Share a single garage vehicle (per-link filter)
-  const handleShareGarageVehicle = async (vehicle: any) => {
+  const handleShareVehicle = async (vehicle: any) => {
+    const isSharedView = Boolean(shareToken);
+
+    // If we have a share token (viewer or owner), reuse it to avoid creating new links
+    if (isSharedView && shareToken) {
+      const baseUrl =
+        typeof window !== "undefined" ? window.location.origin : "";
+      const shareUrl = `${baseUrl}/share/${shareToken}?vehicle=${vehicle.id}`;
+
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        toast.push({
+          kind: "success",
+          title: "Share link copied",
+          detail: "Paste it anywhere to share this vehicle.",
+        });
+      } catch {
+        const temp = document.createElement("textarea");
+        temp.value = shareUrl;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+        toast.push({
+          kind: "success",
+          title: "Share link ready",
+          detail: "Copied to clipboard. Paste it to share.",
+        });
+      }
+
+      const email = window.prompt(
+        "Optional: enter an email to send this link (leave blank to skip)"
+      );
+      if (email && email.trim()) {
+        const payload = {
+          recipientEmail: email.trim(),
+          shareUrl,
+          vehicleInfo: `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim(),
+          senderName:
+            (profile?.full_name && profile.full_name.trim()) ||
+            currentUser?.email ||
+            "",
+        };
+        fetch("/api/share/vehicle/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data?.error || `Email failed (${res.status})`);
+            }
+            toast.push({
+              kind: "success",
+              title: "Email sent",
+              detail: `Shared with ${payload.recipientEmail}`,
+            });
+          })
+          .catch((error: any) => {
+            toast.push({
+              kind: "error",
+              title: "Email failed",
+              detail: error?.message || "Could not send email.",
+            });
+          });
+      }
+      return;
+    }
+
+    // Otherwise, create a new share link for the current user
     if (!currentUser) {
       toast.push({
         kind: "info",
@@ -2693,10 +2763,10 @@ export const CalculatorApp: React.FC = () => {
         throw new Error("Share link unavailable");
       }
 
-      const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+      const baseUrl =
+        typeof window !== "undefined" ? window.location.origin : "";
       const shareUrl = `${baseUrl}/share/${link.token}?vehicle=${vehicle.id}`;
 
-      // Copy to clipboard
       try {
         await navigator.clipboard.writeText(shareUrl);
         toast.push({
@@ -2705,7 +2775,6 @@ export const CalculatorApp: React.FC = () => {
           detail: "Paste it anywhere to share this vehicle.",
         });
       } catch {
-        // Fallback: select text by creating a temporary input
         const temp = document.createElement("textarea");
         temp.value = shareUrl;
         document.body.appendChild(temp);
@@ -2719,7 +2788,6 @@ export const CalculatorApp: React.FC = () => {
         });
       }
 
-      // Optional email share via SendGrid backend
       const email = window.prompt(
         "Optional: enter an email to send this link (leave blank to skip)"
       );
@@ -3225,6 +3293,13 @@ export const CalculatorApp: React.FC = () => {
                               </Button>
                               <Button
                                 size="xs"
+                                variant="ghost"
+                                onClick={() => handleShareVehicle(normalizedVehicle)}
+                              >
+                                Share
+                              </Button>
+                              <Button
+                                size="xs"
                                 variant="outline"
                                 onClick={() => handleCopySharedVehicleToGarage(vehicle)}
                                 disabled={!currentUser}
@@ -3289,6 +3364,13 @@ export const CalculatorApp: React.FC = () => {
                               onClick={() => handleSelectSharedSavedVehicle(vehicle)}
                             >
                               Use in calculator
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              onClick={() => handleShareVehicle(vehicle)}
+                            >
+                              Share
                             </Button>
                           </div>
                         </div>
@@ -4511,7 +4593,7 @@ export const CalculatorApp: React.FC = () => {
           setVehicleToEdit(vehicle);
           setShowManageVehiclesModal(true);
         }}
-        onShareGarageVehicle={handleShareGarageVehicle}
+        onShareGarageVehicle={handleShareVehicle}
         onEditSavedVehicle={(vehicle) => {
           setVehicleToEdit(vehicle);
           setShowManageVehiclesModal(true);
@@ -4554,6 +4636,7 @@ export const CalculatorApp: React.FC = () => {
             toast.push({ kind: "error", title: "Failed to Remove Vehicle" });
           }
         }}
+        onShareSavedVehicle={handleShareVehicle}
         onSignOut={currentUser ? handleSignOut : undefined}
         onSignIn={
           !currentUser

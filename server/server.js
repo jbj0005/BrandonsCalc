@@ -918,6 +918,11 @@ app.get("/api/share/:token/collections", async (req, res) => {
         console.warn("[share] Failed to load saved vehicles:", savedError);
       } else {
         savedVehicles = savedData || [];
+        if (requestedVehicleId) {
+          savedVehicles = savedVehicles.filter(
+            (v) => String(v.id) === String(requestedVehicleId)
+          );
+        }
       }
     }
 
