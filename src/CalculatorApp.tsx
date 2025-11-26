@@ -53,7 +53,6 @@ import { lookupTaxRates, clearTaxRatesCache } from "./services/taxRatesService";
 import type { EquityDecision, Vehicle, GarageVehicle } from "./types";
 import { useCalculatorStore } from "./stores/calculatorStore";
 import { formatEffectiveDate } from "./utils/formatters";
-
 // Stubbed hook removed in favor of web components; keep defined to avoid legacy references
 const useGoogleMapsAutocomplete = () => ({ isLoaded: true, error: null });
 
@@ -69,7 +68,13 @@ import savedVehiclesCache from "./features/vehicles/saved-vehicles-cache.js";
 // @ts-ignore - TS module
 import authManager from "./features/auth/auth-manager";
 // @ts-ignore - TS module
-import { supabase, getAccessibleGarageVehicles, copyGarageVehicleToUser } from "./lib/supabase";
+import {
+  supabase,
+  getAccessibleGarageVehicles,
+  copyGarageVehicleToUser,
+  acceptGarageInvite,
+  getSharedGarageVehiclesByToken,
+} from "./lib/supabase";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
   if (!rates || rates.length === 0) return null;
@@ -202,9 +207,39 @@ export const CalculatorApp: React.FC = () => {
     clearTaxRatesCache();
   }, []);
 
+  // Parse share token and invite token from URL on load
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const inviteParam =
+      url.searchParams.get("invite") || url.searchParams.get("invite_token");
+    if (inviteParam) {
+      setPendingInviteToken(inviteParam);
+    }
+
+    const shareFromPath = window.location.pathname.match(/^\/share\/([^/]+)/);
+    const shareFromQuery =
+      url.searchParams.get("share") || url.searchParams.get("share_token");
+    const token = shareFromPath?.[1] || shareFromQuery;
+    if (token) {
+      setShareToken(token);
+    }
+  }, []);
+
   // Garage Vehicles State (user's owned vehicles from 'garage_vehicles' table)
   const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
   const [isLoadingGarageVehicles, setIsLoadingGarageVehicles] = useState(false);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [sharedGarageVehicles, setSharedGarageVehicles] = useState<
+    GarageVehicle[]
+  >([]);
+  const [isLoadingSharedGarage, setIsLoadingSharedGarage] = useState(false);
+  const [sharedGarageError, setSharedGarageError] = useState<string | null>(
+    null
+  );
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(
+    null
+  );
 
   // Auth State
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -1052,6 +1087,71 @@ export const CalculatorApp: React.FC = () => {
     loadGarageVehicles();
   }, [currentUser, supabase]);
 
+  // Load shared garage vehicles if viewing via share token
+  useEffect(() => {
+    if (!shareToken) {
+      setSharedGarageVehicles([]);
+      setSharedGarageError(null);
+      return;
+    }
+    setIsLoadingSharedGarage(true);
+    setSharedGarageError(null);
+    getSharedGarageVehiclesByToken(shareToken)
+      .then((vehicles) => {
+        setSharedGarageVehicles(vehicles || []);
+      })
+      .catch((error: any) => {
+        setSharedGarageError(
+          error?.message || "Unable to load shared garage vehicles"
+        );
+        setSharedGarageVehicles([]);
+      })
+      .finally(() => setIsLoadingSharedGarage(false));
+  }, [shareToken]);
+
+  // Accept invite token (if provided in URL) once user is signed in
+  useEffect(() => {
+    if (!pendingInviteToken) return;
+
+    if (!currentUser) {
+      setShowAuthModal(true);
+      setAuthMode("signin");
+      return;
+    }
+
+    const clearInviteParams = () => {
+      if (typeof window === "undefined") return;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("invite");
+      url.searchParams.delete("invite_token");
+      window.history.replaceState({}, document.title, url.toString());
+    };
+
+    const accept = async () => {
+      try {
+        await acceptGarageInvite(pendingInviteToken);
+        toast.push({
+          kind: "success",
+          title: "Invite accepted",
+          detail: "You now have access to the shared garage.",
+        });
+        setPendingInviteToken(null);
+        clearInviteParams();
+        // Refresh accessible garage vehicles after accepting
+        const vehicles = await getAccessibleGarageVehicles();
+        setGarageVehicles(vehicles || []);
+      } catch (error: any) {
+        toast.push({
+          kind: "error",
+          title: "Unable to accept invite",
+          detail: error?.message || "Please try again.",
+        });
+      }
+    };
+
+    accept();
+  }, [pendingInviteToken, currentUser, toast]);
+
   const equityAllocation = useMemo(() => {
     const netTradeEquity = tradeAllowance - tradePayoff;
     const positiveEquityAmount = Math.max(0, netTradeEquity);
@@ -1437,8 +1537,50 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const filteredSavedVehicles = savedVehicles;
-  const filteredGarageVehicles = garageVehicles;
-  const totalStoredVehicles = savedVehicles.length + garageVehicles.length;
+  const normalizedSharedGarageVehicles = useMemo(
+    () =>
+      sharedGarageVehicles.map((v) => ({
+        ...normalizeDealerData(v),
+        __source: "garage",
+        source: "garage" as const,
+        access_role: v.access_role || "viewer",
+        shared_from_garage_owner_id:
+          v.shared_from_garage_owner_id || v.garage_owner_id || v.user_id,
+        shared_from_vehicle_id: v.shared_from_vehicle_id || v.id,
+      })),
+    [sharedGarageVehicles]
+  );
+
+  const normalizedOwnedGarageVehicles = useMemo(
+    () =>
+      garageVehicles.map((v) => ({
+        ...normalizeDealerData(v),
+        __source: "garage",
+        source: "garage" as const,
+      })),
+    [garageVehicles]
+  );
+
+  const filteredGarageVehicles = useMemo(() => {
+    if (!shareToken) return normalizedOwnedGarageVehicles;
+    const seen = new Set<string>();
+    const combined: any[] = [];
+    normalizedSharedGarageVehicles.forEach((v) => {
+      if (!seen.has(v.id)) {
+        seen.add(v.id);
+        combined.push(v);
+      }
+    });
+    normalizedOwnedGarageVehicles.forEach((v) => {
+      if (!seen.has(v.id)) {
+        seen.add(v.id);
+        combined.push(v);
+      }
+    });
+    return combined;
+  }, [shareToken, normalizedOwnedGarageVehicles, normalizedSharedGarageVehicles]);
+
+  const totalStoredVehicles = savedVehicles.length + filteredGarageVehicles.length;
   const filteredStoredCount = totalStoredVehicles;
 
   // Apply profile preferences immediately after a successful save so sliders reflect the new data.
@@ -2354,6 +2496,36 @@ export const CalculatorApp: React.FC = () => {
     });
   };
 
+  const handleCopySharedVehicleToGarage = async (vehicle: any) => {
+    if (!currentUser) {
+      toast.push({
+        kind: "info",
+        title: "Sign in required",
+        detail: "Sign in to copy shared vehicles to your garage.",
+      });
+      setAuthMode("signin");
+      setShowAuthModal(true);
+      return;
+    }
+    try {
+      const copied = await copyGarageVehicleToUser(vehicle.id, currentUser.id);
+      if (copied) {
+        setGarageVehicles((prev) => [copied, ...prev]);
+        toast.push({
+          kind: "success",
+          title: "Vehicle copied",
+          detail: `${vehicle.year} ${vehicle.make} added to your garage`,
+        });
+      }
+    } catch (error: any) {
+      toast.push({
+        kind: "error",
+        title: "Could not copy vehicle",
+        detail: error?.message || "Please try again.",
+      });
+    }
+  };
+
   // Handle toggle garage vehicle as trade-in
   const handleToggleGarageTradeIn = (vehicleId: string, isChecked: boolean) => {
     toggleTradeInVehicle(vehicleId, garageVehicles || []);
@@ -2726,6 +2898,93 @@ export const CalculatorApp: React.FC = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-3">
+        {shareToken && (
+          <div className="mb-4 p-4 rounded-2xl border border-blue-400/30 bg-blue-500/10 shadow-lg shadow-blue-500/10">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <p className="text-sm font-semibold text-blue-100">
+                  Viewing a shared garage
+                </p>
+                <p className="text-xs text-blue-100/80">
+                  {sharedGarageError
+                    ? sharedGarageError
+                    : isLoadingSharedGarage
+                    ? "Loading shared vehicles..."
+                    : `${sharedGarageVehicles.length} vehicle(s) available from this link.`}
+                </p>
+              </div>
+              {!currentUser && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setAuthMode("signin");
+                    setShowAuthModal(true);
+                  }}
+                >
+                  Sign in to copy to my garage
+                </Button>
+              )}
+            </div>
+
+            {!sharedGarageError && sharedGarageVehicles.length > 0 && (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {sharedGarageVehicles.map((vehicle) => {
+                  const normalizedVehicle = {
+                    ...normalizeDealerData(vehicle),
+                    __source: "garage" as const,
+                    source: "garage" as const,
+                  };
+                  return (
+                    <div
+                      key={vehicle.id}
+                      className="p-3 rounded-xl bg-black/30 border border-white/10 flex flex-col gap-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-white/70 uppercase tracking-wide">
+                            Shared · Viewer
+                          </p>
+                          <p className="text-sm font-semibold text-white">
+                            {vehicle.year} {vehicle.make} {vehicle.model}
+                          </p>
+                          {vehicle.vin && (
+                            <p className="text-[11px] text-white/50 font-mono mt-1 uppercase">
+                              {vehicle.vin}
+                            </p>
+                          )}
+                        </div>
+                        {vehicle.estimated_value != null && (
+                          <span className="text-xs font-semibold text-emerald-200">
+                            ${Number(vehicle.estimated_value).toLocaleString()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          onClick={() => handleSelectGarageVehicle(normalizedVehicle)}
+                        >
+                          Use in calculator
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          onClick={() => handleCopySharedVehicleToGarage(vehicle)}
+                          disabled={!currentUser}
+                        >
+                          Copy to my garage
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Main Grid - Left column (inputs) + Right column (summary) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
           {/* LEFT COLUMN: Inputs (2/3 width) */}
