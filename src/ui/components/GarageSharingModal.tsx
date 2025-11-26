@@ -45,6 +45,9 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'viewer' | 'manager'>('viewer');
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [inviteNotice, setInviteNotice] = useState<
+    { kind: 'success' | 'warning' | 'error'; message: string } | null
+  >(null);
 
   // Build share URL from token
   const buildShareUrl = useCallback((token: string) => {
@@ -140,6 +143,7 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
     }
     try {
       setIsSendingInvite(true);
+      setInviteNotice(null);
       const invite = await createGarageInvite({
         garageOwnerId: userId,
         email: inviteEmail,
@@ -158,12 +162,20 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
               invitedBy: userId,
               appUrl: typeof window !== 'undefined' ? window.location.origin : undefined,
             });
+            setInviteNotice({
+              kind: 'success',
+              message: `Invitation emailed to ${invite.email}`,
+            });
             toast.push({
               kind: 'success',
               title: 'Invite sent',
               detail: `Invitation emailed to ${invite.email}`,
             });
           } catch (sendError: any) {
+            setInviteNotice({
+              kind: 'warning',
+              message: `Invite created (email not sent). Share this code: ${invite.token}`,
+            });
             toast.push({
               kind: 'warning',
               title: 'Invite created (email not sent)',
@@ -171,6 +183,10 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
             });
           }
         } else {
+          setInviteNotice({
+            kind: 'success',
+            message: `Invite created. Share this code with ${invite.email}: ${invite.token}`,
+          });
           toast.push({
             kind: 'success',
             title: 'Invite created',
@@ -180,6 +196,10 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
         setInviteEmail('');
       }
     } catch (error: any) {
+      setInviteNotice({
+        kind: 'error',
+        message: error?.message || 'Could not send invite. Please try again.',
+      });
       toast.push({
         kind: 'error',
         title: 'Could not send invite',
@@ -277,6 +297,20 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
           >
             Send Invite
           </Button>
+
+          {inviteNotice && (
+            <div
+              className={`rounded-lg px-3 py-2 text-sm ${
+                inviteNotice.kind === 'success'
+                  ? 'bg-emerald-500/15 text-emerald-100 border border-emerald-400/30'
+                  : inviteNotice.kind === 'warning'
+                  ? 'bg-amber-500/15 text-amber-100 border border-amber-400/30'
+                  : 'bg-rose-500/15 text-rose-100 border border-rose-400/30'
+              }`}
+            >
+              {inviteNotice.message}
+            </div>
+          )}
         </div>
 
         {/* Divider */}
