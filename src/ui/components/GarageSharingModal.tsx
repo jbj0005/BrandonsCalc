@@ -224,12 +224,12 @@ export const GarageSharingModal: React.FC<GarageSharingModalProps> = ({
         {/* Generate Link Section */}
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div>
-              <p className="text-sm font-medium text-white">Public Share Link</p>
-              <p className="text-xs text-white/60">
-                Generate a view-only link anyone can use to see your garage.
-              </p>
-            </div>
+              <div>
+                <p className="text-sm font-medium text-white">Public Share Link</p>
+                <p className="text-xs text-white/60">
+                Generate a view-only link anyone can use to see your garage and saved vehicles.
+                </p>
+              </div>
             <Button
               variant="primary"
               size="sm"

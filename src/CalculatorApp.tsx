@@ -300,6 +300,7 @@ export const CalculatorApp: React.FC = () => {
   const [sharedGarageVehicles, setSharedGarageVehicles] = useState<
     GarageVehicle[]
   >([]);
+  const [sharedSavedVehicles, setSharedSavedVehicles] = useState<any[]>([]);
   const [isLoadingSharedGarage, setIsLoadingSharedGarage] = useState(false);
   const [sharedGarageError, setSharedGarageError] = useState<string | null>(
     null
@@ -1170,22 +1171,47 @@ export const CalculatorApp: React.FC = () => {
   useEffect(() => {
     if (!shareToken) {
       setSharedGarageVehicles([]);
+      setSharedSavedVehicles([]);
       setSharedGarageError(null);
+      setIsLoadingSharedGarage(false);
       return;
     }
     setIsLoadingSharedGarage(true);
     setSharedGarageError(null);
-    getSharedGarageVehiclesByToken(shareToken)
-      .then((vehicles) => {
-        setSharedGarageVehicles(vehicles || []);
-      })
-      .catch((error: any) => {
+    const controller = new AbortController();
+
+    const loadSharedCollections = async () => {
+      try {
+        const response = await fetch(
+          `/api/share/${shareToken}/collections`,
+          { signal: controller.signal }
+        );
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(
+            payload?.error || `Unable to load shared vehicles (${response.status})`
+          );
+        }
+        const payload = await response.json();
+        setSharedGarageVehicles(payload?.garageVehicles || []);
+        setSharedSavedVehicles(payload?.savedVehicles || []);
+      } catch (error: any) {
+        if (controller.signal.aborted) return;
         setSharedGarageError(
           error?.message || "Unable to load shared garage vehicles"
         );
         setSharedGarageVehicles([]);
-      })
-      .finally(() => setIsLoadingSharedGarage(false));
+        setSharedSavedVehicles([]);
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingSharedGarage(false);
+        }
+      }
+    };
+
+    loadSharedCollections();
+
+    return () => controller.abort();
   }, [shareToken]);
 
   // Accept invite token (if provided in URL) once user is signed in
@@ -1628,6 +1654,15 @@ export const CalculatorApp: React.FC = () => {
         shared_from_vehicle_id: v.shared_from_vehicle_id || v.id,
       })),
     [sharedGarageVehicles]
+  );
+  const normalizedSharedSavedVehicles = useMemo(
+    () =>
+      sharedSavedVehicles.map((v) => ({
+        ...normalizeDealerData(v),
+        __source: "shared-saved",
+        source: "shared-saved" as const,
+      })),
+    [sharedSavedVehicles]
   );
 
   const normalizedOwnedGarageVehicles = useMemo(
@@ -2535,6 +2570,26 @@ export const CalculatorApp: React.FC = () => {
     });
   };
 
+  // Handle selecting a shared saved vehicle (read-only source)
+  const handleSelectSharedSavedVehicle = (vehicle: any) => {
+    const normalized = { ...normalizeDealerData(vehicle), __source: "shared-saved" };
+    setSelectedVehicle(normalized);
+    setVin(vehicle.vin || "");
+    setShowVehicleDropdown(false);
+    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+
+    const saleValue = getVehicleSalePrice(normalized);
+    if (saleValue != null) {
+      setSliderValue("salePrice", saleValue, true);
+    }
+
+    toast.push({
+      kind: "success",
+      title: "Shared vehicle selected",
+      detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
+    });
+  };
+
   const handleSelectGarageVehicle = (vehicle: any) => {
     setSelectedVehicle({ ...normalizeDealerData(vehicle), __source: "garage" });
     setVin(vehicle.vin || "");
@@ -2988,14 +3043,14 @@ export const CalculatorApp: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold text-blue-100">
-                  Viewing a shared garage
+                  Viewing a shared garage & saved vehicles
                 </p>
                 <p className="text-xs text-blue-100/80">
                   {sharedGarageError
                     ? sharedGarageError
                     : isLoadingSharedGarage
                     ? "Loading shared vehicles..."
-                    : `${sharedGarageVehicles.length} vehicle(s) available from this link.`}
+                    : `${sharedGarageVehicles.length} garage vehicle(s) • ${sharedSavedVehicles.length} saved vehicle(s) available from this link.`}
                 </p>
               </div>
               {!currentUser && (
@@ -3012,59 +3067,128 @@ export const CalculatorApp: React.FC = () => {
               )}
             </div>
 
-            {!sharedGarageError && sharedGarageVehicles.length > 0 && (
-              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {sharedGarageVehicles.map((vehicle) => {
-                  const normalizedVehicle = {
-                    ...normalizeDealerData(vehicle),
-                    __source: "garage" as const,
-                    source: "garage" as const,
-                  };
-                  return (
-                    <div
-                      key={vehicle.id}
-                      className="p-3 rounded-xl bg-black/30 border border-white/10 flex flex-col gap-2"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-xs text-white/70 uppercase tracking-wide">
-                            Shared · Viewer
-                          </p>
-                          <p className="text-sm font-semibold text-white">
-                            {vehicle.year} {vehicle.make} {vehicle.model}
-                          </p>
-                          {vehicle.vin && (
-                            <p className="text-[11px] text-white/50 font-mono mt-1 uppercase">
-                              {vehicle.vin}
-                            </p>
-                          )}
-                        </div>
-                        {vehicle.estimated_value != null && (
-                          <span className="text-xs font-semibold text-emerald-200">
-                            ${Number(vehicle.estimated_value).toLocaleString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="xs"
-                          variant="secondary"
-                          onClick={() => handleSelectGarageVehicle(normalizedVehicle)}
-                        >
-                          Use in calculator
-                        </Button>
-                        <Button
-                          size="xs"
-                          variant="outline"
-                          onClick={() => handleCopySharedVehicleToGarage(vehicle)}
-                          disabled={!currentUser}
-                        >
-                          Copy to my garage
-                        </Button>
-                      </div>
+            {!sharedGarageError && (
+              <div className="mt-3 space-y-3">
+                <div className="rounded-xl border border-white/10 p-3 bg-white/5">
+                  <p className="text-xs uppercase tracking-[0.15em] text-blue-200/70 mb-2">
+                    Shared Garage
+                  </p>
+                  {sharedGarageVehicles.length === 0 ? (
+                    <p className="text-sm text-white/60">No garage vehicles shared in this link.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {sharedGarageVehicles.map((vehicle) => {
+                        const normalizedVehicle = {
+                          ...normalizeDealerData(vehicle),
+                          __source: "garage" as const,
+                          source: "garage" as const,
+                        };
+                        return (
+                          <div
+                            key={vehicle.id}
+                            className="p-3 rounded-xl bg-black/30 border border-white/10 flex flex-col gap-2"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <p className="text-[11px] text-white/60 uppercase tracking-wide">
+                                  Shared · Garage
+                                </p>
+                                <p className="text-sm font-semibold text-white">
+                                  {vehicle.year} {vehicle.make} {vehicle.model}
+                                </p>
+                                {vehicle.vin && (
+                                  <p className="text-[11px] text-white/50 font-mono mt-1 uppercase">
+                                    {vehicle.vin}
+                                  </p>
+                                )}
+                              </div>
+                              {vehicle.estimated_value != null && (
+                                <span className="text-xs font-semibold text-emerald-200">
+                                  ${Number(vehicle.estimated_value).toLocaleString()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="xs"
+                                variant="secondary"
+                                onClick={() => handleSelectGarageVehicle(normalizedVehicle)}
+                              >
+                                Use in calculator
+                              </Button>
+                              <Button
+                                size="xs"
+                                variant="outline"
+                                onClick={() => handleCopySharedVehicleToGarage(vehicle)}
+                                disabled={!currentUser}
+                              >
+                                Copy to my garage
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  )}
+                </div>
+
+                <div className="rounded-xl border border-white/10 p-3 bg-white/5">
+                  <p className="text-xs uppercase tracking-[0.15em] text-blue-200/70 mb-2">
+                    Shared Saved Vehicles
+                  </p>
+                  {normalizedSharedSavedVehicles.length === 0 ? (
+                    <p className="text-sm text-white/60">No saved vehicles shared in this link.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {normalizedSharedSavedVehicles.map((vehicle) => (
+                        <div
+                          key={vehicle.id}
+                          className="p-3 rounded-xl bg-black/30 border border-white/10 flex flex-col gap-2"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className="text-[11px] text-white/60 uppercase tracking-wide">
+                                Shared · Saved
+                              </p>
+                              <p className="text-sm font-semibold text-white">
+                                {vehicle.year} {vehicle.make} {vehicle.model}
+                              </p>
+                              {vehicle.vin && (
+                                <p className="text-[11px] text-white/50 font-mono mt-1 uppercase">
+                                  {vehicle.vin}
+                                </p>
+                              )}
+                              {vehicle.dealer_city && vehicle.dealer_state && (
+                                <p className="text-[11px] text-white/50 mt-1">
+                                  {vehicle.dealer_city}, {vehicle.dealer_state}
+                                </p>
+                              )}
+                            </div>
+                            {getVehicleSalePrice(vehicle) != null && (
+                              <span className="text-xs font-semibold text-emerald-200">
+                                {getVehicleSalePrice(vehicle)?.toLocaleString("en-US", {
+                                  style: "currency",
+                                  currency: "USD",
+                                  minimumFractionDigits: 0,
+                                  maximumFractionDigits: 0,
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => handleSelectSharedSavedVehicle(vehicle)}
+                            >
+                              Use in calculator
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

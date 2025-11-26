@@ -794,6 +794,136 @@ app.get("/api/config", async (req, res) => {
   }
 });
 
+/**
+ * Shared garage + saved vehicles bundle (public)
+ * Uses service role to fetch garage share link metadata and saved vehicles alongside garage vehicles.
+ */
+app.get("/api/share/:token/collections", async (req, res) => {
+  const token = req.params.token;
+
+  if (!token) {
+    return res.status(400).json({ error: "Share token is required" });
+  }
+
+  if (!supabase) {
+    return res.status(500).json({ error: "Supabase not configured on server" });
+  }
+
+  try {
+    // Re-use existing RPC for validation and view counting
+    const { data: garageVehicles, error: garageError } = await supabase.rpc(
+      "get_shared_garage_vehicles",
+      { p_token: token }
+    );
+
+    if (garageError) {
+      return res
+        .status(400)
+        .json({ error: garageError.message || "Unable to load shared garage" });
+    }
+
+    let garageOwnerId =
+      (garageVehicles && garageVehicles[0]?.garage_owner_id) ||
+      (garageVehicles && garageVehicles[0]?.user_id) ||
+      null;
+
+    // If garage is empty, we still need the owner id (and to validate the link)
+    if (!garageOwnerId) {
+      const { data: linkRow, error: linkError } = await supabase
+        .from("garage_share_links")
+        .select(
+          "garage_owner_id, revoked_at, expires_at, max_views, current_views"
+        )
+        .eq("token", token)
+        .maybeSingle();
+
+      if (linkError) {
+        return res
+          .status(400)
+          .json({ error: linkError.message || "Invalid share link" });
+      }
+      if (!linkRow) {
+        return res.status(404).json({ error: "Share link not found" });
+      }
+
+      const now = new Date();
+      if (
+        linkRow.revoked_at ||
+        (linkRow.expires_at && new Date(linkRow.expires_at) < now) ||
+        (linkRow.max_views &&
+          linkRow.current_views >= (linkRow.max_views || 0))
+      ) {
+        return res.status(400).json({ error: "Share link is not active" });
+      }
+
+      // Increment view count for empty garages to mirror RPC behavior
+      await supabase
+        .from("garage_share_links")
+        .update({
+          current_views: (linkRow.current_views || 0) + 1,
+        })
+        .eq("token", token);
+
+      garageOwnerId = linkRow.garage_owner_id;
+    }
+
+    let savedVehicles = [];
+
+    if (garageOwnerId) {
+      const { data: savedData, error: savedError } = await supabase
+        .from("vehicles")
+        .select(
+          `
+            id,
+            user_id,
+            vin,
+            year,
+            make,
+            model,
+            trim,
+            mileage,
+            condition,
+            heading,
+            asking_price,
+            dealer_name,
+            dealer_street,
+            dealer_city,
+            dealer_state,
+            dealer_zip,
+            dealer_phone,
+            dealer_lat,
+            dealer_lng,
+            listing_id,
+            listing_source,
+            listing_url,
+            photo_url,
+            inserted_at
+          `
+        )
+        .eq("user_id", garageOwnerId)
+        .order("inserted_at", { ascending: false });
+
+      if (savedError) {
+        console.warn("[share] Failed to load saved vehicles:", savedError);
+      } else {
+        savedVehicles = savedData || [];
+      }
+    }
+
+    return res.json({
+      garageVehicles: garageVehicles || [],
+      savedVehicles,
+      garageOwnerId,
+      token,
+    });
+  } catch (error) {
+    console.error("[share] Failed to load shared collections:", error);
+    return res
+      .status(500)
+      .json({ error: "Unable to load shared collections" });
+  }
+});
+
 app.get("/", (_req, res) => {
   res.type("text").send(
     "ExcelCalc proxy online. Use /api/config, /api/mc/... endpoints from the Vite dev server."
