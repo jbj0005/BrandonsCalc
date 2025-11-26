@@ -214,6 +214,10 @@ export const CalculatorApp: React.FC = () => {
   // Parse share token and invite token from URL on load
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const normalizedPath = window.location.pathname.replace(
+      new RegExp(`^${basePath}`),
+      ""
+    );
     const url = new URL(window.location.href);
     const inviteParam =
       url.searchParams.get("invite") || url.searchParams.get("invite_token");
@@ -221,7 +225,7 @@ export const CalculatorApp: React.FC = () => {
       setPendingInviteToken(inviteParam);
     }
 
-    const shareFromPath = window.location.pathname.match(/^\/share\/([^/]+)/);
+    const shareFromPath = normalizedPath.match(/^\/share\/([^/]+)/);
     const shareFromQuery =
       url.searchParams.get("share") || url.searchParams.get("share_token");
     const token = shareFromPath?.[1] || shareFromQuery;
@@ -383,6 +387,10 @@ export const CalculatorApp: React.FC = () => {
   const [shareModalSuccess, setShareModalSuccess] = useState<string | null>(
     null
   );
+  const basePath =
+    (import.meta.env.BASE_URL || "/")
+      .replace(/\/+$/, "")
+      .replace(/^\s*$/, "");
 
   // APR Confirmation Modal State
   const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
@@ -2712,11 +2720,12 @@ export const CalculatorApp: React.FC = () => {
 
     const baseUrl =
       typeof window !== "undefined" ? window.location.origin : "";
+    const basePrefix = `${baseUrl}${basePath || ""}`;
 
     try {
       // If already viewing via share token, reuse it
       if (shareToken) {
-        const shareUrl = `${baseUrl}/share/${shareToken}?vehicle=${vehicle.id}`;
+        const shareUrl = `${basePrefix}/share/${shareToken}?vehicle=${vehicle.id}`;
         setShareModalLink(shareUrl);
         setShareModalLoading(false);
         return;
@@ -2729,7 +2738,7 @@ export const CalculatorApp: React.FC = () => {
       if (!link?.token) {
         throw new Error("Share link unavailable");
       }
-      const shareUrl = `${baseUrl}/share/${link.token}?vehicle=${vehicle.id}`;
+      const shareUrl = `${basePrefix}/share/${link.token}?vehicle=${vehicle.id}`;
       setShareModalLink(shareUrl);
     } catch (error: any) {
       setShareModalError(error?.message || "Could not create share link.");
