@@ -376,9 +376,13 @@ export const CalculatorApp: React.FC = () => {
   const [shareModalLink, setShareModalLink] = useState<string>("");
   const [shareModalEmail, setShareModalEmail] = useState<string>("");
   const [shareModalListingUrl, setShareModalListingUrl] = useState<string>("");
+  const [shareModalPhotoUrl, setShareModalPhotoUrl] = useState<string>("");
   const [shareModalLoading, setShareModalLoading] = useState(false);
   const [shareEmailSending, setShareEmailSending] = useState(false);
   const [shareModalError, setShareModalError] = useState<string | null>(null);
+  const [shareModalSuccess, setShareModalSuccess] = useState<string | null>(
+    null
+  );
 
   // APR Confirmation Modal State
   const [showAprConfirmModal, setShowAprConfirmModal] = useState(false);
@@ -2701,6 +2705,8 @@ export const CalculatorApp: React.FC = () => {
     setShareModalError(null);
     setShareModalLink("");
     setShareModalListingUrl(vehicle?.listing_url || "");
+    setShareModalPhotoUrl(vehicle?.photo_url || "");
+    setShareModalSuccess(null);
     setShareModalLoading(true);
     setShareModalOpen(true);
 
@@ -2783,6 +2789,7 @@ export const CalculatorApp: React.FC = () => {
         currentUser?.email ||
         "",
       listingUrl: shareModalListingUrl || "",
+      photoUrl: shareModalPhotoUrl || "",
     };
 
     try {
@@ -2792,11 +2799,7 @@ export const CalculatorApp: React.FC = () => {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
-        toast.push({
-          kind: "success",
-          title: "Email sent",
-          detail: `Shared with ${payload.recipientEmail}`,
-        });
+        setShareModalSuccess(`Sent to ${payload.recipientEmail}`);
         setShareModalEmail("");
         return;
       }
@@ -2812,19 +2815,16 @@ export const CalculatorApp: React.FC = () => {
               recipientEmail: payload.recipientEmail,
               recipientName: payload.recipientEmail,
               vehicleInfo: payload.vehicleInfo,
-              offerText: `Shared vehicle link: ${payload.shareUrl}${
-                payload.listingUrl ? `\nListing URL: ${payload.listingUrl}` : ""
-              }`,
+              shareUrl: payload.shareUrl,
+              listingUrl: payload.listingUrl,
+              photoUrl: payload.photoUrl,
+              share: true,
             },
           });
           if (fnError) {
             throw fnError;
           }
-          toast.push({
-            kind: "success",
-            title: "Email sent",
-            detail: `Shared with ${payload.recipientEmail}`,
-          });
+          setShareModalSuccess(`Sent to ${payload.recipientEmail}`);
           setShareModalEmail("");
           return;
         } catch (fallbackError: any) {
@@ -4605,6 +4605,8 @@ export const CalculatorApp: React.FC = () => {
           setShareModalLink("");
           setShareModalEmail("");
           setShareModalListingUrl("");
+          setShareModalPhotoUrl("");
+          setShareModalSuccess(null);
           setShareModalError(null);
           setShareModalLoading(false);
           setShareEmailSending(false);
@@ -4705,6 +4707,9 @@ export const CalculatorApp: React.FC = () => {
               onChange={(e) => setShareModalEmail(e.target.value)}
               fullWidth
             />
+            {shareModalSuccess && (
+              <div className="text-sm text-emerald-300">{shareModalSuccess}</div>
+            )}
           </div>
 
           {shareModalError && (

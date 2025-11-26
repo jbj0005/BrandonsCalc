@@ -12,11 +12,15 @@ const corsHeaders = {
 };
 
 interface EmailRequest {
-  offerId: string;
+  offerId?: string;
   recipientEmail: string;
   recipientName?: string;
-  offerText: string;
+  offerText?: string;
   vehicleInfo?: string;
+  shareUrl?: string;
+  listingUrl?: string;
+  photoUrl?: string;
+  share?: boolean;
 }
 
 serve(async (req) => {
@@ -38,29 +42,97 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { offerId, recipientEmail, recipientName, offerText, vehicleInfo }: EmailRequest = await req.json();
+    const {
+      offerId,
+      recipientEmail,
+      recipientName,
+      offerText,
+      vehicleInfo,
+      shareUrl,
+      listingUrl,
+      photoUrl,
+      share,
+    }: EmailRequest = await req.json();
 
-    // Validate required fields (offerText is optional - will use default if missing)
-    if (!offerId || !recipientEmail) {
+    const isShare = Boolean(shareUrl || share);
+
+    if (!recipientEmail) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing required fields: offerId, recipientEmail' }),
+        JSON.stringify({ success: false, error: 'Missing required field: recipientEmail' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Provide default offer text if not provided
+    if (!isShare && !offerId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing required field: offerId' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Provide defaults
     const finalOfferText = offerText && offerText.trim()
       ? offerText
-      : 'Thank you for your vehicle offer submission. A dealer representative will review your offer and contact you shortly.';
+      : isShare
+        ? `Shared vehicle link: ${shareUrl || ''}${listingUrl ? `\nListing URL: ${listingUrl}` : ''}`
+        : 'Thank you for your vehicle offer submission. A dealer representative will review your offer and contact you shortly.';
 
     // Create Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Build email subject
-    const subject = vehicleInfo ? `Your Vehicle Offer - ${vehicleInfo}` : 'Your Vehicle Offer';
+    // Build email subject and body (share vs offer)
+    const subject = isShare
+      ? vehicleInfo
+        ? `Vehicle shared with you: ${vehicleInfo}`
+        : "A vehicle was shared with you"
+      : vehicleInfo
+      ? `Your Vehicle Offer - ${vehicleInfo}`
+      : "Your Vehicle Offer";
 
-    // Build HTML email content
-    const htmlContent = `
+    const greeting = `Hello ${recipientName || "there"},`;
+
+    const htmlContent = isShare
+      ? `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${subject}</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #e5e7eb; background:#0b1221; max-width: 640px; margin: 0 auto; padding: 24px;">
+  <div style="background: linear-gradient(135deg, #0ea5e9 0%, #22c55e 100%); padding: 28px; border-radius: 16px 16px 0 0; text-align: left; color: #0b1221;">
+    <div style="font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">Shared Vehicle</div>
+    <div style="font-size: 26px; font-weight: 800; margin-top: 6px;">${vehicleInfo || "Vehicle shared with you"}</div>
+  </div>
+
+  <div style="background: #0f172a; border: 1px solid rgba(255,255,255,0.08); border-top: none; border-radius: 0 0 16px 16px; padding: 24px;">
+    <p style="margin: 0 0 12px 0; color: #cbd5e1; font-size: 15px;">${greeting}</p>
+    <p style="margin: 0 0 16px 0; color: #94a3b8; font-size: 15px;">A vehicle was shared with you. Open it below:</p>
+
+    ${photoUrl ? `<div style="margin: 12px 0 16px 0;"><img src="${photoUrl}" alt="${vehicleInfo || "Shared vehicle"}" style="width:100%; border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,0.35);"></div>` : ""}
+
+    <div style="margin: 12px 0 16px 0;">
+      <a href="${shareUrl}" style="display:inline-block; padding:12px 18px; background:#22c55e; color:#0b1221; text-decoration:none; border-radius:10px; font-weight:700;">Open in Brandon's Calculator</a>
+    </div>
+
+    <div style="background:#0b1221; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:14px; color:#cbd5e1; font-family: 'Courier New', monospace; font-size: 13px; white-space: pre-wrap;">${shareUrl}</div>
+
+    ${
+      listingUrl
+        ? `<div style="margin-top:16px;">
+            <div style="color:#cbd5e1; font-weight:700; margin-bottom:6px;">Full listing & photos</div>
+            <div style="background:#0b1221; border:1px solid rgba(255,255,255,0.08); border-radius:12px; padding:12px; color:#38bdf8; font-size:13px; word-break:break-all; font-family:'Courier New', monospace;">${listingUrl}</div>
+          </div>`
+        : ""
+    }
+
+    <p style="color:#64748b; font-size:13px; margin-top:20px;">Shared via Brandon's Calculator</p>
+  </div>
+</body>
+</html>
+      `.trim()
+      : `
 <!DOCTYPE html>
 <html>
 <head>
@@ -103,10 +175,17 @@ serve(async (req) => {
   </div>
 </body>
 </html>
-    `.trim();
+      `.trim();
 
-    // Plain text version (fallback)
-    const textContent = `
+    const textContent = isShare
+      ? `
+${greeting}
+
+${vehicleInfo ? `${vehicleInfo}\n` : ""}Shared vehicle link:
+${shareUrl || ""}
+
+${listingUrl ? `Listing URL:\n${listingUrl}\n` : ""}${photoUrl ? `Photo: ${photoUrl}\n` : ""}`.trim()
+      : `
 Hello ${recipientName || 'there'},
 
 Thank you for submitting your vehicle offer through Brandon's Calculator.
@@ -160,7 +239,7 @@ Your trusted auto financing calculator
 
     // Log to email_logs table
     const { error: logError } = await supabase.from('email_logs').insert({
-      offer_id: offerId,
+      offer_id: offerId || null,
       recipient_email: recipientEmail,
       recipient_name: recipientName || null,
       subject: subject,
@@ -176,7 +255,7 @@ Your trusted auto financing calculator
     }
 
     // Update offer status to 'sent' if email succeeded
-    if (sendGridStatus) {
+    if (sendGridStatus && !isShare && offerId) {
       const { error: updateError } = await supabase
         .from('customer_offers')
         .update({

@@ -945,7 +945,14 @@ app.get("/api/share/:token/collections", async (req, res) => {
  */
 app.post("/api/share/vehicle/email", async (req, res) => {
   try {
-    const { recipientEmail, shareUrl, vehicleInfo, senderName, listingUrl } = req.body;
+    const {
+      recipientEmail,
+      shareUrl,
+      vehicleInfo,
+      senderName,
+      listingUrl,
+      photoUrl,
+    } = req.body;
 
     if (!recipientEmail || !shareUrl) {
       return res
@@ -962,9 +969,11 @@ app.post("/api/share/vehicle/email", async (req, res) => {
     }
 
     const subject = vehicleInfo
-      ? `Shared vehicle: ${vehicleInfo}`
+      ? `Vehicle shared with you: ${vehicleInfo}`
       : "A vehicle was shared with you";
-    const greeting = senderName ? `Hi, ${senderName} shared a vehicle with you.` : "Hi, a vehicle was shared with you.";
+    const greeting = senderName
+      ? `Hi, ${senderName} shared a vehicle with you.`
+      : "Hi, a vehicle was shared with you.";
 
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -975,6 +984,7 @@ app.post("/api/share/vehicle/email", async (req, res) => {
             ? `<p style="color: #444; font-weight: 600;">${vehicleInfo}</p>`
             : ""
         }
+        ${photoUrl ? `<div style="margin: 16px 0;"><img src="${photoUrl}" alt="${vehicleInfo || "Shared vehicle"}" style="max-width: 100%; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);" /></div>` : ""}
         <p style="margin: 16px 0;">
           <a href="${shareUrl}" style="display: inline-block; padding: 12px 16px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px;">Open shared vehicle</a>
         </p>
@@ -998,6 +1008,7 @@ ${vehicleInfo ? vehicleInfo + "\n\n" : ""}Open the shared vehicle here:
 ${shareUrl}
 
 ${listingUrl ? `Listing details & photos:\n${listingUrl}\n` : ""}
+${photoUrl ? `Photo: ${photoUrl}\n` : ""}
     `.trim();
 
     const msg = {
