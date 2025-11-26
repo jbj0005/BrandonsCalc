@@ -70,14 +70,25 @@ export const useLocationAutoPopulate = ({
           return;
         }
 
-        // Build location string (full street address preferred for distance calculations)
-        const locationString = typedProfile.street_address
-          ? `${typedProfile.street_address}, ${typedProfile.city}, ${typedProfile.state_code}${
-              typedProfile.zip_code ? ' ' + typedProfile.zip_code : ''
-            }`
-          : `${typedProfile.city}, ${typedProfile.state_code}${
-              typedProfile.zip_code ? ' ' + typedProfile.zip_code : ''
-            }`;
+        // Build location string while avoiding duplicate city/state/zip when street_address already includes them
+        const street = (typedProfile.street_address || '').trim();
+        const city = (typedProfile.city || '').trim();
+        const stateCode = (typedProfile.state_code || '').trim();
+        const zip = (typedProfile.zip_code || '').trim();
+
+        const streetLower = street.toLowerCase();
+        const needsCity = city && !streetLower.includes(city.toLowerCase());
+        const needsState = stateCode && !streetLower.includes(stateCode.toLowerCase());
+        const needsZip = zip && !streetLower.includes(zip);
+
+        const trailingParts: string[] = [];
+        if (needsCity) trailingParts.push(city);
+        if (needsState) trailingParts.push(stateCode);
+        if (needsZip) trailingParts.push(zip);
+
+        const locationString =
+          [street, trailingParts.join(', ')].filter(Boolean).join(', ').replace(/,\s*,+/g, ', ').trim() ||
+          [city, stateCode, zip].filter(Boolean).join(', ');
 
         // Notify about field update (for populating input if empty)
         if (onLocationFieldUpdate) {

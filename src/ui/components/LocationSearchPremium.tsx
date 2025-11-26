@@ -97,9 +97,11 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       if (!inputRef.current || autocompleteRef.current) return;
       try {
         const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-        types: ['geocode'],
-        componentRestrictions: { country: ['us'] },
-      });
+          types: ['geocode'],
+          componentRestrictions: { country: ['us'] },
+          // Request the formatted address so we can mirror the exact string Google shows
+          fields: ['formatted_address', 'address_components', 'geometry', 'name'],
+        });
       autocompleteRef.current = autocomplete;
 
       const handlePlaceChange = () => {
@@ -119,11 +121,22 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
           if (types.includes('administrative_area_level_2')) county = component.long_name.replace(/ County$/i, '');
         });
 
+        // Match the visible autocomplete text even when Google omits formatted_address
+        const displayAddress =
+          place.formatted_address ||
+          place.name ||
+          // @ts-expect-error: legacy typings omit description/inputValue
+          place.description ||
+          // @ts-expect-error: legacy typings omit inputValue
+          place.inputValue ||
+          inputRef.current?.value ||
+          '';
+
         const lat = place.geometry?.location?.lat?.();
         const lng = place.geometry?.location?.lng?.();
 
         const details: LocationDetails = {
-          formatted_address: place.formatted_address,
+          formatted_address: displayAddress,
           city,
           state,
           zip,
@@ -132,9 +145,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
           longitude: lng ?? undefined,
         };
 
-        if (details.formatted_address) {
-          onLocationChange(details.formatted_address);
-        }
+        onLocationChange(displayAddress);
         onPlaceSelected?.(details);
       };
 
@@ -315,4 +326,3 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     </div>
   );
 };
-

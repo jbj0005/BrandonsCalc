@@ -882,16 +882,26 @@ export const CalculatorApp: React.FC = () => {
     if (!profile || !mapsLoaded) return;
 
     // Build address string from profile
-    const addressParts = [
-      profile.street_address,
-      profile.city,
-      profile.state_code,
-      profile.zip_code,
-    ].filter(Boolean);
+    const street = (profile.street_address || "").trim();
+    const city = (profile.city || "").trim();
+    const stateCode = (profile.state_code || "").trim();
+    const zip = (profile.zip_code || "").trim();
 
-    if (addressParts.length === 0) return;
+    const streetLower = street.toLowerCase();
+    const needsCity = city && !streetLower.includes(city.toLowerCase());
+    const needsState = stateCode && !streetLower.includes(stateCode.toLowerCase());
+    const needsZip = zip && !streetLower.includes(zip);
 
-    const addressString = addressParts.join(", ");
+    const trailingParts: string[] = [];
+    if (needsCity) trailingParts.push(city);
+    if (needsState) trailingParts.push(stateCode);
+    if (needsZip) trailingParts.push(zip);
+
+    const addressString =
+      [street, trailingParts.join(", ")].filter(Boolean).join(", ").replace(/,\s*,+/g, ", ").trim() ||
+      [city, stateCode, zip].filter(Boolean).join(", ");
+
+    if (!addressString) return;
 
     // Only auto-fill location string if field is empty AND user hasn't manually changed it
     if (!location && !locationManuallyChangedRef.current) {
