@@ -935,6 +935,81 @@ app.get("/api/share/:token/collections", async (req, res) => {
   }
 });
 
+/**
+ * Send a single-vehicle share link via email (SendGrid)
+ */
+app.post("/api/share/vehicle/email", async (req, res) => {
+  try {
+    const { recipientEmail, shareUrl, vehicleInfo, senderName } = req.body;
+
+    if (!recipientEmail || !shareUrl) {
+      return res
+        .status(400)
+        .json({ error: "recipientEmail and shareUrl are required" });
+    }
+
+    if (!SENDGRID_API_KEY || !EMAIL_FROM) {
+      console.warn("[share-email] SendGrid not configured");
+      return res.status(500).json({
+        error: "Email service not configured",
+        detail: "SENDGRID_API_KEY and EMAIL_FROM must be set in .env",
+      });
+    }
+
+    const subject = vehicleInfo
+      ? `Shared vehicle: ${vehicleInfo}`
+      : "A vehicle was shared with you";
+    const greeting = senderName ? `Hi, ${senderName} shared a vehicle with you.` : "Hi, a vehicle was shared with you.";
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #1a1a1a; margin-bottom: 8px;">${subject}</h2>
+        <p style="color: #444; margin-top: 0;">${greeting}</p>
+        ${
+          vehicleInfo
+            ? `<p style="color: #444; font-weight: 600;">${vehicleInfo}</p>`
+            : ""
+        }
+        <p style="margin: 16px 0;">
+          <a href="${shareUrl}" style="display: inline-block; padding: 12px 16px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 6px;">Open shared vehicle</a>
+        </p>
+        <p style="color: #555; font-size: 13px;">If the button doesn't work, copy and paste this link:</p>
+        <p style="color: #2563eb; font-size: 13px; word-break: break-all;">${shareUrl}</p>
+      </div>
+    `;
+
+    const textContent = `
+${greeting}
+
+${vehicleInfo ? vehicleInfo + "\n\n" : ""}Open the shared vehicle here:
+${shareUrl}
+    `.trim();
+
+    const msg = {
+      to: recipientEmail,
+      from: EMAIL_FROM,
+      subject,
+      text: textContent,
+      html: htmlContent,
+    };
+
+    try {
+      await sgMail.send(msg);
+      console.log(`[share-email] Sent to ${recipientEmail}`);
+      return res.json({ ok: true });
+    } catch (sendError) {
+      console.error("[share-email] SendGrid error:", sendError);
+      throw sendError;
+    }
+  } catch (err) {
+    console.error("[share-email] error:", err);
+    return res.status(500).json({
+      error: "Failed to send share email",
+      detail: err?.message || "Unknown error",
+    });
+  }
+});
+
 app.get("/", (_req, res) => {
   res.type("text").send(
     "ExcelCalc proxy online. Use /api/config, /api/mc/... endpoints from the Vite dev server."

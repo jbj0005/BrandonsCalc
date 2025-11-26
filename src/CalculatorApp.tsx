@@ -2719,18 +2719,44 @@ export const CalculatorApp: React.FC = () => {
         });
       }
 
-      // Optional email share via mailto
+      // Optional email share via SendGrid backend
       const email = window.prompt(
-        "Optional: enter an email to share via your mail app (leave blank to skip)"
+        "Optional: enter an email to send this link (leave blank to skip)"
       );
-      if (email) {
-        const subject = encodeURIComponent("Check out this vehicle");
-        const body = encodeURIComponent(
-          `Hi,\n\nHere's a vehicle I want to share with you:\n${shareUrl}\n\nOpen the link to view it.`
-        );
-        window.location.href = `mailto:${encodeURIComponent(
-          email
-        )}?subject=${subject}&body=${body}`;
+      if (email && email.trim()) {
+        const payload = {
+          recipientEmail: email.trim(),
+          shareUrl,
+          vehicleInfo: `${vehicle.year || ""} ${vehicle.make || ""} ${vehicle.model || ""}`.trim(),
+          senderName:
+            (profile?.full_name && profile.full_name.trim()) ||
+            currentUser?.email ||
+            "",
+        };
+
+        fetch("/api/share/vehicle/email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then(async (res) => {
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(data?.error || `Email failed (${res.status})`);
+            }
+            toast.push({
+              kind: "success",
+              title: "Email sent",
+              detail: `Shared with ${payload.recipientEmail}`,
+            });
+          })
+          .catch((error: any) => {
+            toast.push({
+              kind: "error",
+              title: "Email failed",
+              detail: error?.message || "Could not send email.",
+            });
+          });
       }
     } catch (error: any) {
       toast.push({
