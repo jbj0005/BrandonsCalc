@@ -2791,16 +2791,52 @@ export const CalculatorApp: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data?.error || `Email failed (${res.status})`);
+      if (res.ok) {
+        toast.push({
+          kind: "success",
+          title: "Email sent",
+          detail: `Shared with ${payload.recipientEmail}`,
+        });
+        setShareModalEmail("");
+        return;
       }
-      toast.push({
-        kind: "success",
-        title: "Email sent",
-        detail: `Shared with ${payload.recipientEmail}`,
-      });
-      setShareModalEmail("");
+
+      // Fallback: try Supabase function if server route is unavailable (e.g., static hosting)
+      if (res.status === 404 && supabase) {
+        try {
+          const fallbackOfferId =
+            shareModalTarget?.id || `share-${Math.random().toString(36).slice(2)}`;
+          const { error: fnError } = await supabase.functions.invoke("send-email", {
+            body: {
+              offerId: fallbackOfferId,
+              recipientEmail: payload.recipientEmail,
+              recipientName: payload.recipientEmail,
+              vehicleInfo: payload.vehicleInfo,
+              offerText: `Shared vehicle link: ${payload.shareUrl}${
+                payload.listingUrl ? `\nListing URL: ${payload.listingUrl}` : ""
+              }`,
+            },
+          });
+          if (fnError) {
+            throw fnError;
+          }
+          toast.push({
+            kind: "success",
+            title: "Email sent",
+            detail: `Shared with ${payload.recipientEmail}`,
+          });
+          setShareModalEmail("");
+          return;
+        } catch (fallbackError: any) {
+          throw new Error(
+            fallbackError?.message ||
+              "Backend email endpoint unavailable and fallback failed."
+          );
+        }
+      }
+
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data?.error || `Email failed (${res.status})`);
     } catch (error: any) {
       setShareModalError(error?.message || "Could not send email.");
       toast.push({
