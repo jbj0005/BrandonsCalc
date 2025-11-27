@@ -1266,6 +1266,7 @@ export const CalculatorApp: React.FC = () => {
         setSharedSavedVehicles(payload?.savedVehicles || []);
       } catch (error: any) {
         if (controller.signal.aborted) return;
+        console.error("[share] Failed to load shared vehicles:", error);
         setSharedGarageError(
           error?.message || "Unable to load shared garage vehicles"
         );
