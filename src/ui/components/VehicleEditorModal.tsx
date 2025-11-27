@@ -27,8 +27,8 @@ export interface VehicleEditorModalProps {
   mode?: 'add' | 'edit';
   /** Use as trade-in handler */
   onUseAsTradeIn?: (vehicle: GarageVehicle) => void;
-  /** Vehicle type: 'garage' (owned) or 'saved' (shopping) */
-  vehicleType?: 'garage' | 'saved';
+  /** Vehicle type: 'garage' (owned) or 'saved' (shopping) or 'shared' */
+  vehicleType?: 'garage' | 'saved' | 'shared';
 }
 
 /**

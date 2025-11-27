@@ -329,14 +329,15 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                         </span>
                       </div>
                     </div>
-                    {filteredShared.map((vehicle) => (
-                      <VehicleListItem
-                        key={vehicle.id}
-                        vehicle={vehicle}
-                        onSelect={() => handleSelectVehicle(vehicle)}
-                        onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
-                      />
-                    ))}
+                {filteredShared.map((vehicle) => (
+                  <VehicleListItem
+                    key={vehicle.id}
+                    vehicle={vehicle}
+                    onSelect={() => handleSelectVehicle(vehicle)}
+                    onEdit={onEditVehicle ? () => onEditVehicle(vehicle) : undefined}
+                    onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
+                  />
+                ))}
                   </div>
                 )}
 

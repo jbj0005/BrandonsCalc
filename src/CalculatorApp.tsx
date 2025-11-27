@@ -1896,8 +1896,8 @@ export const CalculatorApp: React.FC = () => {
     () =>
       sharedSavedVehicles.map((v) => ({
         ...normalizeDealerData(v),
-        __source: "shared-saved",
-        source: "shared-saved" as const,
+        __source: "shared",
+        source: "shared" as const,
       })),
     [sharedSavedVehicles]
   );
@@ -2808,8 +2808,8 @@ export const CalculatorApp: React.FC = () => {
   };
 
   // Handle selecting a shared saved vehicle (read-only source)
-  const handleSelectSharedSavedVehicle = (vehicle: any) => {
-    const normalized = { ...normalizeDealerData(vehicle), __source: "shared-saved" };
+  const handleSelectSharedVehicle = (vehicle: any) => {
+    const normalized = { ...normalizeDealerData(vehicle), __source: "shared" };
     setSelectedVehicle(normalized);
     setVin(vehicle.vin || "");
     setShowVehicleDropdown(false);
@@ -3153,7 +3153,7 @@ export const CalculatorApp: React.FC = () => {
     }
   };
 
-  // Handle vehicle save/update from modal (for garage_vehicles table)
+  // Handle vehicle save/update from modal (garage, saved, shared)
   const handleVehicleSave = async (
     vehicleData: Partial<Vehicle | GarageVehicle>
   ) => {
@@ -3167,6 +3167,19 @@ export const CalculatorApp: React.FC = () => {
     }
 
     try {
+      const source =
+        (vehicleData as any)?.__source ||
+        (vehicleToEdit as any)?.__source ||
+        (vehicleData as any)?.source ||
+        "garage";
+
+      const table =
+        source === "saved"
+          ? "vehicles"
+          : source === "shared"
+          ? "shared_vehicles"
+          : "garage_vehicles";
+
       // Prepare the data for Supabase (ensure user_id is set)
       const dataToSave = {
         ...vehicleData,
@@ -3175,33 +3188,51 @@ export const CalculatorApp: React.FC = () => {
 
       // Check if this is an update (has id) or new vehicle
       if (vehicleData.id) {
-        // Update existing garage vehicle
+        // Update existing record
         const { id, ...updates } = dataToSave;
         const { error } = await supabase
-          .from("garage_vehicles")
+          .from(table)
           .update(updates)
           .eq("id", id)
           .eq("user_id", currentUser.id);
 
         if (error) throw error;
       } else {
-        // Add new garage vehicle
+        // Add new record
         const { error } = await supabase
-          .from("garage_vehicles")
+          .from(table)
           .insert([dataToSave]);
 
         if (error) throw error;
       }
 
-      // Reload garage vehicles to reflect changes
-      const { data: updatedVehicles, error: loadError } = await supabase
-        .from("garage_vehicles")
-        .select("*")
-        .eq("user_id", currentUser.id)
-        .order("created_at", { ascending: false });
+      // Reload relevant collections
+      if (table === "garage_vehicles") {
+        const { data: updatedVehicles, error: loadError } = await supabase
+          .from("garage_vehicles")
+          .select("*")
+          .eq("user_id", currentUser.id)
+          .order("created_at", { ascending: false });
 
-      if (loadError) throw loadError;
-      setGarageVehicles(updatedVehicles || []);
+        if (loadError) throw loadError;
+        setGarageVehicles(updatedVehicles || []);
+      } else if (table === "vehicles") {
+        if (ensureSavedVehiclesCacheReady()) {
+          const refreshed = await savedVehiclesCache.getVehicles({
+            forceRefresh: true,
+          });
+          setSavedVehicles(refreshed || []);
+        }
+      } else if (table === "shared_vehicles") {
+        const { data: updatedShared, error: loadError } = await supabase
+          .from("shared_vehicles")
+          .select("*")
+          .eq("user_id", currentUser.id)
+          .order("inserted_at", { ascending: false });
+
+        if (loadError) throw loadError;
+        setSharedImportedVehicles(updatedShared || []);
+      }
 
       toast.push({
         kind: "success",
@@ -3528,19 +3559,19 @@ export const CalculatorApp: React.FC = () => {
                               >
                                 Use in calculator
                               </Button>
-                              <Button
-                                size="xs"
-                                variant="ghost"
-                                className="border border-white/10 bg-white/5 text-white/80 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10"
-                                onClick={() => handleShareVehicle(normalizedVehicle)}
-                              >
-                                Share
-                              </Button>
-                              <Button
-                                size="xs"
-                                variant="outline"
-                                onClick={() => handleCopySharedVehicleToGarage(vehicle)}
-                                disabled={!currentUser}
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              className="border border-white/10 bg-white/5 text-white/80 hover:text-emerald-200 hover:border-emerald-200/40 hover:bg-white/10"
+                              onClick={() => handleShareVehicle(normalizedVehicle)}
+                            >
+                              Share
+                            </Button>
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              onClick={() => handleCopySharedVehicleToGarage(vehicle)}
+                              disabled={!currentUser}
                               >
                                 Copy to my garage
                               </Button>
@@ -3599,7 +3630,7 @@ export const CalculatorApp: React.FC = () => {
                             <Button
                               size="xs"
                               variant="secondary"
-                              onClick={() => handleSelectSharedSavedVehicle(vehicle)}
+                              onClick={() => handleSelectSharedVehicle(vehicle)}
                             >
                               Use in calculator
                             </Button>
@@ -4636,7 +4667,13 @@ export const CalculatorApp: React.FC = () => {
           onSave={handleVehicleSave}
           vehicle={vehicleToEdit}
           onUseAsTradeIn={handleSelectGarageVehicle}
-          vehicleType={vehicleToEdit?.source === "saved" ? "saved" : "garage"}
+          vehicleType={
+            vehicleToEdit?.source === "saved"
+              ? "saved"
+              : vehicleToEdit?.source === "shared"
+              ? "shared"
+              : "garage"
+          }
         />
       )}
 
