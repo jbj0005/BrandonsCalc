@@ -838,9 +838,14 @@ app.get("/api/share/:token/collections", async (req, res) => {
     );
 
     if (garageError) {
+      console.error("[share] RPC get_shared_garage_vehicles error:", garageError);
       return res
         .status(400)
-        .json({ error: garageError.message || "Unable to load shared garage" });
+        .json({
+          error: garageError.message || "Unable to load shared garage",
+          details: garageError?.details,
+          hint: garageError?.hint,
+        });
     }
 
     let garageOwnerId =
