@@ -831,73 +831,70 @@ app.get("/api/share/:token/collections", async (req, res) => {
   }
 
   try {
-    // Re-use existing RPC for validation and view counting
-    const { data: garageVehicles, error: garageError } = await supabase.rpc(
-      "get_shared_garage_vehicles",
-      { p_token: token }
-    );
+    // Load share link manually (avoid RPC ambiguous id errors)
+    const { data: linkRow, error: linkError } = await supabase
+      .from("garage_share_links")
+      .select(
+        "id, garage_owner_id, revoked_at, expires_at, max_views, current_views"
+      )
+      .eq("token", token)
+      .maybeSingle();
 
-    if (garageError) {
-      console.error("[share] RPC get_shared_garage_vehicles error:", garageError);
+    if (linkError) {
+      console.error("[share] Failed to load share link:", linkError);
       return res
         .status(400)
-        .json({
-          error: garageError.message || "Unable to load shared garage",
-          details: garageError?.details,
-          hint: garageError?.hint,
-        });
+        .json({ error: linkError.message || "Invalid share link" });
+    }
+    if (!linkRow) {
+      return res.status(404).json({ error: "Share link not found" });
     }
 
-    let garageOwnerId =
-      (garageVehicles && garageVehicles[0]?.garage_owner_id) ||
-      (garageVehicles && garageVehicles[0]?.user_id) ||
-      null;
+    const now = new Date();
+    if (
+      linkRow.revoked_at ||
+      (linkRow.expires_at && new Date(linkRow.expires_at) < now) ||
+      (linkRow.max_views &&
+        linkRow.current_views >= (linkRow.max_views || 0))
+    ) {
+      return res.status(400).json({ error: "Share link is not active" });
+    }
 
-    let filteredGarageVehicles = garageVehicles || [];
+    // Increment view count
+    await supabase
+      .from("garage_share_links")
+      .update({
+        current_views: (linkRow.current_views || 0) + 1,
+      })
+      .eq("id", linkRow.id);
+
+    const garageOwnerId = linkRow.garage_owner_id;
+
+    // Fetch garage vehicles for owner
+    let filteredGarageVehicles = [];
+    const { data: garageData, error: garageError } = await supabase
+      .from("garage_vehicles")
+      .select(
+        "id,user_id,nickname,year,make,model,trim,vin,mileage,condition,estimated_value,payoff_amount,photo_url,photo_storage_path,notes,times_used,last_used_at,created_at,updated_at"
+      )
+      .eq("user_id", garageOwnerId)
+      .order("last_used_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+
+    if (garageError) {
+      console.error("[share] Failed to load garage vehicles:", garageError);
+      return res.status(400).json({
+        error: garageError.message || "Unable to load shared garage",
+        details: garageError?.details,
+        hint: garageError?.hint,
+      });
+    }
+
+    filteredGarageVehicles = garageData || [];
     if (requestedVehicleId) {
       filteredGarageVehicles = filteredGarageVehicles.filter(
         (v) => String(v.id) === String(requestedVehicleId)
       );
-    }
-
-    // If garage is empty, we still need the owner id (and to validate the link)
-    if (!garageOwnerId) {
-      const { data: linkRow, error: linkError } = await supabase
-        .from("garage_share_links")
-        .select(
-          "garage_owner_id, revoked_at, expires_at, max_views, current_views"
-        )
-        .eq("token", token)
-        .maybeSingle();
-
-      if (linkError) {
-        return res
-          .status(400)
-          .json({ error: linkError.message || "Invalid share link" });
-      }
-      if (!linkRow) {
-        return res.status(404).json({ error: "Share link not found" });
-      }
-
-      const now = new Date();
-      if (
-        linkRow.revoked_at ||
-        (linkRow.expires_at && new Date(linkRow.expires_at) < now) ||
-        (linkRow.max_views &&
-          linkRow.current_views >= (linkRow.max_views || 0))
-      ) {
-        return res.status(400).json({ error: "Share link is not active" });
-      }
-
-      // Increment view count for empty garages to mirror RPC behavior
-      await supabase
-        .from("garage_share_links")
-        .update({
-          current_views: (linkRow.current_views || 0) + 1,
-        })
-        .eq("token", token);
-
-      garageOwnerId = linkRow.garage_owner_id;
     }
 
     let savedVehicles = [];
