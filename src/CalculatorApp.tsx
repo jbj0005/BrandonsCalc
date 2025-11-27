@@ -398,6 +398,11 @@ export const CalculatorApp: React.FC = () => {
     (import.meta.env.BASE_URL || "/")
       .replace(/\/+$/, "")
       .replace(/^\s*$/, "");
+  const shareBaseEnv =
+    (import.meta.env.VITE_SHARE_BASE_URL as string | undefined)?.replace(
+      /\/+$/,
+      ""
+    ) || "";
   const lastImportedShareRef = useRef<string | null>(null);
 
   // APR Confirmation Modal State
@@ -2923,7 +2928,9 @@ export const CalculatorApp: React.FC = () => {
 
     const baseUrl =
       typeof window !== "undefined" ? window.location.origin : "";
-    const basePrefix = `${baseUrl}${basePath || ""}`;
+    const basePrefix =
+      shareBaseEnv ||
+      `${baseUrl}${basePath || ""}`;
 
     try {
       // If already viewing via share token, reuse it
