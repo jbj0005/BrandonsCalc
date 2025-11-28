@@ -1422,9 +1422,16 @@ export const CalculatorApp: React.FC = () => {
           dealer_stock: v.dealer_stock || null,
         }));
 
+        // Upsert by id when present, otherwise by (user_id, vin)
+        const payloadWithConflict = payload.map((row) => ({
+          ...row,
+          // if no vin, fallback to random to avoid constraint mismatch
+          vin: row.vin || `no-vin-${row.shared_from_vehicle_id || Date.now()}`,
+        }));
+
         const { error: insertError } = await supabase
           .from("shared_vehicles")
-          .upsert(payload, { onConflict: "user_id,vin" });
+          .upsert(payloadWithConflict, { onConflict: "id,user_id,vin" });
 
         if (insertError) {
           throw insertError;
