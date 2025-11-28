@@ -328,44 +328,111 @@ export const DealerMap: React.FC<DealerMapProps> = ({
       },
     });
 
-    directionsService.route(
-      {
-        origin: { lat: userLocation.lat, lng: userLocation.lng },
-        destination: dealerDestination,
-        travelMode: google.maps.TravelMode.DRIVING,
-      },
-      (result, status) => {
-        if (status === 'OK' && result) {
-          directionsRenderer.current?.setDirections(result);
+    const resolveOrigin = async (): Promise<{ lat: number; lng: number } | null> => {
+      if (
+        userLocation &&
+        Number.isFinite(userLocation.lat) &&
+        Number.isFinite(userLocation.lng) &&
+        (userLocation.lat !== 0 || userLocation.lng !== 0)
+      ) {
+        return { lat: userLocation.lat!, lng: userLocation.lng! };
+      }
 
-          // Extract distance and duration
-          const route = result.routes[0];
-          if (route && route.legs && route.legs[0]) {
-            setDistance(route.legs[0].distance?.text || null);
-            setDuration(route.legs[0].duration?.text || null);
+      const addressParts = [
+        userLocation?.address,
+        userLocation?.city,
+        userLocation?.state,
+        userLocation?.zipCode,
+        userLocation?.country,
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      if (!addressParts || !window.google?.maps?.Geocoder) return null;
+
+      return new Promise((resolve) => {
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ address: addressParts }, (results, status) => {
+          if (status === 'OK' && results && results[0]) {
+            const loc = results[0].geometry.location;
+            const lat = typeof loc.lat === 'function' ? loc.lat() : (loc.lat as number);
+            const lng = typeof loc.lng === 'function' ? loc.lng() : (loc.lng as number);
+            resolve({ lat, lng });
+          } else {
+            trackGoogleMapsError(
+              GoogleMapsErrorType.GEOCODING_ERROR,
+              `Origin geocode failed with status: ${status}`,
+              { component: 'DealerMap', address: addressParts }
+            );
+            resolve(null);
           }
-          trackGoogleMapsPerformance('dealer_directions', directionsStartTime, true);
-        } else {
-          trackGoogleMapsPerformance('dealer_directions', directionsStartTime, false);
-          trackGoogleMapsError(
-            GoogleMapsErrorType.DIRECTIONS_ERROR,
-            `Directions failed with status: ${status}`,
-            {
-              component: 'DealerMap',
-              origin: { lat: userLocation.lat, lng: userLocation.lng },
-              destination: dealerDestination,
-              status
-            }
-          );
+        });
+      });
+    };
 
-          // Don't set error if it's just ZERO_RESULTS (might be too far)
-          if (status !== 'ZERO_RESULTS') {
-            setError('Unable to calculate route');
+    const runDirections = async () => {
+      const origin = await resolveOrigin();
+      if (!origin) return;
+
+      directionsService.route(
+        {
+          origin,
+          destination: dealerDestination,
+          travelMode: google.maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === 'OK' && result) {
+            directionsRenderer.current?.setDirections(result);
+
+            // Extract distance and duration
+            const route = result.routes[0];
+            if (route && route.legs && route.legs[0]) {
+              setDistance(route.legs[0].distance?.text || null);
+              setDuration(route.legs[0].duration?.text || null);
+            }
+            trackGoogleMapsPerformance('dealer_directions', directionsStartTime, true);
+          } else {
+            trackGoogleMapsPerformance('dealer_directions', directionsStartTime, false);
+            trackGoogleMapsError(
+              GoogleMapsErrorType.DIRECTIONS_ERROR,
+              `Directions failed with status: ${status}`,
+              {
+                component: 'DealerMap',
+                origin,
+                destination: dealerDestination,
+                status
+              }
+            );
+
+            if (status !== 'ZERO_RESULTS') {
+              setError('Unable to calculate route');
+            }
+            setDistance(null);
+            setDuration(null);
           }
         }
-      }
-    );
-  }, [map, isLoaded, showRoute, userLocation, dealerAddress, dealerCity, dealerState, dealerZip, dealerLat, dealerLng]);
+      );
+    };
+
+    runDirections();
+  }, [
+    map,
+    isLoaded,
+    showRoute,
+    userLocation?.lat,
+    userLocation?.lng,
+    userLocation?.address,
+    userLocation?.city,
+    userLocation?.state,
+    userLocation?.zipCode,
+    userLocation?.country,
+    dealerLat,
+    dealerLng,
+    dealerAddress,
+    dealerCity,
+    dealerState,
+    dealerZip,
+  ]);
 
   if (error) {
     return (
