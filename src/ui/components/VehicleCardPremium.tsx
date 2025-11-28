@@ -128,7 +128,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
           {/* Right: Vehicle Details */}
           <div className="flex flex-col justify-between">
             {/* Vehicle Name */}
-            <div className="mb-6">
+            <div className="mb-4">
               <div
                 className="text-3xl lg:text-4xl font-semibold text-white leading-tight tracking-tight flex flex-wrap items-baseline gap-2"
                 style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}
@@ -139,15 +139,20 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
                 {vehicle.trim && (
                   <span className="text-white/60">· {vehicle.trim}</span>
                 )}
+                {vehicle.condition && (
+                  <span className="text-sm px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/70">
+                    {vehicle.condition.toLowerCase() === "new" ? "New" : "Used"}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Sale Price - Prominent Display */}
-            <div className="mb-6 p-6 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-400/20">
+            <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-400/20">
               <div className="text-xs uppercase tracking-[0.25em] text-blue-300/70 font-medium mb-2">
                 {salePriceLabel}
               </div>
-              <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-cyan-300"
+              <div className="text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-cyan-300"
                    style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
                 {formatCurrencyValue(salePrice)}
               </div>
@@ -156,7 +161,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
             {/* Spec Grid */}
             <div className="grid grid-cols-2 gap-3">
               {vehicle.vin && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
+                <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
                                 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group/spec">
                   <div className="text-xs uppercase tracking-wider text-blue-300/60 mb-1.5
                                   group-hover/spec:text-blue-300/90 transition-colors">
@@ -170,7 +175,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
               )}
 
               {mileage != null && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
+                <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
                                 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group/spec">
                   <div className="text-xs uppercase tracking-wider text-blue-300/60 mb-1.5
                                   group-hover/spec:text-blue-300/90 transition-colors">
@@ -183,7 +188,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
               )}
 
               {isGarageVehicle && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
+                <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
                                 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group/spec col-span-2">
                   <div className="text-xs uppercase tracking-wider text-blue-300/60 mb-1.5
                                   group-hover/spec:text-blue-300/90 transition-colors">
@@ -196,7 +201,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
               )}
 
               {vehicle.dealer_name && (
-                <div className="p-4 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
+                <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm
                                 hover:bg-white/10 hover:border-white/20 transition-all duration-300 group/spec col-span-2">
                   <div className="text-xs uppercase tracking-wider text-blue-300/60 mb-1.5
                                   group-hover/spec:text-blue-300/90 transition-colors">

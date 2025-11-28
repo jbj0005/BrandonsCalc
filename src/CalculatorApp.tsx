@@ -2828,10 +2828,13 @@ export const CalculatorApp: React.FC = () => {
 
   // Handle selecting a saved vehicle from dropdown
   const handleSelectSavedVehicle = (vehicle: any) => {
-    setSelectedVehicle({ ...normalizeDealerData(vehicle), __source: "saved" });
+    const normalized = { ...normalizeDealerData(vehicle), __source: "saved" };
+    setSelectedVehicle(normalized);
     setVin(vehicle.vin || "");
     setShowVehicleDropdown(false);
-    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+    const condition =
+      normalized.condition?.toLowerCase() === "new" ? "new" : "used";
+    setVehicleCondition(condition as "new" | "used");
 
     const saleValue = getVehicleSalePrice(vehicle);
     if (saleValue != null) {
@@ -2853,7 +2856,9 @@ export const CalculatorApp: React.FC = () => {
     setSelectedVehicle(normalized);
     setVin(vehicle.vin || "");
     setShowVehicleDropdown(false);
-    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+    const condition =
+      normalized.condition?.toLowerCase() === "new" ? "new" : "used";
+    setVehicleCondition(condition as "new" | "used");
 
     const saleValue = getVehicleSalePrice(normalized);
     if (saleValue != null) {
@@ -2868,10 +2873,13 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const handleSelectGarageVehicle = (vehicle: any) => {
-    setSelectedVehicle({ ...normalizeDealerData(vehicle), __source: "garage" });
+    const normalized = { ...normalizeDealerData(vehicle), __source: "garage" };
+    setSelectedVehicle(normalized);
     setVin(vehicle.vin || "");
     setShowVehicleDropdown(false);
-    setVehicleCondition(FEATURE_FLAGS.defaultVehicleCondition);
+    const condition =
+      normalized.condition?.toLowerCase() === "new" ? "new" : "used";
+    setVehicleCondition(condition as "new" | "used");
 
     // Use store action to apply garage vehicle (sets values + baselines)
     applyGarageVehicle(
