@@ -1423,15 +1423,42 @@ export const CalculatorApp: React.FC = () => {
         }));
 
         // Upsert by id when present, otherwise by (user_id, vin)
-        const payloadWithConflict = payload.map((row) => ({
-          ...row,
-          // if no vin, fallback to random to avoid constraint mismatch
-          vin: row.vin || `no-vin-${row.shared_from_vehicle_id || Date.now()}`,
-        }));
+        const withVin = payload.filter((row) => row.vin);
+        const withoutVin = payload.filter((row) => !row.vin);
 
-        const { error: insertError } = await supabase
-          .from("shared_vehicles")
-          .upsert(payloadWithConflict, { onConflict: "id,user_id,vin" });
+        // Upsert rows with VIN using (user_id, vin)
+        if (withVin.length) {
+          const { error: insertError } = await supabase
+            .from("shared_vehicles")
+            .upsert(withVin, { onConflict: "user_id,vin" });
+          if (insertError) {
+            throw insertError;
+          }
+        }
+
+        // Upsert rows without VIN but with shared_from_vehicle_id using (user_id, shared_from_vehicle_id)
+        const withoutVinButSource = withoutVin.filter(
+          (row) => row.shared_from_vehicle_id
+        );
+        if (withoutVinButSource.length) {
+          const { error: insertError } = await supabase
+            .from("shared_vehicles")
+            .upsert(withoutVinButSource, { onConflict: "user_id,shared_from_vehicle_id" });
+          if (insertError) {
+            throw insertError;
+          }
+        }
+
+        // Rows with neither VIN nor shared_from_vehicle_id: insert plain (no conflict target)
+        const orphanRows = withoutVin.filter((row) => !row.shared_from_vehicle_id);
+        if (orphanRows.length) {
+          const { error: insertError } = await supabase
+            .from("shared_vehicles")
+            .insert(orphanRows);
+          if (insertError) {
+            throw insertError;
+          }
+        }
 
         if (insertError) {
           throw insertError;
