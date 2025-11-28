@@ -129,15 +129,17 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
           <div className="flex flex-col justify-between">
             {/* Vehicle Name */}
             <div className="mb-6">
-              <h2 className="text-4xl lg:text-5xl font-bold text-white leading-tight tracking-tight mb-2"
-                  style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-                {vehicle.year} {vehicle.make}
-              </h2>
-              <h3 className="text-2xl lg:text-3xl font-light text-blue-300 tracking-wide"
-                  style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-                {vehicle.model}
-                {vehicle.trim && <span className="text-white/50"> · {vehicle.trim}</span>}
-              </h3>
+              <div
+                className="text-3xl lg:text-4xl font-semibold text-white leading-tight tracking-tight flex flex-wrap items-baseline gap-2"
+                style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}
+              >
+                <span>{vehicle.year}</span>
+                <span>{vehicle.make}</span>
+                <span className="text-blue-200">{vehicle.model}</span>
+                {vehicle.trim && (
+                  <span className="text-white/60">· {vehicle.trim}</span>
+                )}
+              </div>
             </div>
 
             {/* Sale Price - Prominent Display */}
