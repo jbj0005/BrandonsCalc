@@ -440,6 +440,23 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     loadSuggestions,
   ]);
 
+  // Sync govRows when fee engine recalculates (auto mode only)
+  useEffect(() => {
+    if (!isOpen || !initializedRef.current) return;
+    // Only sync when auto mode is enabled
+    if (scenarioOverrides?.enabled === false) return;
+
+    const govSource = initialGovtFees ?? [];
+    setGovRows(
+      govSource.length > 0
+        ? govSource.map((f) => ({
+            description: f.description,
+            amount: formatCurrencyExact(f.amount),
+          }))
+        : [{ description: '', amount: '' }]
+    );
+  }, [isOpen, initialGovtFees, scenarioOverrides?.enabled]);
+
   useEffect(() => {
     if (typeof window === 'undefined') return undefined;
     const handler = () => {
@@ -904,7 +921,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="p-6 space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 pr-14">
+        <div className="flex items-center justify-between gap-4">
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
           <button
             type="button"
@@ -919,7 +936,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         </div>
 
         {/* Scrollable content area */}
-        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-6 mr-2">
+        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-4 mr-1">
           {/* Dealer Fees Section */}
           <ModernFeeSection
             title="Dealer Fees"
@@ -1107,29 +1124,111 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         </div>
       </div>
 
-      {/* Purchase Assumptions Modal (power users) */}
+      {/* Purchase Assumptions Modal (simplified) */}
       <Modal isOpen={showAssumptionsModal} onClose={() => setShowAssumptionsModal(false)} size="lg" isNested>
         <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xl font-semibold text-white">Purchase Assumptions</h3>
-              <p className="text-sm text-white/70">
-                Keywords and detected inputs driving your gov't fee calculation.
-              </p>
-            </div>
-            <Button variant="ghost" onClick={() => setShowAssumptionsModal(false)}>
-              Close
-            </Button>
+          <div>
+            <h3 className="text-xl font-semibold text-white">Purchase Assumptions</h3>
+            <p className="text-sm text-white/70">
+              Keywords and detected inputs driving your gov't fee calculation.
+            </p>
           </div>
-          <div className="space-y-3">
-            {renderPills()}
-            {showScenarioPanel && (
-              <ScenarioDetectionPanelV2
-                scenarioResult={scenarioResult || null}
-                isCalculating={isCalculatingFees}
-                onRecalculate={onRecalculateFees}
-                showRules
-              />
+          <div className="space-y-4">
+            {/* Keywords only (no auto calc toggle - already in parent modal) */}
+            {scenarioOverrides?.enabled !== false && (
+              <div className="space-y-2">
+                <div className="text-sm text-white/70">
+                  Select keywords to adjust your purchase details:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    {
+                      key: 'cashPurchase' as const,
+                      label: 'Cash Purchase',
+                      active: scenarioOverrides?.cashPurchase || false,
+                    },
+                    {
+                      key: 'includeTradeIn' as const,
+                      label: 'Include Trade-In',
+                      active: scenarioOverrides?.includeTradeIn !== false,
+                      disabled: !hasTradeIn,
+                    },
+                    {
+                      key: 'tag_new' as const,
+                      label: 'New Tag',
+                      active: scenarioOverrides?.tagMode === 'new_plate',
+                      disabled: hasTradeIn,
+                    },
+                    {
+                      key: 'tag_transfer' as const,
+                      label: 'Tag Transfer',
+                      active: scenarioOverrides?.tagMode === 'transfer_existing_plate',
+                    },
+                    {
+                      key: 'firstTimeRegistration' as const,
+                      label: 'First-Time FL Reg',
+                      active: scenarioOverrides?.firstTimeRegistration || false,
+                    },
+                  ].map((pill) => (
+                    <button
+                      key={pill.key}
+                      type="button"
+                      onClick={() => handleTogglePill(pill.key)}
+                      disabled={pill.disabled}
+                      className={`px-3 py-1.5 rounded-full text-sm border transition-all ${
+                        pill.disabled
+                          ? 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed'
+                          : pill.active
+                          ? 'bg-emerald-500/20 border-emerald-400/40 text-emerald-100 shadow-emerald-500/20 shadow'
+                          : 'bg-white/5 border-white/10 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Purchase Assumptions Summary */}
+            {showScenarioPanel && scenarioResult && (
+              <div className="space-y-4">
+                <div className="flex items-center p-4 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-emerald-900/30 flex items-center justify-center">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-white">Purchase Assumptions</h4>
+                      <p className="text-sm text-white/60">
+                        {scenarioResult.detectedScenario.isFinanced ? 'Financed' : 'Cash'} purchase
+                        {scenarioResult.detectedScenario.isTagTransfer && ' · Tag transfer'}
+                        {scenarioResult.detectedScenario.tagMode === 'new_plate' && ' · New tag'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Total Gov Fees Card */}
+                <div className="p-4 rounded-xl bg-gradient-to-br from-blue-950/40 to-blue-900/30 border border-blue-500/20">
+                  <div className="text-xs font-medium text-blue-400 uppercase tracking-wide mb-1">
+                    Total Gov Fees
+                  </div>
+                  <div className="text-2xl font-bold text-white">
+                    {formatCurrencyExact(scenarioResult.totals.governmentFees)}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Calculating State */}
+            {isCalculatingFees && (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-blue-950/30 border border-blue-500/20">
+                <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm text-blue-300 font-medium">
+                  Calculating government fees...
+                </span>
+              </div>
             )}
           </div>
         </div>

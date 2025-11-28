@@ -945,6 +945,17 @@ app.get("/api/share/:token/collections", async (req, res) => {
       }
     }
 
+    // If we were asked for a specific vehicle and none matched, return 404
+    if (requestedVehicleId) {
+      const hasGarage = filteredGarageVehicles.length > 0;
+      const hasSaved = savedVehicles.length > 0;
+      if (!hasGarage && !hasSaved) {
+        return res
+          .status(404)
+          .json({ error: "Shared vehicle not found for this link" });
+      }
+    }
+
     return res.json({
       garageVehicles: filteredGarageVehicles,
       savedVehicles,

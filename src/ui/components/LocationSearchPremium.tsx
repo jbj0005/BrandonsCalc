@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { loadGoogleMapsScript } from '../../utils/loadGoogleMaps';
+import { useGoogleMapsAutocomplete } from '../../hooks/useGoogleMapsAutocomplete';
+import type { PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 
 export interface LocationDetails {
   formatted_address?: string;
@@ -33,136 +35,40 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   mapsLoaded = false,
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
-  const [mapsReady, setMapsReady] = useState(false);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   // Load Google Maps (with key) if not already provided via mapsLoaded
   useEffect(() => {
-    if (window.google?.maps?.places?.Autocomplete) {
-      setMapsReady(true);
-      return;
-    }
-
-    if (mapsLoaded) {
-      // Parent says maps loaded, wait for API to be fully ready
-      const checkReady = setInterval(() => {
-        if (window.google?.maps?.places?.Autocomplete) {
-          setMapsReady(true);
-          clearInterval(checkReady);
-        }
-      }, 100);
-      const timeout = setTimeout(() => clearInterval(checkReady), 5000);
-      return () => {
-        clearInterval(checkReady);
-        clearTimeout(timeout);
-      };
-    }
-
     if (!apiKey) {
       console.error('Google Maps API key not configured');
       return;
     }
-    loadGoogleMapsScript()
-      .then(() => setMapsReady(true))
-      .catch((err) => {
-        console.error('Failed to load Google Maps', err);
-      });
-  }, [mapsLoaded, apiKey]);
+    loadGoogleMapsScript().catch((err) => {
+      console.error('Failed to load Google Maps', err);
+    });
+  }, [apiKey]);
 
-  // Initialize Places Autocomplete (classic JS API) to keep suggestions while preserving focus
-  useEffect(() => {
-    if (!inputRef.current || autocompleteRef.current) return;
-
-    // If API not ready yet, poll for it
-    if (!window.google?.maps?.places?.Autocomplete) {
-      if (!mapsReady && !mapsLoaded) return; // Haven't started loading
-
-      const checkReady = setInterval(() => {
-        if (window.google?.maps?.places?.Autocomplete && inputRef.current && !autocompleteRef.current) {
-          clearInterval(checkReady);
-          initAutocomplete();
-        }
-      }, 100);
-      const timeout = setTimeout(() => clearInterval(checkReady), 10000);
-      return () => {
-        clearInterval(checkReady);
-        clearTimeout(timeout);
-      };
-    }
-
-    initAutocomplete();
-
-    function initAutocomplete() {
-      if (!inputRef.current || autocompleteRef.current) return;
-      try {
-        const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-          types: ['geocode'],
-          componentRestrictions: { country: ['us'] },
-          // Request the formatted address so we can mirror the exact string Google shows
-          fields: ['formatted_address', 'address_components', 'geometry', 'name'],
-        });
-      autocompleteRef.current = autocomplete;
-
-      const handlePlaceChange = () => {
-        const place = autocomplete.getPlace();
-        if (!place) return;
-
-        let city = '';
-        let state = '';
-        let zip = '';
-        let county = '';
-
-        (place.address_components || []).forEach((component) => {
-          const types = component.types || [];
-          if (types.includes('locality')) city = component.long_name;
-          if (types.includes('administrative_area_level_1')) state = component.short_name;
-          if (types.includes('postal_code')) zip = component.long_name;
-          if (types.includes('administrative_area_level_2')) county = component.long_name.replace(/ County$/i, '');
-        });
-
-        // Match the visible autocomplete text even when Google omits formatted_address
-        const displayAddress =
-          place.formatted_address ||
-          place.name ||
-          // @ts-expect-error: legacy typings omit description/inputValue
-          place.description ||
-          // @ts-expect-error: legacy typings omit inputValue
-          place.inputValue ||
-          inputRef.current?.value ||
-          '';
-
-        const lat = place.geometry?.location?.lat?.();
-        const lng = place.geometry?.location?.lng?.();
-
-        const details: LocationDetails = {
-          formatted_address: displayAddress,
-          city,
-          state,
-          zip,
-          county,
-          latitude: lat ?? undefined,
-          longitude: lng ?? undefined,
-        };
-
+  // Modern autocomplete via PlaceAutocompleteElement
+  useGoogleMapsAutocomplete(inputRef, {
+    enabled: true,
+    types: ['geocode'],
+    componentRestrictions: { country: 'us' },
+    onPlaceSelected: (place: PlaceDetails) => {
+      const displayAddress = place.address || '';
+      if (displayAddress) {
         onLocationChange(displayAddress);
-        onPlaceSelected?.(details);
-      };
-
-      autocomplete.addListener('place_changed', handlePlaceChange);
-    } catch (err) {
-      console.error('Failed to init Places Autocomplete', err);
-    }
-    } // end initAutocomplete
-
-    return () => {
-      if (autocompleteRef.current) {
-        window.google.maps.event.clearInstanceListeners(autocompleteRef.current);
-        autocompleteRef.current.unbindAll?.();
-        autocompleteRef.current = null;
       }
-    };
-  }, [mapsReady, onLocationChange, onPlaceSelected]);
+      onPlaceSelected?.({
+        formatted_address: displayAddress,
+        city: place.city,
+        state: place.state,
+        zip: place.zipCode,
+        county: place.countyName || place.county,
+        latitude: place.lat,
+        longitude: place.lng,
+      });
+    },
+  });
 
   const hasLocation = locationDetails && locationDetails.city && locationDetails.state;
 

@@ -23,7 +23,12 @@
       "Bash(git log:*)",
       "Bash(npm test:*)",
       "Bash(gh run list:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "Bash(xargs cat:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(git checkout:*)",
+      "Bash(git restore:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []

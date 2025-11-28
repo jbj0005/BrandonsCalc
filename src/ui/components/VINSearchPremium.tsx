@@ -511,12 +511,7 @@ const VehicleListItem: React.FC<{
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const confirmed = window.confirm(
-                  "Are you sure you want to delete this vehicle?"
-                );
-                if (confirmed) {
-                  onDelete();
-                }
+                onDelete();
               }}
               className="p-2 text-white/30 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-all duration-300 opacity-0 group-hover/item:opacity-100"
               title="Delete vehicle"
