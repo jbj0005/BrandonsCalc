@@ -130,20 +130,22 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
             {/* Vehicle Name */}
             <div className="mb-4">
               <div
-                className="text-3xl lg:text-4xl font-semibold text-white leading-tight tracking-tight flex flex-wrap items-baseline gap-2"
+                className="text-3xl lg:text-4xl font-semibold text-white leading-tight tracking-tight flex flex-wrap items-center gap-3"
                 style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}
               >
-                <span>{vehicle.year}</span>
-                <span>{vehicle.make}</span>
-                <span className="text-blue-200">{vehicle.model}</span>
-                {vehicle.trim && (
-                  <span className="text-white/60">· {vehicle.trim}</span>
-                )}
                 {vehicle.condition && (
-                  <span className="text-sm px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/70">
+                  <span className="text-xs uppercase tracking-[0.2em] px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500/30 to-blue-500/30 border border-white/20 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]">
                     {vehicle.condition.toLowerCase() === "new" ? "New" : "Used"}
                   </span>
                 )}
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span>{vehicle.year}</span>
+                  <span>{vehicle.make}</span>
+                  <span className="text-blue-200">{vehicle.model}</span>
+                  {vehicle.trim && (
+                    <span className="text-white/60">· {vehicle.trim}</span>
+                  )}
+                </div>
               </div>
             </div>
 
