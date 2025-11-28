@@ -84,8 +84,10 @@ export class SliderManager {
         
       case 'quickSliderCashDown':
         // Cash down can go up to 50% of sale price
-        const salePrice = useCalculatorStore.getState().salePrice || originalValue * 2;
-        return salePrice * 0.5;
+        {
+          const salePrice = useCalculatorStore.getState().salePrice || originalValue * 2;
+          return salePrice * 0.5;
+        }
         
       case 'quickSliderTradeAllowance':
         // Trade can be increased by 50%
