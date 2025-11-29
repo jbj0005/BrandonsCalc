@@ -76,11 +76,9 @@ import {
   acceptGarageInvite,
   getSharedGarageVehiclesByToken,
   createGarageShareLink,
-  getAccessibleGaragesForAdd,
-  moveSharedVehicleToGarage,
-  type GarageOption,
+  deleteSharedVehicle,
+  getSharedVehicleById,
 } from "./lib/supabase";
-import { AddToGarageModal } from "./ui/components/AddToGarageModal";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
   if (!rates || rates.length === 0) return null;
@@ -423,12 +421,6 @@ export const CalculatorApp: React.FC = () => {
   // Fees Modal State
   const [showFeesModal, setShowFeesModal] = useState(false);
   const [showFeeTemplateModal, setShowFeeTemplateModal] = useState(false);
-
-  // Add to Garage Modal State
-  const [showAddToGarageModal, setShowAddToGarageModal] = useState(false);
-  const [addToGarageVehicle, setAddToGarageVehicle] = useState<any | null>(null);
-  const [addToGarageOptions, setAddToGarageOptions] = useState<GarageOption[]>([]);
-  const [isAddingToGarage, setIsAddingToGarage] = useState(false);
 
   // User Profile Dropdown State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -1484,6 +1476,17 @@ export const CalculatorApp: React.FC = () => {
         }
 
         lastImportedShareRef.current = importKey;
+
+        // Reload shared imported vehicles to show the newly imported ones
+        const { data: refreshedData } = await supabase
+          .from("shared_vehicles")
+          .select("*")
+          .eq("user_id", currentUser.id)
+          .order("inserted_at", { ascending: false });
+        if (refreshedData) {
+          setSharedImportedVehicles(refreshedData);
+        }
+
         toast.push({
           kind: "success",
           title: "Shared vehicle added",
@@ -3069,71 +3072,78 @@ export const CalculatorApp: React.FC = () => {
     }
   };
 
-  // Handle opening the Add to Garage modal for a shared vehicle
-  const handleAddToGarage = async (vehicle: any) => {
+  // Handle adding a shared vehicle to saved vehicles
+  const handleAddToSavedVehicles = async (vehicle: any) => {
     if (!currentUser) {
       toast.push({
         kind: "info",
         title: "Sign in required",
-        detail: "Sign in to add vehicles to your garage.",
+        detail: "Sign in to save vehicles.",
       });
       setAuthMode("signin");
       setShowAuthModal(true);
       return;
     }
 
-    // Fetch accessible garages
+    if (!vehicle?.id) return;
+
     try {
-      const garages = await getAccessibleGaragesForAdd(currentUser.id);
-      setAddToGarageOptions(garages);
-      setAddToGarageVehicle(vehicle);
-      setShowAddToGarageModal(true);
-    } catch (error: any) {
-      toast.push({
-        kind: "error",
-        title: "Could not load garages",
-        detail: error?.message || "Please try again.",
-      });
-    }
-  };
-
-  // Confirm adding shared vehicle to garage
-  const handleConfirmAddToGarage = async (garageOwnerId: string) => {
-    if (!addToGarageVehicle?.id) return;
-
-    setIsAddingToGarage(true);
-    try {
-      const newVehicle = await moveSharedVehicleToGarage(
-        addToGarageVehicle.id,
-        garageOwnerId
-      );
-
-      // Update local state - remove from shared, add to garage
-      setSharedImportedVehicles((prev) =>
-        prev.filter((v) => v.id !== addToGarageVehicle.id)
-      );
-
-      if (newVehicle && garageOwnerId === currentUser?.id) {
-        // Only add to garage vehicles if it's the current user's garage
-        setGarageVehicles((prev) => [...prev, newVehicle]);
+      // Get the shared vehicle data
+      const sharedVehicle = await getSharedVehicleById(vehicle.id);
+      if (!sharedVehicle) {
+        throw new Error("Shared vehicle not found");
       }
+
+      // Prepare vehicle data for saved vehicles table
+      const vehicleData = {
+        vin: sharedVehicle.vin,
+        year: sharedVehicle.year,
+        make: sharedVehicle.make,
+        model: sharedVehicle.model,
+        trim: sharedVehicle.trim,
+        mileage: sharedVehicle.mileage,
+        condition: sharedVehicle.condition,
+        heading: sharedVehicle.heading,
+        asking_price: sharedVehicle.asking_price,
+        dealer_name: sharedVehicle.dealer_name,
+        dealer_street: sharedVehicle.dealer_street,
+        dealer_city: sharedVehicle.dealer_city,
+        dealer_state: sharedVehicle.dealer_state,
+        dealer_zip: sharedVehicle.dealer_zip,
+        dealer_phone: sharedVehicle.dealer_phone,
+        dealer_lat: sharedVehicle.dealer_lat,
+        dealer_lng: sharedVehicle.dealer_lng,
+        listing_id: sharedVehicle.listing_id,
+        listing_source: sharedVehicle.listing_source,
+        listing_url: sharedVehicle.listing_url,
+        photo_url: sharedVehicle.photo_url,
+      };
+
+      // Add to saved vehicles using the cache (handles DB insert + local state)
+      await savedVehiclesCache.addVehicle(vehicleData);
+
+      // Delete from shared_vehicles
+      await deleteSharedVehicle(vehicle.id);
+
+      // Update local state - remove from shared vehicles list
+      setSharedImportedVehicles((prev) =>
+        prev.filter((v) => v.id !== vehicle.id)
+      );
+
+      // Reload saved vehicles to get the new one
+      await reloadSavedVehicles();
 
       toast.push({
         kind: "success",
-        title: "Vehicle added to garage",
-        detail: `${addToGarageVehicle.year || ''} ${addToGarageVehicle.make || ''} ${addToGarageVehicle.model || ''} has been moved to your garage.`.trim(),
+        title: "Vehicle saved",
+        detail: `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} has been added to your saved vehicles.`.trim(),
       });
-
-      setShowAddToGarageModal(false);
-      setAddToGarageVehicle(null);
     } catch (error: any) {
       toast.push({
         kind: "error",
-        title: "Could not add to garage",
+        title: "Could not save vehicle",
         detail: error?.message || "Please try again.",
       });
-    } finally {
-      setIsAddingToGarage(false);
     }
   };
 
@@ -3801,7 +3811,7 @@ export const CalculatorApp: React.FC = () => {
                     handleDeleteVehicle(vehicle as any);
                   }}
                   onShareVehicle={(vehicle) => handleShareVehicle(vehicle as any)}
-                  onAddToGarage={(vehicle) => handleAddToGarage(vehicle as any)}
+                  onAddToGarage={(vehicle) => handleAddToSavedVehicles(vehicle as any)}
                   placeholder="Paste VIN or select from your garage..."
                 />
 
@@ -4886,19 +4896,6 @@ export const CalculatorApp: React.FC = () => {
         onClose={handleCloseFeeTemplateEditor}
       />
 
-      {/* Add to Garage Modal */}
-      <AddToGarageModal
-        isOpen={showAddToGarageModal}
-        onClose={() => {
-          setShowAddToGarageModal(false);
-          setAddToGarageVehicle(null);
-        }}
-        vehicle={addToGarageVehicle}
-        garageOptions={addToGarageOptions}
-        isLoading={isAddingToGarage}
-        onConfirm={handleConfirmAddToGarage}
-      />
-
       {/* Share Vehicle Modal */}
       <Modal
         isOpen={shareModalOpen}
@@ -5009,6 +5006,13 @@ export const CalculatorApp: React.FC = () => {
               placeholder="friend@example.com"
               value={shareModalEmail}
               onChange={(e) => setShareModalEmail(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!shareModalLink || shareModalLoading || shareEmailSending) return;
+                  handleSendShareEmail();
+                }
+              }}
               fullWidth
             />
             {shareModalSuccess && (
