@@ -38,6 +38,8 @@ export interface UseFeeEngineParams {
     trim?: string;
     condition?: 'new' | 'used';
     odometer?: number;
+    bodyType?: string;
+    weightLbs?: number;
   };
 
   // Lender info

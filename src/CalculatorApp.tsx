@@ -76,7 +76,11 @@ import {
   acceptGarageInvite,
   getSharedGarageVehiclesByToken,
   createGarageShareLink,
+  getAccessibleGaragesForAdd,
+  moveSharedVehicleToGarage,
+  type GarageOption,
 } from "./lib/supabase";
+import { AddToGarageModal } from "./ui/components/AddToGarageModal";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
   if (!rates || rates.length === 0) return null;
@@ -166,6 +170,8 @@ export const CalculatorApp: React.FC = () => {
   const locationManuallyChangedRef = useRef(false);
   const [vin, setVin] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [vehicleWeightLbs, setVehicleWeightLbs] = useState<number | undefined>();
+  const [vehicleBodyType, setVehicleBodyType] = useState<string>("auto");
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
   const [vinError, setVinError] = useState("");
 
@@ -234,6 +240,11 @@ export const CalculatorApp: React.FC = () => {
     const token = shareFromPath?.[1] || shareFromQuery;
     if (token) {
       setShareToken(token);
+      // Extract the specific vehicle ID from the URL query param
+      const vehicleParam = url.searchParams.get("vehicle");
+      if (vehicleParam) {
+        setSharedVehicleId(vehicleParam);
+      }
     }
   }, []);
 
@@ -306,6 +317,7 @@ export const CalculatorApp: React.FC = () => {
   const [garageVehicles, setGarageVehicles] = useState<any[]>([]);
   const [isLoadingGarageVehicles, setIsLoadingGarageVehicles] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
+  const [sharedVehicleId, setSharedVehicleId] = useState<string | null>(null);
   const [sharedGarageVehicles, setSharedGarageVehicles] = useState<
     GarageVehicle[]
   >([]);
@@ -411,6 +423,12 @@ export const CalculatorApp: React.FC = () => {
   // Fees Modal State
   const [showFeesModal, setShowFeesModal] = useState(false);
   const [showFeeTemplateModal, setShowFeeTemplateModal] = useState(false);
+
+  // Add to Garage Modal State
+  const [showAddToGarageModal, setShowAddToGarageModal] = useState(false);
+  const [addToGarageVehicle, setAddToGarageVehicle] = useState<any | null>(null);
+  const [addToGarageOptions, setAddToGarageOptions] = useState<GarageOption[]>([]);
+  const [isAddingToGarage, setIsAddingToGarage] = useState(false);
 
   // User Profile Dropdown State
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
@@ -1251,10 +1269,11 @@ export const CalculatorApp: React.FC = () => {
 
     const loadSharedCollections = async () => {
       try {
-        const response = await fetch(
-          `/api/share/${shareToken}/collections`,
-          { signal: controller.signal }
-        );
+        // Build URL with optional vehicle filter
+        const shareUrl = sharedVehicleId
+          ? `/api/share/${shareToken}/collections?vehicle=${sharedVehicleId}`
+          : `/api/share/${shareToken}/collections`;
+        const response = await fetch(shareUrl, { signal: controller.signal });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
           throw new Error(
@@ -1282,7 +1301,7 @@ export const CalculatorApp: React.FC = () => {
     loadSharedCollections();
 
     return () => controller.abort();
-  }, [shareToken]);
+  }, [shareToken, sharedVehicleId]);
 
   // Auto-import shared vehicles into My Shared Vehicles for signed-in users
   useEffect(() => {
@@ -2041,8 +2060,44 @@ export const CalculatorApp: React.FC = () => {
     };
   }, [profile]);
 
+  // Reset manual vehicle meta when a new vehicle is selected
+  useEffect(() => {
+    setVehicleWeightLbs(undefined);
+    const inferredBody =
+      (selectedVehicle?.body_type ||
+        selectedVehicle?.body_class ||
+        selectedVehicle?.vehicle_type ||
+        "") as string;
+    const normalized =
+      typeof inferredBody === "string" && inferredBody.toLowerCase().includes("truck")
+        ? "truck"
+        : typeof inferredBody === "string" && inferredBody.toLowerCase().includes("van")
+        ? "van"
+        : "auto";
+    setVehicleBodyType(normalized);
+  }, [selectedVehicle]);
+
   const feeEngineSelectedVehicle = useMemo(() => {
     if (!selectedVehicle) return undefined;
+
+    const inferredBodyType =
+      (selectedVehicle.body_type ||
+        selectedVehicle.body_class ||
+        selectedVehicle.vehicle_type ||
+        '') as string;
+    const normalizedBodyType =
+      vehicleBodyType ||
+      (typeof inferredBodyType === 'string' && inferredBodyType.toLowerCase().includes('truck')
+        ? 'truck'
+        : typeof inferredBodyType === 'string' && inferredBodyType.toLowerCase().includes('van')
+        ? 'van'
+        : 'sedan');
+
+    const normalizedWeight =
+      vehicleWeightLbs ||
+      selectedVehicle.weight_lbs ||
+      selectedVehicle.vehicle_weight_lbs ||
+      undefined;
 
     const rawCondition =
       selectedVehicle.condition ||
@@ -2070,8 +2125,10 @@ export const CalculatorApp: React.FC = () => {
         selectedVehicle.odometer ||
         selectedVehicle.odometer_reading ||
         undefined,
+      bodyType: normalizedBodyType,
+      weightLbs: normalizedWeight ? Number(normalizedWeight) : undefined,
     };
-  }, [selectedVehicle]);
+  }, [selectedVehicle, vehicleBodyType, vehicleWeightLbs]);
 
   const [scenarioOverrides, setScenarioOverrides] = useState<{
     cashPurchase?: boolean;
@@ -2153,7 +2210,14 @@ export const CalculatorApp: React.FC = () => {
     apr,
     selectedTradeInVehicles: selectedTradeIns,
     userProfile: feeEngineUserProfile,
-    selectedVehicle: feeEngineSelectedVehicle,
+    selectedVehicle: feeEngineSelectedVehicle
+      ? {
+          ...feeEngineSelectedVehicle,
+          bodyType: vehicleBodyType || feeEngineSelectedVehicle.bodyType,
+          weightLbs:
+            vehicleWeightLbs ?? feeEngineSelectedVehicle.weightLbs,
+        }
+      : undefined,
     preferredLender:
       lenderOptions.find((opt) => opt.value === lender)?.label || lender,
     enabled: Boolean(feeEngineUserProfile?.state_code),
@@ -3005,6 +3069,74 @@ export const CalculatorApp: React.FC = () => {
     }
   };
 
+  // Handle opening the Add to Garage modal for a shared vehicle
+  const handleAddToGarage = async (vehicle: any) => {
+    if (!currentUser) {
+      toast.push({
+        kind: "info",
+        title: "Sign in required",
+        detail: "Sign in to add vehicles to your garage.",
+      });
+      setAuthMode("signin");
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Fetch accessible garages
+    try {
+      const garages = await getAccessibleGaragesForAdd(currentUser.id);
+      setAddToGarageOptions(garages);
+      setAddToGarageVehicle(vehicle);
+      setShowAddToGarageModal(true);
+    } catch (error: any) {
+      toast.push({
+        kind: "error",
+        title: "Could not load garages",
+        detail: error?.message || "Please try again.",
+      });
+    }
+  };
+
+  // Confirm adding shared vehicle to garage
+  const handleConfirmAddToGarage = async (garageOwnerId: string) => {
+    if (!addToGarageVehicle?.id) return;
+
+    setIsAddingToGarage(true);
+    try {
+      const newVehicle = await moveSharedVehicleToGarage(
+        addToGarageVehicle.id,
+        garageOwnerId
+      );
+
+      // Update local state - remove from shared, add to garage
+      setSharedImportedVehicles((prev) =>
+        prev.filter((v) => v.id !== addToGarageVehicle.id)
+      );
+
+      if (newVehicle && garageOwnerId === currentUser?.id) {
+        // Only add to garage vehicles if it's the current user's garage
+        setGarageVehicles((prev) => [...prev, newVehicle]);
+      }
+
+      toast.push({
+        kind: "success",
+        title: "Vehicle added to garage",
+        detail: `${addToGarageVehicle.year || ''} ${addToGarageVehicle.make || ''} ${addToGarageVehicle.model || ''} has been moved to your garage.`.trim(),
+      });
+
+      setShowAddToGarageModal(false);
+      setAddToGarageVehicle(null);
+    } catch (error: any) {
+      toast.push({
+        kind: "error",
+        title: "Could not add to garage",
+        detail: error?.message || "Please try again.",
+      });
+    } finally {
+      setIsAddingToGarage(false);
+    }
+  };
+
   const handleCopyShareLink = async () => {
     if (!shareModalLink) return;
     try {
@@ -3669,6 +3801,7 @@ export const CalculatorApp: React.FC = () => {
                     handleDeleteVehicle(vehicle as any);
                   }}
                   onShareVehicle={(vehicle) => handleShareVehicle(vehicle as any)}
+                  onAddToGarage={(vehicle) => handleAddToGarage(vehicle as any)}
                   placeholder="Paste VIN or select from your garage..."
                 />
 
@@ -4730,6 +4863,18 @@ export const CalculatorApp: React.FC = () => {
         onRecalculateFees={recalcFeeEngine}
         scenarioOverrides={scenarioOverrides}
         hasTradeIn={hasTradeInSelected}
+        vehicleWeightLbs={vehicleWeightLbs}
+        vehicleBodyType={vehicleBodyType}
+        onVehicleMetaChange={(meta) => {
+          if (meta.weightLbs !== undefined) {
+            setVehicleWeightLbs(meta.weightLbs);
+          } else if (meta.weightLbs === undefined) {
+            setVehicleWeightLbs(undefined);
+          }
+          if (meta.bodyType) {
+            setVehicleBodyType(meta.bodyType);
+          }
+        }}
         onScenarioOverridesChange={(next) => {
           setScenarioOverrides(next);
         }}
@@ -4739,6 +4884,19 @@ export const CalculatorApp: React.FC = () => {
       <FeeTemplateEditorModal
         isOpen={showFeeTemplateModal}
         onClose={handleCloseFeeTemplateEditor}
+      />
+
+      {/* Add to Garage Modal */}
+      <AddToGarageModal
+        isOpen={showAddToGarageModal}
+        onClose={() => {
+          setShowAddToGarageModal(false);
+          setAddToGarageVehicle(null);
+        }}
+        vehicle={addToGarageVehicle}
+        garageOptions={addToGarageOptions}
+        isLoading={isAddingToGarage}
+        onConfirm={handleConfirmAddToGarage}
       />
 
       {/* Share Vehicle Modal */}

@@ -49,6 +49,9 @@ interface FeesModalProps {
     enabled?: boolean;
   }) => void;
   hasTradeIn?: boolean;
+  vehicleWeightLbs?: number;
+  vehicleBodyType?: string;
+  onVehicleMetaChange?: (meta: { weightLbs?: number; bodyType?: string }) => void;
 }
 
 interface FeeRow {
@@ -77,6 +80,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   scenarioOverrides,
   onScenarioOverridesChange,
   hasTradeIn = false,
+  vehicleWeightLbs,
+  vehicleBodyType,
+  onVehicleMetaChange,
 }) => {
   const [showAssumptionsModal, setShowAssumptionsModal] = useState(false);
   // Fee rows state
@@ -1189,6 +1195,48 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Vehicle meta for gov fees */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/80">
+                  Vehicle weight (lbs)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={vehicleWeightLbs ?? ''}
+                  onChange={(e) =>
+                    onVehicleMetaChange?.({
+                      weightLbs: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
+                  placeholder="e.g. 4800"
+                />
+                <p className="text-xs text-white/50">
+                  Used for Florida weight-based registration fees.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/80">
+                  Vehicle type
+                </label>
+                <select
+                  value={vehicleBodyType || 'auto'}
+                  onChange={(e) => onVehicleMetaChange?.({ bodyType: e.target.value })}
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
+                >
+                  <option value="auto">Auto / SUV / Crossover</option>
+                  <option value="truck">Truck / Pickup</option>
+                  <option value="van">Van</option>
+                  <option value="other">Other</option>
+                </select>
+                <p className="text-xs text-white/50">
+                  Trucks/pickups/vans use higher FL weight brackets; autos use lower brackets.
+                </p>
+              </div>
+            </div>
 
             {/* Purchase Assumptions Summary */}
             {showScenarioPanel && scenarioResult && (

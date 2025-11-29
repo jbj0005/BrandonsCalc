@@ -45,6 +45,8 @@ export interface CalculatorState {
     trim?: string;
     condition?: 'new' | 'used';
     odometer?: number;
+    bodyType?: string;
+    weightLbs?: number;
   };
 
   // Dealer/lender
@@ -121,9 +123,10 @@ export class CalculatorAdapter {
         make: calculatorState.selectedVehicle?.make || '',
         model: calculatorState.selectedVehicle?.model || '',
         trim: calculatorState.selectedVehicle?.trim || '',
-        bodyType: 'sedan', // TODO: Derive from vehicle data
+        bodyType: calculatorState.selectedVehicle?.bodyType || 'sedan',
         newOrUsed: calculatorState.selectedVehicle?.condition || 'used',
         odometer: calculatorState.selectedVehicle?.odometer,
+        weightLbs: calculatorState.selectedVehicle?.weightLbs,
         useType: 'personal',
       },
 
