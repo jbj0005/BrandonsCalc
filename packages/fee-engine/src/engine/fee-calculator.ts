@@ -49,10 +49,16 @@ export class FeeCalculator {
       const detectedScenario = this.detectScenario(validated);
 
       // 3. Find applicable government fee rules
-      const applicableFeeRules = this.rulesEvaluator.findApplicableGovernmentFees(
+      let applicableFeeRules = this.rulesEvaluator.findApplicableGovernmentFees(
         jurisdictionRules,
         validated
       );
+
+      // Add Florida weight-based registration fee when weight is provided
+      const floridaWeightRule = this.getFloridaWeightFeeRule(validated);
+      if (floridaWeightRule) {
+        applicableFeeRules = [...applicableFeeRules, floridaWeightRule];
+      }
 
       // 4. Calculate government fees
       const govFeeLineItems = this.calculateGovernmentFees(
@@ -259,6 +265,61 @@ export class FeeCalculator {
       detectedScenario,
       explanations,
       appliedRuleIds: appliedRules.map((rule) => rule.feeCode),
+    };
+  }
+
+  /**
+   * Build a derived government fee rule for Florida weight-based registration.
+   * Source: https://www.factorywarrantylist.com/registration-calculator-florida.html
+   */
+  private getFloridaWeightFeeRule(scenario: ScenarioInput): GovernmentFeeRule | null {
+    const { stateCode } = scenario.jurisdiction;
+    const weight = scenario.vehicle.weightLbs;
+    if (stateCode !== 'FL' || typeof weight !== 'number' || Number.isNaN(weight)) {
+      return null;
+    }
+
+    const bodyType = (scenario.vehicle.bodyType || '').toLowerCase();
+    const isTruck =
+      bodyType.includes('truck') ||
+      bodyType.includes('pickup') ||
+      bodyType.includes('van'); // treat vans/pickups as trucks for weight fees
+
+    const autoSchedule = [
+      { max: 2499, fee: 14.5 },
+      { max: 3499, fee: 22.5 },
+      { max: Infinity, fee: 32.5 },
+    ];
+
+    const truckSchedule = [
+      { max: 1999, fee: 14.5 },
+      { max: 3000, fee: 22.5 },
+      { max: 5000, fee: 32.5 },
+      { max: 5999, fee: 60.75 },
+      { max: 7999, fee: 87.75 },
+      { max: 9999, fee: 103 },
+      { max: 14999, fee: 118 },
+      { max: 19999, fee: 177 },
+      { max: 26000, fee: 251 },
+      { max: 34999, fee: 324 },
+      { max: 43999, fee: 405 },
+      { max: 54999, fee: 773 },
+      { max: 61999, fee: 916 },
+      { max: 71999, fee: 1080 },
+      { max: Infinity, fee: 1322 },
+    ];
+
+    const schedule = isTruck ? truckSchedule : autoSchedule;
+    const band = schedule.find((entry) => weight <= entry.max);
+    if (!band) return null;
+
+    return {
+      feeCode: 'FL_WEIGHT_FEE',
+      description: 'Florida weight-based registration fee',
+      amount: band.fee,
+      taxable: false,
+      conditions: {}, // already enforced by this method
+      priority: 0,
     };
   }
 
