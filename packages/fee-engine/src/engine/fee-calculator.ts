@@ -39,8 +39,6 @@ export class FeeCalculator {
     jurisdictionRules: JurisdictionRule[],
     dealerConfig: DealerConfig
   ): Promise<ScenarioResult> {
-    const startTime = Date.now();
-
     try {
       // 1. Validate input
       const validated = ScenarioInputSchema.parse(scenarioInput);
@@ -87,12 +85,8 @@ export class FeeCalculator {
         applicableFeeRules
       );
 
-      const calculationTime = Date.now() - startTime;
-      console.log(`[FeeCalculator] Calculation completed in ${calculationTime}ms`);
-
       return result;
     } catch (error) {
-      console.error('[FeeCalculator] Calculation error:', error);
       throw new Error(`Fee calculation failed: ${(error as Error).message}`);
     }
   }
@@ -180,7 +174,6 @@ export class FeeCalculator {
     );
 
     if (!feePackage) {
-      console.warn(`[FeeCalculator] Fee package ${packageId} not found`);
       return [];
     }
 
@@ -212,8 +205,7 @@ export class FeeCalculator {
       // Evaluate using Function constructor (be cautious in production)
       const result = new Function(`return ${formula}`)();
       return Number(result) || 0;
-    } catch (error) {
-      console.error(`[FeeCalculator] Formula evaluation error:`, error);
+    } catch {
       return 0;
     }
   }
