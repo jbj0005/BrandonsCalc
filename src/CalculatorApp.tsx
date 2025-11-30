@@ -190,8 +190,29 @@ const extractVehicleWeightData = (vehicle: any): {
 };
 
 /**
- * Fetch vehicle weight data from NHTSA API (background lookup)
- * Used when selecting a vehicle that doesn't have stored weight data
+ * Parse GVWR class string like "Class 1C: 4,001 - 5,000 lb" into estimated curb weight
+ */
+const parseGVWRToWeight = (gvwr: string): number | null => {
+  if (!gvwr) return null;
+  // Match patterns like "4,001 - 5,000 lb"
+  const rangeMatch = gvwr.match(/([\d,]+)\s*-\s*([\d,]+)\s*lb/i);
+  if (rangeMatch) {
+    const upper = parseInt(rangeMatch[2].replace(/,/g, ''), 10);
+    // Curb weight is typically ~70% of GVWR upper bound
+    return Math.round(upper * 0.70);
+  }
+  // Match single value patterns
+  const singleMatch = gvwr.match(/([\d,]+)\s*lb/i);
+  if (singleMatch) {
+    const weight = parseInt(singleMatch[1].replace(/,/g, ''), 10);
+    return Math.round(weight * 0.70);
+  }
+  return null;
+};
+
+/**
+ * Fetch vehicle weight data directly from NHTSA API (no server required)
+ * NHTSA vPIC API is public and CORS-enabled
  */
 const fetchNHTSAWeight = async (vin: string): Promise<{
   estimatedWeight: number | undefined;
@@ -199,20 +220,72 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
   bodyClass: string | undefined;
   usesTruckSchedule: boolean;
 } | null> => {
-  if (!vin || vin.length < 11) return null;
+  if (!vin || vin.length < 11) {
+    console.log('[nhtsa] Skipping lookup - VIN too short:', vin?.length || 0);
+    return null;
+  }
 
   try {
-    const response = await fetch(`/api/nhtsa/${vin}`);
-    if (!response.ok) return null;
+    console.log('[nhtsa] Fetching weight for VIN:', vin);
+    // Call NHTSA vPIC API directly (public, CORS-enabled)
+    const response = await fetch(
+      `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${vin}?format=json`
+    );
+    if (!response.ok) {
+      console.warn('[nhtsa] API returned', response.status);
+      return null;
+    }
 
     const data = await response.json();
-    if (!data.ok || !data.estimatedWeight) return null;
+    const result = data?.Results?.[0];
+    if (!result) {
+      console.warn('[nhtsa] No results for VIN');
+      return null;
+    }
+
+    // Extract weight data
+    const curbWeightLB = result.CurbWeightLB ? parseInt(result.CurbWeightLB, 10) : null;
+    const gvwr = result.GVWR || null;
+    const bodyClass = result.BodyClass || null;
+    const vehicleType = result.VehicleType || null;
+
+    // Determine weight and source
+    let estimatedWeight: number | undefined;
+    let weightSource: string | undefined;
+
+    if (curbWeightLB && !isNaN(curbWeightLB)) {
+      estimatedWeight = curbWeightLB;
+      weightSource = 'nhtsa_exact';
+      console.log('[nhtsa] Found exact curb weight:', curbWeightLB);
+    } else if (gvwr) {
+      const derivedWeight = parseGVWRToWeight(gvwr);
+      if (derivedWeight) {
+        estimatedWeight = derivedWeight;
+        weightSource = 'gvwr_derived';
+        console.log('[nhtsa] Derived weight from GVWR:', derivedWeight, 'from', gvwr);
+      }
+    }
+
+    if (!estimatedWeight) {
+      console.log('[nhtsa] No weight data available for VIN');
+      return null;
+    }
+
+    // Determine if truck schedule applies
+    const body = (bodyClass || '').toLowerCase();
+    const type = (vehicleType || '').toLowerCase();
+    const usesTruckSchedule =
+      body.includes('pickup') ||
+      body.includes('truck') ||
+      body.includes('van') ||
+      body.includes('cargo') ||
+      type === 'truck';
 
     return {
-      estimatedWeight: data.estimatedWeight,
-      weightSource: data.weightSource,
-      bodyClass: data.bodyClass,
-      usesTruckSchedule: data.usesTruckSchedule,
+      estimatedWeight,
+      weightSource,
+      bodyClass,
+      usesTruckSchedule,
     };
   } catch (error) {
     console.warn('[nhtsa] Background weight lookup failed:', error);
