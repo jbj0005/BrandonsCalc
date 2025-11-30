@@ -138,9 +138,10 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const [inputValue, setInputValue] = useState('');
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [springAnimating, setSpringAnimating] = useState(false);
-    const [lastManualValue, setLastManualValue] = useState<number>(currentValue || 0); // Track manually set values
 
     const currentValue = Number(value || 0);
+
+    const [lastManualValue, setLastManualValue] = useState<number>(currentValue); // Track manually set values
 
     useEffect(() => {
       return () => {
