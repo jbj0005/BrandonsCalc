@@ -354,7 +354,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const threeStateOrder: Array<'zero' | 'current' | 'preference'> = ['zero', 'current', 'preference'];
 
     const cycleToNextState = () => {
-      if (toggleMode !== 'three-state') return;
+      if (toggleMode !== 'three-state' || !onToggleStateChange) return;
 
       const currentIndex = threeStateOrder.indexOf(toggleState);
       const nextIndex = (currentIndex + 1) % threeStateOrder.length;
@@ -371,11 +371,9 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         newValue = userPreferenceValue ?? 2000;
       }
 
-      const syntheticEvent = {
-        target: { value: String(newValue) },
-      } as React.ChangeEvent<HTMLInputElement>;
-      onChange?.(syntheticEvent);
-      onToggleStateChange?.(nextState, newValue);
+      // Only call onToggleStateChange - parent handles both state and value updates
+      // Don't call onChange here to avoid parent's onChange handler interfering with toggle state
+      onToggleStateChange(nextState, newValue);
     };
 
     // Handle toggle click
@@ -624,21 +622,26 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
           </div>
         )}
 
-        {/* Diff Indicator */}
-        {showTooltip && shouldShowDiff && (
+        {/* Diff Indicator and Toggle Controls */}
+        {showTooltip && (shouldShowDiff || toggleMode === 'three-state') && (
           <div className="flex items-center justify-between mt-1 text-xs">
-            <span
-              className={`font-medium ${
-                buyerPerspective === 'lower-is-better'
-                  ? (valueDiffForDisplay > 0 ? 'text-red-600' : valueDiffForDisplay < 0 ? 'text-green-600' : 'text-gray-500')
-                  : (valueDiffForDisplay > 0 ? 'text-green-600' : valueDiffForDisplay < 0 ? 'text-red-600' : 'text-gray-500')
-              }`}
-            >
-              {valueDiffForDisplay > 0 ? '+' : ''}
-              {formatValue
-                ? formatValue(valueDiffForDisplay)
-                : valueDiffForDisplay.toLocaleString()}
-            </span>
+            {/* Diff value - only show if there's a diff to display */}
+            {shouldShowDiff ? (
+              <span
+                className={`font-medium ${
+                  buyerPerspective === 'lower-is-better'
+                    ? (valueDiffForDisplay > 0 ? 'text-red-600' : valueDiffForDisplay < 0 ? 'text-green-600' : 'text-gray-500')
+                    : (valueDiffForDisplay > 0 ? 'text-green-600' : valueDiffForDisplay < 0 ? 'text-red-600' : 'text-gray-500')
+                }`}
+              >
+                {valueDiffForDisplay > 0 ? '+' : ''}
+                {formatValue
+                  ? formatValue(valueDiffForDisplay)
+                  : valueDiffForDisplay.toLocaleString()}
+              </span>
+            ) : (
+              <span />
+            )}
             {showReset && toggleMode === 'spring' && (
               <button
                 onClick={handleToggleClick}
