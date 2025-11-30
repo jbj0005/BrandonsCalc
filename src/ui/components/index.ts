@@ -145,9 +145,6 @@ export { CurrencyInput } from './CurrencyInput';
 export type { CurrencyInputProps } from './CurrencyInput';
 
 // Fee Engine Components
-export { ScenarioDetectionPanel } from './ScenarioDetectionPanel';
-export type { ScenarioDetectionPanelProps } from './ScenarioDetectionPanel';
-
 export { ScenarioDetectionPanelV2 } from './ScenarioDetectionPanelV2';
 export type { ScenarioDetectionPanelV2Props } from './ScenarioDetectionPanelV2';
 

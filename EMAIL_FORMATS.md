@@ -1,5 +1,7 @@
 # Email Format Structure
 
+> **Note**: Email delivery uses Mailtrap (configured in `server/server.js`).
+
 ## Overview
 The system supports three different email formats for different recipients:
 - **Customer Format**: Full details including financing, fees, and savings
