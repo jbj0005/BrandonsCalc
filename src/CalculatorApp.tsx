@@ -371,6 +371,10 @@ export const CalculatorApp: React.FC = () => {
   const [nhtsaGvwrClass, setNhtsaGvwrClass] = useState<string | undefined>(); // e.g., "Class 1C: 4,001 - 5,000 lb"
   const [nhtsaRawCurbWeight, setNhtsaRawCurbWeight] = useState<number | undefined>(); // Raw curb weight if available
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
+
+  // Cash Down three-state toggle: 'zero' | 'current' | 'preference'
+  const [cashDownToggleState, setCashDownToggleState] = useState<'zero' | 'current' | 'preference'>('preference');
+  const [cashDownUserPreference, setCashDownUserPreference] = useState<number>(2000); // Default user preference
   const [vinError, setVinError] = useState("");
 
   // Google Maps Autocomplete
@@ -4751,16 +4755,30 @@ export const CalculatorApp: React.FC = () => {
                 max={cashDownMaxDynamic}
                 step={100}
                 value={cashDown}
-                onChange={(e) =>
-                  setSliderValueWithSettling("cashDown", Number(e.target.value))
-                }
+                onChange={(e) => {
+                  const newValue = Number(e.target.value);
+                  setSliderValueWithSettling("cashDown", newValue);
+                  // If user manually moves slider, switch to 'current' mode and save as preference
+                  if (cashDownToggleState !== 'current' && newValue > 0) {
+                    setCashDownToggleState('current');
+                  }
+                  // Update preference when user manually sets a non-zero value
+                  if (newValue > 0) {
+                    setCashDownUserPreference(newValue);
+                  }
+                }}
                 formatValue={(val) => formatCurrency(val)}
                 monthlyPayment={monthlyPayment}
                 buyerPerspective="higher-is-better"
                 showTooltip={true}
                 showReset={true}
-                toggleMode="two-state"
-                toggleAlternateValue={sliders.cashDown.baseline || 2000}
+                toggleMode="three-state"
+                toggleState={cashDownToggleState}
+                userPreferenceValue={cashDownUserPreference}
+                onToggleStateChange={(state, value) => {
+                  setCashDownToggleState(state);
+                  setSliderValueWithSettling("cashDown", value);
+                }}
                 baselineValue={0}
                 diffBaselineValue={0}
                 diffBaselinePayment={cashDownState0Payment ?? undefined}

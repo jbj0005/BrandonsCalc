@@ -63,12 +63,14 @@ export interface EnhancedSliderProps extends SliderProps {
   onToggleLock?: () => void;
   /** Auto-lock timer active */
   isAutoLockPending?: boolean;
-  /** Toggle mode: 'spring' animates back after reset, 'two-state' toggles between zero and user value */
-  toggleMode?: 'spring' | 'two-state';
-  /** For two-state toggle: the alternate (non-zero) value to toggle to */
-  toggleAlternateValue?: number;
-  /** For two-state toggle: callback when toggled to alternate state */
-  onToggleToAlternate?: (value: number) => void;
+  /** Toggle mode: 'spring' animates back after reset, 'three-state' cycles $0/Current/Preference */
+  toggleMode?: 'spring' | 'three-state';
+  /** For three-state toggle: the user's saved preference value */
+  userPreferenceValue?: number;
+  /** For three-state toggle: current toggle state */
+  toggleState?: 'zero' | 'current' | 'preference';
+  /** For three-state toggle: callback when toggle state changes */
+  onToggleStateChange?: (state: 'zero' | 'current' | 'preference', value: number) => void;
 }
 
 /**
@@ -107,8 +109,9 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       onToggleLock,
       isAutoLockPending = false,
       toggleMode,
-      toggleAlternateValue,
-      onToggleToAlternate,
+      userPreferenceValue,
+      toggleState = 'preference',
+      onToggleStateChange,
       ...props
     },
     ref
@@ -135,7 +138,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const [inputValue, setInputValue] = useState('');
     const [isInputFocused, setIsInputFocused] = useState(false);
     const [springAnimating, setSpringAnimating] = useState(false);
-    const [rememberedValue, setRememberedValue] = useState<number | null>(null);
+    const [lastManualValue, setLastManualValue] = useState<number>(currentValue || 0); // Track manually set values
 
     const currentValue = Number(value || 0);
 
@@ -339,16 +342,40 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       onChange,
     ]);
 
-    // Track non-zero values for two-state toggle
+    // Track manually set values for three-state toggle (when user moves slider while in 'current' mode)
     useEffect(() => {
-      if (toggleMode === 'two-state' && currentValue > 0) {
-        setRememberedValue(currentValue);
+      if (toggleMode === 'three-state' && toggleState === 'current' && currentValue > 0) {
+        setLastManualValue(currentValue);
       }
-    }, [currentValue, toggleMode]);
+    }, [currentValue, toggleMode, toggleState]);
 
-    // Determine if currently at "zero" state for two-state toggle
-    const isAtZeroState = toggleMode === 'two-state' && currentValue === 0;
-    const effectiveAlternateValue = toggleAlternateValue ?? rememberedValue ?? 1000;
+    // Three-state toggle: cycle through states
+    const threeStateOrder: Array<'zero' | 'current' | 'preference'> = ['zero', 'current', 'preference'];
+
+    const cycleToNextState = () => {
+      if (toggleMode !== 'three-state') return;
+
+      const currentIndex = threeStateOrder.indexOf(toggleState);
+      const nextIndex = (currentIndex + 1) % threeStateOrder.length;
+      const nextState = threeStateOrder[nextIndex];
+
+      let newValue: number;
+      if (nextState === 'zero') {
+        newValue = 0;
+      } else if (nextState === 'current') {
+        // Keep current value or use last manual value
+        newValue = currentValue > 0 ? currentValue : lastManualValue;
+      } else {
+        // preference
+        newValue = userPreferenceValue ?? 2000;
+      }
+
+      const syntheticEvent = {
+        target: { value: String(newValue) },
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange?.(syntheticEvent);
+      onToggleStateChange?.(nextState, newValue);
+    };
 
     // Handle toggle click
     const handleToggleClick = () => {
@@ -366,23 +393,8 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         setTimeout(() => {
           setSpringAnimating(false);
         }, 300);
-      } else if (toggleMode === 'two-state') {
-        // Two-state: toggle between 0 and alternate value
-        if (isAtZeroState) {
-          const syntheticEvent = {
-            target: { value: String(effectiveAlternateValue) },
-          } as React.ChangeEvent<HTMLInputElement>;
-          onChange?.(syntheticEvent);
-          onToggleToAlternate?.(effectiveAlternateValue);
-        } else {
-          // Remember current value before going to zero
-          setRememberedValue(currentValue);
-          const syntheticEvent = {
-            target: { value: '0' },
-          } as React.ChangeEvent<HTMLInputElement>;
-          onChange?.(syntheticEvent);
-          onReset?.();
-        }
+      } else if (toggleMode === 'three-state') {
+        cycleToNextState();
       }
     };
 
@@ -626,60 +638,64 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
                 ? formatValue(valueDiffForDisplay)
                 : valueDiffForDisplay.toLocaleString()}
             </span>
-            {showReset && toggleMode && (
+            {showReset && toggleMode === 'spring' && (
               <button
                 onClick={handleToggleClick}
                 className={`
                   relative flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium
                   transition-all duration-300 ease-out
-                  ${toggleMode === 'two-state'
-                    ? isAtZeroState
-                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
-                      : 'bg-white/10 text-white/60 hover:bg-white/15 border border-white/20'
-                    : springAnimating
-                      ? 'bg-blue-500/30 text-blue-300 scale-95'
-                      : 'bg-white/10 text-white/60 hover:bg-white/15 border border-white/20 hover:border-white/30 active:scale-95'
+                  ${springAnimating
+                    ? 'bg-blue-500/30 text-blue-300 scale-95'
+                    : 'bg-white/10 text-white/60 hover:bg-white/15 border border-white/20 hover:border-white/30 active:scale-95'
                   }
                 `}
                 type="button"
-                title={toggleMode === 'two-state'
-                  ? (isAtZeroState ? `Set to ${formatValue ? formatValue(effectiveAlternateValue) : `$${effectiveAlternateValue.toLocaleString()}`}` : 'Set to $0')
-                  : 'Reset to baseline'
-                }
+                title="Reset to baseline"
               >
-                {toggleMode === 'two-state' ? (
-                  <>
-                    {/* Two-state toggle pill */}
-                    <div className={`
-                      relative w-8 h-4 rounded-full transition-colors duration-200
-                      ${isAtZeroState ? 'bg-emerald-500/40' : 'bg-white/20'}
-                    `}>
-                      <div className={`
-                        absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm
-                        transition-all duration-200 ease-out
-                        ${isAtZeroState ? 'left-[calc(100%-14px)]' : 'left-0.5'}
-                      `} />
-                    </div>
-                    <span className="hidden sm:inline">
-                      {isAtZeroState ? 'Add' : '$0'}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    {/* Spring-loaded toggle */}
-                    <svg
-                      className={`w-3.5 h-3.5 transition-transform duration-300 ${springAnimating ? 'rotate-[-360deg]' : ''}`}
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span className={`transition-opacity duration-200 ${springAnimating ? 'opacity-50' : ''}`}>
-                      Reset
-                    </span>
-                  </>
-                )}
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform duration-300 ${springAnimating ? 'rotate-[-360deg]' : ''}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span className={`transition-opacity duration-200 ${springAnimating ? 'opacity-50' : ''}`}>
+                  Reset
+                </span>
+              </button>
+            )}
+            {showReset && toggleMode === 'three-state' && (
+              <button
+                onClick={handleToggleClick}
+                className="relative flex items-center rounded-full text-xs font-medium bg-slate-800/80 border border-white/20 overflow-hidden"
+                type="button"
+                title={`Current: ${toggleState === 'zero' ? '$0' : toggleState === 'current' ? 'Manual' : 'Preference'} — Click to cycle`}
+              >
+                {/* Three-state segmented control */}
+                <div className="flex">
+                  <span className={`px-2 py-1 transition-all duration-200 ${
+                    toggleState === 'zero'
+                      ? 'bg-red-500/30 text-red-300'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}>
+                    $0
+                  </span>
+                  <span className={`px-2 py-1 transition-all duration-200 border-x border-white/10 ${
+                    toggleState === 'current'
+                      ? 'bg-blue-500/30 text-blue-300'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}>
+                    Manual
+                  </span>
+                  <span className={`px-2 py-1 transition-all duration-200 ${
+                    toggleState === 'preference'
+                      ? 'bg-emerald-500/30 text-emerald-300'
+                      : 'text-white/40 hover:text-white/60'
+                  }`}>
+                    Pref
+                  </span>
+                </div>
               </button>
             )}
             {showReset && !toggleMode && (
