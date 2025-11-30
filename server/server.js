@@ -2215,6 +2215,57 @@ app.get("/api/sms-status/:messageSid", async (req, res) => {
   }
 });
 
+/**
+ * GET /api/nhtsa/:vin
+ * Lightweight NHTSA-only lookup for vehicle weight data
+ * Used for background weight lookup when selecting vehicles without stored weight
+ */
+app.get("/api/nhtsa/:vin", async (req, res) => {
+  const vin = (req.params.vin || "").toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, "");
+
+  if (vin.length < 11) {
+    return res.status(400).json({ error: "Invalid VIN" });
+  }
+
+  try {
+    console.log(`[nhtsa] Fetching weight data for VIN: ${vin}`);
+    const nhtsaData = await fetchNHTSAVehicleData(vin);
+
+    if (!nhtsaData) {
+      return res.json({
+        ok: true,
+        vin,
+        weight: null,
+        source: 'unavailable',
+        message: 'No NHTSA data available for this VIN'
+      });
+    }
+
+    const weightEstimate = estimateVehicleWeight(nhtsaData);
+    const usesTruckSchedule = isTruckSchedule(nhtsaData.bodyClass, nhtsaData.vehicleType);
+
+    return res.json({
+      ok: true,
+      vin,
+      bodyClass: nhtsaData.bodyClass,
+      vehicleType: nhtsaData.vehicleType,
+      gvwr: nhtsaData.gvwr,
+      curbWeightLB: nhtsaData.curbWeightLB,
+      estimatedWeight: weightEstimate.weight,
+      weightSource: weightEstimate.source,
+      weightConfidence: weightEstimate.confidence,
+      gvwrClass: weightEstimate.gvwrClass || null,
+      usesTruckSchedule,
+    });
+  } catch (error) {
+    console.error(`[nhtsa] Error for VIN ${vin}:`, error?.message || error);
+    return res.status(500).json({
+      error: "NHTSA lookup failed",
+      detail: error?.message || "Unknown error"
+    });
+  }
+});
+
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {

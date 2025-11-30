@@ -1287,6 +1287,87 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               </div>
             </div>
 
+            {/* Weight Calculation Explanation */}
+            {(estimatedWeight || vehicleWeightLbs) && (
+              <div className="p-4 rounded-xl bg-gradient-to-br from-slate-800/50 to-slate-900/50 border border-white/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <svg className="w-5 h-5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                  </svg>
+                  <h4 className="font-semibold text-white">Weight Calculation</h4>
+                </div>
+                <div className="space-y-3 text-sm">
+                  {estimatedWeight && weightSource && (
+                    <div className="flex items-start gap-3">
+                      <div className={`w-2 h-2 rounded-full mt-1.5 ${
+                        weightSource === 'nhtsa_exact' ? 'bg-emerald-500' :
+                        weightSource === 'gvwr_derived' ? 'bg-amber-500' : 'bg-blue-500'
+                      }`} />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-white font-medium">
+                            {estimatedWeight.toLocaleString()} lbs
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            weightSource === 'nhtsa_exact'
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                              : weightSource === 'gvwr_derived'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                          }`}>
+                            {weightSource === 'nhtsa_exact' ? 'NHTSA Verified' :
+                             weightSource === 'gvwr_derived' ? 'GVWR Estimate' : 'Manual Entry'}
+                          </span>
+                        </div>
+                        <p className="text-white/50 text-xs mt-1">
+                          {weightSource === 'nhtsa_exact'
+                            ? 'Curb weight from NHTSA Vehicle Product Information Catalog (vPIC)'
+                            : weightSource === 'gvwr_derived'
+                            ? 'Estimated at ~70% of Gross Vehicle Weight Rating (typical curb weight ratio)'
+                            : 'Manually entered weight value'}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {vehicleWeightLbs && (
+                    <div className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full mt-1.5 bg-blue-400" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-white/70">FL Fee Bracket:</span>
+                          <span className="text-white font-medium">
+                            {vehicleBodyType === 'truck' || vehicleBodyType === 'van' ? (
+                              vehicleWeightLbs <= 1999 ? 'Up to 1,999 lbs' :
+                              vehicleWeightLbs <= 3000 ? '2,000 – 3,000 lbs' :
+                              vehicleWeightLbs <= 5000 ? '3,001 – 5,000 lbs' :
+                              vehicleWeightLbs <= 5999 ? '5,001 – 5,999 lbs' :
+                              vehicleWeightLbs <= 7999 ? '6,000 – 7,999 lbs' :
+                              vehicleWeightLbs <= 9999 ? '8,000 – 9,999 lbs' :
+                              `${vehicleWeightLbs.toLocaleString()}+ lbs`
+                            ) : (
+                              vehicleWeightLbs <= 2499 ? 'Up to 2,499 lbs' :
+                              vehicleWeightLbs <= 3499 ? '2,500 – 3,499 lbs' :
+                              '3,500+ lbs'
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-white/50 text-xs mt-1">
+                          Using Florida {vehicleBodyType === 'truck' || vehicleBodyType === 'van' ? 'Truck/Van' : 'Auto/SUV'} registration fee schedule
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-3 pt-3 border-t border-white/10">
+                  <p className="text-xs text-white/40">
+                    <strong className="text-white/60">How it works:</strong> Florida registration fees vary by vehicle weight.
+                    We automatically look up your vehicle's weight from NHTSA data and select the appropriate fee bracket.
+                    {!estimatedWeight && ' Select a bracket above or enter your VIN for automatic lookup.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Purchase Assumptions Summary */}
             {showScenarioPanel && scenarioResult && (
               <div className="space-y-4">

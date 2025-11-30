@@ -148,6 +148,78 @@ const findWeightBracket = (weight: number, bodyClass?: string): number => {
   }
 };
 
+/**
+ * Extract weight data from a stored vehicle record and compute bracket
+ * Returns { estimatedWeight, weightSource, vehicleWeightLbs, vehicleBodyType } or nulls
+ */
+const extractVehicleWeightData = (vehicle: any): {
+  estimatedWeight: number | undefined;
+  weightSource: string | undefined;
+  vehicleWeightLbs: number | undefined;
+  vehicleBodyType: 'auto' | 'truck';
+} => {
+  // Check various field names for stored weight
+  const storedWeight = vehicle.curb_weight_lbs || vehicle.weight_lbs || vehicle.vehicle_weight_lbs;
+  const storedWeightSource = vehicle.weight_source;
+  const bodyClass = vehicle.body_class || vehicle.bodyClass || vehicle.vehicle_type;
+
+  // Determine body type
+  const isTruck = bodyClass && (
+    bodyClass.toLowerCase().includes('truck') ||
+    bodyClass.toLowerCase().includes('pickup') ||
+    bodyClass.toLowerCase().includes('van')
+  );
+  const vehicleBodyType: 'auto' | 'truck' = isTruck ? 'truck' : 'auto';
+
+  if (storedWeight && storedWeight > 0) {
+    const bracket = findWeightBracket(storedWeight, bodyClass);
+    return {
+      estimatedWeight: storedWeight,
+      weightSource: storedWeightSource || 'manual',
+      vehicleWeightLbs: bracket,
+      vehicleBodyType,
+    };
+  }
+
+  return {
+    estimatedWeight: undefined,
+    weightSource: undefined,
+    vehicleWeightLbs: undefined,
+    vehicleBodyType,
+  };
+};
+
+/**
+ * Fetch vehicle weight data from NHTSA API (background lookup)
+ * Used when selecting a vehicle that doesn't have stored weight data
+ */
+const fetchNHTSAWeight = async (vin: string): Promise<{
+  estimatedWeight: number | undefined;
+  weightSource: string | undefined;
+  bodyClass: string | undefined;
+  usesTruckSchedule: boolean;
+} | null> => {
+  if (!vin || vin.length < 11) return null;
+
+  try {
+    const response = await fetch(`/api/nhtsa/${vin}`);
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (!data.ok || !data.estimatedWeight) return null;
+
+    return {
+      estimatedWeight: data.estimatedWeight,
+      weightSource: data.weightSource,
+      bodyClass: data.bodyClass,
+      usesTruckSchedule: data.usesTruckSchedule,
+    };
+  } catch (error) {
+    console.warn('[nhtsa] Background weight lookup failed:', error);
+    return null;
+  }
+};
+
 const normalizeDealerData = (vehicle: any) => {
   const dealer = vehicle?.dealer || {};
 
@@ -1212,6 +1284,15 @@ export const CalculatorApp: React.FC = () => {
     if (currentUser && supabase) {
       // Subscribe to saved vehicles for this user
       savedVehiclesCache.subscribe(currentUser.id, supabase);
+
+      // Subscribe to cache change events to update React state immediately
+      const unsubscribe = savedVehiclesCache.on('change', (updatedVehicles: any[]) => {
+        setSavedVehicles(updatedVehicles || []);
+      });
+
+      return () => {
+        unsubscribe();
+      };
     }
   }, [currentUser]);
 
@@ -2997,7 +3078,8 @@ export const CalculatorApp: React.FC = () => {
   const handleSelectSavedVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "saved" };
     setSelectedVehicle(normalized);
-    setVin(vehicle.vin || "");
+    const vehicleVin = vehicle.vin || "";
+    setVin(vehicleVin);
     setShowVehicleDropdown(false);
     const condition =
       normalized.condition?.toLowerCase() === "new" ? "new" : "used";
@@ -3006,6 +3088,26 @@ export const CalculatorApp: React.FC = () => {
     const saleValue = getVehicleSalePrice(vehicle);
     if (saleValue != null) {
       setSliderValue("salePrice", saleValue, true);
+    }
+
+    // Auto-apply vehicle weight data for fee calculations
+    const weightData = extractVehicleWeightData(vehicle);
+    setEstimatedWeight(weightData.estimatedWeight);
+    setWeightSource(weightData.weightSource);
+    setVehicleWeightLbs(weightData.vehicleWeightLbs);
+    setVehicleBodyType(weightData.vehicleBodyType);
+
+    // Background NHTSA lookup if no stored weight and VIN available
+    if (!weightData.estimatedWeight && vehicleVin.length >= 11) {
+      fetchNHTSAWeight(vehicleVin).then((nhtsaData) => {
+        if (nhtsaData?.estimatedWeight) {
+          const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
+          setEstimatedWeight(nhtsaData.estimatedWeight);
+          setWeightSource(nhtsaData.weightSource);
+          setVehicleWeightLbs(bracket);
+          setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
+        }
+      });
     }
 
     // Note: calculateLoan() will be called automatically by useEffect when salePrice updates
@@ -3021,7 +3123,8 @@ export const CalculatorApp: React.FC = () => {
   const handleSelectSharedVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "shared" };
     setSelectedVehicle(normalized);
-    setVin(vehicle.vin || "");
+    const vehicleVin = vehicle.vin || "";
+    setVin(vehicleVin);
     setShowVehicleDropdown(false);
     const condition =
       normalized.condition?.toLowerCase() === "new" ? "new" : "used";
@@ -3030,6 +3133,26 @@ export const CalculatorApp: React.FC = () => {
     const saleValue = getVehicleSalePrice(normalized);
     if (saleValue != null) {
       setSliderValue("salePrice", saleValue, true);
+    }
+
+    // Auto-apply vehicle weight data for fee calculations
+    const weightData = extractVehicleWeightData(vehicle);
+    setEstimatedWeight(weightData.estimatedWeight);
+    setWeightSource(weightData.weightSource);
+    setVehicleWeightLbs(weightData.vehicleWeightLbs);
+    setVehicleBodyType(weightData.vehicleBodyType);
+
+    // Background NHTSA lookup if no stored weight and VIN available
+    if (!weightData.estimatedWeight && vehicleVin.length >= 11) {
+      fetchNHTSAWeight(vehicleVin).then((nhtsaData) => {
+        if (nhtsaData?.estimatedWeight) {
+          const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
+          setEstimatedWeight(nhtsaData.estimatedWeight);
+          setWeightSource(nhtsaData.weightSource);
+          setVehicleWeightLbs(bracket);
+          setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
+        }
+      });
     }
 
     toast.push({
@@ -3042,7 +3165,8 @@ export const CalculatorApp: React.FC = () => {
   const handleSelectGarageVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "garage" };
     setSelectedVehicle(normalized);
-    setVin(vehicle.vin || "");
+    const vehicleVin = vehicle.vin || "";
+    setVin(vehicleVin);
     setShowVehicleDropdown(false);
     const condition =
       normalized.condition?.toLowerCase() === "new" ? "new" : "used";
@@ -3054,6 +3178,26 @@ export const CalculatorApp: React.FC = () => {
       FEATURE_FLAGS.autoPopulateSalePrice &&
         FEATURE_FLAGS.useTradeValueForGarageSalePrice
     );
+
+    // Auto-apply vehicle weight data for fee calculations
+    const weightData = extractVehicleWeightData(vehicle);
+    setEstimatedWeight(weightData.estimatedWeight);
+    setWeightSource(weightData.weightSource);
+    setVehicleWeightLbs(weightData.vehicleWeightLbs);
+    setVehicleBodyType(weightData.vehicleBodyType);
+
+    // Background NHTSA lookup if no stored weight and VIN available
+    if (!weightData.estimatedWeight && vehicleVin.length >= 11) {
+      fetchNHTSAWeight(vehicleVin).then((nhtsaData) => {
+        if (nhtsaData?.estimatedWeight) {
+          const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
+          setEstimatedWeight(nhtsaData.estimatedWeight);
+          setWeightSource(nhtsaData.weightSource);
+          setVehicleWeightLbs(bracket);
+          setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
+        }
+      });
+    }
 
     // Note: calculateLoan() will be called automatically by useEffect when state updates
 
@@ -4024,7 +4168,7 @@ export const CalculatorApp: React.FC = () => {
                     if (vehicle.source === "garage") {
                       handleSelectGarageVehicle(vehicle as any);
                     } else if (vehicle.source === "shared") {
-                      handleSelectSharedSavedVehicle(vehicle as any);
+                      handleSelectSharedVehicle(vehicle as any);
                     } else {
                       handleSelectSavedVehicle(vehicle as any);
                     }
@@ -5376,8 +5520,8 @@ export const CalculatorApp: React.FC = () => {
                 .from("garage-vehicle-photos")
                 .remove([data.photo_storage_path]);
             }
-            setGarageVehicles(
-              garageVehicles.filter((v) => v.id !== vehicle.id)
+            setGarageVehicles((prev) =>
+              prev.filter((v) => v.id !== vehicle.id)
             );
             toast.push({ kind: "success", title: "Vehicle Deleted" });
           } catch (error) {
@@ -5389,10 +5533,16 @@ export const CalculatorApp: React.FC = () => {
             !confirm(`Remove ${vehicle.year} ${vehicle.make} ${vehicle.model}?`)
           )
             return;
+          // Optimistic update - remove from UI immediately
+          setSavedVehicles((prev) =>
+            prev.filter((v) => v.id !== vehicle.id)
+          );
           try {
             await savedVehiclesCache.deleteVehicle(vehicle.id);
             toast.push({ kind: "success", title: "Vehicle Removed" });
           } catch (error) {
+            // Rollback on failure - restore the vehicle
+            setSavedVehicles((prev) => [...prev, vehicle]);
             toast.push({ kind: "error", title: "Failed to Remove Vehicle" });
           }
         }}
