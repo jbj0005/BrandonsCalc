@@ -33,6 +33,7 @@ import type { VehicleOption, LocationDetails } from "./ui/components";
 import { SectionHeader } from "./ui/components";
 import { FeesModal } from "./ui/components/FeesModal";
 import { FeeTemplateEditorModal } from "./ui/components/FeeTemplateEditorModal";
+import { AddToLibraryModal, type LibraryDestination } from "./ui/components/AddToLibraryModal";
 import { useToast } from "./ui/components/Toast";
 import type { SelectOption } from "./ui/components/Select";
 import type { PlaceDetails } from "./hooks/useGoogleMapsAutocomplete";
@@ -78,6 +79,7 @@ import {
   createGarageShareLink,
   deleteSharedVehicle,
   getSharedVehicleById,
+  addGarageVehicle,
 } from "./lib/supabase";
 
 const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
@@ -334,6 +336,10 @@ export const CalculatorApp: React.FC = () => {
     "signin"
   );
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Add to Library Modal State
+  const [showAddToLibraryModal, setShowAddToLibraryModal] = useState(false);
+  const [vehicleToAddToLibrary, setVehicleToAddToLibrary] = useState<any>(null);
 
   const ensureSavedVehiclesCacheReady = useCallback(() => {
     if (!currentUser || !savedVehiclesCache) {
@@ -1310,6 +1316,12 @@ export const CalculatorApp: React.FC = () => {
 
     const runImport = async () => {
       try {
+        // Clean up old shared vehicles from different share tokens to keep table tidy
+        await supabase
+          .from("shared_vehicles")
+          .delete()
+          .eq("user_id", currentUser.id)
+          .neq("share_token", shareToken);
         const vehiclesToImport = [
           ...sharedGarageVehicles.map((v) => ({
             ...normalizeDealerData(v),
@@ -1370,6 +1382,17 @@ export const CalculatorApp: React.FC = () => {
         });
 
         if (toInsert.length === 0) {
+          // Still reload to ensure shared vehicles appear in dropdown
+          const { data: refreshedData, error: refreshError } = await supabase
+            .from("shared_vehicles")
+            .select("*")
+            .eq("user_id", currentUser.id)
+            .order("inserted_at", { ascending: false });
+
+          if (refreshedData) {
+            setSharedImportedVehicles(refreshedData);
+          }
+
           toast.push({
             kind: "info",
             title: "Already in your account",
@@ -1469,10 +1492,6 @@ export const CalculatorApp: React.FC = () => {
           if (insertError) {
             throw insertError;
           }
-        }
-
-        if (insertError) {
-          throw insertError;
         }
 
         lastImportedShareRef.current = importKey;
@@ -1940,7 +1959,29 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const filteredSavedVehicles = savedVehicles;
-  const filteredSharedImportedVehicles = sharedImportedVehicles;
+  // Filter shared vehicles to only show current session's share link vehicle(s)
+  const filteredSharedImportedVehicles = useMemo(() => {
+    // If no active share session, don't show any shared vehicles in dropdown
+    if (!shareToken) return [];
+
+    // Filter to vehicles from the current share token
+    let filtered = sharedImportedVehicles.filter(
+      (v) => v.share_token === shareToken
+    );
+
+    // If a specific vehicle was shared (single share), further filter to just that one
+    if (sharedVehicleId && filtered.length > 0) {
+      const singleVehicle = filtered.filter(
+        (v) => v.shared_from_vehicle_id === sharedVehicleId
+      );
+      // Only use the filter if we found a match
+      if (singleVehicle.length > 0) {
+        filtered = singleVehicle;
+      }
+    }
+
+    return filtered;
+  }, [sharedImportedVehicles, shareToken, sharedVehicleId]);
   const normalizedSharedGarageVehicles = useMemo(
     () =>
       sharedGarageVehicles.map((v) => ({
@@ -3072,8 +3113,8 @@ export const CalculatorApp: React.FC = () => {
     }
   };
 
-  // Handle adding a shared vehicle to saved vehicles
-  const handleAddToSavedVehicles = async (vehicle: any) => {
+  // Handle opening the "Add to Library" modal for a shared vehicle
+  const handleOpenAddToLibraryModal = (vehicle: any) => {
     if (!currentUser) {
       toast.push({
         kind: "info",
@@ -3087,61 +3128,154 @@ export const CalculatorApp: React.FC = () => {
 
     if (!vehicle?.id) return;
 
+    setVehicleToAddToLibrary(vehicle);
+    setShowAddToLibraryModal(true);
+  };
+
+  // Handle adding a shared vehicle to the selected library destination
+  const handleAddToLibrary = async (destination: LibraryDestination) => {
+    if (!currentUser || !vehicleToAddToLibrary?.id) {
+      setShowAddToLibraryModal(false);
+      return;
+    }
+
     try {
       // Get the shared vehicle data
-      const sharedVehicle = await getSharedVehicleById(vehicle.id);
+      const sharedVehicle = await getSharedVehicleById(vehicleToAddToLibrary.id);
       if (!sharedVehicle) {
         throw new Error("Shared vehicle not found");
       }
 
-      // Prepare vehicle data for saved vehicles table
-      const vehicleData = {
-        vin: sharedVehicle.vin,
-        year: sharedVehicle.year,
-        make: sharedVehicle.make,
-        model: sharedVehicle.model,
-        trim: sharedVehicle.trim,
-        mileage: sharedVehicle.mileage,
-        condition: sharedVehicle.condition,
-        heading: sharedVehicle.heading,
-        asking_price: sharedVehicle.asking_price,
-        dealer_name: sharedVehicle.dealer_name,
-        dealer_street: sharedVehicle.dealer_street,
-        dealer_city: sharedVehicle.dealer_city,
-        dealer_state: sharedVehicle.dealer_state,
-        dealer_zip: sharedVehicle.dealer_zip,
-        dealer_phone: sharedVehicle.dealer_phone,
-        dealer_lat: sharedVehicle.dealer_lat,
-        dealer_lng: sharedVehicle.dealer_lng,
-        listing_id: sharedVehicle.listing_id,
-        listing_source: sharedVehicle.listing_source,
-        listing_url: sharedVehicle.listing_url,
-        photo_url: sharedVehicle.photo_url,
-      };
+      const vehicleName = `${sharedVehicle.year || ''} ${sharedVehicle.make || ''} ${sharedVehicle.model || ''}`.trim();
 
-      // Add to saved vehicles using the cache (handles DB insert + local state)
-      await savedVehiclesCache.addVehicle(vehicleData);
+      if (destination === 'saved') {
+        // Prepare vehicle data for saved vehicles table
+        const vehicleData = {
+          vin: sharedVehicle.vin,
+          year: sharedVehicle.year,
+          make: sharedVehicle.make,
+          model: sharedVehicle.model,
+          trim: sharedVehicle.trim,
+          mileage: sharedVehicle.mileage,
+          condition: sharedVehicle.condition,
+          heading: sharedVehicle.heading,
+          asking_price: sharedVehicle.asking_price,
+          dealer_name: sharedVehicle.dealer_name,
+          dealer_street: sharedVehicle.dealer_street,
+          dealer_city: sharedVehicle.dealer_city,
+          dealer_state: sharedVehicle.dealer_state,
+          dealer_zip: sharedVehicle.dealer_zip,
+          dealer_phone: sharedVehicle.dealer_phone,
+          dealer_lat: sharedVehicle.dealer_lat,
+          dealer_lng: sharedVehicle.dealer_lng,
+          listing_id: sharedVehicle.listing_id,
+          listing_source: sharedVehicle.listing_source,
+          listing_url: sharedVehicle.listing_url,
+          photo_url: sharedVehicle.photo_url,
+        };
+
+        // Add to saved vehicles using the cache
+        await savedVehiclesCache.addVehicle(vehicleData);
+        await reloadSavedVehicles();
+
+        toast.push({
+          kind: "success",
+          title: "Added to Saved Vehicles",
+          detail: `${vehicleName} has been added to your saved vehicles.`,
+        });
+      } else {
+        // Normalize condition to valid garage_vehicles values: 'excellent' | 'good' | 'fair' | 'poor'
+        const validConditions = ['excellent', 'good', 'fair', 'poor'];
+        let normalizedCondition: string | undefined = undefined;
+        if (sharedVehicle.condition) {
+          const lowerCondition = String(sharedVehicle.condition).toLowerCase();
+          if (validConditions.includes(lowerCondition)) {
+            normalizedCondition = lowerCondition;
+          } else if (lowerCondition.includes('new') || lowerCondition.includes('excellent')) {
+            normalizedCondition = 'excellent';
+          } else if (lowerCondition.includes('good')) {
+            normalizedCondition = 'good';
+          } else if (lowerCondition.includes('fair')) {
+            normalizedCondition = 'fair';
+          } else {
+            normalizedCondition = 'good'; // Default fallback
+          }
+        }
+
+        // Prepare vehicle data for garage
+        const garageVehicleData = {
+          year: sharedVehicle.year,
+          make: sharedVehicle.make,
+          model: sharedVehicle.model,
+          trim: sharedVehicle.trim,
+          vin: sharedVehicle.vin,
+          mileage: sharedVehicle.mileage,
+          condition: normalizedCondition,
+          estimated_value: sharedVehicle.asking_price,
+          photo_url: sharedVehicle.photo_url,
+        };
+
+        // Add to garage
+        await addGarageVehicle(currentUser.id, garageVehicleData);
+
+        // Reload garage vehicles
+        const vehicles = await getAccessibleGarageVehicles();
+        setGarageVehicles(vehicles || []);
+
+        toast.push({
+          kind: "success",
+          title: "Added to Garage",
+          detail: `${vehicleName} has been added to your garage.`,
+        });
+      }
 
       // Delete from shared_vehicles
-      await deleteSharedVehicle(vehicle.id);
+      await deleteSharedVehicle(vehicleToAddToLibrary.id);
 
       // Update local state - remove from shared vehicles list
       setSharedImportedVehicles((prev) =>
-        prev.filter((v) => v.id !== vehicle.id)
+        prev.filter((v) => v.id !== vehicleToAddToLibrary.id)
       );
 
-      // Reload saved vehicles to get the new one
-      await reloadSavedVehicles();
-
-      toast.push({
-        kind: "success",
-        title: "Vehicle saved",
-        detail: `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''} has been added to your saved vehicles.`.trim(),
-      });
+      // Close modal and reset state
+      setShowAddToLibraryModal(false);
+      setVehicleToAddToLibrary(null);
     } catch (error: any) {
       toast.push({
         kind: "error",
         title: "Could not save vehicle",
+        detail: error?.message || "Please try again.",
+      });
+    }
+  };
+
+  // Handle declining/removing a shared vehicle
+  const handleDeclineSharedVehicle = async (vehicle: any) => {
+    if (!vehicle?.id) return;
+
+    const vehicleName = `${vehicle.year || ''} ${vehicle.make || ''} ${vehicle.model || ''}`.trim() || 'this vehicle';
+
+    if (!window.confirm(`Decline ${vehicleName}? This will remove it from your shared vehicles.`)) {
+      return;
+    }
+
+    try {
+      await deleteSharedVehicle(vehicle.id);
+
+      // Update local state
+      setSharedImportedVehicles((prev) =>
+        prev.filter((v) => v.id !== vehicle.id)
+      );
+
+      toast.push({
+        kind: "success",
+        title: "Shared vehicle removed",
+        detail: `${vehicleName} has been declined.`,
+      });
+    } catch (error: any) {
+      toast.push({
+        kind: "error",
+        title: "Could not remove vehicle",
         detail: error?.message || "Please try again.",
       });
     }
@@ -3298,7 +3432,7 @@ export const CalculatorApp: React.FC = () => {
       const isGarageVehicle =
         vehicle.source === "garage" ||
         garageVehicles?.some((v) => v.id === vehicle.id);
-      const table = isGarageVehicle ? "garage_vehicles" : "saved_vehicles";
+      const table = isGarageVehicle ? "garage_vehicles" : "vehicles";
 
       // Delete from database
       const { error } = await supabase
@@ -3321,10 +3455,10 @@ export const CalculatorApp: React.FC = () => {
         setGarageVehicles(updatedVehicles || []);
       } else {
         const { data: updatedVehicles, error: loadError } = await supabase
-          .from("saved_vehicles")
+          .from("vehicles")
           .select("*")
           .eq("user_id", currentUser.id)
-          .order("created_at", { ascending: false });
+          .order("inserted_at", { ascending: false });
 
         if (loadError) throw loadError;
         setSavedVehicles(updatedVehicles || []);
@@ -3811,7 +3945,8 @@ export const CalculatorApp: React.FC = () => {
                     handleDeleteVehicle(vehicle as any);
                   }}
                   onShareVehicle={(vehicle) => handleShareVehicle(vehicle as any)}
-                  onAddToGarage={(vehicle) => handleAddToSavedVehicles(vehicle as any)}
+                  onAddToGarage={(vehicle) => handleOpenAddToLibraryModal(vehicle as any)}
+                  onDeclineSharedVehicle={(vehicle) => handleDeclineSharedVehicle(vehicle as any)}
                   placeholder="Paste VIN or select from your garage..."
                 />
 
@@ -4745,6 +4880,21 @@ export const CalculatorApp: React.FC = () => {
           }
         }}
         modeOverride={authMode}
+      />
+
+      {/* Add to Library Modal - for adding shared vehicles to Saved or Garage */}
+      <AddToLibraryModal
+        isOpen={showAddToLibraryModal}
+        onClose={() => {
+          setShowAddToLibraryModal(false);
+          setVehicleToAddToLibrary(null);
+        }}
+        onSelect={handleAddToLibrary}
+        vehicleName={
+          vehicleToAddToLibrary
+            ? `${vehicleToAddToLibrary.year || ''} ${vehicleToAddToLibrary.make || ''} ${vehicleToAddToLibrary.model || ''}`.trim()
+            : undefined
+        }
       />
 
       {/* Offer Preview Modal */}

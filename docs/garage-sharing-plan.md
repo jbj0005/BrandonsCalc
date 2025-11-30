@@ -99,3 +99,58 @@ Indexes and RLS: index token hashes, enforce RLS so users only see garages they 
 - Default link expiry (proposed 7 days) and max_views default (infinite vs. capped).
 - Should copies remain after revocation? (default: copies persist; note provenance).
 - What PII to hide in shared view (limit to garage + vehicles only).
+
+---
+
+## Implementation Status (Updated Nov 2024)
+
+### Implemented Features
+
+#### 1. Share Link Flow
+- **Single Vehicle Sharing**: Share links can target a specific vehicle via `?vehicle=<id>` query param
+- **Full Library Sharing**: Without the vehicle param, entire garage/saved collections are shared
+- **API Endpoint**: `/api/share/:token/collections?vehicle=<id>` returns filtered or full collection
+
+#### 2. Shared Vehicles Table (`shared_vehicles`)
+Stores imported vehicles from share links for authenticated users:
+```
+id, user_id, share_token, shared_from_owner_id, shared_from_vehicle_id,
+source_type ('garage'|'saved'), vin, year, make, model, trim, mileage,
+condition, asking_price, dealer_*, photo_url, inserted_at
+```
+- Unique constraint on `(user_id, vin)` to prevent duplicates
+- Auto-cleanup: Old shared vehicles from different tokens are deleted when a new share session starts
+
+#### 3. VIN Dropdown Integration
+- **My Shared Vehicles** section appears in VIN dropdown with purple styling and "Shared" badge
+- Only shows vehicles from the current share session (filtered by `share_token` and optionally `shared_from_vehicle_id`)
+- Includes vehicle count in "X vehicles in your library" indicator
+
+#### 4. Add to Library Modal (`AddToLibraryModal.tsx`)
+When user clicks "+" on a shared vehicle, modal prompts for destination:
+- **My Saved Vehicles** (vehicles table) - for vehicles user is interested in buying
+- **My Garage** (garage_vehicles table) - for vehicles user owns (trade-in)
+
+Condition normalization for garage: Maps any condition value to valid `'excellent'|'good'|'fair'|'poor'` values.
+
+#### 5. Decline Shared Vehicle
+- Trash icon button on shared vehicles allows users to decline/remove
+- Prompts for confirmation before deletion
+- Removes from `shared_vehicles` table and updates UI immediately
+
+#### 6. Session Cleanup
+- When a new share link is opened, old shared vehicles from different `share_token` values are automatically deleted
+- Keeps `shared_vehicles` table clean and prevents stale data accumulation
+
+### Key Files Modified
+- `src/CalculatorApp.tsx` - Main share flow, handlers, modal integration
+- `src/ui/components/VINSearchPremium.tsx` - Dropdown display, filtering, action buttons
+- `src/ui/components/AddToLibraryModal.tsx` - New modal for library destination selection
+- `src/lib/supabase.ts` - `deleteSharedVehicle()`, `getSharedVehicleById()` functions
+
+### Tables Reference
+| Table | Purpose | UI Section |
+|-------|---------|------------|
+| `vehicles` | Vehicles user is interested in buying | "My Saved Vehicles" |
+| `garage_vehicles` | Vehicles user owns (for trade-in) | "My Garage" |
+| `shared_vehicles` | Imported vehicles from share links | "My Shared Vehicles" |

@@ -698,6 +698,43 @@ export async function getSMSLogs(offerId?: string): Promise<SMSLog[]> {
 }
 
 // ========================================
+// Shared Vehicle Functions
+// ========================================
+
+/**
+ * Delete a shared vehicle from the shared_vehicles table
+ */
+export async function deleteSharedVehicle(sharedVehicleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('shared_vehicles')
+    .delete()
+    .eq('id', sharedVehicleId);
+
+  if (error) {
+    console.error('Failed to delete shared vehicle:', error);
+    throw new Error(error.message || 'Could not delete shared vehicle');
+  }
+}
+
+/**
+ * Get shared vehicle data by ID (for transferring to saved vehicles)
+ */
+export async function getSharedVehicleById(sharedVehicleId: string): Promise<any | null> {
+  const { data, error } = await supabase
+    .from('shared_vehicles')
+    .select('*')
+    .eq('id', sharedVehicleId)
+    .single();
+
+  if (error) {
+    console.error('Failed to fetch shared vehicle:', error);
+    return null;
+  }
+
+  return data;
+}
+
+// ========================================
 // Utility Functions
 // ========================================
 

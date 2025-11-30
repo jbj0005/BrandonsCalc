@@ -44,6 +44,8 @@ export interface VINSearchPremiumProps {
   onEditVehicle?: (vehicle: VehicleOption) => void;
   onDeleteVehicle?: (vehicle: VehicleOption) => void;
   onShareVehicle?: (vehicle: VehicleOption) => void;
+  onAddToGarage?: (vehicle: VehicleOption) => void;
+  onDeclineSharedVehicle?: (vehicle: VehicleOption) => void;
   placeholder?: string;
 }
 
@@ -62,12 +64,14 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
   onEditVehicle,
   onDeleteVehicle,
   onShareVehicle,
+  onAddToGarage,
+  onDeclineSharedVehicle,
   placeholder = "Paste VIN or select from your garage...",
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const totalVehicles = garageVehicles.length + savedVehicles.length;
+  const totalVehicles = garageVehicles.length + savedVehicles.length + sharedVehicles.length;
 
   // Filter vehicles based on search query
   const filteredGarage = garageVehicles.filter(v =>
@@ -336,12 +340,15 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                     onSelect={() => handleSelectVehicle(vehicle)}
                     onEdit={onEditVehicle ? () => onEditVehicle(vehicle) : undefined}
                     onShare={onShareVehicle ? () => onShareVehicle(vehicle) : undefined}
+                    onAddToGarage={onAddToGarage ? () => onAddToGarage(vehicle) : undefined}
+                    onDelete={onDeclineSharedVehicle ? () => onDeclineSharedVehicle(vehicle) : undefined}
+                    isShared={true}
                   />
                 ))}
                   </div>
                 )}
 
-                    {filteredGarage.length === 0 && filteredSaved.length === 0 && (
+                    {filteredGarage.length === 0 && filteredSaved.length === 0 && filteredShared.length === 0 && (
                       <div className="p-8 text-center text-white/30">
                         <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -426,10 +433,14 @@ const VehicleListItem: React.FC<{
   onEdit?: () => void;
   onDelete?: () => void;
   onShare?: () => void;
-}> = ({ vehicle, onSelect, onEdit, onDelete, onShare }) => {
+  onAddToGarage?: () => void;
+  isShared?: boolean;
+}> = ({ vehicle, onSelect, onEdit, onDelete, onShare, onAddToGarage, isShared }) => {
   return (
     <div
-      className="group/item relative border-b border-white/5 hover:bg-white/5 transition-all duration-300 cursor-pointer"
+      className={`group/item relative border-b border-white/5 hover:bg-white/5 transition-all duration-300 cursor-pointer ${
+        isShared ? 'border-l-4 border-l-purple-500 bg-purple-500/5' : ''
+      }`}
       onClick={onSelect}
     >
       <div className="flex items-center gap-4 p-4">
@@ -449,9 +460,16 @@ const VehicleListItem: React.FC<{
 
         {/* Vehicle Info */}
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-white group-hover/item:text-blue-300 transition-colors">
-            {vehicle.year} {vehicle.make} {vehicle.model}
-            {vehicle.trim && <span className="text-white/50"> · {vehicle.trim}</span>}
+          <div className="font-semibold text-white group-hover/item:text-blue-300 transition-colors flex items-center gap-2 flex-wrap">
+            <span>
+              {vehicle.year} {vehicle.make} {vehicle.model}
+              {vehicle.trim && <span className="text-white/50"> · {vehicle.trim}</span>}
+            </span>
+            {isShared && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                Shared
+              </span>
+            )}
           </div>
           {vehicle.vin && (
             <div className="text-xs text-white/40 font-mono mt-1">
@@ -502,6 +520,22 @@ const VehicleListItem: React.FC<{
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 6l-4-4-4 4" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v14" />
+              </svg>
+            </button>
+          )}
+
+          {/* Add to Garage Button (for shared vehicles) */}
+          {onAddToGarage && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddToGarage();
+              }}
+              className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/30 text-purple-300 hover:text-purple-200 hover:border-purple-400/50 hover:bg-purple-500/20 transition-all duration-300 opacity-0 group-hover/item:opacity-100"
+              title="Add to My Library"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
               </svg>
             </button>
           )}
