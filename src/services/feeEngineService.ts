@@ -57,15 +57,8 @@ export class FeeEngineService {
         dealerConfig
       );
 
-      console.log('[FeeEngineService] Calculation complete:', {
-        scenarioType: result.detectedScenario.type,
-        totalFees: result.totals.totalFees,
-        salesTax: result.totals.salesTax,
-      });
-
       return result;
     } catch (error) {
-      console.error('[FeeEngineService] Calculation error:', error);
       throw new Error(`Fee calculation failed: ${(error as Error).message}`);
     }
   }
@@ -81,11 +74,8 @@ export class FeeEngineService {
 
     // Check cache first
     if (this.rulesCache.has(cacheKey)) {
-      console.log('[FeeEngineService] Using cached jurisdiction rules');
       return this.rulesCache.get(cacheKey)!;
     }
-
-    console.log('[FeeEngineService] Fetching jurisdiction rules from Supabase...');
 
     // Fetch from Supabase
     const { data, error } = await supabase
@@ -97,7 +87,6 @@ export class FeeEngineService {
       .or(`expiration_date.is.null,expiration_date.gte.${new Date().toISOString()}`);
 
     if (error) {
-      console.error('[FeeEngineService] Error fetching jurisdiction rules:', error);
       throw new Error(`Failed to fetch jurisdiction rules: ${error.message}`);
     }
 
@@ -106,8 +95,6 @@ export class FeeEngineService {
     // Cache for 5 minutes
     this.rulesCache.set(cacheKey, rules);
     setTimeout(() => this.rulesCache.delete(cacheKey), 5 * 60 * 1000);
-
-    console.log(`[FeeEngineService] Loaded ${rules.length} jurisdiction rules`);
 
     return rules;
   }
@@ -118,11 +105,8 @@ export class FeeEngineService {
   private async getDealerConfig(dealerId: string): Promise<DealerConfig> {
     // Check cache first
     if (this.dealerConfigCache.has(dealerId)) {
-      console.log('[FeeEngineService] Using cached dealer config');
       return this.dealerConfigCache.get(dealerId)!;
     }
-
-    console.log('[FeeEngineService] Fetching dealer config from Supabase...');
 
     // Fetch from Supabase
     const { data, error } = await supabase
@@ -134,13 +118,8 @@ export class FeeEngineService {
       .limit(1)
       .maybeSingle();
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('[FeeEngineService] Error fetching dealer config:', error);
-    }
-
-    // If no config found, use default
-    if (!data) {
-      console.log('[FeeEngineService] No dealer config found, using defaults');
+    // If no config found or error, use default
+    if (error || !data) {
       return this.getDefaultDealerConfig(dealerId);
     }
 
@@ -199,7 +178,6 @@ export class FeeEngineService {
   clearCache(): void {
     this.rulesCache.clear();
     this.dealerConfigCache.clear();
-    console.log('[FeeEngineService] Cache cleared');
   }
 }
 

@@ -246,12 +246,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
       firstTimeRegistration: scenarioOverrides?.firstTimeRegistration || false,
     };
 
-    console.log('[FeesModal] handleTogglePill called:', {
-      key,
-      currentOverrides: scenarioOverrides,
-      nextOverrides: next,
-    });
-
     switch (key) {
       case 'enabled':
         next.enabled = !next.enabled;
@@ -299,8 +293,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     }
 
     onScenarioOverridesChange(next);
-    console.log('[FeesModal] Scenario overrides updated. Fee engine should recalculate automatically.');
-    // Note: Fee recalculation happens automatically via useFeeEngine hook when scenarioOverrides changes
   };
 
   const renderPills = () => {

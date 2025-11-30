@@ -223,25 +223,20 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
   usesTruckSchedule: boolean;
 } | null> => {
   if (!vin || vin.length < 11) {
-    console.log('[nhtsa] Skipping lookup - VIN too short:', vin?.length || 0);
     return null;
   }
 
   try {
-    console.log('[nhtsa] Fetching weight for VIN:', vin);
-    // Call NHTSA vPIC API directly (public, CORS-enabled)
     const response = await fetch(
       `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${vin}?format=json`
     );
     if (!response.ok) {
-      console.warn('[nhtsa] API returned', response.status);
       return null;
     }
 
     const data = await response.json();
     const result = data?.Results?.[0];
     if (!result) {
-      console.warn('[nhtsa] No results for VIN');
       return null;
     }
 
@@ -258,18 +253,15 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
     if (curbWeightLB && !isNaN(curbWeightLB)) {
       estimatedWeight = curbWeightLB;
       weightSource = 'nhtsa_exact';
-      console.log('[nhtsa] Found exact curb weight:', curbWeightLB);
     } else if (gvwr) {
       const derivedWeight = parseGVWRToWeight(gvwr);
       if (derivedWeight) {
         estimatedWeight = derivedWeight;
         weightSource = 'gvwr_derived';
-        console.log('[nhtsa] Derived weight from GVWR:', derivedWeight, 'from', gvwr);
       }
     }
 
     if (!estimatedWeight) {
-      console.log('[nhtsa] No weight data available for VIN');
       return null;
     }
 
@@ -291,8 +283,7 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
       rawCurbWeight: curbWeightLB || undefined,
       usesTruckSchedule,
     };
-  } catch (error) {
-    console.warn('[nhtsa] Background weight lookup failed:', error);
+  } catch {
     return null;
   }
 };
@@ -2390,19 +2381,12 @@ export const CalculatorApp: React.FC = () => {
     enabled?: boolean;
   }>({});
 
-  // Dev snapshot logger to validate fee engine inputs vs keywords
+  // Dev snapshot logger (disabled in production)
   const logScenarioSnapshot = useCallback(
-    (label: string, extras: Record<string, any> = {}) => {
-      if (typeof console === "undefined") return;
-      console.log("[FeeEngine Snapshot]", label, {
-        overrides: scenarioOverrides,
-        selectedTradeIns: selectedTradeIns.map((t) => t.id),
-        vehicleCondition: feeEngineSelectedVehicle?.condition,
-        state: feeEngineUserProfile?.state_code,
-        ...extras,
-      });
+    (_label: string, _extras: Record<string, any> = {}) => {
+      // Logging disabled
     },
-    [scenarioOverrides, selectedTradeIns, feeEngineSelectedVehicle, feeEngineUserProfile]
+    []
   );
 
   useEffect(() => {

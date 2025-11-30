@@ -128,14 +128,6 @@ export function useFeeEngine(params: UseFeeEngineParams): UseFeeEngineResult {
       setIsCalculating(true);
       setError(null);
 
-      console.log('[useFeeEngine] Calculating fees...', {
-        salePrice: params.salePrice,
-        hasTradeIn: (params.selectedTradeInVehicles?.length || 0) > 0,
-        isFinanced: params.loanTerm > 0,
-        state: params.userProfile?.state_code,
-        county: params.userProfile?.county_name,
-      });
-
       // Call fee engine service
       const result = await feeEngineService.calculateFees(
         calcParams as EngineCalculatorState,
@@ -143,14 +135,7 @@ export function useFeeEngine(params: UseFeeEngineParams): UseFeeEngineResult {
       );
 
       setScenarioResult(result);
-
-      console.log('[useFeeEngine] Calculation complete:', {
-        scenario: result.detectedScenario.description,
-        govFees: result.totals.governmentFees,
-        salesTax: result.totals.salesTax,
-      });
     } catch (err) {
-      console.error('[useFeeEngine] Calculation failed:', err);
       setError(err as Error);
     } finally {
       setIsCalculating(false);
