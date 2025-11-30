@@ -925,24 +925,26 @@ export const FeesModal: React.FC<FeesModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-6 pb-4">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4 pr-2">
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
-          <button
-            type="button"
-            onClick={() => {
-              handleSave();
-              onEditTemplates();
-            }}
-            className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30 whitespace-nowrap"
-          >
-            Edit Fee Templates
-          </button>
+          <div className="shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                handleSave();
+                onEditTemplates();
+              }}
+              className="px-3 py-1.5 text-sm font-medium text-blue-400 hover:bg-blue-500/20 rounded-md transition-colors border border-blue-400/30 whitespace-nowrap"
+            >
+              Edit Fee Templates
+            </button>
+          </div>
         </div>
 
         {/* Scrollable content area */}
-        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-4 mr-1">
+        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-1">
           {/* Dealer Fees Section */}
           <ModernFeeSection
             title="Dealer Fees"
