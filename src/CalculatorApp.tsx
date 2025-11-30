@@ -2231,34 +2231,18 @@ export const CalculatorApp: React.FC = () => {
     };
   }, [profile]);
 
-  // Reset/set vehicle meta when a new vehicle is selected
+  // Reset vehicle meta only when selection is cleared (not when switching vehicles)
+  // Weight is now handled by selection handlers + background NHTSA fetch
   useEffect(() => {
-    // Use NHTSA weight if available from the vehicle data
-    if (selectedVehicle?.curb_weight_lbs) {
-      const rawWeight = selectedVehicle.curb_weight_lbs;
-      setEstimatedWeight(rawWeight);
-      setWeightSource(selectedVehicle.weight_source || 'nhtsa_exact');
-      // Auto-select bracket based on estimated weight
-      const bracket = findWeightBracket(rawWeight, selectedVehicle?.body_class);
-      setVehicleWeightLbs(bracket);
-    } else {
+    if (!selectedVehicle) {
+      // Only reset weight when vehicle is cleared, not when switching
       setEstimatedWeight(undefined);
       setVehicleWeightLbs(undefined);
       setWeightSource(undefined);
+      setVehicleBodyType("auto");
     }
-
-    const inferredBody =
-      (selectedVehicle?.body_type ||
-        selectedVehicle?.body_class ||
-        selectedVehicle?.vehicle_type ||
-        "") as string;
-    const normalized =
-      typeof inferredBody === "string" && inferredBody.toLowerCase().includes("truck")
-        ? "truck"
-        : typeof inferredBody === "string" && inferredBody.toLowerCase().includes("van")
-        ? "van"
-        : "auto";
-    setVehicleBodyType(normalized);
+    // Note: Weight and body type are now set by handleSelectSavedVehicle,
+    // handleSelectSharedVehicle, and handleSelectGarageVehicle
   }, [selectedVehicle]);
 
   const feeEngineSelectedVehicle = useMemo(() => {
