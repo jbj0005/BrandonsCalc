@@ -32,7 +32,12 @@
       "Bash(supabase --version:*)",
       "Bash(supabase functions list:*)",
       "Bash(supabase secrets set:*)",
-      "Bash(supabase functions deploy:*)"
+      "Bash(supabase functions deploy:*)",
+      "WebFetch(domain:vpic.nhtsa.dot.gov)",
+      "Bash(curl:*)",
+      "Bash(xargs ls:*)",
+      "Bash(xargs basename:*)",
+      "Bash(npm ls:*)"
     ],
     "deny": [],
     "ask": []

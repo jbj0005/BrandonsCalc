@@ -1226,20 +1226,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 <label className="text-sm font-medium text-white/80">
                   Weight bracket
                 </label>
-                {/* Show estimated weight if available */}
-                {estimatedWeight && weightSource && weightSource !== 'manual_required' && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-white/60">Computed:</span>
-                    <span className="text-white font-medium">~{estimatedWeight.toLocaleString()} lbs</span>
-                    <span className={`text-xs px-1.5 py-0.5 rounded ${
-                      weightSource === 'nhtsa_exact'
-                        ? 'bg-emerald-500/20 text-emerald-400'
-                        : 'bg-amber-500/20 text-amber-400'
-                    }`}>
-                      {weightSource === 'nhtsa_exact' ? 'NHTSA' : 'Est. from GVWR'}
-                    </span>
-                  </div>
-                )}
                 <select
                   value={vehicleWeightLbs ?? ''}
                   onChange={(e) => {
@@ -1385,30 +1371,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                       </p>
                     </div>
                   </div>
-                  {/* Weight assumption note */}
-                  {estimatedWeight && weightSource && (
-                    <div className="mt-3 pt-3 border-t border-white/10">
-                      <div className="flex items-center gap-2 text-sm">
-                        <span className="text-white/50">Vehicle weight:</span>
-                        <span className="text-white">~{estimatedWeight.toLocaleString()} lbs</span>
-                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                          weightSource === 'nhtsa_exact'
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : weightSource === 'gvwr_derived'
-                            ? 'bg-amber-500/20 text-amber-400'
-                            : 'bg-blue-500/20 text-blue-400'
-                        }`}>
-                          {weightSource === 'nhtsa_exact' ? 'NHTSA verified' :
-                           weightSource === 'gvwr_derived' ? 'Estimated from GVWR' : 'Manual'}
-                        </span>
-                      </div>
-                      {weightSource === 'gvwr_derived' && (
-                        <p className="text-xs text-white/40 mt-1">
-                          Based on ~70% of max vehicle capacity. Adjust bracket above if needed.
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Total Gov Fees Card */}
