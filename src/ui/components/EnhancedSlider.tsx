@@ -63,6 +63,12 @@ export interface EnhancedSliderProps extends SliderProps {
   onToggleLock?: () => void;
   /** Auto-lock timer active */
   isAutoLockPending?: boolean;
+  /** Toggle mode: 'spring' animates back after reset, 'two-state' toggles between zero and user value */
+  toggleMode?: 'spring' | 'two-state';
+  /** For two-state toggle: the alternate (non-zero) value to toggle to */
+  toggleAlternateValue?: number;
+  /** For two-state toggle: callback when toggled to alternate state */
+  onToggleToAlternate?: (value: number) => void;
 }
 
 /**
@@ -100,6 +106,9 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       lockedBaseline = null,
       onToggleLock,
       isAutoLockPending = false,
+      toggleMode,
+      toggleAlternateValue,
+      onToggleToAlternate,
       ...props
     },
     ref
@@ -125,6 +134,8 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const [isFocused, setIsFocused] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [isInputFocused, setIsInputFocused] = useState(false);
+    const [springAnimating, setSpringAnimating] = useState(false);
+    const [rememberedValue, setRememberedValue] = useState<number | null>(null);
 
     const currentValue = Number(value || 0);
 
@@ -328,8 +339,59 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
       onChange,
     ]);
 
-    // Handle reset
+    // Track non-zero values for two-state toggle
+    useEffect(() => {
+      if (toggleMode === 'two-state' && currentValue > 0) {
+        setRememberedValue(currentValue);
+      }
+    }, [currentValue, toggleMode]);
+
+    // Determine if currently at "zero" state for two-state toggle
+    const isAtZeroState = toggleMode === 'two-state' && currentValue === 0;
+    const effectiveAlternateValue = toggleAlternateValue ?? rememberedValue ?? 1000;
+
+    // Handle toggle click
+    const handleToggleClick = () => {
+      if (toggleMode === 'spring') {
+        // Spring-loaded: reset to baseline, animate toggle back
+        setSpringAnimating(true);
+        const baselineVal = resetToBaseline();
+        const syntheticEvent = {
+          target: { value: String(baselineVal) },
+        } as React.ChangeEvent<HTMLInputElement>;
+        onChange?.(syntheticEvent);
+        onReset?.();
+
+        // Spring back after animation
+        setTimeout(() => {
+          setSpringAnimating(false);
+        }, 300);
+      } else if (toggleMode === 'two-state') {
+        // Two-state: toggle between 0 and alternate value
+        if (isAtZeroState) {
+          const syntheticEvent = {
+            target: { value: String(effectiveAlternateValue) },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange?.(syntheticEvent);
+          onToggleToAlternate?.(effectiveAlternateValue);
+        } else {
+          // Remember current value before going to zero
+          setRememberedValue(currentValue);
+          const syntheticEvent = {
+            target: { value: '0' },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange?.(syntheticEvent);
+          onReset?.();
+        }
+      }
+    };
+
+    // Handle reset (legacy, for backwards compatibility)
     const handleReset = () => {
+      if (toggleMode) {
+        handleToggleClick();
+        return;
+      }
       const baselineVal = resetToBaseline();
       const syntheticEvent = {
         target: { value: String(baselineVal) },
@@ -564,7 +626,63 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
                 ? formatValue(valueDiffForDisplay)
                 : valueDiffForDisplay.toLocaleString()}
             </span>
-            {showReset && (
+            {showReset && toggleMode && (
+              <button
+                onClick={handleToggleClick}
+                className={`
+                  relative flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium
+                  transition-all duration-300 ease-out
+                  ${toggleMode === 'two-state'
+                    ? isAtZeroState
+                      ? 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 border border-emerald-500/30'
+                      : 'bg-white/10 text-white/60 hover:bg-white/15 border border-white/20'
+                    : springAnimating
+                      ? 'bg-blue-500/30 text-blue-300 scale-95'
+                      : 'bg-white/10 text-white/60 hover:bg-white/15 border border-white/20 hover:border-white/30 active:scale-95'
+                  }
+                `}
+                type="button"
+                title={toggleMode === 'two-state'
+                  ? (isAtZeroState ? `Set to ${formatValue ? formatValue(effectiveAlternateValue) : `$${effectiveAlternateValue.toLocaleString()}`}` : 'Set to $0')
+                  : 'Reset to baseline'
+                }
+              >
+                {toggleMode === 'two-state' ? (
+                  <>
+                    {/* Two-state toggle pill */}
+                    <div className={`
+                      relative w-8 h-4 rounded-full transition-colors duration-200
+                      ${isAtZeroState ? 'bg-emerald-500/40' : 'bg-white/20'}
+                    `}>
+                      <div className={`
+                        absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm
+                        transition-all duration-200 ease-out
+                        ${isAtZeroState ? 'left-[calc(100%-14px)]' : 'left-0.5'}
+                      `} />
+                    </div>
+                    <span className="hidden sm:inline">
+                      {isAtZeroState ? 'Add' : '$0'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {/* Spring-loaded toggle */}
+                    <svg
+                      className={`w-3.5 h-3.5 transition-transform duration-300 ${springAnimating ? 'rotate-[-360deg]' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className={`transition-opacity duration-200 ${springAnimating ? 'opacity-50' : ''}`}>
+                      Reset
+                    </span>
+                  </>
+                )}
+              </button>
+            )}
+            {showReset && !toggleMode && (
               <button
                 onClick={handleReset}
                 className="text-blue-600 hover:text-blue-800 text-xs underline"

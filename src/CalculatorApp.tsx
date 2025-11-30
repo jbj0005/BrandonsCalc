@@ -4711,6 +4711,7 @@ export const CalculatorApp: React.FC = () => {
                 buyerPerspective="lower-is-better"
                 showTooltip={true}
                 showReset={true}
+                toggleMode="spring"
                 baselineValue={selectedVehicleSaleValue ?? salePrice}
                 diffBaselineValue={selectedVehicleSaleValue ?? undefined}
                 diffBaselinePayment={salePriceState0Payment ?? undefined}
@@ -4739,6 +4740,8 @@ export const CalculatorApp: React.FC = () => {
                 buyerPerspective="higher-is-better"
                 showTooltip={true}
                 showReset={true}
+                toggleMode="two-state"
+                toggleAlternateValue={sliders.cashDown.baseline || 2000}
                 baselineValue={0}
                 diffBaselineValue={0}
                 diffBaselinePayment={cashDownState0Payment ?? undefined}
@@ -4765,6 +4768,7 @@ export const CalculatorApp: React.FC = () => {
                 buyerPerspective="higher-is-better"
                 showTooltip={true}
                 showReset={true}
+                toggleMode="spring"
                 baselineValue={sliders.tradeAllowance.baseline}
                 diffBaselineValue={sliders.tradeAllowance.baseline}
                 diffBaselinePayment={tradeAllowanceBaselinePayment ?? undefined}
