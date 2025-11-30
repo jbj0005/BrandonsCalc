@@ -218,6 +218,8 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
   estimatedWeight: number | undefined;
   weightSource: string | undefined;
   bodyClass: string | undefined;
+  gvwrClass: string | undefined;
+  rawCurbWeight: number | undefined;
   usesTruckSchedule: boolean;
 } | null> => {
   if (!vin || vin.length < 11) {
@@ -285,6 +287,8 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
       estimatedWeight,
       weightSource,
       bodyClass,
+      gvwrClass: gvwr || undefined,
+      rawCurbWeight: curbWeightLB || undefined,
       usesTruckSchedule,
     };
   } catch (error) {
@@ -363,6 +367,9 @@ export const CalculatorApp: React.FC = () => {
   const [vehicleBodyType, setVehicleBodyType] = useState<string>("auto");
   const [estimatedWeight, setEstimatedWeight] = useState<number | undefined>(); // Raw NHTSA/GVWR estimate
   const [weightSource, setWeightSource] = useState<string | undefined>();
+  const [nhtsaBodyClass, setNhtsaBodyClass] = useState<string | undefined>(); // e.g., "Pickup"
+  const [nhtsaGvwrClass, setNhtsaGvwrClass] = useState<string | undefined>(); // e.g., "Class 1C: 4,001 - 5,000 lb"
+  const [nhtsaRawCurbWeight, setNhtsaRawCurbWeight] = useState<number | undefined>(); // Raw curb weight if available
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
   const [vinError, setVinError] = useState("");
 
@@ -3161,6 +3168,9 @@ export const CalculatorApp: React.FC = () => {
           const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
           setEstimatedWeight(nhtsaData.estimatedWeight);
           setWeightSource(nhtsaData.weightSource);
+          setNhtsaBodyClass(nhtsaData.bodyClass);
+          setNhtsaGvwrClass(nhtsaData.gvwrClass);
+          setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3206,6 +3216,9 @@ export const CalculatorApp: React.FC = () => {
           const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
           setEstimatedWeight(nhtsaData.estimatedWeight);
           setWeightSource(nhtsaData.weightSource);
+          setNhtsaBodyClass(nhtsaData.bodyClass);
+          setNhtsaGvwrClass(nhtsaData.gvwrClass);
+          setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3250,6 +3263,9 @@ export const CalculatorApp: React.FC = () => {
           const bracket = findWeightBracket(nhtsaData.estimatedWeight, nhtsaData.bodyClass);
           setEstimatedWeight(nhtsaData.estimatedWeight);
           setWeightSource(nhtsaData.weightSource);
+          setNhtsaBodyClass(nhtsaData.bodyClass);
+          setNhtsaGvwrClass(nhtsaData.gvwrClass);
+          setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3948,6 +3964,9 @@ export const CalculatorApp: React.FC = () => {
           const rawWeight = vehicleSpecs.estimatedWeight;
           setEstimatedWeight(rawWeight);
           setWeightSource(vehicleSpecs.weightSource || 'nhtsa_exact');
+          setNhtsaBodyClass(vehicleSpecs.bodyClass);
+          setNhtsaGvwrClass(vehicleSpecs.gvwrClass);
+          setNhtsaRawCurbWeight(vehicleSpecs.rawCurbWeight);
           // Auto-select bracket based on estimated weight
           const bracket = findWeightBracket(rawWeight, vehicleSpecs?.bodyClass);
           setVehicleWeightLbs(bracket);
@@ -5323,6 +5342,9 @@ export const CalculatorApp: React.FC = () => {
         vehicleBodyType={vehicleBodyType}
         estimatedWeight={estimatedWeight}
         weightSource={weightSource}
+        nhtsaBodyClass={nhtsaBodyClass}
+        nhtsaGvwrClass={nhtsaGvwrClass}
+        nhtsaRawCurbWeight={nhtsaRawCurbWeight}
         onVehicleMetaChange={(meta) => {
           if (meta.weightLbs !== undefined) {
             setVehicleWeightLbs(meta.weightLbs);

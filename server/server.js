@@ -1391,7 +1391,9 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
       bodyClass: nhtsaData?.bodyClass ?? null,
       vehicleType: nhtsaData?.vehicleType ?? null,
       gvwr: nhtsaData?.gvwr ?? null,
+      gvwrClass: nhtsaData?.gvwr ?? null, // Alias for client compatibility
       curbWeightLB: nhtsaData?.curbWeightLB ?? null,
+      rawCurbWeight: nhtsaData?.curbWeightLB ?? null, // Alias for client compatibility
       estimatedWeight: weightEstimate.weight,
       weightSource: weightEstimate.source,
       weightConfidence: weightEstimate.confidence,

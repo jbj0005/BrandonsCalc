@@ -53,6 +53,9 @@ interface FeesModalProps {
   vehicleBodyType?: string;
   estimatedWeight?: number; // Raw NHTSA/GVWR estimated weight
   weightSource?: string; // 'nhtsa_exact' | 'gvwr_derived' | 'manual' | 'manual_required'
+  nhtsaBodyClass?: string; // e.g., "Pickup", "Sedan", "SUV"
+  nhtsaGvwrClass?: string; // e.g., "Class 1C: 4,001 - 5,000 lb"
+  nhtsaRawCurbWeight?: number; // Raw curb weight from NHTSA if available
   onVehicleMetaChange?: (meta: { weightLbs?: number; bodyType?: string }) => void;
 }
 
@@ -86,6 +89,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   vehicleBodyType,
   estimatedWeight,
   weightSource,
+  nhtsaBodyClass,
+  nhtsaGvwrClass,
+  nhtsaRawCurbWeight,
   onVehicleMetaChange,
 }) => {
   const [showAssumptionsModal, setShowAssumptionsModal] = useState(false);
@@ -1283,6 +1289,39 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                   <h4 className="font-semibold text-white">Weight Calculation</h4>
                 </div>
                 <div className="space-y-3 text-sm">
+                  {/* NHTSA Data Source */}
+                  {(nhtsaBodyClass || nhtsaGvwrClass || nhtsaRawCurbWeight) && (
+                    <div className="p-3 rounded-lg bg-slate-800/50 border border-white/5">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                        </svg>
+                        <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wide">NHTSA Data</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {nhtsaBodyClass && (
+                          <div>
+                            <span className="text-white/40">Body Class:</span>
+                            <span className="ml-1 text-white">{nhtsaBodyClass}</span>
+                          </div>
+                        )}
+                        {nhtsaRawCurbWeight && (
+                          <div>
+                            <span className="text-white/40">Curb Weight:</span>
+                            <span className="ml-1 text-white font-medium">{nhtsaRawCurbWeight.toLocaleString()} lbs</span>
+                          </div>
+                        )}
+                        {nhtsaGvwrClass && (
+                          <div className="col-span-2">
+                            <span className="text-white/40">GVWR Class:</span>
+                            <span className="ml-1 text-white">{nhtsaGvwrClass}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Computed Weight */}
                   {estimatedWeight && weightSource && (
                     <div className="flex items-start gap-3">
                       <div className={`w-2 h-2 rounded-full mt-1.5 ${
@@ -1292,7 +1331,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-white font-medium">
-                            {estimatedWeight.toLocaleString()} lbs
+                            {weightSource === 'gvwr_derived' ? '~' : ''}{estimatedWeight.toLocaleString()} lbs
                           </span>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             weightSource === 'nhtsa_exact'
@@ -1305,16 +1344,31 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                              weightSource === 'gvwr_derived' ? 'GVWR Estimate' : 'Manual Entry'}
                           </span>
                         </div>
-                        <p className="text-white/50 text-xs mt-1">
-                          {weightSource === 'nhtsa_exact'
-                            ? 'Curb weight from NHTSA Vehicle Product Information Catalog (vPIC)'
-                            : weightSource === 'gvwr_derived'
-                            ? 'Estimated at ~70% of Gross Vehicle Weight Rating (typical curb weight ratio)'
-                            : 'Manually entered weight value'}
-                        </p>
+                        {weightSource === 'nhtsa_exact' && (
+                          <p className="text-white/50 text-xs mt-1">
+                            Manufacturer-reported curb weight from NHTSA vPIC database
+                          </p>
+                        )}
+                        {weightSource === 'gvwr_derived' && nhtsaGvwrClass && (
+                          <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/20">
+                            <p className="text-amber-300/80 text-xs font-mono">
+                              Formula: GVWR upper bound × 0.70 = curb weight
+                            </p>
+                            <p className="text-white/50 text-xs mt-1">
+                              Curb weight is typically ~70% of GVWR (max loaded weight)
+                            </p>
+                          </div>
+                        )}
+                        {weightSource !== 'nhtsa_exact' && weightSource !== 'gvwr_derived' && (
+                          <p className="text-white/50 text-xs mt-1">
+                            Manually entered weight value
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
+
+                  {/* FL Fee Bracket */}
                   {vehicleWeightLbs && (
                     <div className="flex items-start gap-3">
                       <div className="w-2 h-2 rounded-full mt-1.5 bg-blue-400" />
