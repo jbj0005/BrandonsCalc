@@ -207,6 +207,117 @@ async function writeMarketCheckCache(cacheData) {
   }
 }
 
+// =============================================================================
+// NHTSA vPIC API Integration (for vehicle weight & body type)
+// =============================================================================
+const NHTSA_BASE = "https://vpic.nhtsa.dot.gov/api/vehicles";
+
+/**
+ * Fetch vehicle data from NHTSA vPIC API (free, no API key required)
+ * Returns curb weight, GVWR, body class, and vehicle type
+ */
+async function fetchNHTSAVehicleData(vin) {
+  try {
+    const url = `${NHTSA_BASE}/DecodeVinValuesExtended/${vin}?format=json`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`[nhtsa] API returned ${response.status} for VIN: ${vin}`);
+      return null;
+    }
+    const data = await response.json();
+    const result = data?.Results?.[0] || {};
+
+    return {
+      curbWeightLB: result.CurbWeightLB ? parseInt(result.CurbWeightLB, 10) : null,
+      gvwr: result.GVWR || null,
+      bodyClass: result.BodyClass || null,
+      vehicleType: result.VehicleType || null,
+    };
+  } catch (error) {
+    console.warn(`[nhtsa] Error fetching vehicle data for VIN ${vin}:`, error?.message || error);
+    return null;
+  }
+}
+
+/**
+ * Parse GVWR class string like "Class 1C: 4,001 - 5,000 lb" into weight bounds
+ */
+function parseGVWRClass(gvwr) {
+  if (!gvwr || typeof gvwr !== 'string') return null;
+
+  // Match patterns like "4,001 - 5,000 lb" or "6,000 lb or less"
+  const rangeMatch = gvwr.match(/([\d,]+)\s*-\s*([\d,]+)\s*lb/i);
+  if (rangeMatch) {
+    const lower = parseInt(rangeMatch[1].replace(/,/g, ''), 10);
+    const upper = parseInt(rangeMatch[2].replace(/,/g, ''), 10);
+    return { lowerBound: lower, upperBound: upper };
+  }
+
+  // Match single value patterns like "6,000 lb or less"
+  const singleMatch = gvwr.match(/([\d,]+)\s*lb/i);
+  if (singleMatch) {
+    const weight = parseInt(singleMatch[1].replace(/,/g, ''), 10);
+    return { lowerBound: weight, upperBound: weight };
+  }
+
+  return null;
+}
+
+/**
+ * Estimate vehicle curb weight from NHTSA data
+ * Priority: 1) Exact curb weight, 2) GVWR-derived estimate
+ */
+function estimateVehicleWeight(nhtsaData) {
+  if (!nhtsaData) {
+    return { weight: null, source: 'unavailable', confidence: 'none' };
+  }
+
+  // Priority 1: Exact curb weight from NHTSA (when available)
+  if (nhtsaData.curbWeightLB && !isNaN(nhtsaData.curbWeightLB)) {
+    return {
+      weight: nhtsaData.curbWeightLB,
+      source: 'nhtsa_exact',
+      confidence: 'high'
+    };
+  }
+
+  // Priority 2: Derive from GVWR class (~70% of upper bound)
+  if (nhtsaData.gvwr) {
+    const gvwrWeight = parseGVWRClass(nhtsaData.gvwr);
+    if (gvwrWeight && gvwrWeight.upperBound) {
+      // Curb weight is typically 65-75% of GVWR; use 70% as estimate
+      const estimated = Math.round(gvwrWeight.upperBound * 0.70);
+      return {
+        weight: estimated,
+        source: 'gvwr_derived',
+        confidence: 'medium',
+        gvwrClass: nhtsaData.gvwr
+      };
+    }
+  }
+
+  // No auto-estimate available
+  return { weight: null, source: 'manual_required', confidence: 'none' };
+}
+
+/**
+ * Determine if vehicle uses truck weight schedule (vs automobile schedule)
+ * Per FLHSMV: Pickups, cargo vans, commercial trucks use truck schedule
+ * SUVs, minivans, crossovers use automobile schedule
+ */
+function isTruckSchedule(bodyClass, vehicleType) {
+  const truckBodyClasses = ['pickup', 'truck', 'van', 'cargo van', 'chassis cab'];
+  const body = (bodyClass || '').toLowerCase();
+  const type = (vehicleType || '').toLowerCase();
+
+  // Trucks and commercial vans use truck schedule
+  if (truckBodyClasses.some(t => body.includes(t))) return true;
+  if (type === 'truck') return true;
+
+  // MPVs (SUVs, minivans) use AUTO schedule despite being truck-based
+  return false;
+}
+
 app.use(express.json());
 app.use(
   cors({
@@ -1210,8 +1321,19 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
     }
 
     const enrichmentResults = {};
-    await Promise.all(
-      VIN_ENRICHMENT_ENDPOINTS.map(async ({ endpoint, description }) => {
+    let nhtsaData = null;
+
+    // Fetch MarketCheck enrichment and NHTSA data in parallel
+    await Promise.all([
+      // NHTSA API call for weight/body type
+      (async () => {
+        nhtsaData = await fetchNHTSAVehicleData(vin);
+        if (nhtsaData) {
+          console.log(`[nhtsa] Got data for VIN ${vin}: bodyClass=${nhtsaData.bodyClass}, gvwr=${nhtsaData.gvwr}`);
+        }
+      })(),
+      // MarketCheck enrichment endpoints
+      ...VIN_ENRICHMENT_ENDPOINTS.map(async ({ endpoint, description }) => {
         const def = MARKETCHECK_ENDPOINTS[endpoint];
         if (!def) return;
         const enrichmentPath =
@@ -1230,7 +1352,7 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
           );
         }
       })
-    );
+    ]);
 
     const fallback = buildFallbackPayload({
       vin,
@@ -1251,6 +1373,12 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
       searchSource = searchSource || fallback.source;
     }
 
+    // Estimate vehicle weight from NHTSA data
+    const weightEstimate = estimateVehicleWeight(nhtsaData);
+    const usesTruckSchedule = nhtsaData
+      ? isTruckSchedule(nhtsaData.bodyClass, nhtsaData.vehicleType)
+      : false;
+
     const extras = {
       search_source: searchSource,
       search_attempts: attemptsLog,
@@ -1261,12 +1389,25 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
       payload_source: payloadSource,
     };
 
+    // Vehicle weight and body type info (from NHTSA)
+    const vehicleSpecs = {
+      bodyClass: nhtsaData?.bodyClass ?? null,
+      vehicleType: nhtsaData?.vehicleType ?? null,
+      gvwr: nhtsaData?.gvwr ?? null,
+      curbWeightLB: nhtsaData?.curbWeightLB ?? null,
+      estimatedWeight: weightEstimate.weight,
+      weightSource: weightEstimate.source,
+      weightConfidence: weightEstimate.confidence,
+      usesTruckSchedule,
+    };
+
     const responseData = {
       ok: true,
       found: Boolean(payload),
       vin,
       listing_id: payload?.listing_id ?? best?.id ?? null,
       payload: payload ?? null,
+      vehicleSpecs,
       extras,
     };
 

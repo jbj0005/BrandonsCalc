@@ -49,8 +49,10 @@ interface FeesModalProps {
     enabled?: boolean;
   }) => void;
   hasTradeIn?: boolean;
-  vehicleWeightLbs?: number;
+  vehicleWeightLbs?: number; // Selected bracket value
   vehicleBodyType?: string;
+  estimatedWeight?: number; // Raw NHTSA/GVWR estimated weight
+  weightSource?: string; // 'nhtsa_exact' | 'gvwr_derived' | 'manual' | 'manual_required'
   onVehicleMetaChange?: (meta: { weightLbs?: number; bodyType?: string }) => void;
 }
 
@@ -82,6 +84,8 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   hasTradeIn = false,
   vehicleWeightLbs,
   vehicleBodyType,
+  estimatedWeight,
+  weightSource,
   onVehicleMetaChange,
 }) => {
   const [showAssumptionsModal, setShowAssumptionsModal] = useState(false);
@@ -1220,42 +1224,55 @@ export const FeesModal: React.FC<FeesModalProps> = ({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-white/80">
-                  Weight class
+                  Weight bracket
                 </label>
+                {/* Show estimated weight if available */}
+                {estimatedWeight && weightSource && weightSource !== 'manual_required' && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-white/60">Computed:</span>
+                    <span className="text-white font-medium">~{estimatedWeight.toLocaleString()} lbs</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${
+                      weightSource === 'nhtsa_exact'
+                        ? 'bg-emerald-500/20 text-emerald-400'
+                        : 'bg-amber-500/20 text-amber-400'
+                    }`}>
+                      {weightSource === 'nhtsa_exact' ? 'NHTSA' : 'Est. from GVWR'}
+                    </span>
+                  </div>
+                )}
                 <select
                   value={vehicleWeightLbs ?? ''}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     onVehicleMetaChange?.({
                       weightLbs: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
+                    });
+                  }}
                   className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
                 >
                   <option value="">Select weight bracket</option>
-                  {(
-                    (vehicleBodyType === 'truck' || vehicleBodyType === 'van'
-                      ? [
-                          { label: 'Truck ≤ 1,999 lbs', value: 1999 },
-                          { label: 'Truck 2,000–3,000 lbs', value: 3000 },
-                          { label: 'Truck 3,001–5,000 lbs', value: 5000 },
-                          { label: 'Truck 5,001–5,999 lbs', value: 5999 },
-                          { label: 'Truck 6,000–7,999 lbs', value: 7999 },
-                          { label: 'Truck 8,000–9,999 lbs', value: 9999 },
-                          { label: 'Truck 10,000–14,999 lbs', value: 14999 },
-                          { label: 'Truck 15,000–19,999 lbs', value: 19999 },
-                          { label: 'Truck 20,000–25,999 lbs', value: 26000 },
-                          { label: 'Truck 26,000–34,999 lbs', value: 34999 },
-                          { label: 'Truck 35,000–43,999 lbs', value: 43999 },
-                          { label: 'Truck 44,000–54,999 lbs', value: 54999 },
-                          { label: 'Truck 55,000–61,999 lbs', value: 61999 },
-                          { label: 'Truck 62,000–71,999 lbs', value: 71999 },
-                          { label: 'Truck 72,000+ lbs', value: 72000 },
-                        ]
-                      : [
-                          { label: 'Auto ≤ 2,499 lbs', value: 2499 },
-                          { label: 'Auto 2,500–3,499 lbs', value: 3499 },
-                          { label: 'Auto 3,500+ lbs', value: 3500 },
-                        ])
+                  {(vehicleBodyType === 'truck' || vehicleBodyType === 'van'
+                    ? [
+                        { label: 'Up to 1,999 lbs — $14.50', value: 1999 },
+                        { label: '2,000 – 3,000 lbs — $22.50', value: 3000 },
+                        { label: '3,001 – 5,000 lbs — $32.50', value: 5000 },
+                        { label: '5,001 – 5,999 lbs — $60.75', value: 5999 },
+                        { label: '6,000 – 7,999 lbs — $87.75', value: 7999 },
+                        { label: '8,000 – 9,999 lbs — $103', value: 9999 },
+                        { label: '10,000 – 14,999 lbs — $118', value: 14999 },
+                        { label: '15,000 – 19,999 lbs — $177', value: 19999 },
+                        { label: '20,000 – 26,000 lbs — $251', value: 26000 },
+                        { label: '26,001 – 34,999 lbs — $324', value: 34999 },
+                        { label: '35,000 – 43,999 lbs — $405', value: 43999 },
+                        { label: '44,000 – 54,999 lbs — $773', value: 54999 },
+                        { label: '55,000 – 61,999 lbs — $916', value: 61999 },
+                        { label: '62,000 – 71,999 lbs — $1,080', value: 71999 },
+                        { label: '72,000+ lbs — $1,322', value: 72000 },
+                      ]
+                    : [
+                        { label: 'Up to 2,499 lbs — $14.50', value: 2499 },
+                        { label: '2,500 – 3,499 lbs — $22.50', value: 3499 },
+                        { label: '3,500+ lbs — $32.50', value: 3500 },
+                      ]
                   ).map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
@@ -1263,7 +1280,9 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                   ))}
                 </select>
                 <p className="text-xs text-white/50">
-                  Used to calculate Florida weight-based registration fees. Choose the closest bracket.
+                  {estimatedWeight
+                    ? 'Bracket auto-selected based on computed weight. Change if needed.'
+                    : 'Select weight bracket for FL registration fee calculation.'}
                 </p>
               </div>
             </div>
@@ -1271,8 +1290,8 @@ export const FeesModal: React.FC<FeesModalProps> = ({
             {/* Purchase Assumptions Summary */}
             {showScenarioPanel && scenarioResult && (
               <div className="space-y-4">
-                <div className="flex items-center p-4 rounded-xl bg-white/5 border border-white/10">
-                  <div className="flex items-center gap-3">
+                <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-full bg-emerald-900/30 flex items-center justify-center">
                       <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     </div>
@@ -1285,6 +1304,30 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                       </p>
                     </div>
                   </div>
+                  {/* Weight assumption note */}
+                  {estimatedWeight && weightSource && (
+                    <div className="mt-3 pt-3 border-t border-white/10">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span className="text-white/50">Vehicle weight:</span>
+                        <span className="text-white">~{estimatedWeight.toLocaleString()} lbs</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          weightSource === 'nhtsa_exact'
+                            ? 'bg-emerald-500/20 text-emerald-400'
+                            : weightSource === 'gvwr_derived'
+                            ? 'bg-amber-500/20 text-amber-400'
+                            : 'bg-blue-500/20 text-blue-400'
+                        }`}>
+                          {weightSource === 'nhtsa_exact' ? 'NHTSA verified' :
+                           weightSource === 'gvwr_derived' ? 'Estimated from GVWR' : 'Manual'}
+                        </span>
+                      </div>
+                      {weightSource === 'gvwr_derived' && (
+                        <p className="text-xs text-white/40 mt-1">
+                          Based on ~70% of max vehicle capacity. Adjust bracket above if needed.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Total Gov Fees Card */}

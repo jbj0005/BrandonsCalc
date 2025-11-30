@@ -104,6 +104,50 @@ const getLatestEffectiveDate = (rates: LenderRate[]): string | null => {
 const DEFAULT_SALE_PRICE = 0;
 const DEFAULT_CASH_DOWN = 0;
 
+/**
+ * Find the appropriate Florida weight bracket for a given weight
+ * Returns the bracket's upper bound value for the fee schedule
+ */
+const findWeightBracket = (weight: number, bodyClass?: string): number => {
+  const isTruck = bodyClass && (
+    bodyClass.toLowerCase().includes('truck') ||
+    bodyClass.toLowerCase().includes('pickup') ||
+    bodyClass.toLowerCase().includes('van')
+  );
+
+  if (isTruck) {
+    // Truck schedule brackets
+    const truckBrackets = [
+      { max: 1999, value: 1999 },
+      { max: 3000, value: 3000 },
+      { max: 5000, value: 5000 },
+      { max: 5999, value: 5999 },
+      { max: 7999, value: 7999 },
+      { max: 9999, value: 9999 },
+      { max: 14999, value: 14999 },
+      { max: 19999, value: 19999 },
+      { max: 26000, value: 26000 },
+      { max: 34999, value: 34999 },
+      { max: 43999, value: 43999 },
+      { max: 54999, value: 54999 },
+      { max: 61999, value: 61999 },
+      { max: 71999, value: 71999 },
+      { max: Infinity, value: 72000 },
+    ];
+    const bracket = truckBrackets.find(b => weight <= b.max);
+    return bracket?.value ?? 72000;
+  } else {
+    // Auto schedule brackets
+    const autoBrackets = [
+      { max: 2499, value: 2499 },
+      { max: 3499, value: 3499 },
+      { max: Infinity, value: 3500 },
+    ];
+    const bracket = autoBrackets.find(b => weight <= b.max);
+    return bracket?.value ?? 3500;
+  }
+};
+
 const normalizeDealerData = (vehicle: any) => {
   const dealer = vehicle?.dealer || {};
 
@@ -172,6 +216,8 @@ export const CalculatorApp: React.FC = () => {
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [vehicleWeightLbs, setVehicleWeightLbs] = useState<number | undefined>();
   const [vehicleBodyType, setVehicleBodyType] = useState<string>("auto");
+  const [estimatedWeight, setEstimatedWeight] = useState<number | undefined>(); // Raw NHTSA/GVWR estimate
+  const [weightSource, setWeightSource] = useState<string | undefined>();
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
   const [vinError, setVinError] = useState("");
 
@@ -2104,9 +2150,22 @@ export const CalculatorApp: React.FC = () => {
     };
   }, [profile]);
 
-  // Reset manual vehicle meta when a new vehicle is selected
+  // Reset/set vehicle meta when a new vehicle is selected
   useEffect(() => {
-    setVehicleWeightLbs(undefined);
+    // Use NHTSA weight if available from the vehicle data
+    if (selectedVehicle?.curb_weight_lbs) {
+      const rawWeight = selectedVehicle.curb_weight_lbs;
+      setEstimatedWeight(rawWeight);
+      setWeightSource(selectedVehicle.weight_source || 'nhtsa_exact');
+      // Auto-select bracket based on estimated weight
+      const bracket = findWeightBracket(rawWeight, selectedVehicle?.body_class);
+      setVehicleWeightLbs(bracket);
+    } else {
+      setEstimatedWeight(undefined);
+      setVehicleWeightLbs(undefined);
+      setWeightSource(undefined);
+    }
+
     const inferredBody =
       (selectedVehicle?.body_type ||
         selectedVehicle?.body_class ||
@@ -3668,13 +3727,45 @@ export const CalculatorApp: React.FC = () => {
         pick: "all",
       })) as any;
 
-      if (result && result.listing) {
+      // Server returns 'payload', support both for backwards compatibility
+      const listing = result?.listing || result?.payload;
+      const vehicleSpecs = result?.vehicleSpecs;
+
+      if (result && listing) {
         setSelectedVehicle({
-          ...normalizeDealerData(result.listing),
+          ...normalizeDealerData(listing),
           __source: "market",
+          // Include vehicleSpecs for weight-based fee calculations
+          body_class: vehicleSpecs?.bodyClass ?? null,
+          vehicle_type: vehicleSpecs?.vehicleType ?? null,
+          curb_weight_lbs: vehicleSpecs?.estimatedWeight ?? null,
+          weight_source: vehicleSpecs?.weightSource ?? null,
         });
 
-        const saleValue = getVehicleSalePrice(result.listing);
+        // Auto-set weight if available from NHTSA
+        if (vehicleSpecs?.estimatedWeight) {
+          const rawWeight = vehicleSpecs.estimatedWeight;
+          setEstimatedWeight(rawWeight);
+          setWeightSource(vehicleSpecs.weightSource || 'nhtsa_exact');
+          // Auto-select bracket based on estimated weight
+          const bracket = findWeightBracket(rawWeight, vehicleSpecs?.bodyClass);
+          setVehicleWeightLbs(bracket);
+        }
+        // Auto-set body type based on NHTSA data
+        if (vehicleSpecs?.usesTruckSchedule) {
+          setVehicleBodyType("truck");
+        } else if (vehicleSpecs?.bodyClass) {
+          const bodyClass = vehicleSpecs.bodyClass.toLowerCase();
+          if (bodyClass.includes("van")) {
+            setVehicleBodyType("van");
+          } else if (bodyClass.includes("pickup") || bodyClass.includes("truck")) {
+            setVehicleBodyType("truck");
+          } else {
+            setVehicleBodyType("auto");
+          }
+        }
+
+        const saleValue = getVehicleSalePrice(listing);
         if (saleValue != null) {
           setSliderValue("salePrice", saleValue, true);
         }
@@ -3683,7 +3774,7 @@ export const CalculatorApp: React.FC = () => {
         toast.push({
           kind: "success",
           title: "Vehicle Found!",
-          detail: `${result.listing.year} ${result.listing.make} ${result.listing.model}`,
+          detail: `${listing.year} ${listing.make} ${listing.model}`,
         });
       } else {
         setVinError("No vehicle found for this VIN");
@@ -5025,11 +5116,15 @@ export const CalculatorApp: React.FC = () => {
         hasTradeIn={hasTradeInSelected}
         vehicleWeightLbs={vehicleWeightLbs}
         vehicleBodyType={vehicleBodyType}
+        estimatedWeight={estimatedWeight}
+        weightSource={weightSource}
         onVehicleMetaChange={(meta) => {
           if (meta.weightLbs !== undefined) {
             setVehicleWeightLbs(meta.weightLbs);
+            setWeightSource('manual'); // User manually entered/changed weight
           } else if (meta.weightLbs === undefined) {
             setVehicleWeightLbs(undefined);
+            setWeightSource(undefined);
           }
           if (meta.bodyType) {
             setVehicleBodyType(meta.bodyType);

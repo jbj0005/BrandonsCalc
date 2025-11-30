@@ -97,6 +97,10 @@ export interface Database {
           updated_at: string
           shared_from_garage_owner_id: string | null
           shared_from_vehicle_id: string | null
+          body_class: string | null
+          vehicle_type: string | null
+          curb_weight_lbs: number | null
+          weight_source: string | null
         }
         Insert: {
           id?: string
@@ -120,6 +124,10 @@ export interface Database {
           updated_at?: string
           shared_from_garage_owner_id?: string | null
           shared_from_vehicle_id?: string | null
+          body_class?: string | null
+          vehicle_type?: string | null
+          curb_weight_lbs?: number | null
+          weight_source?: string | null
         }
         Update: {
           id?: string
@@ -143,6 +151,10 @@ export interface Database {
           updated_at?: string
           shared_from_garage_owner_id?: string | null
           shared_from_vehicle_id?: string | null
+          body_class?: string | null
+          vehicle_type?: string | null
+          curb_weight_lbs?: number | null
+          weight_source?: string | null
         }
       }
       garage_members: {
@@ -398,6 +410,10 @@ export interface Database {
           condition: string | null
           estimated_value: number | null
           payoff_amount: number | null
+          body_class: string | null
+          vehicle_type: string | null
+          curb_weight_lbs: number | null
+          weight_source: string | null
         }
         Insert: {
           id?: string
@@ -428,6 +444,10 @@ export interface Database {
           condition?: string | null
           estimated_value?: number | null
           payoff_amount?: number | null
+          body_class?: string | null
+          vehicle_type?: string | null
+          curb_weight_lbs?: number | null
+          weight_source?: string | null
         }
         Update: {
           id?: string
@@ -458,6 +478,10 @@ export interface Database {
           condition?: string | null
           estimated_value?: number | null
           payoff_amount?: number | null
+          body_class?: string | null
+          vehicle_type?: string | null
+          curb_weight_lbs?: number | null
+          weight_source?: string | null
         }
       }
       customer_offers: {
