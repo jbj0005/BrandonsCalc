@@ -711,7 +711,6 @@ export async function deleteSharedVehicle(sharedVehicleId: string): Promise<void
     .eq('id', sharedVehicleId);
 
   if (error) {
-    console.error('Failed to delete shared vehicle:', error);
     throw new Error(error.message || 'Could not delete shared vehicle');
   }
 }
@@ -727,7 +726,6 @@ export async function getSharedVehicleById(sharedVehicleId: string): Promise<any
     .single();
 
   if (error) {
-    console.error('Failed to fetch shared vehicle:', error);
     return null;
   }
 

@@ -40,12 +40,9 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   // Load Google Maps (with key) if not already provided via mapsLoaded
   useEffect(() => {
     if (!apiKey) {
-      console.error('Google Maps API key not configured');
       return;
     }
-    loadGoogleMapsScript().catch((err) => {
-      console.error('Failed to load Google Maps', err);
-    });
+    loadGoogleMapsScript().catch(() => {});
   }, [apiKey]);
 
   // Modern autocomplete via PlaceAutocompleteElement

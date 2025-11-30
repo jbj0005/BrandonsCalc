@@ -912,8 +912,7 @@ export const CalculatorApp: React.FC = () => {
         } catch {
           setLenderOptions(fallbackLenders);
         }
-      } catch (error) {
-        console.error("Error loading lenders:", error);
+      } catch {
         // Keep default fallback from initial state
       } finally {
         setIsLoadingLenders(false);
@@ -1485,7 +1484,6 @@ export const CalculatorApp: React.FC = () => {
         setSharedSavedVehicles(payload?.savedVehicles || []);
       } catch (error: any) {
         if (controller.signal.aborted) return;
-        console.error("[share] Failed to load shared vehicles:", error);
         setSharedGarageError(
           error?.message || "Unable to load shared garage vehicles"
         );
@@ -3734,7 +3732,6 @@ export const CalculatorApp: React.FC = () => {
         detail: `${vehicleName} has been removed`,
       });
     } catch (error: any) {
-      console.error("Error deleting vehicle:", error);
       toast.push({
         kind: "error",
         title: "Delete Failed",
@@ -4184,7 +4181,7 @@ export const CalculatorApp: React.FC = () => {
                             }
                           }
                         })
-                        .catch(console.error);
+                        .catch(() => {});
                     }
                   }}
                   locationDetails={
