@@ -28,7 +28,11 @@
       "WebFetch(domain:github.com)",
       "Bash(git checkout:*)",
       "Bash(git restore:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(supabase --version:*)",
+      "Bash(supabase functions list:*)",
+      "Bash(supabase secrets set:*)",
+      "Bash(supabase functions deploy:*)"
     ],
     "deny": [],
     "ask": []
