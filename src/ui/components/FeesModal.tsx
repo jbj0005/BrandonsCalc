@@ -1200,26 +1200,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <label className="text-sm font-medium text-white/80">
-                  Vehicle weight (lbs)
-                </label>
-                <input
-                  type="number"
-                  min={0}
-                  value={vehicleWeightLbs ?? ''}
-                  onChange={(e) =>
-                    onVehicleMetaChange?.({
-                      weightLbs: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
-                  placeholder="e.g. 4800"
-                />
-                <p className="text-xs text-white/50">
-                  Used for Florida weight-based registration fees.
-                </p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-white/80">
                   Vehicle type
                 </label>
                 <select
@@ -1233,7 +1213,55 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                   <option value="other">Other</option>
                 </select>
                 <p className="text-xs text-white/50">
-                  Trucks/pickups/vans use higher FL weight brackets; autos use lower brackets.
+                  Trucks/pickups/vans use the higher Florida weight brackets.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-white/80">
+                  Weight class
+                </label>
+                <select
+                  value={vehicleWeightLbs ?? ''}
+                  onChange={(e) =>
+                    onVehicleMetaChange?.({
+                      weightLbs: e.target.value ? Number(e.target.value) : undefined,
+                    })
+                  }
+                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/40 focus:border-emerald-400/40"
+                >
+                  <option value="">Select weight bracket</option>
+                  {(
+                    (vehicleBodyType === 'truck' || vehicleBodyType === 'van'
+                      ? [
+                          { label: 'Truck ≤ 1,999 lbs', value: 1999 },
+                          { label: 'Truck 2,000–3,000 lbs', value: 3000 },
+                          { label: 'Truck 3,001–5,000 lbs', value: 5000 },
+                          { label: 'Truck 5,001–5,999 lbs', value: 5999 },
+                          { label: 'Truck 6,000–7,999 lbs', value: 7999 },
+                          { label: 'Truck 8,000–9,999 lbs', value: 9999 },
+                          { label: 'Truck 10,000–14,999 lbs', value: 14999 },
+                          { label: 'Truck 15,000–19,999 lbs', value: 19999 },
+                          { label: 'Truck 20,000–25,999 lbs', value: 26000 },
+                          { label: 'Truck 26,000–34,999 lbs', value: 34999 },
+                          { label: 'Truck 35,000–43,999 lbs', value: 43999 },
+                          { label: 'Truck 44,000–54,999 lbs', value: 54999 },
+                          { label: 'Truck 55,000–61,999 lbs', value: 61999 },
+                          { label: 'Truck 62,000–71,999 lbs', value: 71999 },
+                          { label: 'Truck 72,000+ lbs', value: 72000 },
+                        ]
+                      : [
+                          { label: 'Auto ≤ 2,499 lbs', value: 2499 },
+                          { label: 'Auto 2,500–3,499 lbs', value: 3499 },
+                          { label: 'Auto 3,500+ lbs', value: 3500 },
+                        ])
+                  ).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-white/50">
+                  Used to calculate Florida weight-based registration fees. Choose the closest bracket.
                 </p>
               </div>
             </div>
