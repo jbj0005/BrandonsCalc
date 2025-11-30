@@ -927,7 +927,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="p-6 space-y-6 pb-4">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 pr-2">
+        <div className="flex items-center justify-between gap-4 pr-4">
           <h2 className="text-2xl font-bold text-white" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>Itemize Fees & Add-ons</h2>
           <div className="shrink-0">
             <button
@@ -944,7 +944,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
         </div>
 
         {/* Scrollable content area */}
-        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-1">
+        <div className="max-h-[60vh] overflow-y-auto space-y-6 pr-4">
           {/* Dealer Fees Section */}
           <ModernFeeSection
             title="Dealer Fees"

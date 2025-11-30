@@ -1,7 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const SENDGRID_API_KEY = Deno.env.get("SENDGRID_API_KEY") ?? "";
-const EMAIL_FROM = Deno.env.get("EMAIL_FROM") || "no-reply@brandonscalc.com";
+// Mailtrap Configuration (consistent with server/server.js)
+const MAILTRAP_TOKEN = Deno.env.get("MAILTRAP_TOKEN") || Deno.env.get("MAILTRAP_DEMO_TOKEN") || "";
+const EMAIL_FROM = Deno.env.get("MAILTRAP_FROM_EMAIL") || Deno.env.get("EMAIL_FROM") || "sandbox@mailtrap.io";
 const APP_URL =
   Deno.env.get("APP_URL") ||
   "https://jbj0005.github.io/BrandonsCalc";
@@ -28,8 +29,8 @@ serve(async (req) => {
   }
 
   try {
-    if (!SENDGRID_API_KEY) {
-      throw new Error("SENDGRID_API_KEY not configured");
+    if (!MAILTRAP_TOKEN) {
+      throw new Error("MAILTRAP_TOKEN not configured");
     }
 
     const {
@@ -59,7 +60,7 @@ serve(async (req) => {
 <html>
   <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; color: #111; line-height: 1.6;">
     <h2 style="margin-bottom: 8px;">Garage invite</h2>
-    <p>You’ve been invited to access a shared garage.</p>
+    <p>You've been invited to access a shared garage.</p>
     <ul style="padding-left: 16px; color: #333; font-size: 14px;">
       ${garage_owner_id ? `<li>Garage owner: ${garage_owner_id}</li>` : ""}
       <li>Role: ${roleLabel}</li>
@@ -67,7 +68,7 @@ serve(async (req) => {
     <p style="margin: 16px 0;">
       <a href="${inviteLink}" style="background:#2563eb;color:white;text-decoration:none;padding:10px 14px;border-radius:6px;display:inline-block;">Accept invite</a>
     </p>
-    <p style="font-size: 13px; color: #555;">If the button doesn’t work, paste this link into your browser:<br>${inviteLink}</p>
+    <p style="font-size: 13px; color: #555;">If the button doesn't work, paste this link into your browser:<br>${inviteLink}</p>
   </body>
 </html>
     `.trim();
@@ -78,38 +79,34 @@ Role: ${roleLabel}
 ${garage_owner_id ? `Garage owner: ${garage_owner_id}\n` : ""}Accept: ${inviteLink}
     `.trim();
 
-    const sendGridResponse = await fetch(
-      "https://api.sendgrid.com/v3/mail/send",
+    // Send email via Mailtrap API (consistent with server/server.js)
+    const mailtrapResponse = await fetch(
+      "https://send.api.mailtrap.io/api/send",
       {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${SENDGRID_API_KEY}`,
+          Authorization: `Bearer ${MAILTRAP_TOKEN}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          personalizations: [
-            {
-              to: [{ email }],
-            },
-          ],
           from: {
             email: EMAIL_FROM,
             name: "Brandon's Calculator",
           },
+          to: [{ email }],
           subject,
-          content: [
-            { type: "text/plain", value: textContent },
-            { type: "text/html", value: htmlContent },
-          ],
+          text: textContent,
+          html: htmlContent,
+          category: "garage-invite",
         }),
       },
     );
 
-    if (!sendGridResponse.ok) {
-      const errText = await sendGridResponse.text();
-      console.error("SendGrid error", errText);
+    if (!mailtrapResponse.ok) {
+      const errText = await mailtrapResponse.text();
+      console.error("Mailtrap error", errText);
       return new Response(
-        JSON.stringify({ error: "SendGrid failed", detail: errText }),
+        JSON.stringify({ error: "Mailtrap failed", detail: errText }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
