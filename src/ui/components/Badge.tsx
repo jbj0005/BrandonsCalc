@@ -16,7 +16,8 @@ const variantClasses = {
   success: 'bg-green-100 text-green-800',
   warning: 'bg-yellow-100 text-yellow-800',
   danger: 'bg-red-100 text-red-800',
-  info: 'bg-blue-100 text-blue-800',
+  // Solid blue pill with a soft glow (used for condition badges like "Used")
+  info: 'bg-blue-600/20 text-blue-100 border border-blue-300/30 shadow-[0_0_0_6px_rgba(59,130,246,0.15)]',
 };
 
 const sizeClasses = {

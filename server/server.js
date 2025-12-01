@@ -523,6 +523,26 @@ function mcUrl(path, params = {}, apiKey = MARKETCHECK_API_KEY) {
 function logMarketCheckRateLimits(response) {
   if (!response?.headers) return;
   const interesting = [];
+  const headerValue = (names = []) => {
+    for (const name of names) {
+      const v = response.headers.get(name);
+      if (v != null) return v;
+    }
+    return null;
+  };
+  const toNumber = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const daysUntilReset = (resetSeconds) => {
+    if (Number.isFinite(resetSeconds)) {
+      return Math.max(1, Math.ceil(resetSeconds / 86400));
+    }
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return Math.max(1, Math.ceil((nextMonth - now) / (1000 * 60 * 60 * 24)));
+  };
+
   response.headers.forEach((value, key) => {
     if (/rate-?limit/i.test(key)) {
       interesting.push(`${key}: ${value}`);
@@ -533,6 +553,32 @@ function logMarketCheckRateLimits(response) {
       "[mc] Rate limit status →",
       interesting.join(" | ")
     );
+
+    const limit = toNumber(
+      headerValue(["rate-limit-limit", "x-rate-limit-limit", "ratelimit-limit"])
+    );
+    const remaining = toNumber(
+      headerValue(["rate-limit-remaining", "x-rate-limit-remaining", "ratelimit-remaining"])
+    );
+    const resetSeconds = toNumber(
+      headerValue(["rate-limit-reset", "x-rate-limit-reset", "ratelimit-reset"])
+    );
+    const days = daysUntilReset(resetSeconds);
+    const perDay =
+      Number.isFinite(remaining) && Number.isFinite(days) && days > 0
+        ? Math.max(0, Math.floor(remaining / days))
+        : null;
+
+    if (limit !== null || remaining !== null) {
+      console.info(
+        "[mc] Usage",
+        `${remaining !== null ? remaining : "?"}/${limit !== null ? limit : "?"}`,
+        "|",
+        `~${perDay !== null ? perDay : "?"} calls/day budget`,
+        "|",
+        `resets in ${days} day${days === 1 ? "" : "s"}${resetSeconds ? " (provider)" : ""}`
+      );
+    }
   }
 }
 

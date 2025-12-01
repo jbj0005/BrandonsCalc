@@ -487,7 +487,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
 
     const glowClass =
       isFocused || isHovering
-        ? 'before:absolute before:inset-x-0 before:top-0 before:h-10 before:rounded-md before:bg-emerald-500/25 before:blur-xl before:opacity-70'
+        ? 'before:absolute before:inset-x-0 before:top-0 before:h-10 before:rounded-md before:bg-emerald-500/25 before:blur-xl before:opacity-70 before:pointer-events-none'
         : '';
 
     return (
@@ -594,7 +594,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
               onBlur={handleInputBlur}
               onFocus={handleInputFocus}
               onKeyDown={handleInputKeyDown}
-              className="w-32 px-3 py-1.5 text-sm font-semibold text-white bg-black/20 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-right"
+              className="w-32 px-3 py-1.5 text-sm font-semibold text-white bg-black/20 border border-white/10 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 text-right pointer-events-auto"
               placeholder="$0"
             />
           </div>

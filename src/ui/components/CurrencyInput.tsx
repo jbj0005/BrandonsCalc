@@ -6,6 +6,7 @@ export interface CurrencyInputProps {
   onChange: (value: number) => void;
   className?: string;
   disabled?: boolean;
+  autoFocus?: boolean;
 }
 
 /**
@@ -24,6 +25,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   onChange,
   className = '',
   disabled = false,
+  autoFocus = false,
 }) => {
   const [isFocused, setIsFocused] = useState(false);
   const [editValue, setEditValue] = useState('');
@@ -71,6 +73,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
       onBlur={handleBlur}
       onKeyDown={handleKeyDown}
       disabled={disabled}
+      autoFocus={autoFocus}
       className={`
         bg-transparent
         border-0

@@ -59,6 +59,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   unstyled = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const valueInputRef = useRef<HTMLInputElement>(null);
   const [isHovering, setIsHovering] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
@@ -66,6 +67,8 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeKeyRef = useRef<string | null>(null);
+  const [draftValue, setDraftValue] = useState<string>(value.toString());
+  const [isValueInputFocused, setIsValueInputFocused] = useState(false);
 
   const HOLD_DELAY_MS = 250;
   const HOLD_INTERVAL_MS = 80;
@@ -126,6 +129,9 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
     if (!isHovering && !isFocused) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip arrow handling while the value input is focused
+      if (isValueInputFocused) return;
+
       if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Enter'].includes(e.key)) {
         return;
       }
@@ -161,7 +167,7 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       activeKeyRef.current = null;
       stopHold();
     };
-  }, [isHovering, isFocused, value, step, min, max]);
+  }, [isHovering, isFocused, value, step, min, max, isValueInputFocused]);
 
   // Format currency helper
   const formatCurrency = (amount: number): string => {
@@ -180,6 +186,29 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
       : monthlyPayment != null && baselinePayment != null
         ? monthlyPayment - baselinePayment
         : null;
+
+  // Inline edit helpers
+  useEffect(() => {
+    if (!isValueInputFocused) {
+      setDraftValue(value.toString());
+    }
+  }, [value, isValueInputFocused]);
+
+  const clampValue = (v: number) => Math.max(min, Math.min(max, v));
+  const commitDraft = () => {
+    const parsed = parseFloat(draftValue);
+    if (Number.isFinite(parsed)) {
+      onChange(clampValue(parsed));
+    }
+    setDraftValue(
+      Number.isFinite(parsed) ? clampValue(parsed).toString() : value.toString()
+    );
+    setIsValueInputFocused(false);
+  };
+  const cancelDraft = () => {
+    setDraftValue(value.toString());
+    setIsValueInputFocused(false);
+  };
 
   // Handle mouse move for tooltip positioning
   const handleMouseMove = (e: React.MouseEvent) => {
@@ -253,8 +282,26 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
         </button>
 
         {/* Value Display */}
-        <div className="text-3xl font-bold text-white min-w-[120px] text-center tracking-tight">
-          {formatValue(value)}
+        <div className="relative flex-1 min-w-[140px]">
+          <input
+            ref={valueInputRef}
+            type="text"
+            inputMode="decimal"
+            value={draftValue}
+            onFocus={() => setIsValueInputFocused(true)}
+            onChange={(e) => setDraftValue(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelDraft();
+              }
+            }}
+            className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white text-2xl font-bold text-center focus:outline-none focus:ring-2 focus:ring-blue-300"
+          />
         </div>
 
         {/* Increase Button */}
