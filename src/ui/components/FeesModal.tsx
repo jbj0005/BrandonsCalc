@@ -8,6 +8,7 @@ import { ScenarioDetectionPanelV2 } from './ScenarioDetectionPanelV2';
 import { GovFeesSection } from './GovFeesSection';
 import { ModernFeeSection } from './ModernFeeSection';
 import type { ScenarioResult } from '../../../packages/fee-engine/src';
+import type { GvwrEstimateDetail } from '../../types/vehicleWeight';
 
 interface FeesModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ interface FeesModalProps {
   nhtsaBodyClass?: string; // e.g., "Pickup", "Sedan", "SUV"
   nhtsaGvwrClass?: string; // e.g., "Class 1C: 4,001 - 5,000 lb"
   nhtsaRawCurbWeight?: number; // Raw curb weight from NHTSA if available
+  gvwrEstimateDetail?: GvwrEstimateDetail; // Details on how GVWR-derived weight was computed
   onVehicleMetaChange?: (meta: { weightLbs?: number; bodyType?: string }) => void;
 }
 
@@ -92,6 +94,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   nhtsaBodyClass,
   nhtsaGvwrClass,
   nhtsaRawCurbWeight,
+  gvwrEstimateDetail,
   onVehicleMetaChange,
 }) => {
   const [showAssumptionsModal, setShowAssumptionsModal] = useState(false);
@@ -110,6 +113,20 @@ export const FeesModal: React.FC<FeesModalProps> = ({
   useEffect(() => {
     setAutoComputeGov(scenarioOverrides?.enabled !== false);
   }, [scenarioOverrides?.enabled]);
+
+  const formatWeightLbs = (value?: number | null) => {
+    if (value === undefined || value === null) return undefined;
+    return `${Math.round(value).toLocaleString()} lbs`;
+  };
+
+  const gvwrFactorPercent = gvwrEstimateDetail?.factor
+    ? Math.round(gvwrEstimateDetail.factor * 100)
+    : undefined;
+  const gvwrBasisWeight =
+    gvwrEstimateDetail?.midpoint ??
+    gvwrEstimateDetail?.gvwrUpper ??
+    gvwrEstimateDetail?.gvwrLower;
+  const gvwrBasisLabel = formatWeightLbs(gvwrBasisWeight);
 
   // Format percent input (allow numbers and decimal, format to 2 decimal places)
   const handlePercentChange = (value: string, setter: (val: string) => void) => {
@@ -1216,9 +1233,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                   <option value="van">Van</option>
                   <option value="other">Other</option>
                 </select>
-                <p className="text-xs text-white/50">
-                  Trucks/pickups/vans use the higher Florida weight brackets.
-                </p>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-white/80">
@@ -1263,11 +1277,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-white/50">
-                  {estimatedWeight
-                    ? 'Bracket auto-selected based on computed weight. Change if needed.'
-                    : 'Select weight bracket for FL registration fee calculation.'}
-                </p>
               </div>
             </div>
 
@@ -1333,7 +1342,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                               : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
                           }`}>
                             {weightSource === 'nhtsa_exact' ? 'NHTSA Verified' :
-                             weightSource === 'gvwr_derived' ? 'GVWR Estimate' : 'Manual Entry'}
+                             weightSource === 'gvwr_derived' ? 'Curb Weight Estimate' : 'Manual Entry'}
                           </span>
                         </div>
                         {weightSource === 'nhtsa_exact' && (
@@ -1341,13 +1350,15 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                             Manufacturer-reported curb weight from NHTSA vPIC database
                           </p>
                         )}
-                        {weightSource === 'gvwr_derived' && nhtsaGvwrClass && (
+                        {weightSource === 'gvwr_derived' && (nhtsaGvwrClass || gvwrEstimateDetail) && (
                           <div className="mt-2 p-2 rounded bg-amber-500/10 border border-amber-500/20">
-                            <p className="text-amber-300/80 text-xs font-mono">
-                              Formula: GVWR upper bound × 0.70 = curb weight
-                            </p>
+                            {nhtsaGvwrClass && (
+                              <p className="text-white/60 text-xs">
+                                GVWR class: {nhtsaGvwrClass}
+                              </p>
+                            )}
                             <p className="text-white/50 text-xs mt-1">
-                              Curb weight is typically ~70% of GVWR (max loaded weight)
+                              Estimated curb weight derived from the GVWR class and body type.
                             </p>
                           </div>
                         )}
@@ -1360,35 +1371,6 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                     </div>
                   )}
 
-                  {/* FL Fee Bracket */}
-                  {vehicleWeightLbs && (
-                    <div className="flex items-start gap-3">
-                      <div className="w-2 h-2 rounded-full mt-1.5 bg-blue-400" />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-white/70">FL Fee Bracket:</span>
-                          <span className="text-white font-medium">
-                            {vehicleBodyType === 'truck' || vehicleBodyType === 'van' ? (
-                              vehicleWeightLbs <= 1999 ? 'Up to 1,999 lbs' :
-                              vehicleWeightLbs <= 3000 ? '2,000 – 3,000 lbs' :
-                              vehicleWeightLbs <= 5000 ? '3,001 – 5,000 lbs' :
-                              vehicleWeightLbs <= 5999 ? '5,001 – 5,999 lbs' :
-                              vehicleWeightLbs <= 7999 ? '6,000 – 7,999 lbs' :
-                              vehicleWeightLbs <= 9999 ? '8,000 – 9,999 lbs' :
-                              `${vehicleWeightLbs.toLocaleString()}+ lbs`
-                            ) : (
-                              vehicleWeightLbs <= 2499 ? 'Up to 2,499 lbs' :
-                              vehicleWeightLbs <= 3499 ? '2,500 – 3,499 lbs' :
-                              '3,500+ lbs'
-                            )}
-                          </span>
-                        </div>
-                        <p className="text-white/50 text-xs mt-1">
-                          Using Florida {vehicleBodyType === 'truck' || vehicleBodyType === 'van' ? 'Truck/Van' : 'Auto/SUV'} registration fee schedule
-                        </p>
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <div className="mt-3 pt-3 border-t border-white/10">
                   <p className="text-xs text-white/40">
@@ -1422,7 +1404,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 {/* Total Gov Fees Card */}
                 <div className="p-4 rounded-xl bg-gradient-to-br from-blue-950/40 to-blue-900/30 border border-blue-500/20">
                   <div className="text-xs font-medium text-blue-400 uppercase tracking-wide mb-1">
-                    Total Gov Fees
+                    Estimated Gov Fees
                   </div>
                   <div className="text-2xl font-bold text-white">
                     {formatCurrencyExact(scenarioResult.totals.governmentFees)}

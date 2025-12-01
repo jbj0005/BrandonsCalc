@@ -9,3 +9,5 @@ ref_files/
 
 # Keep .ai directory in git - it's critical for recovery!
 # .ai/
+# Claude Code local settings
+.claude/

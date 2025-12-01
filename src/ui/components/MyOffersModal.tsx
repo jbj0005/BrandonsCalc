@@ -166,7 +166,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         .filter(Boolean)
         .join(' ');
 
-      const { error } = await supabase.functions.invoke('send-email', {
+      const { error, data } = await supabase.functions.invoke('send-email', {
         body: {
           offerId: offer.id,
           recipientEmail: offer.customer_email,
@@ -176,7 +176,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         }
       });
 
-      if (error) throw error;
+      if (error) throw new Error((data as any)?.error || error.message);
       toast.push({
         kind: 'success',
         title: 'Email Sent',
@@ -274,20 +274,21 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
           .filter(Boolean)
           .join(' ');
 
-        const { error: emailError } = await supabase.functions.invoke('send-email', {
-          body: {
-            offerId: offer.id,
-            recipientEmail: offer.customer_email,
-            recipientName: offer.customer_name,
-            offerText: offer.offer_text || 'No offer details available',
-            vehicleInfo: vehicleInfo || 'Vehicle',
-            subject: `Closed Offer - ${vehicleInfo}` // Custom subject for closed offers
-          }
-        });
-
-        if (emailError) {
-          // Don't block the close operation if email fails
+      const { error: emailError, data: emailData } = await supabase.functions.invoke('send-email', {
+        body: {
+          offerId: offer.id,
+          recipientEmail: offer.customer_email,
+          recipientName: offer.customer_name,
+          offerText: offer.offer_text || 'No offer details available',
+          vehicleInfo: vehicleInfo || 'Vehicle',
+          subject: `Closed Offer - ${vehicleInfo}` // Custom subject for closed offers
         }
+      });
+
+      if (emailError) {
+        // Don't block the close operation if email fails
+        console.warn('Email failed when closing offer:', (emailData as any)?.error || emailError.message);
+      }
       }
 
       // Delete the offer

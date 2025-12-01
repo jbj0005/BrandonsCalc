@@ -413,6 +413,7 @@ export const CalculatorApp: React.FC = () => {
   const locationInputRef = useRef<HTMLInputElement>(null);
   const dropdownHoverTimeout = useRef<NodeJS.Timeout | null>(null);
   const lastVehicleBaselineKeyRef = useRef<string | null>(null);
+  const hasAppliedProfileCashDownRef = useRef<boolean>(false);
 
   // Location & Vehicle State
   const [location, setLocation] = useState("");
@@ -1355,17 +1356,27 @@ export const CalculatorApp: React.FC = () => {
     }
   }, [profile, mapsLoaded, isTaxRateManuallySet]);
 
+  // Reset profile cash-down auto-apply flag when vehicle or preference changes
+  useEffect(() => {
+    hasAppliedProfileCashDownRef.current = false;
+  }, [selectedVehicle?.vin, selectedVehicle?.id, profile?.preferred_down_payment]);
+
   // Auto-populate down payment from profile when vehicle is selected
   useEffect(() => {
     if (!profile || !selectedVehicle || profile.preferred_down_payment == null)
       return;
+    if (hasAppliedProfileCashDownRef.current) return;
+    if (cashDownToggleState === "zero") return;
+
     const preferredDown = parseNumericValue(profile.preferred_down_payment);
     if (preferredDown == null) return;
 
     if (Math.abs(cashDown - DEFAULT_CASH_DOWN) < 1) {
       applyProfilePreferences(profile);
+      setCashDownToggleState("preference");
+      hasAppliedProfileCashDownRef.current = true;
     }
-  }, [profile, selectedVehicle, cashDown, applyProfilePreferences]);
+  }, [profile, selectedVehicle, cashDown, cashDownToggleState, applyProfilePreferences]);
 
   // Sync toggle preference with profile preference
   useEffect(() => {
@@ -3712,7 +3723,7 @@ export const CalculatorApp: React.FC = () => {
         try {
           const fallbackOfferId =
             shareModalTarget?.id || `share-${Math.random().toString(36).slice(2)}`;
-          const { error: fnError } = await supabase.functions.invoke("send-email", {
+          const { error: fnError, data: fnData } = await supabase.functions.invoke("send-email", {
             body: {
               offerId: fallbackOfferId,
               recipientEmail: payload.recipientEmail,
@@ -3725,7 +3736,7 @@ export const CalculatorApp: React.FC = () => {
             },
           });
           if (fnError) {
-            throw fnError;
+            throw new Error((fnData as any)?.error || fnError.message);
           }
           setShareModalSuccess(`Sent to ${payload.recipientEmail}`);
           setShareModalEmail("");
@@ -4842,6 +4853,7 @@ export const CalculatorApp: React.FC = () => {
                 value={cashDown}
                 onChange={(e) => {
                   const newValue = Number(e.target.value);
+                  hasAppliedProfileCashDownRef.current = true; // User interacted; stop auto-applying profile pref
                   setSliderValueWithSettling("cashDown", newValue);
                   // Only switch to 'current' mode if value doesn't match $0 or preference
                   // This prevents toggle clicks from being overridden
@@ -4860,6 +4872,7 @@ export const CalculatorApp: React.FC = () => {
                 toggleState={cashDownToggleState}
                 userPreferenceValue={cashDownUserPreference}
                 onToggleStateChange={(state, value) => {
+                  hasAppliedProfileCashDownRef.current = true; // Respect user toggle choice
                   setCashDownToggleState(state);
                   setSliderValueWithSettling("cashDown", value);
                 }}

@@ -11,7 +11,6 @@ export interface OfferPreviewModalProps {
   onClose: () => void;
   leadData: LeadData;
   onSubmit: (data: LeadData) => void;
-  onDevSubmit?: (data: LeadData) => void;
   // ItemizationCard props - pass through from main app
   salePrice: number;
   cashDown: number;
@@ -33,6 +32,10 @@ export interface OfferPreviewModalProps {
   tradeInApplied?: number;
   tradeInCashout?: number;
   cashoutAmount?: number;
+  apr: number;
+  loanTerm: number;
+  monthlyPayment: number;
+  ratesEffectiveDate?: string | null;
   // onChange handlers
   onSalePriceChange?: (value: number) => void;
   onCashDownChange?: (value: number) => void;
@@ -74,7 +77,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   onClose,
   leadData,
   onSubmit,
-  onDevSubmit,
   // ItemizationCard props
   salePrice,
   cashDown,
@@ -96,6 +98,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   tradeInApplied,
   tradeInCashout,
   cashoutAmount,
+  apr,
+  loanTerm,
+  monthlyPayment,
+  ratesEffectiveDate,
   // onChange handlers
   onSalePriceChange,
   onCashDownChange,
@@ -192,31 +198,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
 
     // Trigger submission with updated data
     onSubmit({
-      ...leadData,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerAddress,
-      dealerEmail,
-      dealerPhone,
-      offerText
-    });
-  };
-
-  const handleDevSubmit = () => {
-    if (!isValid || !onDevSubmit) return;
-
-    const offerText = generateOfferText({
-      ...leadData,
-      customerName,
-      customerEmail,
-      customerPhone,
-      customerAddress,
-      dealerEmail,
-      dealerPhone
-    });
-
-    onDevSubmit({
       ...leadData,
       customerName,
       customerEmail,
@@ -495,7 +476,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           )}
 
           {/* 7. Submit Buttons */}
-          <div className="pt-4 pb-2 space-y-3">
+          <div className="pt-4 pb-2">
             <Button
               variant="primary"
               size="lg"
@@ -505,18 +486,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             >
               Submit Offer
             </Button>
-            {onDevSubmit && (
-              <Button
-                variant="secondary"
-                size="lg"
-                fullWidth
-                onClick={handleDevSubmit}
-                disabled={!isValid}
-                title="Submit without sending email/SMS (dev testing)"
-              >
-                Dev Submit
-              </Button>
-            )}
           </div>
         </div>
       </div>

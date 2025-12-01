@@ -242,22 +242,76 @@ async function fetchNHTSAVehicleData(vin) {
 function parseGVWRClass(gvwr) {
   if (!gvwr || typeof gvwr !== 'string') return null;
 
+  const classMatch = gvwr.match(/class\s*([0-9]+)\s*([a-z])?/i);
+  const classNumber = classMatch ? parseInt(classMatch[1], 10) : undefined;
+  const classLetter = classMatch?.[2]?.toLowerCase();
+  const classCode = classNumber ? `Class ${classNumber}${classLetter ? classLetter.toUpperCase() : ''}` : null;
+
   // Match patterns like "4,001 - 5,000 lb" or "6,000 lb or less"
   const rangeMatch = gvwr.match(/([\d,]+)\s*-\s*([\d,]+)\s*lb/i);
   if (rangeMatch) {
     const lower = parseInt(rangeMatch[1].replace(/,/g, ''), 10);
     const upper = parseInt(rangeMatch[2].replace(/,/g, ''), 10);
-    return { lowerBound: lower, upperBound: upper };
+    const midpoint = Math.round((lower + upper) / 2);
+    return { lowerBound: lower, upperBound: upper, midpoint, classNumber, classLetter, classCode };
   }
 
   // Match single value patterns like "6,000 lb or less"
   const singleMatch = gvwr.match(/([\d,]+)\s*lb/i);
   if (singleMatch) {
     const weight = parseInt(singleMatch[1].replace(/,/g, ''), 10);
-    return { lowerBound: weight, upperBound: weight };
+    return { lowerBound: weight, upperBound: weight, midpoint: weight, classNumber, classLetter, classCode };
   }
 
   return null;
+}
+
+function deriveWeightFromGVWR(gvwrMeta, bodyClass, vehicleType) {
+  if (!gvwrMeta) return null;
+
+  const classNumber = gvwrMeta.classNumber;
+  const classLetter = gvwrMeta.classLetter;
+  const classCode = gvwrMeta.classCode;
+  const body = (bodyClass || '').toLowerCase();
+  const type = (vehicleType || '').toLowerCase();
+  const isTruckLike =
+    body.includes('pickup') ||
+    body.includes('truck') ||
+    body.includes('van') ||
+    body.includes('cargo') ||
+    type === 'truck';
+
+  const anchor = gvwrMeta.midpoint || gvwrMeta.upperBound || gvwrMeta.lowerBound;
+  if (!anchor) return null;
+
+  let factor = 0.7;
+  let factorReason = 'Default GVWR-to-curb ratio';
+  if (!isTruckLike) {
+    factor = 0.8;
+    factorReason = 'Passenger car/crossover payload typically ~20% of GVWR';
+  } else if ((classNumber && classNumber >= 3) || anchor >= 10000) {
+    factor = 0.65;
+    factorReason = 'Class 3+ truck payload allowance';
+  } else if ((classNumber === 2 && classLetter === 'b') || anchor >= 8500) {
+    factor = 0.68;
+    factorReason = 'Class 2B pickup/van payload allowance';
+  } else {
+    factor = 0.74;
+    factorReason = 'Light truck/van payload allowance';
+  }
+
+  return {
+    weight: Math.round(anchor * factor),
+    detail: {
+      factor,
+      factorReason,
+      bodyType: isTruckLike ? 'truck' : 'auto',
+      classCode,
+      gvwrLower: gvwrMeta.lowerBound,
+      gvwrUpper: gvwrMeta.upperBound,
+      midpoint: gvwrMeta.midpoint || gvwrMeta.upperBound || gvwrMeta.lowerBound,
+    },
+  };
 }
 
 /**
@@ -278,17 +332,17 @@ function estimateVehicleWeight(nhtsaData) {
     };
   }
 
-  // Priority 2: Derive from GVWR class (~70% of upper bound)
+  // Priority 2: Derive from GVWR class using body-type factors
   if (nhtsaData.gvwr) {
     const gvwrWeight = parseGVWRClass(nhtsaData.gvwr);
-    if (gvwrWeight && gvwrWeight.upperBound) {
-      // Curb weight is typically 65-75% of GVWR; use 70% as estimate
-      const estimated = Math.round(gvwrWeight.upperBound * 0.70);
+    const derived = deriveWeightFromGVWR(gvwrWeight, nhtsaData.bodyClass, nhtsaData.vehicleType);
+    if (derived && derived.weight) {
       return {
-        weight: estimated,
+        weight: derived.weight,
         source: 'gvwr_derived',
         confidence: 'medium',
-        gvwrClass: nhtsaData.gvwr
+        gvwrClass: nhtsaData.gvwr,
+        gvwrEstimateDetail: derived.detail,
       };
     }
   }
@@ -1397,6 +1451,7 @@ app.get("/api/mc/by-vin/:vin", async (req, res) => {
       estimatedWeight: weightEstimate.weight,
       weightSource: weightEstimate.source,
       weightConfidence: weightEstimate.confidence,
+      gvwrEstimateDetail: weightEstimate.gvwrEstimateDetail ?? null,
       usesTruckSchedule,
     };
 
@@ -2257,6 +2312,7 @@ app.get("/api/nhtsa/:vin", async (req, res) => {
       weightSource: weightEstimate.source,
       weightConfidence: weightEstimate.confidence,
       gvwrClass: weightEstimate.gvwrClass || null,
+      gvwrEstimateDetail: weightEstimate.gvwrEstimateDetail || null,
       usesTruckSchedule,
     });
   } catch (error) {

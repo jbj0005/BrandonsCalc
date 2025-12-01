@@ -376,7 +376,7 @@ export const submitOfferWithProgress = async (
     if (leadData.customerEmail && !leadData.devMode) {
       const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
 
-      const { error: emailError } = await supabase.functions.invoke('send-email', {
+      const { error: emailError, data: emailData } = await supabase.functions.invoke('send-email', {
         body: {
           offerId: offer.id,
           recipientEmail: leadData.customerEmail,
@@ -388,6 +388,7 @@ export const submitOfferWithProgress = async (
 
       if (emailError) {
         // Don't fail the whole submission if email fails
+        console.warn('Email send failed during offer submission:', (emailData as any)?.error || emailError.message);
       }
     }
 

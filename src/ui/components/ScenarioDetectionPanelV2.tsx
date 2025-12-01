@@ -110,7 +110,7 @@ export const ScenarioDetectionPanelV2: React.FC<ScenarioDetectionPanelV2Props> =
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-900/50">
           <div className="text-xs font-medium text-blue-700 dark:text-blue-400 uppercase tracking-wide mb-1">
-            Total Gov Fees
+            Estimated Gov Fees
           </div>
           <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
             {formatCurrency(scenarioResult.totals.governmentFees)}
