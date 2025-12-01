@@ -53,6 +53,7 @@ import type { LeadData, SubmissionProgress } from "./services/leadSubmission";
 import { submitOfferWithProgress } from "./services/leadSubmission";
 import { lookupTaxRates, clearTaxRatesCache } from "./services/taxRatesService";
 import type { EquityDecision, Vehicle, GarageVehicle } from "./types";
+import type { GvwrEstimateDetail } from "./types/vehicleWeight";
 import { useCalculatorStore } from "./stores/calculatorStore";
 import { formatEffectiveDate } from "./utils/formatters";
 // Stubbed hook removed in favor of web components; keep defined to avoid legacy references
@@ -191,23 +192,87 @@ const extractVehicleWeightData = (vehicle: any): {
 
 /**
  * Parse GVWR class string like "Class 1C: 4,001 - 5,000 lb" into estimated curb weight
+ * Uses body-aware factors instead of a flat 70% to better match real payloads
  */
-const parseGVWRToWeight = (gvwr: string): number | null => {
+const parseGVWRToWeight = (
+  gvwr: string,
+  opts?: { bodyClass?: string; vehicleType?: string }
+): { weight: number; detail: GvwrEstimateDetail } | null => {
   if (!gvwr) return null;
+
+  const bodyClass = opts?.bodyClass || "";
+  const vehicleType = opts?.vehicleType || "";
+
+  const body = bodyClass.toLowerCase();
+  const vType = vehicleType.toLowerCase();
+  const isTruckLike =
+    body.includes("pickup") ||
+    body.includes("truck") ||
+    body.includes("van") ||
+    body.includes("cargo") ||
+    vType === "truck";
+
   // Match patterns like "4,001 - 5,000 lb"
   const rangeMatch = gvwr.match(/([\d,]+)\s*-\s*([\d,]+)\s*lb/i);
-  if (rangeMatch) {
-    const upper = parseInt(rangeMatch[2].replace(/,/g, ''), 10);
-    // Curb weight is typically ~70% of GVWR upper bound
-    return Math.round(upper * 0.70);
-  }
-  // Match single value patterns
   const singleMatch = gvwr.match(/([\d,]+)\s*lb/i);
-  if (singleMatch) {
-    const weight = parseInt(singleMatch[1].replace(/,/g, ''), 10);
-    return Math.round(weight * 0.70);
+  let lower: number | undefined;
+  let upper: number | undefined;
+
+  if (rangeMatch) {
+    lower = parseInt(rangeMatch[1].replace(/,/g, ""), 10);
+    upper = parseInt(rangeMatch[2].replace(/,/g, ""), 10);
+  } else if (singleMatch) {
+    upper = parseInt(singleMatch[1].replace(/,/g, ""), 10);
+  } else {
+    return null;
   }
-  return null;
+
+  const midpoint = lower && upper ? Math.round((lower + upper) / 2) : upper;
+  const classMatch = gvwr.match(/class\s*([0-9]+)\s*([a-z])?/i);
+  const classNumber = classMatch ? parseInt(classMatch[1], 10) : undefined;
+  const classLetter = classMatch?.[2]?.toLowerCase();
+  const classCode =
+    classNumber !== undefined
+      ? `Class ${classNumber}${classLetter ? classLetter.toUpperCase() : ""}`
+      : undefined;
+
+  // Choose factor by body type + GVWR class, falling back to payload heuristics
+  const gvwrAnchor = midpoint || upper || lower;
+  let factor = 0.7;
+  let factorReason = "Default GVWR-to-curb ratio";
+  if (!isTruckLike) {
+    factor = 0.8;
+    factorReason = "Passenger car/crossover payload typically ~20% of GVWR";
+  } else if ((classNumber && classNumber >= 3) || (gvwrAnchor && gvwrAnchor >= 10000)) {
+    factor = 0.65;
+    factorReason = "Class 3+ truck payload allowance";
+  } else if (
+    (classNumber === 2 && classLetter === "b") ||
+    (gvwrAnchor && gvwrAnchor >= 8500)
+  ) {
+    factor = 0.68;
+    factorReason = "Class 2B pickup/van payload allowance";
+  } else {
+    factor = 0.74;
+    factorReason = "Light truck/van payload allowance";
+  }
+
+  if (!gvwrAnchor) return null;
+
+  const estimatedWeight = Math.round(gvwrAnchor * factor);
+
+  return {
+    weight: estimatedWeight,
+    detail: {
+      factor,
+      factorReason,
+      bodyType: isTruckLike ? "truck" : "auto",
+      classCode,
+      gvwrLower: lower,
+      gvwrUpper: upper,
+      midpoint,
+    },
+  };
 };
 
 /**
@@ -221,6 +286,7 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
   gvwrClass: string | undefined;
   rawCurbWeight: number | undefined;
   usesTruckSchedule: boolean;
+  gvwrEstimateDetail?: GvwrEstimateDetail;
 } | null> => {
   if (!vin || vin.length < 11) {
     return null;
@@ -249,15 +315,17 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
     // Determine weight and source
     let estimatedWeight: number | undefined;
     let weightSource: string | undefined;
+    let gvwrEstimateDetail: GvwrEstimateDetail | undefined;
 
     if (curbWeightLB && !isNaN(curbWeightLB)) {
       estimatedWeight = curbWeightLB;
       weightSource = 'nhtsa_exact';
     } else if (gvwr) {
-      const derivedWeight = parseGVWRToWeight(gvwr);
+      const derivedWeight = parseGVWRToWeight(gvwr, { bodyClass, vehicleType });
       if (derivedWeight) {
-        estimatedWeight = derivedWeight;
+        estimatedWeight = derivedWeight.weight;
         weightSource = 'gvwr_derived';
+        gvwrEstimateDetail = derivedWeight.detail;
       }
     }
 
@@ -282,6 +350,7 @@ const fetchNHTSAWeight = async (vin: string): Promise<{
       gvwrClass: gvwr || undefined,
       rawCurbWeight: curbWeightLB || undefined,
       usesTruckSchedule,
+      gvwrEstimateDetail,
     };
   } catch {
     return null;
@@ -361,6 +430,7 @@ export const CalculatorApp: React.FC = () => {
   const [nhtsaBodyClass, setNhtsaBodyClass] = useState<string | undefined>(); // e.g., "Pickup"
   const [nhtsaGvwrClass, setNhtsaGvwrClass] = useState<string | undefined>(); // e.g., "Class 1C: 4,001 - 5,000 lb"
   const [nhtsaRawCurbWeight, setNhtsaRawCurbWeight] = useState<number | undefined>(); // Raw curb weight if available
+  const [gvwrEstimateDetail, setGvwrEstimateDetail] = useState<GvwrEstimateDetail | undefined>(); // Details about GVWR-derived weight
   const [isLoadingVIN, setIsLoadingVIN] = useState(false);
 
   // Cash Down three-state toggle: 'zero' | 'current' | 'preference'
@@ -1296,6 +1366,16 @@ export const CalculatorApp: React.FC = () => {
       applyProfilePreferences(profile);
     }
   }, [profile, selectedVehicle, cashDown, applyProfilePreferences]);
+
+  // Sync toggle preference with profile preference
+  useEffect(() => {
+    if (profile?.preferred_down_payment != null) {
+      const preferredDown = parseNumericValue(profile.preferred_down_payment);
+      if (preferredDown != null && preferredDown > 0) {
+        setCashDownUserPreference(preferredDown);
+      }
+    }
+  }, [profile?.preferred_down_payment]);
 
   // Listen for auth state changes
   useEffect(() => {
@@ -2313,6 +2393,10 @@ export const CalculatorApp: React.FC = () => {
       setVehicleWeightLbs(undefined);
       setWeightSource(undefined);
       setVehicleBodyType("auto");
+      setNhtsaBodyClass(undefined);
+      setNhtsaGvwrClass(undefined);
+      setNhtsaRawCurbWeight(undefined);
+      setGvwrEstimateDetail(undefined);
     }
     // Note: Weight and body type are now set by handleSelectSavedVehicle,
     // handleSelectSharedVehicle, and handleSelectGarageVehicle
@@ -3127,6 +3211,10 @@ export const CalculatorApp: React.FC = () => {
   // Handle selecting a saved vehicle from dropdown
   const handleSelectSavedVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "saved" };
+    setNhtsaBodyClass(undefined);
+    setNhtsaGvwrClass(undefined);
+    setNhtsaRawCurbWeight(undefined);
+    setGvwrEstimateDetail(undefined);
     setSelectedVehicle(normalized);
     const vehicleVin = vehicle.vin || "";
     setVin(vehicleVin);
@@ -3157,6 +3245,7 @@ export const CalculatorApp: React.FC = () => {
           setNhtsaBodyClass(nhtsaData.bodyClass);
           setNhtsaGvwrClass(nhtsaData.gvwrClass);
           setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
+          setGvwrEstimateDetail(nhtsaData.gvwrEstimateDetail);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3175,6 +3264,10 @@ export const CalculatorApp: React.FC = () => {
   // Handle selecting a shared saved vehicle (read-only source)
   const handleSelectSharedVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "shared" };
+    setNhtsaBodyClass(undefined);
+    setNhtsaGvwrClass(undefined);
+    setNhtsaRawCurbWeight(undefined);
+    setGvwrEstimateDetail(undefined);
     setSelectedVehicle(normalized);
     const vehicleVin = vehicle.vin || "";
     setVin(vehicleVin);
@@ -3205,6 +3298,7 @@ export const CalculatorApp: React.FC = () => {
           setNhtsaBodyClass(nhtsaData.bodyClass);
           setNhtsaGvwrClass(nhtsaData.gvwrClass);
           setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
+          setGvwrEstimateDetail(nhtsaData.gvwrEstimateDetail);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3220,6 +3314,10 @@ export const CalculatorApp: React.FC = () => {
 
   const handleSelectGarageVehicle = (vehicle: any) => {
     const normalized = { ...normalizeDealerData(vehicle), __source: "garage" };
+    setNhtsaBodyClass(undefined);
+    setNhtsaGvwrClass(undefined);
+    setNhtsaRawCurbWeight(undefined);
+    setGvwrEstimateDetail(undefined);
     setSelectedVehicle(normalized);
     const vehicleVin = vehicle.vin || "";
     setVin(vehicleVin);
@@ -3252,6 +3350,7 @@ export const CalculatorApp: React.FC = () => {
           setNhtsaBodyClass(nhtsaData.bodyClass);
           setNhtsaGvwrClass(nhtsaData.gvwrClass);
           setNhtsaRawCurbWeight(nhtsaData.rawCurbWeight);
+          setGvwrEstimateDetail(nhtsaData.gvwrEstimateDetail);
           setVehicleWeightLbs(bracket);
           setVehicleBodyType(nhtsaData.usesTruckSchedule ? 'truck' : 'auto');
         }
@@ -3934,6 +4033,10 @@ export const CalculatorApp: React.FC = () => {
       const vehicleSpecs = result?.vehicleSpecs;
 
       if (result && listing) {
+        setNhtsaBodyClass(undefined);
+        setNhtsaGvwrClass(undefined);
+        setNhtsaRawCurbWeight(undefined);
+        setGvwrEstimateDetail(undefined);
         setSelectedVehicle({
           ...normalizeDealerData(listing),
           __source: "market",
@@ -3952,6 +4055,7 @@ export const CalculatorApp: React.FC = () => {
           setNhtsaBodyClass(vehicleSpecs.bodyClass);
           setNhtsaGvwrClass(vehicleSpecs.gvwrClass);
           setNhtsaRawCurbWeight(vehicleSpecs.rawCurbWeight);
+          setGvwrEstimateDetail(vehicleSpecs?.gvwrEstimateDetail);
           // Auto-select bracket based on estimated weight
           const bracket = findWeightBracket(rawWeight, vehicleSpecs?.bodyClass);
           setVehicleWeightLbs(bracket);
@@ -4758,7 +4862,8 @@ export const CalculatorApp: React.FC = () => {
                 userPreferenceValue={cashDownUserPreference}
                 onToggleStateChange={(state, value) => {
                   setCashDownToggleState(state);
-                  setSliderValueWithSettling("cashDown", value);
+                  // Call store directly to avoid closure issues
+                  useCalculatorStore.getState().setSliderValue("cashDown", value);
                 }}
                 baselineValue={0}
                 diffBaselineValue={0}
@@ -5344,6 +5449,7 @@ export const CalculatorApp: React.FC = () => {
         nhtsaBodyClass={nhtsaBodyClass}
         nhtsaGvwrClass={nhtsaGvwrClass}
         nhtsaRawCurbWeight={nhtsaRawCurbWeight}
+        gvwrEstimateDetail={gvwrEstimateDetail}
         onVehicleMetaChange={(meta) => {
           if (meta.weightLbs !== undefined) {
             setVehicleWeightLbs(meta.weightLbs);
