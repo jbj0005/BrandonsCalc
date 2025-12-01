@@ -354,7 +354,7 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
     const threeStateOrder: Array<'zero' | 'current' | 'preference'> = ['zero', 'current', 'preference'];
 
     const cycleToNextState = () => {
-      if (toggleMode !== 'three-state' || !onToggleStateChange) return;
+      if (toggleMode !== 'three-state') return;
 
       const currentIndex = threeStateOrder.indexOf(toggleState);
       const nextIndex = (currentIndex + 1) % threeStateOrder.length;
@@ -371,8 +371,18 @@ export const EnhancedSlider = forwardRef<HTMLInputElement, EnhancedSliderProps>(
         newValue = userPreferenceValue ?? 2000;
       }
 
-      // Update both state and value via callback - parent handles the value update
-      onToggleStateChange(nextState, newValue);
+      // First update the toggle state
+      onToggleStateChange?.(nextState, newValue);
+
+      // Then update the value via onChange - use setTimeout to ensure it runs after state update
+      setTimeout(() => {
+        if (onChange) {
+          const syntheticEvent = {
+            target: { value: String(newValue) },
+          } as React.ChangeEvent<HTMLInputElement>;
+          onChange(syntheticEvent);
+        }
+      }, 0);
     };
 
     // Handle toggle click

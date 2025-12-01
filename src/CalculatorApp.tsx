@@ -4843,13 +4843,12 @@ export const CalculatorApp: React.FC = () => {
                 onChange={(e) => {
                   const newValue = Number(e.target.value);
                   setSliderValueWithSettling("cashDown", newValue);
-                  // If user manually moves slider, switch to 'current' mode and save as preference
-                  if (cashDownToggleState !== 'current' && newValue > 0) {
+                  // Only switch to 'current' mode if value doesn't match $0 or preference
+                  // This prevents toggle clicks from being overridden
+                  const isZeroValue = newValue === 0;
+                  const isPrefValue = Math.abs(newValue - cashDownUserPreference) < 1;
+                  if (!isZeroValue && !isPrefValue && cashDownToggleState !== 'current') {
                     setCashDownToggleState('current');
-                  }
-                  // Update preference when user manually sets a non-zero value
-                  if (newValue > 0) {
-                    setCashDownUserPreference(newValue);
                   }
                 }}
                 formatValue={(val) => formatCurrency(val)}
@@ -4862,8 +4861,7 @@ export const CalculatorApp: React.FC = () => {
                 userPreferenceValue={cashDownUserPreference}
                 onToggleStateChange={(state, value) => {
                   setCashDownToggleState(state);
-                  // Call store directly to avoid closure issues
-                  useCalculatorStore.getState().setSliderValue("cashDown", value);
+                  setSliderValueWithSettling("cashDown", value);
                 }}
                 baselineValue={0}
                 diffBaselineValue={0}
