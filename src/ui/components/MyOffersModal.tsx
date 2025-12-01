@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Card, Button } from './index';
 import { supabase } from '../../lib/supabase';
 import { formatCurrencyExact } from '../../utils/formatters';
+import { generateOfferText } from '../../services/leadSubmission';
 import { useToast } from './Toast';
 
 export interface MyOffersModalProps {
@@ -166,12 +167,56 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
         .filter(Boolean)
         .join(' ');
 
+      const isDealerEmail = Boolean(offer.dealer_email);
+      const recipientEmail = isDealerEmail ? offer.dealer_email : offer.customer_email;
+      const recipientName = isDealerEmail ? offer.dealer_name : offer.customer_name;
+
+      if (!recipientEmail) {
+        throw new Error('No email available for this offer');
+      }
+
+      // If dealer email exists and matches customer email, force dealer template to avoid duplicate full-detail sends
+      const forceDealerFormat = isDealerEmail && offer.dealer_email === offer.customer_email;
+      const format = forceDealerFormat ? 'dealer' : (isDealerEmail ? 'dealer' : 'customer');
+
+      // Build lead-like data for template generation
+      const leadLike = {
+        vehicleYear: offer.vehicle_year || undefined,
+        vehicleMake: offer.vehicle_make || undefined,
+        vehicleModel: offer.vehicle_model || undefined,
+        vehicleTrim: offer.vehicle_trim || undefined,
+        vehicleVIN: offer.vehicle_vin || undefined,
+        vehicleMileage: offer.vehicle_mileage || undefined,
+        vehicleCondition: offer.vehicle_condition || undefined,
+        vehiclePrice: offer.vehicle_price || undefined,
+        dealerAskingPrice: undefined,
+        stockNumber: offer.vehicle_stock_number || undefined,
+        dealerName: offer.dealer_name || undefined,
+        dealerPhone: offer.dealer_phone || undefined,
+        dealerAddress: offer.dealer_address || undefined,
+        dealerEmail: offer.dealer_email || undefined,
+        apr: offer.apr || undefined,
+        termMonths: offer.term_months || undefined,
+        monthlyPayment: offer.monthly_payment || undefined,
+        downPayment: offer.down_payment || undefined,
+        tradeValue: undefined,
+        tradePayoff: undefined,
+        dealerFees: offer.dealer_fees || undefined,
+        customerAddons: offer.customer_addons || undefined,
+        customerName: offer.customer_name || undefined,
+        customerEmail: offer.customer_email || undefined,
+        customerPhone: offer.customer_phone || undefined,
+        customerAddress: offer.customer_address || undefined,
+      };
+
+      const offerText = generateOfferText(leadLike as any, format as any);
+
       const { error, data } = await supabase.functions.invoke('send-email', {
         body: {
           offerId: offer.id,
-          recipientEmail: offer.customer_email,
-          recipientName: offer.customer_name,
-          offerText: offer.offer_text || 'No offer details available',
+          recipientEmail,
+          recipientName,
+          offerText: offerText || 'No offer details available',
           vehicleInfo
         }
       });
@@ -180,7 +225,7 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
       toast.push({
         kind: 'success',
         title: 'Email Sent',
-        detail: 'Offer email has been sent successfully'
+        detail: `Offer email sent to ${recipientEmail}`
       });
     } catch (error: any) {
       toast.push({

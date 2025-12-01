@@ -47,20 +47,11 @@ export interface OfferPreviewModalProps {
   onTradeInCashoutChange?: (value: number) => void;
 }
 
-interface DetailRowProps {
-  label: string;
-  value: React.ReactNode;
-  bold?: boolean;
-}
-
-const DetailRow: React.FC<DetailRowProps> = ({ label, value, bold = false }) => (
-  <div className="flex justify-between items-center py-2 border-b border-white/10 last:border-0">
-    <span className="text-sm text-white/60">{label}</span>
-    <span className={`text-sm text-white ${bold ? 'font-bold text-base' : ''}`}>
-      {value}
-    </span>
-  </div>
-);
+const heroBackgroundStyle: React.CSSProperties = {
+  backgroundColor: '#0f182b',
+  boxShadow: '0 24px 70px rgba(0,0,0,0.55), 0 0 32px rgba(16,185,129,0.14)',
+  border: '1px solid rgba(255,255,255,0.06)',
+};
 
 /**
  * OfferPreviewModal - Preview and submit vehicle offer
@@ -142,7 +133,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
+  const [customerStreet, setCustomerStreet] = useState('');
+  const [customerCity, setCustomerCity] = useState('');
+  const [customerState, setCustomerState] = useState('');
+  const [customerZip, setCustomerZip] = useState('');
   const [saveToProfile, setSaveToProfile] = useState(false);
 
   // Dealer contact info state (for sending offer to specific salesman)
@@ -156,14 +150,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
       setCustomerEmail(profile.email || userEmail || '');
       setCustomerPhone(formatPhoneNumber(profile.phone || ''));
 
-      // Build address string from components
-      const addressParts = [
-        profile.street_address,
-        profile.city,
-        profile.state,
-        profile.zip_code
-      ].filter(Boolean);
-      setCustomerAddress(addressParts.join(', '));
+      setCustomerStreet(profile.street_address || '');
+      setCustomerCity(profile.city || '');
+      setCustomerState(profile.state || '');
+      setCustomerZip(profile.zip_code || '');
     }
   }, [profile, useProfileData, isOpen, userEmail]);
 
@@ -185,24 +175,46 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   const handleSubmit = () => {
     if (!isValid) return;
 
+    const combinedAddress = [customerStreet, customerCity, customerState, customerZip]
+      .filter(Boolean)
+      .join(', ');
+
+    const updatedLeadData: LeadData = {
+      ...leadData,
+      vehiclePrice: salePrice,
+      downPayment: cashDown,
+      tradeValue: tradeAllowance,
+      tradePayoff: tradePayoff,
+      dealerFees,
+      customerAddons,
+      govtFees,
+      dealerEmail: dealerEmail || undefined,
+      dealerPhone: dealerPhone || undefined,
+      apr,
+      termMonths: loanTerm,
+      monthlyPayment,
+      ratesEffectiveDate: ratesEffectiveDate || undefined,
+      customerAddress: combinedAddress,
+    };
+
     // Generate offer text
     const offerText = generateOfferText({
-      ...leadData,
+      ...updatedLeadData,
       customerName,
       customerEmail,
       customerPhone,
-      customerAddress,
+      customerAddress: combinedAddress,
       dealerEmail,
       dealerPhone
     });
 
     // Trigger submission with updated data
     onSubmit({
-      ...leadData,
+      ...updatedLeadData,
       customerName,
       customerEmail,
       customerPhone,
-      customerAddress,
+      customerAddress: combinedAddress,
       dealerEmail,
       dealerPhone,
       offerText
@@ -217,7 +229,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
       setCustomerName('');
       setCustomerEmail(userEmail || '');
       setCustomerPhone('');
-      setCustomerAddress('');
+      setCustomerStreet('');
+      setCustomerCity('');
+      setCustomerState('');
+      setCustomerZip('');
     }
   };
 
@@ -225,100 +240,75 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl">
       <div className="max-h-[80vh] overflow-y-auto">
         {/* 1. Customer Offer Hero */}
-        <div className="bg-gradient-to-br from-emerald-600 to-blue-600 text-white p-8 rounded-t-xl text-center -mt-6 -mx-6 mb-6 border-b border-white/10">
-          <div className="text-sm font-medium mb-2 opacity-90 uppercase tracking-wider">Your Offer</div>
-          <div className="text-5xl font-bold mb-4" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-            {formatCurrencyExact(leadData.vehiclePrice || 0)}
-          </div>
+        <div
+          className="relative text-white p-8 rounded-[28px] text-center -mt-6 -mx-6 mb-8 overflow-hidden transition duration-300 hover:-translate-y-[1px] hover:shadow-[0_24px_70px_rgba(0,0,0,0.6),0_0_38px_rgba(16,185,129,0.2)]"
+          style={heroBackgroundStyle}
+        >
+          <div className="relative flex flex-col items-center gap-3">
+            <div className="flex flex-wrap justify-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]">
+              <span className="px-3 py-1 rounded-full bg-white/15 border border-white/20">Nearly Yours</span>
+              <span className="px-3 py-1 rounded-full bg-black/25 border border-white/10">Ready to send</span>
+            </div>
 
-          {/* Vehicle Details */}
-          <div className="space-y-1.5">
-            {/* Year, Make, Model, Trim */}
-            {vehicleInfo && (
-              <div className="text-lg font-semibold">
-                {vehicleInfo}
-                {leadData.vehicleTrim && <span> • {leadData.vehicleTrim}</span>}
-              </div>
-            )}
+            <div className="text-5xl md:text-6xl font-bold" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+              {formatCurrencyExact(leadData.vehiclePrice || 0)}
+            </div>
 
-            {/* Condition and Mileage */}
-            {(leadData.vehicleCondition || leadData.vehicleMileage) && (
-              <div className="text-sm opacity-90">
-                {leadData.vehicleCondition && (
-                  <span>{leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}</span>
-                )}
-                {leadData.vehicleCondition && leadData.vehicleMileage && <span> • </span>}
-                {leadData.vehicleMileage && (
-                  <span>{leadData.vehicleMileage.toLocaleString()} miles</span>
-                )}
-              </div>
-            )}
+            {/* Vehicle Details */}
+            <div className="space-y-2">
+              {vehicleInfo && (
+                <div className="text-lg font-semibold drop-shadow-md">
+                  {vehicleInfo}
+                  {leadData.vehicleTrim && <span> • {leadData.vehicleTrim}</span>}
+                </div>
+              )}
 
-            {/* VIN - Bottom Row */}
-            {leadData.vehicleVIN && (
-              <div className="text-xs opacity-80 tracking-wider mt-2" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>
-                VIN: {leadData.vehicleVIN}
+              {(leadData.vehicleCondition || leadData.vehicleMileage) && (
+                <div className="text-sm text-white/80">
+                  {leadData.vehicleCondition && (
+                    <span>{leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}</span>
+                  )}
+                  {leadData.vehicleCondition && leadData.vehicleMileage && <span> • </span>}
+                  {leadData.vehicleMileage && (
+                    <span>{leadData.vehicleMileage.toLocaleString()} miles</span>
+                  )}
+                </div>
+              )}
+
+              {leadData.vehicleVIN && (
+                <div
+                  className="text-xs opacity-85 tracking-[0.24em] mt-2"
+                  style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}
+                >
+                  VIN {leadData.vehicleVIN}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full mt-6">
+              <div className="rounded-2xl bg-black/20 border border-white/10 p-3 text-left">
+                <div className="text-xs text-white/70 uppercase tracking-[0.12em]">Monthly Payment</div>
+                <div className="text-2xl font-semibold mt-1">{formatCurrencyExact(monthlyPayment || 0)}</div>
+                <div className="text-xs text-white/60 mt-1">Based on your current terms</div>
               </div>
-            )}
+              <div className="rounded-2xl bg-black/16 border border-white/10 p-3 text-left">
+                <div className="text-xs text-white/70 uppercase tracking-[0.12em]">Cash at Signing</div>
+                <div className="text-2xl font-semibold mt-1">{formatCurrencyExact(cashDue || 0)}</div>
+                <div className="text-xs text-white/60 mt-1">Includes taxes & fees</div>
+              </div>
+              <div className="rounded-2xl bg-black/16 border border-white/10 p-3 text-left">
+                <div className="text-xs text-white/70 uppercase tracking-[0.12em]">Term</div>
+                <div className="text-2xl font-semibold mt-1">
+                  {loanTerm || 0} mo • {apr?.toFixed(2) ?? '0.00'}% APR
+                </div>
+                <div className="text-xs text-white/60 mt-1">You can still adjust before sending</div>
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="space-y-4 px-1">
-          {/* 2. Vehicle Details Card */}
-          <Card padding="md">
-            <SectionHeader
-              title="Vehicle Details"
-              subtitle="Confirm the listing info"
-              tone="light"
-              accent="emerald"
-              size="md"
-              as="h3"
-              className="mb-4"
-            />
-            <div className="space-y-1">
-              <DetailRow
-                label="Year / Make / Model"
-                value={vehicleInfo || 'Not specified'}
-              />
-              {leadData.vehicleTrim && (
-                <DetailRow label="Trim" value={leadData.vehicleTrim} />
-              )}
-              {leadData.vehicleVIN && (
-                <DetailRow
-                  label="VIN"
-                  value={
-                    <span className="text-xs tracking-wider" style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>
-                      {leadData.vehicleVIN}
-                    </span>
-                  }
-                />
-              )}
-              {leadData.vehicleMileage && (
-                <DetailRow
-                  label="Mileage"
-                  value={`${leadData.vehicleMileage.toLocaleString()} miles`}
-                />
-              )}
-              {leadData.vehicleCondition && (
-                <DetailRow
-                  label="Condition"
-                  value={leadData.vehicleCondition.charAt(0).toUpperCase() + leadData.vehicleCondition.slice(1)}
-                />
-              )}
-              <DetailRow
-                label="Stock #"
-                value={
-                  leadData.stockNumber ? (
-                    <span style={{ fontFamily: '"IBM Plex Mono", "Courier New", monospace' }}>{leadData.stockNumber}</span>
-                  ) : (
-                    <span className="text-white/40 italic">Not Available</span>
-                  )
-                }
-              />
-            </div>
-          </Card>
-
-          {/* 3. Itemization of Costs (editable) */}
+          {/* 2. Itemization of Costs (editable) */}
           <ItemizationCard
             salePrice={salePrice}
             cashDown={cashDown}
@@ -351,7 +341,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           />
 
           {/* 4. Dealer Contact (Optional) */}
-          <Card padding="md">
+          <Card padding="lg" variant="glass" className="border-white/15 bg-white/5">
             <SectionHeader
               title="Send to Dealer (Optional)"
               subtitle="Include dealer contact details"
@@ -381,7 +371,7 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           </Card>
 
           {/* 5. Customer Contact Information Card */}
-          <Card padding="md">
+          <Card padding="lg" variant="glass" className="border-white/15 bg-white/5">
             <div className="flex items-center justify-between mb-4">
               <SectionHeader
                 title="Your Contact Information"
@@ -429,11 +419,31 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
                   placeholder="(555) 123-4567"
                 />
                 <Input
-                  label="Address"
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  placeholder="123 Main St, City, State, ZIP"
+                  label="Street Address"
+                  value={customerStreet}
+                  onChange={(e) => setCustomerStreet(e.target.value)}
+                  placeholder="123 Main St"
                 />
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Input
+                    label="City"
+                    value={customerCity}
+                    onChange={(e) => setCustomerCity(e.target.value)}
+                    placeholder="City"
+                  />
+                  <Input
+                    label="State"
+                    value={customerState}
+                    onChange={(e) => setCustomerState(e.target.value)}
+                    placeholder="State"
+                  />
+                  <Input
+                    label="ZIP"
+                    value={customerZip}
+                    onChange={(e) => setCustomerZip(e.target.value)}
+                    placeholder="ZIP"
+                  />
+                </div>
 
                 {!useProfileData && profile && (
                   <Checkbox
@@ -476,7 +486,10 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           )}
 
           {/* 7. Submit Buttons */}
-          <div className="pt-4 pb-2">
+          <div className="pt-2 pb-2 space-y-3">
+            <p className="text-center text-white/70 text-sm">
+              You’re one tap away. We’ll package this offer beautifully and send it with the details above.
+            </p>
             <Button
               variant="primary"
               size="lg"
@@ -486,6 +499,9 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             >
               Submit Offer
             </Button>
+            <p className="text-center text-white/50 text-xs">
+              No credit pull. You can still edit terms after you share.
+            </p>
           </div>
         </div>
       </div>

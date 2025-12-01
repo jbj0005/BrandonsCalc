@@ -118,6 +118,7 @@ export const submitLead = async (leadData: LeadData): Promise<{ ok: boolean; off
       dealer_name: leadData.dealerName || null,
       dealer_phone: leadData.dealerPhone || null,
       dealer_address: leadData.dealerAddress || null,
+      dealer_email: leadData.dealerEmail || null,
 
       // Financing details
       apr: leadData.apr || null,
@@ -372,23 +373,48 @@ export const submitOfferWithProgress = async (
       offerId: offer.id
     });
 
-    // Send email via edge function (skip in dev mode)
-    if (leadData.customerEmail && !leadData.devMode) {
+    // Send emails via edge function (skip in dev mode)
+    if (!leadData.devMode) {
       const vehicleInfo = `${leadData.vehicleYear || ''} ${leadData.vehicleMake || ''} ${leadData.vehicleModel || ''}`.trim();
 
-      const { error: emailError, data: emailData } = await supabase.functions.invoke('send-email', {
-        body: {
-          offerId: offer.id,
-          recipientEmail: leadData.customerEmail,
-          recipientName: leadData.customerName,
-          offerText: leadData.offerText || '',
-          vehicleInfo: vehicleInfo || undefined
-        }
-      });
+      // Dealer-facing email (limited details)
+      if (leadData.dealerEmail) {
+        const dealerOfferText = generateOfferText(leadData, 'dealer');
 
-      if (emailError) {
-        // Don't fail the whole submission if email fails
-        console.warn('Email send failed during offer submission:', (emailData as any)?.error || emailError.message);
+        const { error: dealerEmailError, data: dealerEmailData } = await supabase.functions.invoke('send-email', {
+          body: {
+            offerId: offer.id,
+            recipientEmail: leadData.dealerEmail,
+            recipientName: leadData.dealerName || undefined,
+            offerText: dealerOfferText,
+            vehicleInfo: vehicleInfo || undefined
+          }
+        });
+
+        if (dealerEmailError) {
+          console.warn('Dealer email send failed during offer submission:', (dealerEmailData as any)?.error || dealerEmailError.message);
+        }
+      }
+
+      // Customer-facing email (full details) — skip if customer email equals dealer email to avoid duplicate
+      if (leadData.customerEmail && leadData.customerEmail !== leadData.dealerEmail) {
+        const customerOfferText =
+          leadData.offerText || generateOfferText(leadData, 'customer');
+
+        const { error: emailError, data: emailData } = await supabase.functions.invoke('send-email', {
+          body: {
+            offerId: offer.id,
+            recipientEmail: leadData.customerEmail,
+            recipientName: leadData.customerName,
+            offerText: customerOfferText,
+            vehicleInfo: vehicleInfo || undefined
+          }
+        });
+
+        if (emailError) {
+          // Don't fail the whole submission if email fails
+          console.warn('Email send failed during offer submission:', (emailData as any)?.error || emailError.message);
+        }
       }
     }
 

@@ -424,6 +424,12 @@ export const CalculatorApp: React.FC = () => {
   const locationManuallyChangedRef = useRef(false);
   const [vin, setVin] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
+  const [vehicleDiff, setVehicleDiff] = useState<{
+    asking_price?: { was: number; now: number; change: number };
+    mileage?: { was: number; now: number; change: number };
+    photo_url?: { was: null; now: string };
+  } | null>(null);
+  const [isRefreshingVehicle, setIsRefreshingVehicle] = useState(false);
   const [vehicleWeightLbs, setVehicleWeightLbs] = useState<number | undefined>();
   const [vehicleBodyType, setVehicleBodyType] = useState<string>("auto");
   const [estimatedWeight, setEstimatedWeight] = useState<number | undefined>(); // Raw NHTSA/GVWR estimate
@@ -774,6 +780,7 @@ export const CalculatorApp: React.FC = () => {
   const [isFindingBestLender, setIsFindingBestLender] = useState(false);
 
   // Calculated values
+  const [isAprManuallySet, setIsAprManuallySet] = useState(false);
   const [apr, setApr] = useState(5.99);
   const [lenderBaselineApr, setLenderBaselineApr] = useState<number | null>(
     null
@@ -785,16 +792,39 @@ export const CalculatorApp: React.FC = () => {
   const [amountFinanced, setAmountFinanced] = useState(0);
   const [financeCharge, setFinanceCharge] = useState(0);
   const [totalOfPayments, setTotalOfPayments] = useState(0);
+  // Manual APR change (from user input or arrows)
   const handleAprChange = useCallback(
     (nextApr: number) => {
       const rounded = parseFloat(nextApr.toFixed(2));
       setApr(rounded);
-
+      setIsAprManuallySet(true);
       if (useLowestApr) {
         setUseLowestApr(false);
       }
     },
     [useLowestApr]
+  );
+
+  // Apply lender-driven APR updates (keeps manual overrides intact)
+  const applyLenderApr = useCallback(
+    (nextApr: number) => {
+      const rounded = parseFloat(nextApr.toFixed(2));
+      setApr(rounded);
+      setIsAprManuallySet(false);
+    },
+    []
+  );
+
+  const commitAprInput = useCallback(
+    (raw: string) => {
+      const parsed = parseFloat(raw);
+      const clamped = Number.isFinite(parsed)
+        ? Math.min(99.99, Math.max(0, parsed))
+        : apr;
+      handleAprChange(clamped);
+      setIsAprInputFocused(false);
+    },
+    [apr, handleAprChange]
   );
 
   const baselineMonthlyPayment =
@@ -1049,7 +1079,7 @@ export const CalculatorApp: React.FC = () => {
           setLender(bestLender.lenderSource);
           setBestLenderLongName(bestLender.lenderName);
           setBestLenderApr(bestLender.apr);
-          setApr(bestLender.apr); // Mirror winner APR immediately
+          applyLenderApr(bestLender.apr); // Mirror winner APR immediately
           setLenderBaselineApr(bestLender.apr);
           const wasUsingDefault = !hasLenderAprLoaded;
           if (!hasLenderAprLoaded) {
@@ -1090,13 +1120,13 @@ export const CalculatorApp: React.FC = () => {
   useEffect(() => {
     if (useLowestApr && bestLenderApr != null) {
       const normalized = parseFloat(bestLenderApr.toFixed(2));
-      setApr(normalized);
+      applyLenderApr(normalized);
       setLenderBaselineApr(normalized);
       if (!hasLenderAprLoaded) {
         setHasLenderAprLoaded(true); // Mark as loaded when using lowest APR
       }
     }
-  }, [useLowestApr, bestLenderApr, hasLenderAprLoaded]);
+  }, [useLowestApr, bestLenderApr, hasLenderAprLoaded, applyLenderApr]);
 
   // Show warning toast when using default APR
   useEffect(() => {
@@ -1146,7 +1176,10 @@ export const CalculatorApp: React.FC = () => {
     );
 
     if (calculatedAPR !== null) {
-      setApr(calculatedAPR);
+      // Only overwrite APR if user has not manually set it, or if auto-following lowest APR
+      if (!isAprManuallySet || useLowestApr) {
+        applyLenderApr(calculatedAPR);
+      }
       // Store lender's recommended APR as baseline for comparison
       setLenderBaselineApr(calculatedAPR);
 
@@ -1173,6 +1206,9 @@ export const CalculatorApp: React.FC = () => {
     hasLenderAprLoaded,
     hasShownDefaultAprWarning,
     toast,
+    isAprManuallySet,
+    useLowestApr,
+    applyLenderApr,
   ]);
 
   // Calculate loan on any change (including equity decision)
@@ -2086,6 +2122,7 @@ export const CalculatorApp: React.FC = () => {
             selectedVehicle.dealer_zip || ""
           }`.trim()
         : undefined,
+      dealerEmail: selectedVehicle?.dealer_email || undefined,
 
       // Financing details
       apr: apr,
@@ -3220,7 +3257,10 @@ export const CalculatorApp: React.FC = () => {
   );
 
   // Handle selecting a saved vehicle from dropdown
-  const handleSelectSavedVehicle = (vehicle: any) => {
+  const handleSelectSavedVehicle = async (vehicle: any) => {
+    // Clear previous diff
+    setVehicleDiff(null);
+
     const normalized = { ...normalizeDealerData(vehicle), __source: "saved" };
     setNhtsaBodyClass(undefined);
     setNhtsaGvwrClass(undefined);
@@ -3270,6 +3310,97 @@ export const CalculatorApp: React.FC = () => {
       title: "Vehicle Selected!",
       detail: `${vehicle.year} ${vehicle.make} ${vehicle.model}`,
     });
+
+    // Check if vehicle data needs refresh (stale or missing photo)
+    const { needsRefresh, reason } = savedVehiclesCache.checkNeedsRefresh(vehicle, 7);
+
+    console.log('[Smart Refresh] Vehicle:', vehicle.vin, {
+      needsRefresh,
+      reason,
+      hasVin: vehicleVin.length >= 11,
+      hasId: !!vehicle.id,
+      photo_url: vehicle.photo_url,
+      last_refreshed_at: vehicle.last_refreshed_at
+    });
+
+    if (needsRefresh && vehicleVin.length >= 11 && vehicle.id) {
+      setIsRefreshingVehicle(true);
+
+      try {
+        console.log('[Smart Refresh] Starting refresh for vehicle ID:', vehicle.id);
+        const refreshResult = await savedVehiclesCache.refreshVehicleFromMarketCheck(
+          vehicle.id,
+          marketCheckCache,
+          { zip: locationDetails?.zipCode || undefined }
+        );
+        console.log('[Smart Refresh] Result:', refreshResult);
+
+        if (refreshResult.listingUnavailable) {
+          toast.push({
+            kind: "warning",
+            title: "Listing No Longer Available",
+            detail: "This vehicle may have been sold or removed from the market.",
+          });
+        } else if (refreshResult.diff) {
+          // Update selected vehicle with refreshed data
+          const updatedVehicle = { ...normalizeDealerData(refreshResult.vehicle), __source: "saved" };
+          setSelectedVehicle(updatedVehicle);
+          setVehicleDiff(refreshResult.diff);
+
+          // Update sale price if it changed
+          if (refreshResult.diff.asking_price) {
+            setSliderValue("salePrice", refreshResult.diff.asking_price.now, true);
+          }
+
+          // Build diff message
+          const changes: string[] = [];
+          if (refreshResult.diff.asking_price) {
+            const priceChange = refreshResult.diff.asking_price.change;
+            const direction = priceChange < 0 ? "dropped" : "increased";
+            changes.push(`Price ${direction} by $${Math.abs(priceChange).toLocaleString()}`);
+          }
+          if (refreshResult.diff.mileage) {
+            changes.push(`Mileage updated to ${refreshResult.diff.mileage.now.toLocaleString()}`);
+          }
+          if (refreshResult.diff.photo_url) {
+            changes.push("Photo now available");
+          }
+
+          toast.push({
+            kind: refreshResult.diff.asking_price?.change < 0 ? "success" : "info",
+            title: "Vehicle Data Updated",
+            detail: changes.join(", "),
+          });
+        } else if (reason === 'missing_photo') {
+          // Update vehicle data regardless
+          const updatedVehicle = { ...normalizeDealerData(refreshResult.vehicle), __source: "saved" };
+          setSelectedVehicle(updatedVehicle);
+
+          if (refreshResult.vehicle?.photo_url) {
+            toast.push({
+              kind: "success",
+              title: "Photo Retrieved",
+              detail: "Vehicle photo is now available.",
+            });
+          } else {
+            toast.push({
+              kind: "info",
+              title: "Data Refreshed",
+              detail: "No photo available for this vehicle in MarketCheck.",
+            });
+          }
+        } else if (reason === 'never_refreshed' || reason === 'stale_data') {
+          // Data was refreshed but no changes - update vehicle silently
+          const updatedVehicle = { ...normalizeDealerData(refreshResult.vehicle), __source: "saved" };
+          setSelectedVehicle(updatedVehicle);
+        }
+      } catch (error) {
+        console.error("Failed to refresh vehicle:", error);
+        // Don't show error toast - vehicle is still usable with cached data
+      } finally {
+        setIsRefreshingVehicle(false);
+      }
+    }
   };
 
   // Handle selecting a shared saved vehicle (read-only source)
@@ -3482,6 +3613,94 @@ export const CalculatorApp: React.FC = () => {
       });
     } finally {
       setShareModalLoading(false);
+    }
+  };
+
+  // Check if a vehicle is already saved (by VIN)
+  const isVehicleAlreadySaved = useCallback((vehicleVin: string | undefined) => {
+    if (!vehicleVin) return false;
+    return savedVehicles.some(v => v.vin?.toUpperCase() === vehicleVin.toUpperCase());
+  }, [savedVehicles]);
+
+  // Handle saving a newly looked-up vehicle to saved vehicles
+  const handleSaveNewVehicle = async (vehicle: any) => {
+    if (!currentUser) {
+      toast.push({
+        kind: "info",
+        title: "Sign in required",
+        detail: "Sign in to save vehicles.",
+      });
+      setAuthMode("signin");
+      setShowAuthModal(true);
+      return;
+    }
+
+    if (!vehicle) return;
+
+    // Check if already saved
+    if (isVehicleAlreadySaved(vehicle.vin)) {
+      toast.push({
+        kind: "info",
+        title: "Already Saved",
+        detail: "This vehicle is already in your saved vehicles.",
+      });
+      return;
+    }
+
+    try {
+      const vehicleData = {
+        year: vehicle.year,
+        make: vehicle.make,
+        model: vehicle.model,
+        trim: vehicle.trim,
+        vin: vehicle.vin,
+        mileage: vehicle.mileage,
+        condition: vehicle.condition,
+        asking_price: vehicle.asking_price,
+        heading: vehicle.heading,
+        dealer_name: vehicle.dealer_name,
+        dealer_street: vehicle.dealer_street,
+        dealer_city: vehicle.dealer_city,
+        dealer_state: vehicle.dealer_state,
+        dealer_zip: vehicle.dealer_zip,
+        dealer_phone: vehicle.dealer_phone,
+        dealer_lat: vehicle.dealer_lat,
+        dealer_lng: vehicle.dealer_lng,
+        listing_id: vehicle.listing_id,
+        listing_source: vehicle.listing_source || "MARKETCHECK",
+        listing_url: vehicle.listing_url,
+        photo_url: vehicle.photo_url,
+        body_class: vehicle.body_class,
+        vehicle_type: vehicle.vehicle_type,
+        curb_weight_lbs: vehicle.curb_weight_lbs,
+        weight_source: vehicle.weight_source,
+        last_refreshed_at: new Date().toISOString(),
+      };
+
+      const savedVehicle = await savedVehiclesCache.addVehicle(vehicleData);
+      await reloadSavedVehicles();
+
+      // Update the selected vehicle with the saved ID
+      if (savedVehicle?.id) {
+        setSelectedVehicle((prev: any) => ({
+          ...prev,
+          id: savedVehicle.id,
+          __source: "saved",
+        }));
+      }
+
+      toast.push({
+        kind: "success",
+        title: "Vehicle Saved!",
+        detail: `${vehicle.year} ${vehicle.make} ${vehicle.model} added to your library.`,
+      });
+    } catch (error: any) {
+      console.error("Failed to save vehicle:", error);
+      toast.push({
+        kind: "error",
+        title: "Could not save vehicle",
+        detail: error?.message || "Please try again.",
+      });
     }
   };
 
@@ -3868,6 +4087,7 @@ export const CalculatorApp: React.FC = () => {
         (vehicleData as any)?.__source ||
         (vehicleToEdit as any)?.__source ||
         (vehicleData as any)?.source ||
+        (vehicleToEdit as any)?.source ||
         "garage";
 
       const table =
@@ -3883,10 +4103,15 @@ export const CalculatorApp: React.FC = () => {
         user_id: currentUser.id,
       };
 
+      console.log('[VehicleSave] source:', source, 'table:', table);
+      console.log('[VehicleSave] dataToSave:', dataToSave);
+      console.log('[VehicleSave] photo_url:', dataToSave.photo_url);
+
       // Check if this is an update (has id) or new vehicle
       if (vehicleData.id) {
         // Update existing record
         const { id, ...updates } = dataToSave;
+        console.log('[VehicleSave] Updating with:', updates);
         const { error } = await supabase
           .from(table)
           .update(updates)
@@ -3918,6 +4143,7 @@ export const CalculatorApp: React.FC = () => {
           const refreshed = await savedVehiclesCache.getVehicles({
             forceRefresh: true,
           });
+          console.log('[VehicleSave] Refreshed saved vehicles:', refreshed?.map((v: any) => ({ id: v.id, photo_url: v.photo_url })));
           setSavedVehicles(refreshed || []);
         }
       } else if (table === "shared_vehicles") {
@@ -3929,6 +4155,14 @@ export const CalculatorApp: React.FC = () => {
 
         if (loadError) throw loadError;
         setSharedImportedVehicles(updatedShared || []);
+      }
+
+      // Update selectedVehicle if it's the same vehicle that was just saved
+      if (vehicleData.id && selectedVehicle?.id === vehicleData.id) {
+        setSelectedVehicle((prev: any) => ({
+          ...prev,
+          ...vehicleData,
+        }));
       }
 
       toast.push({
@@ -4436,8 +4670,17 @@ export const CalculatorApp: React.FC = () => {
                       onClear={() => {
                         setSelectedVehicle(null);
                         setVin("");
+                        setVehicleDiff(null);
                         setSliderValue("salePrice", 0, true);
                       }}
+                      showSaveButton={
+                        selectedVehicle.__source !== "saved" &&
+                        selectedVehicle.__source !== "garage" &&
+                        !isVehicleAlreadySaved(selectedVehicle.vin)
+                      }
+                      onSave={() => handleSaveNewVehicle(selectedVehicle)}
+                      vehicleDiff={vehicleDiff}
+                      isRefreshing={isRefreshingVehicle}
                     />
                   </div>
                 )}
@@ -4570,13 +4813,19 @@ export const CalculatorApp: React.FC = () => {
                       fullWidth
                     />
 
-                    <Select
-                      label="Loan Term"
-                      value={loanTerm.toString()}
-                      onChange={(e) => setLoanTerm(Number(e.target.value))}
-                      options={termOptions}
-                      fullWidth
-                    />
+                          <Select
+                            label="Loan Term"
+                            value={loanTerm.toString()}
+                            onChange={(e) => {
+                              setLoanTerm(Number(e.target.value));
+                              // If auto mode is on, let lender APR follow; otherwise keep manual APR intact
+                              if (useLowestApr && bestLenderApr != null) {
+                                applyLenderApr(bestLenderApr);
+                              }
+                            }}
+                            options={termOptions}
+                            fullWidth
+                          />
 
                     <Select
                       label="Credit Score Range"
@@ -4636,7 +4885,7 @@ export const CalculatorApp: React.FC = () => {
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 auto-rows-fr">
                         {/* APR with +/- controls */}
-                        <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/30 focus-within:border-emerald-400/50 focus-within:outline-none cursor-pointer">
+                          <div className="group rounded-2xl border border-white/10 bg-white/5 p-4 text-center backdrop-blur-sm flex flex-col min-h-[180px] justify-between transition-all duration-300 hover:bg-white/10 hover:border-emerald-400/30 focus-within:border-emerald-400/50 focus-within:outline-none cursor-pointer">
                           <EnhancedControl
                             value={apr}
                             label="Annual Percentage Rate"
@@ -5333,7 +5582,6 @@ export const CalculatorApp: React.FC = () => {
         onClose={() => setShowOfferPreviewModal(false)}
         leadData={leadDataForSubmission}
         onSubmit={(data) => handleOfferSubmitWithProgress(data, false)}
-        onDevSubmit={(data) => handleOfferSubmitWithProgress(data, true)}
         // ItemizationCard props - same as main app
         salePrice={salePrice}
         cashDown={cashDown}
@@ -5355,6 +5603,10 @@ export const CalculatorApp: React.FC = () => {
         tradeInApplied={effectiveAppliedTrade}
         tradeInCashout={effectiveTradeCashout}
         cashoutAmount={effectiveTradeCashout}
+        apr={apr}
+        loanTerm={loanTerm}
+        monthlyPayment={monthlyPayment}
+        ratesEffectiveDate={ratesEffectiveDate}
         // onChange handlers - same as main app
         onSalePriceChange={(value) =>
           setSliderValueWithSettling("salePrice", value)

@@ -414,6 +414,9 @@ export interface Database {
           vehicle_type: string | null
           curb_weight_lbs: number | null
           weight_source: string | null
+          last_refreshed_at: string | null
+          previous_asking_price: number | null
+          previous_mileage: number | null
         }
         Insert: {
           id?: string
@@ -448,6 +451,9 @@ export interface Database {
           vehicle_type?: string | null
           curb_weight_lbs?: number | null
           weight_source?: string | null
+          last_refreshed_at?: string | null
+          previous_asking_price?: number | null
+          previous_mileage?: number | null
         }
         Update: {
           id?: string
@@ -482,6 +488,9 @@ export interface Database {
           vehicle_type?: string | null
           curb_weight_lbs?: number | null
           weight_source?: string | null
+          last_refreshed_at?: string | null
+          previous_asking_price?: number | null
+          previous_mileage?: number | null
         }
       }
       customer_offers: {

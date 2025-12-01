@@ -1,6 +1,11 @@
 import React from 'react';
-import { Badge } from './Badge';
 import { formatCurrencyValue } from '../../utils/formatters';
+
+export interface VehicleDiff {
+  asking_price?: { was: number; now: number; change: number };
+  mileage?: { was: number; now: number; change: number };
+  photo_url?: { was: null; now: string };
+}
 
 export interface VehicleCardPremiumProps {
   vehicle: {
@@ -14,6 +19,7 @@ export interface VehicleCardPremiumProps {
     dealer_name?: string;
     dealer_city?: string;
     dealer_state?: string;
+    condition?: string;
   };
   salePrice?: number;
   mileage?: number;
@@ -21,6 +27,11 @@ export interface VehicleCardPremiumProps {
   isGarageVehicle?: boolean;
   salePriceLabel?: string;
   onClear?: () => void;
+  // New props for save and diff functionality
+  showSaveButton?: boolean;
+  onSave?: () => void;
+  vehicleDiff?: VehicleDiff | null;
+  isRefreshing?: boolean;
 }
 
 export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
@@ -31,6 +42,10 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
   isGarageVehicle = false,
   salePriceLabel = 'Sale Price',
   onClear,
+  showSaveButton = false,
+  onSave,
+  vehicleDiff,
+  isRefreshing = false,
 }) => {
   return (
     <div className="vehicle-card-premium group relative overflow-hidden">
@@ -44,6 +59,19 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
         <div className="absolute bottom-0 left-0 w-80 h-80 bg-cyan-500/20 rounded-full blur-3xl animate-pulse"
              style={{ animationDuration: '10s', animationDelay: '2s' }} />
       </div>
+
+      {/* Refreshing Overlay */}
+      {isRefreshing && (
+        <div className="absolute inset-0 z-20 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center">
+          <div className="flex items-center gap-3 px-4 py-2 rounded-full bg-blue-500/20 border border-blue-400/30">
+            <svg className="w-5 h-5 text-blue-400 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+            <span className="text-sm text-blue-300 font-medium">Refreshing data...</span>
+          </div>
+        </div>
+      )}
 
       {/* Content Container */}
       <div className="relative z-10">
@@ -61,26 +89,85 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
             </div>
           </div>
 
-          {onClear && (
-            <button
-              onClick={onClear}
-              className="group/btn flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10
-                         border border-white/10 hover:border-white/20 transition-all duration-300"
-            >
-              <svg
-                className="w-4 h-4 text-white/60 group-hover/btn:text-white/90 transition-colors"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+          <div className="flex items-center gap-2">
+            {/* Save Button */}
+            {showSaveButton && onSave && (
+              <button
+                onClick={onSave}
+                className="group/btn flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30
+                           border border-emerald-400/30 hover:border-emerald-400/50 transition-all duration-300"
+                title="Save to Library"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              <span className="text-sm text-white/60 group-hover/btn:text-white/90 transition-colors">
-                Clear
-              </span>
-            </button>
-          )}
+                <svg
+                  className="w-4 h-4 text-emerald-400 group-hover/btn:text-emerald-300 transition-colors"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="text-sm text-emerald-400 group-hover/btn:text-emerald-300 transition-colors">
+                  Save
+                </span>
+              </button>
+            )}
+
+            {onClear && (
+              <button
+                onClick={onClear}
+                className="group/btn flex items-center gap-2 px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10
+                           border border-white/10 hover:border-white/20 transition-all duration-300"
+              >
+                <svg
+                  className="w-4 h-4 text-white/60 group-hover/btn:text-white/90 transition-colors"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span className="text-sm text-white/60 group-hover/btn:text-white/90 transition-colors">
+                  Clear
+                </span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Diff Banner - Shows when there are changes */}
+        {vehicleDiff && (
+          <div className="px-4 py-2 bg-gradient-to-r from-emerald-500/10 to-blue-500/10 border-b border-emerald-400/20">
+            <div className="flex items-center gap-2 text-sm">
+              <svg className="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span className="text-emerald-300 font-medium">Data Updated</span>
+              <div className="flex items-center gap-3 ml-2">
+                {vehicleDiff.asking_price && (
+                  <span className={`${vehicleDiff.asking_price.change < 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    Price: {formatCurrencyValue(vehicleDiff.asking_price.was)}
+                    <span className="mx-1">→</span>
+                    {formatCurrencyValue(vehicleDiff.asking_price.now)}
+                    <span className="ml-1 text-xs">
+                      ({vehicleDiff.asking_price.change < 0 ? '' : '+'}
+                      {formatCurrencyValue(vehicleDiff.asking_price.change)})
+                    </span>
+                  </span>
+                )}
+                {vehicleDiff.mileage && (
+                  <span className="text-blue-400">
+                    Mileage: {vehicleDiff.mileage.was.toLocaleString()}
+                    <span className="mx-1">→</span>
+                    {vehicleDiff.mileage.now.toLocaleString()} mi
+                  </span>
+                )}
+                {vehicleDiff.photo_url && (
+                  <span className="text-cyan-400">Photo added</span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Main Content Grid */}
         <div className={`grid gap-4 p-4 ${vehicle.photo_url ? 'lg:grid-cols-2' : 'grid-cols-1'}`}>
@@ -154,9 +241,24 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
               <div className="text-xs uppercase tracking-[0.25em] text-blue-300/70 font-medium mb-2">
                 {salePriceLabel}
               </div>
-              <div className="text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-cyan-300"
-                   style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
-                {formatCurrencyValue(salePrice)}
+              <div className="flex items-baseline gap-3">
+                <div className="text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-cyan-300"
+                     style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
+                  {formatCurrencyValue(salePrice)}
+                </div>
+                {/* Show previous price if there was a price change */}
+                {vehicleDiff?.asking_price && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-white/40 line-through text-lg">
+                      {formatCurrencyValue(vehicleDiff.asking_price.was)}
+                    </span>
+                    {vehicleDiff.asking_price.change < 0 && (
+                      <span className="text-emerald-400 text-sm font-medium">
+                        (-{formatCurrencyValue(Math.abs(vehicleDiff.asking_price.change))})
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -183,8 +285,16 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
                                   group-hover/spec:text-blue-300/90 transition-colors">
                     Mileage
                   </div>
-                  <div className="text-white/90 font-semibold group-hover/spec:text-white transition-colors">
-                    {Number(mileage).toLocaleString()} mi
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-white/90 font-semibold group-hover/spec:text-white transition-colors">
+                      {Number(mileage).toLocaleString()} mi
+                    </span>
+                    {/* Show mileage diff */}
+                    {vehicleDiff?.mileage && (
+                      <span className="text-white/40 line-through text-xs">
+                        {vehicleDiff.mileage.was.toLocaleString()}
+                      </span>
+                    )}
                   </div>
                 </div>
               )}

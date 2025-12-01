@@ -100,7 +100,7 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           ? formatCurrencyValue(vehicle.payoff_amount)
           : ''
       );
-      setPhotoUrl(resolvedVehicleType === 'garage' ? vehicle.photo_url || '' : '');
+      setPhotoUrl(vehicle.photo_url || ''); // Load photo for all vehicle types
       setNotes(resolvedVehicleType === 'garage' ? vehicle.notes || '' : '');
     }
   }, [isOpen, vehicle, resolvedVehicleType]);
@@ -360,30 +360,68 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast.push({
-          kind: 'error',
-          title: 'Invalid file',
-          detail: 'Please select an image file'
-        });
-        return;
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast.push({
-          kind: 'error',
-          title: 'File too large',
-          detail: 'Please select an image smaller than 5MB'
-        });
-        return;
-      }
-
-      setPhotoFile(file);
-      handlePhotoUpload(file);
+      validateAndUploadFile(file);
     }
   };
+
+  // Validate and upload file helper
+  const validateAndUploadFile = (file: File) => {
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.push({
+        kind: 'error',
+        title: 'Invalid file',
+        detail: 'Please select an image file'
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.push({
+        kind: 'error',
+        title: 'File too large',
+        detail: 'Please select an image smaller than 5MB'
+      });
+      return;
+    }
+
+    setPhotoFile(file);
+    handlePhotoUpload(file);
+  };
+
+  // Handle paste from clipboard
+  const handlePaste = useCallback(async (e: React.ClipboardEvent | ClipboardEvent) => {
+    const items = (e as ClipboardEvent).clipboardData?.items || (e as React.ClipboardEvent).clipboardData?.items;
+    if (!items) return;
+
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        e.preventDefault();
+        const file = item.getAsFile();
+        if (file) {
+          validateAndUploadFile(file);
+          return;
+        }
+      }
+    }
+  }, []);
+
+  // Listen for paste events on the document when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleDocumentPaste = (e: ClipboardEvent) => {
+      // Only handle if modal is focused/active
+      const modal = document.querySelector('[role="dialog"]');
+      if (modal && modal.contains(document.activeElement)) {
+        handlePaste(e);
+      }
+    };
+
+    document.addEventListener('paste', handleDocumentPaste);
+    return () => document.removeEventListener('paste', handleDocumentPaste);
+  }, [isOpen, handlePaste]);
 
   // Focus next input helper
   const focusNextInput = (currentElement: HTMLElement) => {
@@ -428,7 +466,7 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
         condition: condition || undefined,
         estimated_value: resolvedVehicleType === 'garage' ? (estimatedValue ? parseCurrency(estimatedValue) : undefined) : undefined,
         payoff_amount: resolvedVehicleType === 'garage' ? (payoffAmount ? parseCurrency(payoffAmount) : undefined) : undefined,
-        photo_url: resolvedVehicleType === 'garage' ? (photoUrl.trim() || undefined) : undefined,
+        photo_url: photoUrl.trim() || undefined, // Allow photo for all vehicle types
         notes: resolvedVehicleType === 'garage' ? (notes.trim() || undefined) : undefined,
       };
 
@@ -781,15 +819,16 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
           );
         })()}
 
-        {/* Photo Upload (garage only) */}
-        {resolvedVehicleType === 'garage' && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-emerald-300/80">
-              Vehicle Photo (Optional)
-            </label>
+        {/* Photo Upload - Available for all vehicle types */}
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-emerald-300/80">
+            Vehicle Photo (Optional)
+          </label>
 
-            <div className="flex items-center gap-4">
-              <label className="flex-1">
+          <div className="flex items-center gap-4">
+            {/* Upload/Paste Area */}
+            <div className="flex-1 space-y-2">
+              <label className="block">
                 <input
                   type="file"
                   accept="image/*"
@@ -797,52 +836,78 @@ export const VehicleEditorModal: React.FC<VehicleEditorModalProps> = ({
                   disabled={photoUploading}
                   className="hidden"
                 />
-                <div className={`
-                  flex items-center justify-center gap-2 px-4 py-2
-                  border-2 border-dashed rounded-lg cursor-pointer
-                  transition-colors
-                  ${photoUploading
-                    ? 'border-white/20 bg-white/5 cursor-not-allowed'
-                    : 'border-blue-400/30 bg-blue-500/10 hover:border-blue-400/50 hover:bg-blue-500/20'
-                  }
-                `}>
-                  <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div
+                  className={`
+                    flex flex-col items-center justify-center gap-2 px-4 py-4
+                    border-2 border-dashed rounded-lg cursor-pointer
+                    transition-colors
+                    ${photoUploading
+                      ? 'border-white/20 bg-white/5 cursor-not-allowed'
+                      : 'border-blue-400/30 bg-blue-500/10 hover:border-blue-400/50 hover:bg-blue-500/20'
+                    }
+                  `}
+                  onPaste={handlePaste}
+                  tabIndex={0}
+                >
+                  <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                   <span className="text-sm font-medium text-blue-300">
-                    {photoUploading ? 'Uploading...' : 'Choose Photo'}
+                    {photoUploading ? 'Uploading...' : 'Click to upload'}
+                  </span>
+                  <span className="text-xs text-white/40">
+                    or paste from clipboard (Ctrl+V)
                   </span>
                 </div>
               </label>
 
-              {photoUrl && (
-                <div className="relative w-24 h-24 rounded-lg overflow-hidden border-2 border-gray-200">
-                  <img
-                    src={photoUrl}
-                    alt="Vehicle"
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPhotoUrl('');
-                      setPhotoFile(null);
-                    }}
-                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              )}
+              {/* URL Input Option */}
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-px bg-white/10" />
+                <span className="text-xs text-white/40">or enter URL</span>
+                <div className="flex-1 h-px bg-white/10" />
+              </div>
+              <input
+                type="url"
+                placeholder="https://example.com/photo.jpg"
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                className="w-full px-3 py-2 text-sm bg-black/20 border border-white/10 rounded-lg text-white placeholder-white/30 focus:border-blue-400/50 focus:outline-none focus:ring-1 focus:ring-blue-400/50"
+              />
             </div>
 
-            <p className="text-xs text-white/50">
-              JPG, PNG, or GIF • Max 5MB
-            </p>
+            {/* Photo Preview */}
+            {photoUrl && (
+              <div className="relative w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden border-2 border-emerald-400/30 bg-slate-800">
+                <img
+                  src={photoUrl}
+                  alt="Vehicle"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="%23666" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>';
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPhotoUrl('');
+                    setPhotoFile(null);
+                  }}
+                  className="absolute top-1 right-1 p-1.5 bg-red-500/90 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                  title="Remove photo"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
-        )}
+
+          <p className="text-xs text-white/50">
+            JPG, PNG, or GIF • Max 5MB • Paste image from clipboard or enter URL
+          </p>
+        </div>
 
         {/* Notes */}
         {resolvedVehicleType === 'garage' && (

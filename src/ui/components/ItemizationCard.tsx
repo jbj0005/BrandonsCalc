@@ -128,6 +128,7 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                 value={salePrice}
                 onChange={onSalePriceChange}
                 className="text-base font-bold text-white w-40"
+                autoFocus
               />
             ) : (
               <span className="text-base font-bold text-white">
