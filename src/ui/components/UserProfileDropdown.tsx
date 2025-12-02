@@ -531,7 +531,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   location={activeSection === 'profile' ? profile?.street_address || '' : ''}
                   onLocationChange={(value) => onUpdateField('street_address', value)}
                   onPlaceSelected={(details) => {
-                    onUpdateField('street_address', details.formatted_address || details.city || '');
+                    // Use street_address (street number + route only), fallback to formatted_address
+                    onUpdateField('street_address', details.street_address || details.formatted_address || '');
                     onUpdateField('city', details.city || '');
                     onUpdateField('state', details.state || '');
                     onUpdateField('state_code', details.state || '');

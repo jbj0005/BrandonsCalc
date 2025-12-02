@@ -4,6 +4,7 @@ import type { PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 
 export interface LocationDetails {
   formatted_address?: string;
+  street_address?: string;
   city?: string;
   state?: string;
   zip?: string;
@@ -128,6 +129,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     onLocationChange(description);
     setPredictions([]);
     setIsPredictionsOpen(false);
+    setHasInteracted(false); // Prevent refetch after selection
 
     const placePrediction = prediction.placePrediction;
     if (!placePrediction?.toPlace) return;
@@ -150,6 +152,11 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
         const countyName =
           countyRaw?.replace(/\s+(County|Parish)$/i, '').trim() || countyRaw || '';
 
+        // Extract street address (street number + route)
+        const streetNumber = getComponent('street_number');
+        const route = getComponent('route');
+        const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
+
         const lat =
           typeof details.location?.lat === 'function'
             ? details.location.lat()
@@ -161,6 +168,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
 
         onPlaceSelected?.({
           formatted_address: details.formattedAddress || description,
+          street_address: streetAddress || undefined,
           city: getComponent('locality') || getComponent('sublocality'),
           state: getComponent('administrative_area_level_1', 'shortText'),
           zip: getComponent('postal_code'),
