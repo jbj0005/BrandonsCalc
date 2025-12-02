@@ -3384,26 +3384,15 @@ export const CalculatorApp: React.FC = () => {
     // Check if vehicle data needs refresh (stale or missing photo)
     const { needsRefresh, reason } = savedVehiclesCache.checkNeedsRefresh(vehicle, 7);
 
-    console.log('[Smart Refresh] Vehicle:', vehicle.vin, {
-      needsRefresh,
-      reason,
-      hasVin: vehicleVin.length >= 11,
-      hasId: !!vehicle.id,
-      photo_url: vehicle.photo_url,
-      last_refreshed_at: vehicle.last_refreshed_at
-    });
-
     if (needsRefresh && vehicleVin.length >= 11 && vehicle.id) {
       setIsRefreshingVehicle(true);
 
       try {
-        console.log('[Smart Refresh] Starting refresh for vehicle ID:', vehicle.id);
         const refreshResult = await savedVehiclesCache.refreshVehicleFromMarketCheck(
           vehicle.id,
           marketCheckCache,
           { zip: locationDetails?.zipCode || undefined }
         );
-        console.log('[Smart Refresh] Result:', refreshResult);
 
         if (refreshResult.listingUnavailable) {
           toast.push({

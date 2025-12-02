@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { loadGoogleMapsScript } from '../../utils/loadGoogleMaps';
-import { useGoogleMapsAutocomplete } from '../../hooks/useGoogleMapsAutocomplete';
 import type { PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
 
 export interface LocationDetails {
@@ -36,6 +35,12 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
 }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+  const [mapsReady, setMapsReady] = useState(false);
+  const [predictions, setPredictions] = useState<google.maps.places.AutocompleteSuggestion[]>([]);
+  const [isPredictionsOpen, setIsPredictionsOpen] = useState(false);
+  const autocompleteSuggestionRef = useRef<typeof google.maps.places.AutocompleteSuggestion | null>(null);
+  const [hasInteracted, setHasInteracted] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // Local state to prevent focus loss during typing
   const [localValue, setLocalValue] = useState(location);
@@ -64,7 +69,9 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     if (!apiKey) {
       return;
     }
-    loadGoogleMapsScript().catch(() => {});
+    loadGoogleMapsScript()
+      .then(() => setMapsReady(true))
+      .catch(() => setMapsReady(false));
   }, [apiKey]);
 
   // Memoize autocomplete options to prevent effect from re-running on every render
@@ -72,28 +79,98 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   const autocompleteTypes = useMemo(() => ['geocode'], []);
   const autocompleteRestrictions = useMemo(() => ({ country: 'us' }), []);
 
-  // Modern autocomplete via PlaceAutocompleteElement
-  // Only enable after input is mounted so the hook can find inputRef.current
-  useGoogleMapsAutocomplete(inputRef, {
-    enabled: inputMounted,
-    types: autocompleteTypes,
-    componentRestrictions: autocompleteRestrictions,
-    onPlaceSelected: (place: PlaceDetails) => {
-      const displayAddress = place.address || '';
-      if (displayAddress) {
-        onLocationChange(displayAddress);
-      }
-      onPlaceSelected?.({
-        formatted_address: displayAddress,
-        city: place.city,
-        state: place.state,
-        zip: place.zipCode,
-        county: place.countyName || place.county,
-        latitude: place.lat,
-        longitude: place.lng,
-      });
-    },
-  });
+  // Wire up Google Places services once Maps is ready
+  useEffect(() => {
+    if (!mapsReady || !window.google?.maps?.places) return;
+    autocompleteSuggestionRef.current = google.maps.places.AutocompleteSuggestion;
+  }, [mapsReady]);
+
+  // Debounced prediction fetch
+  useEffect(() => {
+    if (!mapsReady || !autocompleteSuggestionRef.current || !hasInteracted) return;
+    const trimmed = localValue.trim();
+    if (trimmed.length < 3) {
+      setPredictions([]);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      autocompleteSuggestionRef.current
+        ?.fetchAutocompleteSuggestions({
+          input: trimmed,
+          region: autocompleteRestrictions.country,
+        } as any)
+        .then((res) => {
+          const suggestions = res?.suggestions || [];
+          setPredictions(suggestions);
+          setIsPredictionsOpen(
+            hasInteracted && isInputFocused && suggestions.length > 0
+          );
+        })
+        .catch(() => {
+          setPredictions([]);
+          setIsPredictionsOpen(false);
+        });
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [localValue, autocompleteRestrictions, autocompleteTypes, mapsReady, hasInteracted, isInputFocused]);
+
+  const handlePredictionSelect = (prediction: google.maps.places.AutocompleteSuggestion) => {
+    const text =
+      prediction.placePrediction?.text?.toString() ||
+      prediction.placePrediction?.structuredFormat?.mainText?.toString() ||
+      '';
+
+    const description = text || (prediction as any).description || '';
+
+    setLocalValue(description);
+    onLocationChange(description);
+    setPredictions([]);
+    setIsPredictionsOpen(false);
+
+    const placePrediction = prediction.placePrediction;
+    if (!placePrediction?.toPlace) return;
+
+    const place = placePrediction.toPlace();
+    place
+      .fetchFields({
+        fields: ['formattedAddress', 'addressComponents', 'location', 'displayName'],
+      })
+      .then((details) => {
+        const getComponent = (
+          type: string,
+          nameType: 'longText' | 'shortText' = 'longText'
+        ) => {
+          const component = details.addressComponents?.find((c) => c.types?.includes(type));
+          return component ? (nameType === 'shortText' ? component.shortText : component.longText) : '';
+        };
+
+        const countyRaw = getComponent('administrative_area_level_2');
+        const countyName =
+          countyRaw?.replace(/\s+(County|Parish)$/i, '').trim() || countyRaw || '';
+
+        const lat =
+          typeof details.location?.lat === 'function'
+            ? details.location.lat()
+            : (details.location as any)?.lat;
+        const lng =
+          typeof details.location?.lng === 'function'
+            ? details.location.lng()
+            : (details.location as any)?.lng;
+
+        onPlaceSelected?.({
+          formatted_address: details.formattedAddress || description,
+          city: getComponent('locality') || getComponent('sublocality'),
+          state: getComponent('administrative_area_level_1', 'shortText'),
+          zip: getComponent('postal_code'),
+          county: countyName,
+          latitude: lat,
+          longitude: lng,
+        });
+      })
+      .catch(() => {});
+  };
 
   const hasLocation = locationDetails && locationDetails.city && locationDetails.state;
 
@@ -190,11 +267,24 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
                   ref={inputRef}
                   type="text"
                   value={localValue}
-                  onChange={(e) => setLocalValue(e.target.value)}
+                  onChange={(e) => {
+                    setHasInteracted(true);
+                    setLocalValue(e.target.value);
+                  }}
                   onBlur={() => {
                     // Only sync if value actually changed
                     if (localValue !== location) {
                       onLocationChange(localValue);
+                    }
+                    // Close dropdown after a short delay to allow click
+                    setIsInputFocused(false);
+                    setTimeout(() => setIsPredictionsOpen(false), 150);
+                  }}
+                  onFocus={() => {
+                    setHasInteracted(true);
+                    setIsInputFocused(true);
+                    if (predictions.length > 0) {
+                      setIsPredictionsOpen(true);
                     }
                   }}
                   placeholder={placeholder}
@@ -204,6 +294,34 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
                              placeholder:text-white/20
                              transition-all duration-300"
                 />
+                {isPredictionsOpen && predictions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-2 z-40">
+                    <div className="bg-slate-900/95 border border-white/10 rounded-xl shadow-2xl overflow-hidden backdrop-blur-md">
+                      <ul className="divide-y divide-white/5">
+                        {predictions.map((p) => (
+                          <li
+                            key={p.placePrediction?.placeId || (p as any).place_id || p.placePrediction?.text?.toString() || p.placePrediction?.mainText?.toString() || (p as any).description}
+                            data-testid="autocomplete-option"
+                            className="px-4 py-3 hover:bg-white/5 cursor-pointer"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handlePredictionSelect(p)}
+                          >
+                            <div className="text-sm text-white font-semibold">
+                              {p.placePrediction?.mainText?.toString?.() ||
+                                p.placePrediction?.text?.toString?.() ||
+                                (p as any).description}
+                            </div>
+                            {p.placePrediction?.secondaryText && (
+                              <div className="text-xs text-white/60">
+                                {p.placePrediction.secondaryText.toString()}
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
                 {/* Success Checkmark */}
                 {hasLocation && !isLoading && !error && (
@@ -241,7 +359,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
           position: relative;
         }
         /* Allow autocomplete dropdown to render outside card bounds */
-        .location-search-premium gmpx-place-autocomplete {
+        .location-search-premium gmp-place-autocomplete {
           display: block;
           position: relative;
           overflow: visible;
