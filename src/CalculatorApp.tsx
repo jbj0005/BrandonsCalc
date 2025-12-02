@@ -2500,14 +2500,55 @@ export const CalculatorApp: React.FC = () => {
   const hasTradeInSelected = selectedTradeIns.length > 0;
 
   const feeEngineUserProfile = useMemo(() => {
-    if (!profile) return undefined;
-    return {
-      state_code: profile.state_code || profile.state,
-      county_name: profile.county_name || profile.county,
-      city: profile.city || undefined,
-      zip_code: profile.zip_code || undefined,
+    const locationBased =
+      locationDetails && (locationDetails.stateCode || locationDetails.state)
+        ? {
+            state_code: locationDetails.stateCode || locationDetails.state,
+            state: locationDetails.state || locationDetails.stateCode,
+            county_name: locationDetails.countyName || locationDetails.county,
+            county: locationDetails.county || locationDetails.countyName,
+            city: locationDetails.city || undefined,
+            zip_code: locationDetails.zipCode || undefined,
+          }
+        : undefined;
+
+    const profileBased = profile
+      ? {
+          state_code: profile.state_code || profile.state,
+          state: profile.state || profile.state_code,
+          county_name: profile.county_name || profile.county,
+          county: profile.county || profile.county_name,
+          city: profile.city || undefined,
+          zip_code: profile.zip_code || undefined,
+        }
+      : undefined;
+
+    const vehicleBased =
+      selectedVehicle && (selectedVehicle.dealer_state || selectedVehicle.state)
+        ? {
+            state_code: selectedVehicle.dealer_state || selectedVehicle.state,
+            state: selectedVehicle.dealer_state || selectedVehicle.state,
+            city: selectedVehicle.dealer_city || undefined,
+            zip_code:
+              selectedVehicle.dealer_zip ||
+              selectedVehicle.zip ||
+              selectedVehicle.zip_code ||
+              undefined,
+          }
+        : undefined;
+
+    const merged = {
+      ...(profileBased || {}),
+      ...(vehicleBased || {}),
+      ...(locationBased || {}),
     };
-  }, [profile]);
+
+    if (!merged.state_code && merged.state) {
+      merged.state_code = merged.state;
+    }
+
+    return merged.state_code ? merged : undefined;
+  }, [locationDetails, profile, selectedVehicle]);
 
   // Reset vehicle meta only when selection is cleared (not when switching vehicles)
   // Weight is now handled by selection handlers + background NHTSA fetch
