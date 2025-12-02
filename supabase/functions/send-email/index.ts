@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // Mailtrap Configuration (consistent with server/server.js)
-const MAILTRAP_TOKEN = Deno.env.get('MAILTRAP_TOKEN') || Deno.env.get('MAILTRAP_DEMO_TOKEN') || '';
+const MAILTRAP_TOKEN_ENV = Deno.env.get('MAILTRAP_TOKEN') || Deno.env.get('MAILTRAP_DEMO_TOKEN') || '';
 const EMAIL_FROM = Deno.env.get('MAILTRAP_FROM_EMAIL') || Deno.env.get('EMAIL_FROM') || 'sandbox@mailtrap.io';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -34,14 +34,6 @@ serve(async (req) => {
   }
 
   try {
-    // Validate required environment variables
-    if (!MAILTRAP_TOKEN) {
-      throw new Error('MAILTRAP_TOKEN environment variable not set');
-    }
-    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-      throw new Error('Supabase environment variables not set');
-    }
-
     // Parse request body
     const {
       offerId,
@@ -70,13 +62,6 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    if (!MAILTRAP_TOKEN) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'MAILTRAP_TOKEN not set' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Provide defaults
     const finalOfferText = offerText && offerText.trim()
       ? offerText
@@ -86,6 +71,33 @@ serve(async (req) => {
 
     // Create Supabase client with service role key
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Resolve Mailtrap token (env first, then secure_settings)
+    const resolveMailtrapToken = async (): Promise<string> => {
+      if (MAILTRAP_TOKEN_ENV) return MAILTRAP_TOKEN_ENV;
+
+      const candidateKeys = ['mailtrap_token', 'mailtrap_api_token', 'MAILTRAP_TOKEN'];
+      for (const key of candidateKeys) {
+        const { data, error } = await supabase
+          .from('secure_settings')
+          .select('secret')
+          .eq('name', key)
+          .maybeSingle();
+        if (data?.secret && !error) {
+          const token = data.secret.trim();
+          if (token) return token;
+        }
+      }
+      return '';
+    };
+
+    const MAILTRAP_TOKEN = await resolveMailtrapToken();
+    if (!MAILTRAP_TOKEN) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'MAILTRAP_TOKEN not set (env or secure_settings)' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Build email subject and body (share vs offer)
     const subject = isShare

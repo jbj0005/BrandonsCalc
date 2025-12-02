@@ -211,17 +211,48 @@ export const MyOffersModal: React.FC<MyOffersModalProps> = ({
 
       const offerText = generateOfferText(leadLike as any, format as any);
 
-      const { error, data } = await supabase.functions.invoke('send-email', {
-        body: {
-          offerId: offer.id,
-          recipientEmail,
-          recipientName,
-          offerText: offerText || 'No offer details available',
-          vehicleInfo
-        }
-      });
+      const sendViaEdge = async () => {
+        const { error, data } = await supabase.functions.invoke('send-email', {
+          body: {
+            offerId: offer.id,
+            recipientEmail,
+            recipientName,
+            offerText: offerText || 'No offer details available',
+            vehicleInfo
+          }
+        });
 
-      if (error) throw new Error((data as any)?.error || error.message);
+        if (error) {
+          throw new Error((data as any)?.error || error.message);
+        }
+      };
+
+      const sendViaApi = async () => {
+        const response = await fetch('/api/send-offer-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            recipientEmail,
+            recipientName,
+            vehicleInfo,
+            offerText: offerText || 'No offer details available',
+          }),
+        });
+
+        if (!response.ok) {
+          const detail = await response.json().catch(() => ({}));
+          throw new Error(detail?.detail || detail?.error || response.statusText);
+        }
+      };
+
+      // Try Supabase edge function first, then fall back to API server Mailtrap sender
+      try {
+        await sendViaEdge();
+      } catch (edgeErr: any) {
+        console.warn('Edge email send failed, falling back to API server:', edgeErr?.message || edgeErr);
+        await sendViaApi();
+      }
+
       toast.push({
         kind: 'success',
         title: 'Email Sent',
