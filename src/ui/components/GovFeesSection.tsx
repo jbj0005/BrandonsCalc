@@ -28,7 +28,7 @@ export const GovFeesSection: React.FC<GovFeesSectionProps> = ({
       {/* Header with toggle */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-          Government Fees
+          Est. Gov't Fees
         </h3>
 
         {/* Mode Toggle */}
@@ -74,7 +74,7 @@ export const GovFeesSection: React.FC<GovFeesSectionProps> = ({
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {autoModeEnabled
                 ? 'Add your location to auto-calculate fees'
-                : 'Click "+ Add Fee" to add government fees'}
+                : 'Click "+ Add Fee" to add gov\'t fees'}
             </p>
           </div>
         ) : (

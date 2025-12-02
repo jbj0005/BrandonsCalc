@@ -5253,7 +5253,7 @@ export const CalculatorApp: React.FC = () => {
                     Fees & Customer Add-ons
                   </h2>
                   <p className="text-sm text-white/50">
-                    Dealer fees, add-ons, and government fees
+                    Dealer fees, add-ons, and est. gov't fees
                   </p>
                 </div>
               </div>
@@ -5295,7 +5295,7 @@ export const CalculatorApp: React.FC = () => {
                 </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                <div className="text-xs text-white/60 mb-1">Gov't Fees</div>
+                <div className="text-xs text-white/60 mb-1">Est. Gov't Fees</div>
                 <div className="text-lg font-semibold text-white">
                   {formatCurrency(govtFees)}
                 </div>

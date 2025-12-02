@@ -1012,7 +1012,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
 
           {/* Gov't Fees Section */}
           <ModernFeeSection
-            title="Government Fees"
+            title="Est. Gov't Fees"
             category="gov"
             fees={govRows}
             total={govTotal}
@@ -1117,7 +1117,7 @@ export const FeesModal: React.FC<FeesModalProps> = ({
                 <span className="font-semibold">{formatCurrencyExact(customerTotal)}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span>Total Gov't Fees</span>
+                <span>Est. Gov't Fees</span>
                 <span className="font-semibold">{formatCurrencyExact(govTotal)}</span>
               </div>
               <div className="flex items-center justify-between pt-2 border-t border-white/20">

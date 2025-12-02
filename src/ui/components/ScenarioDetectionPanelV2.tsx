@@ -210,12 +210,12 @@ export const ScenarioDetectionPanelV2: React.FC<ScenarioDetectionPanelV2Props> =
               </div>
               <div>
                 <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Step 3</div>
-                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Government Fee Results</div>
+                <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Est. Gov't Fee Results</div>
               </div>
             </div>
             <div className="space-y-2">
               {govLineItems.length === 0 ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400">No government fees calculated</div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">No est. gov't fees calculated</div>
               ) : (
                 <>
                   {govLineItems.slice(0, 5).map((item, idx) => (

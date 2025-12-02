@@ -271,7 +271,7 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
                 )}
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-white/60">Total Gov't Fees</span>
+                <span className="text-white/60">Est. Gov't Fees</span>
                 {onGovtFeesChange ? (
                   <CurrencyInput
                     value={govtFees}

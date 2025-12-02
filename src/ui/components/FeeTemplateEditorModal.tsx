@@ -188,7 +188,7 @@ export const FeeTemplateEditorModal: React.FC<FeeTemplateEditorModalProps> = ({
   const tabs: Array<{ key: FeeCategory; label: string; color: string }> = [
     { key: 'dealer', label: 'Dealer Fees', color: 'blue' },
     { key: 'customer', label: 'Customer Add-ons', color: 'green' },
-    { key: 'gov', label: "Gov't Fees", color: 'amber' },
+    { key: 'gov', label: "Est. Gov't Fees", color: 'amber' },
   ];
 
   const currentTemplates = templates[activeTab] || [];
