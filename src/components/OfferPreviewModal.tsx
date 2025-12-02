@@ -245,11 +245,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
           style={heroBackgroundStyle}
         >
           <div className="relative flex flex-col items-center gap-3">
-            <div className="flex flex-wrap justify-center gap-2 text-xs font-semibold uppercase tracking-[0.2em]">
-              <span className="px-3 py-1 rounded-full bg-white/15 border border-white/20">Nearly Yours</span>
-              <span className="px-3 py-1 rounded-full bg-black/25 border border-white/10">Ready to send</span>
-            </div>
-
             <div className="text-5xl md:text-6xl font-bold" style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
               {formatCurrencyExact(leadData.vehiclePrice || 0)}
             </div>

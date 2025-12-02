@@ -5259,7 +5259,7 @@ export const CalculatorApp: React.FC = () => {
               </div>
               <button
                 onClick={() => setShowFeesModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl transition-all duration-200 border border-cyan-400/30 shadow-lg shadow-emerald-500/10"
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 rounded-xl transition-all duration-200 border border-blue-400/20 shadow-lg shadow-blue-900/20"
               >
                 <svg
                   width="14"
@@ -5509,35 +5509,15 @@ export const CalculatorApp: React.FC = () => {
 
         {/* Preview Offer CTA */}
         <div className="mt-4 relative group">
-          {/* Glow effect */}
-          <div className="absolute -inset-0.5 bg-gradient-to-r from-emerald-500 via-cyan-500 to-blue-500 rounded-2xl blur opacity-30 group-hover:opacity-60 transition-opacity duration-500" />
+          {/* Subtle glow effect */}
+          <div className="absolute -inset-0.5 bg-blue-500 rounded-xl blur-md opacity-20 group-hover:opacity-40 transition-opacity duration-300" />
 
           {/* Button */}
           <button
             onClick={handleSubmit}
-            className="relative w-full px-8 py-5 bg-gradient-to-r from-emerald-600 via-cyan-600 to-blue-600 hover:from-emerald-500 hover:via-cyan-500 hover:to-blue-500 text-white text-xl font-bold rounded-2xl transition-all duration-300 shadow-2xl hover:shadow-emerald-500/50 border border-emerald-400/30"
+            className="relative w-full px-6 py-4 bg-gradient-to-b from-blue-500 to-blue-600 hover:from-blue-400 hover:to-blue-500 text-white text-lg font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-blue-900/30 hover:shadow-blue-500/25 border border-blue-400/20 active:scale-[0.98]"
           >
-            <div className="flex items-center justify-center gap-3">
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                />
-              </svg>
-              <span>Preview Offer</span>
+            <div className="flex items-center justify-center gap-2.5">
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -5547,7 +5527,27 @@ export const CalculatorApp: React.FC = () => {
                 <path
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                />
+              </svg>
+              <span>Preview Offer</span>
+              <svg
+                className="w-4 h-4 opacity-70"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
                   d="M9 5l7 7-7 7"
                 />
               </svg>
