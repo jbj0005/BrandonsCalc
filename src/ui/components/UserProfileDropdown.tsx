@@ -8,7 +8,7 @@
  * 4. My Offers - Submitted offers
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Input } from './Input';
 import { Button } from './Button';
@@ -98,6 +98,34 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const [activeUserId, setActiveUserId] = useState<string | null>(currentUserId ?? null);
   const [showSharingModal, setShowSharingModal] = useState(false);
 
+  // Local state for form fields to prevent focus loss during typing
+  // These sync FROM profile on mount/profile change, and TO profile on blur
+  const [localFullName, setLocalFullName] = useState(profile?.full_name || '');
+  const [localEmail, setLocalEmail] = useState(profile?.email || '');
+  const [localPhone, setLocalPhone] = useState(profile?.phone || '');
+  const [localDownPayment, setLocalDownPayment] = useState(
+    profile?.preferred_down_payment != null ? profile.preferred_down_payment : 0
+  );
+
+  // Track if local values differ from profile (for enabling Save button)
+  const localIsDirty = useMemo(() => {
+    if (!profile) return false;
+    return (
+      localFullName !== (profile.full_name || '') ||
+      localEmail !== (profile.email || '') ||
+      localPhone !== (profile.phone || '') ||
+      localDownPayment !== (profile.preferred_down_payment ?? 0)
+    );
+  }, [localFullName, localEmail, localPhone, localDownPayment, profile]);
+
+  // Sync local state when profile changes (e.g., on load)
+  useEffect(() => {
+    setLocalFullName(profile?.full_name || '');
+    setLocalEmail(profile?.email || '');
+    setLocalPhone(profile?.phone || '');
+    setLocalDownPayment(profile?.preferred_down_payment ?? 0);
+  }, [profile?.full_name, profile?.email, profile?.phone, profile?.preferred_down_payment]);
+
   // Store onUpdateField in a ref to avoid effect re-runs
   const onUpdateFieldRef = useRef(onUpdateField);
   useEffect(() => {
@@ -158,10 +186,11 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
 
     try {
       setIsSaving(true);
+      // Use local state values for fields managed locally, profile for others
       await onSaveProfile({
-        full_name: profile.full_name,
-        email: profile.email,
-        phone: profile.phone,
+        full_name: localFullName,
+        email: localEmail,
+        phone: localPhone,
         street_address: profile.street_address,
         city: profile.city,
         state: profile.state,
@@ -171,7 +200,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
         county_name: profile.county_name,
         google_place_id: profile.google_place_id,
         credit_score_range: profile.credit_score_range,
-        preferred_down_payment: profile.preferred_down_payment,
+        preferred_down_payment: localDownPayment,
       });
       toast.push({
         kind: 'success',
@@ -466,8 +495,9 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 <Input
                   label="Full Name"
                   type="text"
-                  value={profile?.full_name || ''}
-                  onChange={(e) => onUpdateField('full_name', e.target.value)}
+                  value={localFullName}
+                  onChange={(e) => setLocalFullName(e.target.value)}
+                  onBlur={() => onUpdateField('full_name', localFullName)}
                   placeholder="Enter your name"
                   fullWidth
                 />
@@ -475,8 +505,9 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 <Input
                   label="Email"
                   type="email"
-                  value={profile?.email || ''}
-                  onChange={(e) => onUpdateField('email', e.target.value)}
+                  value={localEmail}
+                  onChange={(e) => setLocalEmail(e.target.value)}
+                  onBlur={() => onUpdateField('email', localEmail)}
                   placeholder="your@email.com"
                   fullWidth
                 />
@@ -484,8 +515,9 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 <Input
                   label="Phone"
                   type="tel"
-                  value={profile?.phone ? formatPhoneNumber(profile.phone) : ''}
-                  onChange={(e) => onUpdateField('phone', formatPhoneNumber(e.target.value))}
+                  value={formatPhoneNumber(localPhone)}
+                  onChange={(e) => setLocalPhone(formatPhoneNumber(e.target.value))}
+                  onBlur={() => onUpdateField('phone', localPhone)}
                   placeholder="(555) 123-4567"
                   fullWidth
                 />
@@ -509,28 +541,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   }}
                   placeholder="Start typing your address..."
                 />
-
-                {/* Auto-filled address summary */}
-                {(profile?.city || profile?.state_code || profile?.zip_code) && (
-                  <div className="p-3 rounded-lg bg-emerald-500/10 border border-emerald-400/20">
-                    <div className="flex items-start gap-2">
-                      <svg className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
-                      </svg>
-                      <div className="text-sm">
-                        {profile?.street_address && (
-                          <div className="text-white font-medium">{profile.street_address}</div>
-                        )}
-                        <div className="text-white/70">
-                          {[profile?.city, profile?.state_code, profile?.zip_code].filter(Boolean).join(', ')}
-                        </div>
-                        {profile?.county && (
-                          <div className="text-white/50 text-xs mt-1">{profile.county} County</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               {/* Preferences */}
@@ -558,15 +568,12 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 <Input
                   label="Preferred Down Payment"
                   type="text"
-                  value={
-                    profile?.preferred_down_payment != null
-                      ? formatCurrency(profile.preferred_down_payment)
-                      : ''
-                  }
+                  value={localDownPayment > 0 ? formatCurrency(localDownPayment) : ''}
                   onChange={(e) => {
                     const value = parseDownPayment(e.target.value);
-                    onUpdateField('preferred_down_payment', value);
+                    setLocalDownPayment(value);
                   }}
+                  onBlur={() => onUpdateField('preferred_down_payment', localDownPayment)}
                   placeholder="$5,000"
                   helperText="Your typical down payment amount"
                   fullWidth
@@ -580,7 +587,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                   size="sm"
                   onClick={handleSaveProfile}
                   fullWidth
-                  disabled={!isDirty || isSaving}
+                  disabled={!(isDirty || localIsDirty) || isSaving}
                   loading={isSaving}
                   className="shadow-lg shadow-blue-500/25"
                 >

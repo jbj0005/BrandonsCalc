@@ -245,9 +245,9 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
         {/* Dropdown - Saved Vehicles */}
         {isDropdownOpen && totalVehicles > 0 && (
           <div className="absolute z-50 w-full mt-2 animate-in slide-in-from-top-4 duration-300">
-            <div className="rounded-xl overflow-hidden bg-slate-950 border border-white/10 shadow-2xl backdrop-blur-xl">
+            <div className="rounded-xl overflow-hidden bg-slate-800/95 border border-slate-600/50 shadow-2xl shadow-black/50 backdrop-blur-xl">
               {/* Dropdown Header */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-white/10 bg-gradient-to-r from-slate-900 to-slate-950">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-slate-600/30 bg-gradient-to-r from-slate-700 to-slate-800">
                 <span className="text-sm font-medium text-white/70">
                   {isLoadingVehicles ? (
                     'Loading...'
@@ -277,7 +277,7 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                     {/* My Garage Section */}
                     {filteredGarage.length > 0 && (
                       <div>
-                        <div className="sticky top-0 px-4 py-2 bg-gradient-to-r from-blue-950 to-emerald-950 border-b border-blue-400/20">
+                        <div className="sticky top-0 z-10 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 border-b border-slate-600/30">
                           <div className="flex items-center gap-2">
                             <div className="w-1 h-4 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full" />
                             <span className="text-xs uppercase tracking-[0.2em] text-blue-300 font-semibold">
@@ -301,7 +301,7 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                     {/* Saved Vehicles Section */}
                     {filteredSaved.length > 0 && (
                       <div>
-                        <div className="sticky top-0 px-4 py-2 bg-gradient-to-r from-slate-900 to-slate-950 border-b border-white/10">
+                        <div className="sticky top-0 z-10 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 border-b border-slate-600/30">
                           <div className="flex items-center gap-2">
                             <div className="w-1 h-4 bg-gradient-to-b from-slate-400 to-slate-600 rounded-full" />
                             <span className="text-xs uppercase tracking-[0.2em] text-slate-300 font-semibold">
@@ -325,7 +325,7 @@ export const VINSearchPremium: React.FC<VINSearchPremiumProps> = ({
                 {/* Shared Vehicles Section */}
                 {filteredShared.length > 0 && (
                   <div>
-                    <div className="sticky top-0 px-4 py-2 bg-gradient-to-r from-emerald-900 to-slate-950 border-b border-emerald-300/30">
+                    <div className="sticky top-0 z-10 px-4 py-2 bg-gradient-to-r from-slate-700 to-slate-800 border-b border-slate-600/30">
                       <div className="flex items-center gap-2">
                         <div className="w-1 h-4 bg-gradient-to-b from-emerald-400 to-teal-500 rounded-full" />
                         <span className="text-xs uppercase tracking-[0.2em] text-emerald-200 font-semibold">
@@ -438,8 +438,8 @@ const VehicleListItem: React.FC<{
 }> = ({ vehicle, onSelect, onEdit, onDelete, onShare, onAddToGarage, isShared }) => {
   return (
     <div
-      className={`group/item relative border-b border-white/5 hover:bg-white/5 transition-all duration-300 cursor-pointer ${
-        isShared ? 'border-l-4 border-l-purple-500 bg-purple-500/5' : ''
+      className={`group/item relative border-b border-slate-600/20 hover:bg-slate-600/20 transition-all duration-300 cursor-pointer ${
+        isShared ? 'border-l-4 border-l-purple-500 bg-purple-500/10' : ''
       }`}
       onClick={onSelect}
     >

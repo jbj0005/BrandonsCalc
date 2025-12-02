@@ -67,7 +67,8 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
   const holdIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const activeKeyRef = useRef<string | null>(null);
-  const [draftValue, setDraftValue] = useState<string>(value.toString());
+  const formattedValue = formatValue(value);
+  const [draftValue, setDraftValue] = useState<string>(formattedValue);
   const [isValueInputFocused, setIsValueInputFocused] = useState(false);
 
   const HOLD_DELAY_MS = 250;
@@ -190,23 +191,22 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
   // Inline edit helpers
   useEffect(() => {
     if (!isValueInputFocused) {
-      setDraftValue(value.toString());
+      setDraftValue(formattedValue);
     }
-  }, [value, isValueInputFocused]);
+  }, [formattedValue, isValueInputFocused]);
 
   const clampValue = (v: number) => Math.max(min, Math.min(max, v));
   const commitDraft = () => {
     const parsed = parseFloat(draftValue);
+    const nextValue = Number.isFinite(parsed) ? clampValue(parsed) : value;
     if (Number.isFinite(parsed)) {
-      onChange(clampValue(parsed));
+      onChange(nextValue);
     }
-    setDraftValue(
-      Number.isFinite(parsed) ? clampValue(parsed).toString() : value.toString()
-    );
+    setDraftValue(formatValue(nextValue));
     setIsValueInputFocused(false);
   };
   const cancelDraft = () => {
-    setDraftValue(value.toString());
+    setDraftValue(formattedValue);
     setIsValueInputFocused(false);
   };
 
@@ -288,7 +288,10 @@ export const EnhancedControl: React.FC<EnhancedControlProps> = ({
             type="text"
             inputMode="decimal"
             value={draftValue}
-            onFocus={() => setIsValueInputFocused(true)}
+            onFocus={() => {
+              setIsValueInputFocused(true);
+              setDraftValue(value.toString());
+            }}
             onChange={(e) => setDraftValue(e.target.value)}
             onBlur={commitDraft}
             onKeyDown={(e) => {

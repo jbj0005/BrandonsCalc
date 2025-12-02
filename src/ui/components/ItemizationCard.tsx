@@ -4,6 +4,7 @@ import { Switch } from './Switch';
 import { Badge } from './Badge';
 import { CurrencyInput } from './CurrencyInput';
 import { EnhancedControl } from './EnhancedControl';
+import { FinancingCustomizer, type PayUpfrontState } from './FinancingCustomizer';
 
 export interface ItemizationCardProps {
   salePrice: number;
@@ -47,6 +48,12 @@ export interface ItemizationCardProps {
   onTermChange?: (value: number) => void;
   /** Hide the built-in header when a parent renders its own */
   showHeader?: boolean;
+  // Pay Upfront (Financing Customizer) props
+  payUpfront?: PayUpfrontState;
+  onPayUpfrontToggle?: (key: keyof PayUpfrontState) => void;
+  rawAmountFinanced?: number;
+  roundingAdjustment?: number;
+  negativeEquityAmount?: number;
 }
 
 /**
@@ -99,6 +106,11 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
   onAprChange,
   onTermChange,
   showHeader = true,
+  payUpfront,
+  onPayUpfrontToggle,
+  rawAmountFinanced,
+  roundingAdjustment = 0,
+  negativeEquityAmount = 0,
 }) => {
   const netTradeIn = tradeAllowance - tradePayoff;
   const otherCharges = dealerFees + customerAddons + govtFees;
@@ -321,6 +333,24 @@ export const ItemizationCard: React.FC<ItemizationCardProps> = ({
 
           {/* Divider */}
           <div className="border-t border-white/20 my-4"></div>
+
+          {/* Financing Customizer - Pay Upfront Options */}
+          {payUpfront && onPayUpfrontToggle && (
+            <FinancingCustomizer
+              payUpfront={payUpfront}
+              onToggle={onPayUpfrontToggle}
+              salesTaxAmount={totalTaxes}
+              otherChargesAmount={otherCharges}
+              negativeEquityAmount={negativeEquityAmount}
+              rawAmountFinanced={rawAmountFinanced ?? amountFinanced}
+              roundedAmountFinanced={amountFinanced}
+              roundingAdjustment={roundingAdjustment}
+              hasNegativeEquity={negativeEquityAmount > 0}
+              monthlyPayment={monthlyPayment}
+              apr={apr}
+              loanTerm={loanTerm}
+            />
+          )}
 
           {/* AMOUNT FINANCED - Dark Footer */}
           <div className="rounded-lg bg-gradient-to-r from-gray-800 to-gray-900 px-4 py-4">

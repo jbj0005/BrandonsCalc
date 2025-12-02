@@ -124,6 +124,9 @@ export type { DisplayPreferencesModalProps } from './DisplayPreferencesModal';
 export { ItemizationCard } from './ItemizationCard';
 export type { ItemizationCardProps } from './ItemizationCard';
 
+export { FinancingCustomizer } from './FinancingCustomizer';
+export type { FinancingCustomizerProps, PayUpfrontState } from './FinancingCustomizer';
+
 export { SubmissionProgressModal } from './SubmissionProgressModal';
 export type { SubmissionProgressModalProps, ProgressStage } from './SubmissionProgressModal';
 

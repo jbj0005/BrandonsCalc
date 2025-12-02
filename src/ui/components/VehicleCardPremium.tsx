@@ -221,7 +221,7 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
                 style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}
               >
                 {vehicle.condition && (
-                  <span className="text-xs uppercase tracking-[0.2em] px-3 py-1 rounded-full bg-gradient-to-r from-emerald-500/30 to-blue-500/30 border border-white/20 text-white shadow-[0_0_20px_rgba(16,185,129,0.4)]">
+                  <span className="text-xs uppercase tracking-[0.2em] px-3 py-1 rounded-full bg-blue-700/30 border border-blue-400/40 text-blue-100 shadow-[0_0_22px_rgba(59,130,246,0.45)] backdrop-blur-sm">
                     {vehicle.condition.toLowerCase() === "new" ? "New" : "Used"}
                   </span>
                 )}
@@ -237,12 +237,12 @@ export const VehicleCardPremium: React.FC<VehicleCardPremiumProps> = ({
             </div>
 
             {/* Sale Price - Prominent Display */}
-            <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-blue-500/10 to-cyan-500/10 border border-blue-400/20">
-              <div className="text-xs uppercase tracking-[0.25em] text-blue-300/70 font-medium mb-2">
+            <div className="mb-4 p-4 rounded-xl bg-slate-900/70 border border-blue-400/25 shadow-[0_12px_32px_rgba(15,23,42,0.35)]">
+              <div className="text-xs uppercase tracking-[0.25em] text-blue-200/70 font-medium mb-2">
                 {salePriceLabel}
               </div>
               <div className="flex items-baseline gap-3">
-                <div className="text-4xl lg:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-300 via-white to-cyan-300"
+                <div className="text-4xl lg:text-5xl font-bold text-blue-100"
                      style={{ fontFamily: '"DM Sans", system-ui, sans-serif' }}>
                   {formatCurrencyValue(salePrice)}
                 </div>

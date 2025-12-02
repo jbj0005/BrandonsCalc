@@ -159,8 +159,14 @@ export const useGoogleMapsAutocomplete = (
         const lat = place.geometry?.location?.lat?.() ?? place.location?.lat ?? 0;
         const lng = place.geometry?.location?.lng?.() ?? place.location?.lng ?? 0;
 
+        // Build street address from components (street_number + route)
+        const streetNumber = getComponent('street_number');
+        const route = getComponent('route');
+        const streetAddress = [streetNumber, route].filter(Boolean).join(' ') ||
+                             place.formatted_address || place.displayName || '';
+
         const placeDetailsBase: PlaceDetails = {
-          address: place.formatted_address || place.displayName || '',
+          address: streetAddress,
           city: getComponent('locality') || getComponent('sublocality'),
           state: getComponent('administrative_area_level_1'),
           stateCode: getComponent('administrative_area_level_1', 'short_name'),

@@ -849,6 +849,18 @@ export const CalculatorApp: React.FC = () => {
   const [unpaidBalance, setUnpaidBalance] = useState(0);
   const [cashDue, setCashDue] = useState(0);
 
+  // Pay Upfront toggles - move costs from Amount Financed to Cash Due at Signing
+  const [payUpfront, setPayUpfront] = useState({
+    salesTax: false,
+    otherCharges: false,
+    negativeEquity: false,
+    roundFinanced: false,
+  });
+
+  // Track raw vs rounded amounts for display
+  const [rawAmountFinanced, setRawAmountFinanced] = useState(0);
+  const [roundingAdjustment, setRoundingAdjustment] = useState(0);
+
   // Dynamic slider max ranges (115% of current value OR fallback maximum, whichever is greater)
   const saleMaxDynamic = Math.max(salePrice * 1.15, 150000);
   const cashDownMaxDynamic = Math.max(cashDown * 1.15, 50000);
@@ -907,6 +919,14 @@ export const CalculatorApp: React.FC = () => {
       appliedAmount,
       cashoutAmount: validatedCashout,
     });
+  };
+
+  // Handler for toggling pay upfront options
+  const handlePayUpfrontToggle = (key: keyof typeof payUpfront) => {
+    setPayUpfront(prev => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
   };
 
   // Vehicle condition options
@@ -1211,7 +1231,7 @@ export const CalculatorApp: React.FC = () => {
     applyLenderApr,
   ]);
 
-  // Calculate loan on any change (including equity decision)
+  // Calculate loan on any change (including equity decision and pay upfront toggles)
   useEffect(() => {
     calculateLoan();
   }, [
@@ -1221,12 +1241,14 @@ export const CalculatorApp: React.FC = () => {
     tradePayoff,
     dealerFees,
     customerAddons,
+    govtFees,
     loanTerm,
     apr,
     selectedVehicle,
     stateTaxRate,
     countyTaxRate,
     equityDecision,
+    payUpfront,
   ]);
 
   // Auto-populate location from profile when profile loads
@@ -2047,17 +2069,65 @@ export const CalculatorApp: React.FC = () => {
     setTotalTaxes(totalTax);
 
     // Calculate amount financed (includes fees, taxes, and cashout)
-    const totalPrice =
-      salePrice + dealerFees + customerAddons + govtFees + totalTax;
-    const downPayment = cashDown + appliedToBalance;
-    const financed = totalPrice - downPayment + cashoutAmount; // Add cashout to loan
+    const totalOtherCharges = dealerFees + customerAddons + govtFees;
+    const negativeEquityAmount = equityAllocation.negativeEquity;
 
-    setAmountFinanced(financed);
+    // Determine what gets moved to cash due based on payUpfront toggles
+    let movedToCashDue = 0;
+    let financedTaxes = totalTax;
+    let financedOtherCharges = totalOtherCharges;
+    let financedNegativeEquity = negativeEquityAmount;
 
-    // Calculate cash due at signing
-    setCashDue(cashDown);
+    if (payUpfront.salesTax) {
+      movedToCashDue += totalTax;
+      financedTaxes = 0;
+    }
 
-    if (financed <= 0 || apr <= 0 || loanTerm <= 0) {
+    if (payUpfront.otherCharges) {
+      movedToCashDue += totalOtherCharges;
+      financedOtherCharges = 0;
+    }
+
+    if (payUpfront.negativeEquity && negativeEquityAmount > 0) {
+      movedToCashDue += negativeEquityAmount;
+      financedNegativeEquity = 0;
+    }
+
+    // Calculate base amount financed with pay upfront adjustments
+    // Note: appliedToBalance is negative when there's negative equity
+    const adjustedAppliedToBalance = negativeEquityAmount > 0 && payUpfront.negativeEquity
+      ? 0  // Don't add negative equity to loan if paying upfront
+      : appliedToBalance;
+
+    const totalPrice = salePrice + financedOtherCharges + financedTaxes;
+    const downPayment = cashDown + (adjustedAppliedToBalance > 0 ? adjustedAppliedToBalance : 0);
+    let baseFinanced = totalPrice - downPayment + cashoutAmount;
+
+    // Add back negative equity if not paying upfront (it was in appliedToBalance as negative)
+    if (negativeEquityAmount > 0 && !payUpfront.negativeEquity) {
+      baseFinanced += negativeEquityAmount;
+    }
+
+    // Store raw amount before rounding
+    setRawAmountFinanced(baseFinanced);
+
+    // Apply rounding if enabled
+    let roundingAdj = 0;
+    let finalFinanced = baseFinanced;
+    if (payUpfront.roundFinanced && baseFinanced > 0) {
+      const rounded = Math.round(baseFinanced / 1000) * 1000;
+      roundingAdj = baseFinanced - rounded; // positive = pay more upfront, negative = finance more
+      finalFinanced = rounded;
+    }
+    setRoundingAdjustment(roundingAdj);
+
+    setAmountFinanced(finalFinanced);
+
+    // Calculate cash due at signing (base cash down + moved items + rounding adjustment)
+    const totalCashDue = cashDown + movedToCashDue + roundingAdj;
+    setCashDue(totalCashDue);
+
+    if (finalFinanced <= 0 || apr <= 0 || loanTerm <= 0) {
       setMonthlyPayment(0);
       setFinanceCharge(0);
       setTotalOfPayments(0);
@@ -2069,14 +2139,14 @@ export const CalculatorApp: React.FC = () => {
 
     // Monthly payment formula: P * [r(1 + r)^n] / [(1 + r)^n - 1]
     const payment =
-      (financed * (monthlyRate * Math.pow(1 + monthlyRate, loanTerm))) /
+      (finalFinanced * (monthlyRate * Math.pow(1 + monthlyRate, loanTerm))) /
       (Math.pow(1 + monthlyRate, loanTerm) - 1);
 
     setMonthlyPayment(payment);
 
     const total = payment * loanTerm;
     setTotalOfPayments(total);
-    setFinanceCharge(total - financed);
+    setFinanceCharge(total - finalFinanced);
 
     // Only update TIL baselines after lender APR has loaded
     // This prevents baselines from being set with the hard-coded 5.99% default
@@ -2085,10 +2155,10 @@ export const CalculatorApp: React.FC = () => {
       const tilValues = {
         apr: apr / 100, // Convert to decimal for hook
         term: loanTerm,
-        financeCharge: total - financed,
-        amountFinanced: financed,
+        financeCharge: total - finalFinanced,
+        amountFinanced: finalFinanced,
         totalPayments: total,
-        monthlyFinanceCharge: loanTerm > 0 ? (total - financed) / loanTerm : 0,
+        monthlyFinanceCharge: loanTerm > 0 ? (total - finalFinanced) / loanTerm : 0,
         monthlyPayment: payment,
       };
       updateBaselines(tilValues);
@@ -4453,10 +4523,10 @@ export const CalculatorApp: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 py-3">
 
-        {/* Main Grid - Left column (inputs) + Right column (summary) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          {/* LEFT COLUMN: Inputs (2/3 width) */}
-          <div className="lg:col-span-2 space-y-3">
+        {/* Main Stack - Inputs followed by summary */}
+        <div className="grid grid-cols-1 gap-3">
+          {/* Inputs */}
+          <div className="space-y-3">
             {/* Location & Vehicle Section */}
             <Card
               variant="elevated"
@@ -4737,8 +4807,8 @@ export const CalculatorApp: React.FC = () => {
             </Card>
           </div>
 
-          {/* RIGHT COLUMN: Summary (1/3 width, sticky) */}
-          <div className="lg:col-span-1">
+          {/* Summary (sticky) */}
+          <div>
             <div className="sticky top-6">
               {/* Premium Financing Card */}
               <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950">
@@ -5439,6 +5509,11 @@ export const CalculatorApp: React.FC = () => {
               }
               onTradeInCashoutChange={handleEquityCashoutChange}
               showHeader={false}
+              payUpfront={payUpfront}
+              onPayUpfrontToggle={handlePayUpfrontToggle}
+              rawAmountFinanced={rawAmountFinanced}
+              roundingAdjustment={roundingAdjustment}
+              negativeEquityAmount={equityAllocation.negativeEquity}
             />
           </div>
         </div>

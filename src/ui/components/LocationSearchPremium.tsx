@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { loadGoogleMapsScript } from '../../utils/loadGoogleMaps';
 import { useGoogleMapsAutocomplete } from '../../hooks/useGoogleMapsAutocomplete';
 import type { PlaceDetails } from '../../hooks/useGoogleMapsAutocomplete';
@@ -37,6 +37,28 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+  // Local state to prevent focus loss during typing
+  const [localValue, setLocalValue] = useState(location);
+
+  // Track when input is mounted so autocomplete can initialize
+  const [inputMounted, setInputMounted] = useState(false);
+
+  // Set inputMounted after component mounts (allows inputRef.current to be set)
+  useEffect(() => {
+    // Use requestAnimationFrame to ensure DOM is ready
+    const raf = requestAnimationFrame(() => {
+      if (inputRef.current) {
+        setInputMounted(true);
+      }
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  // Sync local value when location prop changes externally (e.g., from place selection)
+  useEffect(() => {
+    setLocalValue(location);
+  }, [location]);
+
   // Load Google Maps (with key) if not already provided via mapsLoaded
   useEffect(() => {
     if (!apiKey) {
@@ -45,11 +67,17 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     loadGoogleMapsScript().catch(() => {});
   }, [apiKey]);
 
+  // Memoize autocomplete options to prevent effect from re-running on every render
+  // The types array and componentRestrictions object would otherwise be new references each time
+  const autocompleteTypes = useMemo(() => ['geocode'], []);
+  const autocompleteRestrictions = useMemo(() => ({ country: 'us' }), []);
+
   // Modern autocomplete via PlaceAutocompleteElement
+  // Only enable after input is mounted so the hook can find inputRef.current
   useGoogleMapsAutocomplete(inputRef, {
-    enabled: true,
-    types: ['geocode'],
-    componentRestrictions: { country: 'us' },
+    enabled: inputMounted,
+    types: autocompleteTypes,
+    componentRestrictions: autocompleteRestrictions,
     onPlaceSelected: (place: PlaceDetails) => {
       const displayAddress = place.address || '';
       if (displayAddress) {
@@ -88,7 +116,7 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
         <div className="relative group">
           <div
             className={`
-            relative overflow-hidden rounded-2xl transition-all duration-300
+            relative rounded-2xl transition-all duration-300
             ${hasLocation
               ? 'bg-gradient-to-br from-blue-950 to-cyan-950 border-2 border-blue-400/30'
               : error
@@ -161,8 +189,14 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
                 <input
                   ref={inputRef}
                   type="text"
-                  value={location}
-                  onChange={(e) => onLocationChange(e.target.value)}
+                  value={localValue}
+                  onChange={(e) => setLocalValue(e.target.value)}
+                  onBlur={() => {
+                    // Only sync if value actually changed
+                    if (localValue !== location) {
+                      onLocationChange(localValue);
+                    }
+                  }}
                   placeholder={placeholder}
                   className="w-full pl-12 pr-4 py-4 bg-black/20 text-white text-base
                              rounded-xl border border-white/10
@@ -205,6 +239,13 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
       <style>{`
         .location-search-premium {
           position: relative;
+        }
+        /* Allow autocomplete dropdown to render outside card bounds */
+        .location-search-premium gmpx-place-autocomplete {
+          display: block;
+          position: relative;
+          overflow: visible;
+          z-index: 30;
         }
 
         @keyframes slide-in-from-top-2 {
