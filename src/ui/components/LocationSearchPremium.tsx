@@ -131,6 +131,56 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
     setIsPredictionsOpen(false);
     setHasInteracted(false); // Prevent refetch after selection
 
+    // State abbreviation lookup for fallback parsing
+    const stateAbbrevs: Record<string, string> = {
+      'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+      'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+      'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+      'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+      'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+      'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+      'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+      'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+      'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+      'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+      'district of columbia': 'DC'
+    };
+
+    // Immediately parse from autocomplete text to avoid race condition
+    // Format: "Street, City, State" or "Street, City, State ZIP"
+    const parts = description.split(',').map((p: string) => p.trim());
+    let immediateStreet = parts[0] || '';
+    let immediateCity = parts.length > 1 ? parts[1] : '';
+    let immediateState = '';
+    let immediateZip = '';
+
+    if (parts.length > 2) {
+      const stateZipPart = parts[2];
+      // Try "FL 32054" format
+      const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
+      if (stateZipMatch) {
+        immediateState = stateZipMatch[1];
+        if (stateZipMatch[2]) immediateZip = stateZipMatch[2];
+      } else {
+        // Try full state name: "Florida" or "Florida 32904"
+        const fullStateMatch = stateZipPart.match(/^([A-Za-z\s]+?)(?:\s+(\d{5}(?:-\d{4})?))?$/);
+        if (fullStateMatch) {
+          const stateName = fullStateMatch[1].trim().toLowerCase();
+          immediateState = stateAbbrevs[stateName] || fullStateMatch[1].trim();
+          if (fullStateMatch[2]) immediateZip = fullStateMatch[2];
+        }
+      }
+    }
+
+    // Call onPlaceSelected immediately with parsed data
+    onPlaceSelected?.({
+      formatted_address: description,
+      street_address: immediateStreet,
+      city: immediateCity || undefined,
+      state: immediateState || undefined,
+      zip: immediateZip || undefined,
+    });
+
     const placePrediction = prediction.placePrediction;
     if (!placePrediction?.toPlace) return;
 
@@ -155,7 +205,56 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
         // Extract street address (street number + route)
         const streetNumber = getComponent('street_number');
         const route = getComponent('route');
-        const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
+        let streetAddress = [streetNumber, route].filter(Boolean).join(' ');
+
+        // Extract city, state, zip from components
+        let city = getComponent('locality') || getComponent('sublocality');
+        let state = getComponent('administrative_area_level_1', 'shortText');
+        let zip = getComponent('postal_code');
+
+        // Fallback: if Google didn't give us components, parse from formatted address
+        // Format: "Street, City, State ZIP, Country" or "Street, City, State, Country"
+        if (details.formattedAddress) {
+          const parts = details.formattedAddress.split(',').map(p => p.trim());
+
+          if (!streetAddress && parts.length > 0) {
+            streetAddress = parts[0];
+          }
+          if (!city && parts.length > 1) {
+            city = parts[1];
+          }
+          if (parts.length > 2) {
+            const stateZipPart = parts[2];
+            // Try "FL 32054" format first
+            const stateZipMatch = stateZipPart.match(/^([A-Z]{2})\s*(\d{5}(?:-\d{4})?)?$/);
+            if (stateZipMatch) {
+              if (!state) state = stateZipMatch[1];
+              if (!zip && stateZipMatch[2]) zip = stateZipMatch[2];
+            } else {
+              // Try full state name with optional zip: "Florida" or "Florida 32904"
+              const fullStateMatch = stateZipPart.match(/^([A-Za-z\s]+?)(?:\s+(\d{5}(?:-\d{4})?))?$/);
+              if (fullStateMatch && !state) {
+                // Convert full state name to abbreviation
+                const stateAbbrevs: Record<string, string> = {
+                  'alabama': 'AL', 'alaska': 'AK', 'arizona': 'AZ', 'arkansas': 'AR', 'california': 'CA',
+                  'colorado': 'CO', 'connecticut': 'CT', 'delaware': 'DE', 'florida': 'FL', 'georgia': 'GA',
+                  'hawaii': 'HI', 'idaho': 'ID', 'illinois': 'IL', 'indiana': 'IN', 'iowa': 'IA',
+                  'kansas': 'KS', 'kentucky': 'KY', 'louisiana': 'LA', 'maine': 'ME', 'maryland': 'MD',
+                  'massachusetts': 'MA', 'michigan': 'MI', 'minnesota': 'MN', 'mississippi': 'MS', 'missouri': 'MO',
+                  'montana': 'MT', 'nebraska': 'NE', 'nevada': 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ',
+                  'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', 'ohio': 'OH',
+                  'oklahoma': 'OK', 'oregon': 'OR', 'pennsylvania': 'PA', 'rhode island': 'RI', 'south carolina': 'SC',
+                  'south dakota': 'SD', 'tennessee': 'TN', 'texas': 'TX', 'utah': 'UT', 'vermont': 'VT',
+                  'virginia': 'VA', 'washington': 'WA', 'west virginia': 'WV', 'wisconsin': 'WI', 'wyoming': 'WY',
+                  'district of columbia': 'DC'
+                };
+                const stateName = fullStateMatch[1].trim().toLowerCase();
+                state = stateAbbrevs[stateName] || fullStateMatch[1].trim();
+                if (!zip && fullStateMatch[2]) zip = fullStateMatch[2];
+              }
+            }
+          }
+        }
 
         const lat =
           typeof details.location?.lat === 'function'
@@ -169,9 +268,9 @@ export const LocationSearchPremium: React.FC<LocationSearchPremiumProps> = ({
         onPlaceSelected?.({
           formatted_address: details.formattedAddress || description,
           street_address: streetAddress || undefined,
-          city: getComponent('locality') || getComponent('sublocality'),
-          state: getComponent('administrative_area_level_1', 'shortText'),
-          zip: getComponent('postal_code'),
+          city: city || undefined,
+          state: state || undefined,
+          zip: zip || undefined,
           county: countyName,
           latitude: lat,
           longitude: lng,

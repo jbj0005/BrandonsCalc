@@ -422,6 +422,7 @@ export const CalculatorApp: React.FC = () => {
   );
   // Track if user has manually changed location (prevents profile auto-populate from overwriting)
   const locationManuallyChangedRef = useRef(false);
+  const lastProfileAddressRef = useRef<string>("");
   const [vin, setVin] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
   const [vehicleDiff, setVehicleDiff] = useState<{
@@ -707,9 +708,11 @@ export const CalculatorApp: React.FC = () => {
     isLoading: isLoadingProfile,
     error: profileError,
     loadProfile,
-    saveProfile,
-    updateField: updateProfileField,
+    updateField: updateProfileFieldInternal,
     isDirty: isProfileDirty,
+    autoSaveStatus: profileAutoSaveStatus,
+    lastSavedAt: profileLastSavedAt,
+    flushPendingChanges: flushProfileChanges,
   } = useProfile({
     supabase,
     userId: currentUser?.id || null,
@@ -747,6 +750,17 @@ export const CalculatorApp: React.FC = () => {
   applyFeeEngineResult,
   feeEngineResult,
 } = useCalculatorStore();
+
+  const updateProfileField = useCallback(
+    (field: Parameters<typeof updateProfileFieldInternal>[0], value: any) => {
+      updateProfileFieldInternal(field, value);
+
+      if (field === "preferred_down_payment" && value != null) {
+        applyProfilePreferences({ preferred_down_payment: value } as any);
+      }
+    },
+    [updateProfileFieldInternal, applyProfilePreferences]
+  );
 
   // Extract slider values for convenient access
   const salePrice = sliders.salePrice.value;
@@ -1288,8 +1302,21 @@ export const CalculatorApp: React.FC = () => {
 
     if (!addressString) return;
 
-    // Only auto-fill location string if field is empty AND user hasn't manually changed it
-    if (!location && !locationManuallyChangedRef.current) {
+    const normalizedAddress = addressString.trim();
+    const previousProfileAddress = lastProfileAddressRef.current;
+    const profileAddressChanged =
+      normalizedAddress &&
+      normalizedAddress.toLowerCase() !== previousProfileAddress.toLowerCase();
+
+    // Keep track of the latest profile address we applied
+    lastProfileAddressRef.current = normalizedAddress;
+
+    // If the profile address changed, refresh the location field immediately
+    if (profileAddressChanged) {
+      setLocation(addressString);
+      locationManuallyChangedRef.current = false;
+    } else if (!location && !locationManuallyChangedRef.current) {
+      // Initial load: only set if user hasn't typed anything yet
       setLocation(addressString);
     }
 
@@ -2434,26 +2461,6 @@ export const CalculatorApp: React.FC = () => {
 
   const totalStoredVehicles = savedVehicles.length + filteredGarageVehicles.length;
   const filteredStoredCount = totalStoredVehicles;
-
-  // Apply profile preferences immediately after a successful save so sliders reflect the new data.
-  const handleProfileSave = useCallback(
-    async (data: Partial<typeof profile>) => {
-      await saveProfile(data);
-
-      const mergedProfile = {
-        ...(profile || {}),
-        ...data,
-      };
-
-      if (
-        mergedProfile.preferred_down_payment !== undefined &&
-        mergedProfile.preferred_down_payment !== null
-      ) {
-        applyProfilePreferences(mergedProfile as any);
-      }
-    },
-    [saveProfile, profile, applyProfilePreferences]
-  );
 
   const isGarageSelectedVehicle = selectedVehicle?.__source === "garage";
 
@@ -4269,6 +4276,7 @@ export const CalculatorApp: React.FC = () => {
   };
 
   const handleSignOut = async () => {
+    await flushProfileChanges();
     await authManager.signOut();
     setSavedVehicles([]);
     setCurrentUser(null);
@@ -6003,7 +6011,6 @@ export const CalculatorApp: React.FC = () => {
         isOpen={showProfileDropdown}
         onClose={() => setShowProfileDropdown(false)}
         profile={profile}
-        onSaveProfile={handleProfileSave}
         onUpdateField={updateProfileField}
         garageVehicles={garageVehicles}
         savedVehicles={savedVehicles}
@@ -6107,6 +6114,8 @@ export const CalculatorApp: React.FC = () => {
         currentUserId={currentUser?.id ?? null}
         supabase={supabase}
         isDirty={isProfileDirty}
+        autoSaveStatus={profileAutoSaveStatus}
+        lastSavedAt={profileLastSavedAt}
       />
     </div>
   );

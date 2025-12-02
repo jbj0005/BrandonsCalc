@@ -191,10 +191,8 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
 
   setSliderValueWithSettling: (key, value) => {
     set((state) => {
-      // Clear any pending settling timer (we no longer auto-baseline)
-      if (state.settlingTimerId) {
-        clearTimeout(state.settlingTimerId);
-      }
+      // Clear pending baseline settling timer so we only settle once per burst
+      if (state.settlingTimerId) clearTimeout(state.settlingTimerId);
 
       const newSliders = { ...state.sliders };
       newSliders[key] = {
@@ -202,9 +200,28 @@ export const useCalculatorStore = create<CalculatorState & CalculatorActions>((s
         value,
       };
 
+      // After a short delay, align all baselines with their current values
+      const timerId = setTimeout(() => {
+        set((currentState) => {
+          const settledSliders = { ...currentState.sliders };
+          (Object.keys(settledSliders) as SliderKey[]).forEach((sliderKey) => {
+            const slider = settledSliders[sliderKey];
+            settledSliders[sliderKey] = {
+              ...slider,
+              baseline: slider.value,
+            };
+          });
+
+          return {
+            sliders: settledSliders,
+            settlingTimerId: null,
+          };
+        });
+      }, 3000);
+
       return {
         sliders: newSliders,
-        settlingTimerId: null,
+        settlingTimerId: timerId,
         lastSliderInteraction: Date.now(),
       };
     });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Card, Button, Input, Checkbox, SectionHeader } from '../ui/components';
+import { Modal, Card, Button, Input, SectionHeader } from '../ui/components';
 import { ItemizationCard } from '../ui/components/ItemizationCard';
 import { generateOfferText, type LeadData } from '../services/leadSubmission';
 import { useProfile } from '../hooks/useProfile';
@@ -128,34 +128,9 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
     autoLoad: true
   });
 
-  // Customer info state
-  const [useProfileData, setUseProfileData] = useState(true);
-  const [customerName, setCustomerName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerStreet, setCustomerStreet] = useState('');
-  const [customerCity, setCustomerCity] = useState('');
-  const [customerState, setCustomerState] = useState('');
-  const [customerZip, setCustomerZip] = useState('');
-  const [saveToProfile, setSaveToProfile] = useState(false);
-
   // Dealer contact info state (for sending offer to specific salesman)
   const [dealerEmail, setDealerEmail] = useState('');
   const [dealerPhone, setDealerPhone] = useState('');
-
-  // Auto-fill from profile when loaded
-  useEffect(() => {
-    if (profile && useProfileData && isOpen) {
-      setCustomerName(profile.full_name || '');
-      setCustomerEmail(profile.email || userEmail || '');
-      setCustomerPhone(formatPhoneNumber(profile.phone || ''));
-
-      setCustomerStreet(profile.street_address || '');
-      setCustomerCity(profile.city || '');
-      setCustomerState(profile.state || '');
-      setCustomerZip(profile.zip_code || '');
-    }
-  }, [profile, useProfileData, isOpen, userEmail]);
 
   // Auto-fill dealer contact from leadData when modal opens
   useEffect(() => {
@@ -165,7 +140,9 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
     }
   }, [isOpen, leadData]);
 
-  // Validation
+  // Validation - require profile with name and email
+  const customerName = profile?.full_name || '';
+  const customerEmail = profile?.email || userEmail || '';
   const isValid = customerName.trim() && customerEmail.trim() && customerEmail.includes('@');
 
   // Vehicle info string
@@ -175,9 +152,14 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
   const handleSubmit = () => {
     if (!isValid) return;
 
-    const combinedAddress = [customerStreet, customerCity, customerState, customerZip]
-      .filter(Boolean)
-      .join(', ');
+    // Build address from profile
+    const customerPhone = profile?.phone ? formatPhoneNumber(profile.phone) : '';
+    const combinedAddress = [
+      profile?.street_address,
+      profile?.city,
+      profile?.state,
+      profile?.zip_code
+    ].filter(Boolean).join(', ');
 
     const updatedLeadData: LeadData = {
       ...leadData,
@@ -219,21 +201,6 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
       dealerPhone,
       offerText
     });
-  };
-
-  // Toggle profile usage
-  const handleToggleProfile = () => {
-    setUseProfileData(!useProfileData);
-    if (useProfileData) {
-      // Switching off - clear fields
-      setCustomerName('');
-      setCustomerEmail(userEmail || '');
-      setCustomerPhone('');
-      setCustomerStreet('');
-      setCustomerCity('');
-      setCustomerState('');
-      setCustomerZip('');
-    }
   };
 
   return (
@@ -365,88 +332,72 @@ export const OfferPreviewModal: React.FC<OfferPreviewModalProps> = ({
             </div>
           </Card>
 
-          {/* 5. Customer Contact Information Card */}
+          {/* 5. Customer Contact Information Card - Read-only from profile */}
           <Card padding="lg" variant="glass" className="border-white/15 bg-white/5">
-            <div className="flex items-center justify-between mb-4">
-              <SectionHeader
-                title="Your Contact Information"
-                subtitle="Pre-fill from your profile"
-                tone="light"
-                accent="emerald"
-                size="md"
-                as="h3"
-              />
-              {profile && (
-                <button
-                  onClick={handleToggleProfile}
-                  className="text-sm text-blue-400 hover:text-blue-300 hover:underline font-medium"
-                  type="button"
-                >
-                  {useProfileData ? '✓ Using my profile' : 'Use my profile'}
-                </button>
-              )}
-            </div>
+            <SectionHeader
+              title="Your Contact Information"
+              subtitle="From your profile"
+              tone="light"
+              accent="emerald"
+              size="md"
+              as="h3"
+              className="mb-4"
+            />
 
             {profileLoading ? (
               <div className="text-center py-4 text-white/50">Loading profile...</div>
-            ) : (
-              <div className="space-y-4">
-                <Input
-                  label="Full Name *"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="John Doe"
-                  required
-                />
-                <Input
-                  label="Email Address *"
-                  type="email"
-                  value={customerEmail}
-                  onChange={(e) => setCustomerEmail(e.target.value)}
-                  placeholder="john.doe@example.com"
-                  required
-                />
-                <Input
-                  label="Phone Number"
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(formatPhoneNumber(e.target.value))}
-                  placeholder="(555) 123-4567"
-                />
-                <Input
-                  label="Street Address"
-                  value={customerStreet}
-                  onChange={(e) => setCustomerStreet(e.target.value)}
-                  placeholder="123 Main St"
-                />
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <Input
-                    label="City"
-                    value={customerCity}
-                    onChange={(e) => setCustomerCity(e.target.value)}
-                    placeholder="City"
-                  />
-                  <Input
-                    label="State"
-                    value={customerState}
-                    onChange={(e) => setCustomerState(e.target.value)}
-                    placeholder="State"
-                  />
-                  <Input
-                    label="ZIP"
-                    value={customerZip}
-                    onChange={(e) => setCustomerZip(e.target.value)}
-                    placeholder="ZIP"
-                  />
+            ) : profile ? (
+              <div className="space-y-3">
+                {/* Name & Email */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs text-white/60 mb-1">Full Name</div>
+                    <div className="text-base font-medium text-white">
+                      {profile.full_name || <span className="text-white/40 italic">Not set</span>}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                    <div className="text-xs text-white/60 mb-1">Email</div>
+                    <div className="text-base font-medium text-white">
+                      {profile.email || userEmail || <span className="text-white/40 italic">Not set</span>}
+                    </div>
+                  </div>
                 </div>
 
-                {!useProfileData && profile && (
-                  <Checkbox
-                    label="Update my profile with these changes"
-                    checked={saveToProfile}
-                    onChange={(e) => setSaveToProfile(e.target.checked)}
-                  />
-                )}
+                {/* Phone */}
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="text-xs text-white/60 mb-1">Phone</div>
+                  <div className="text-base font-medium text-white">
+                    {profile.phone ? formatPhoneNumber(profile.phone) : <span className="text-white/40 italic">Not set</span>}
+                  </div>
+                </div>
+
+                {/* Address */}
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <div className="text-xs text-white/60 mb-1">Address</div>
+                  <div className="text-base font-medium text-white">
+                    {profile.street_address || profile.city || profile.state ? (
+                      <>
+                        {profile.street_address && <div>{profile.street_address}</div>}
+                        {(profile.city || profile.state || profile.zip_code) && (
+                          <div className="text-white/80">
+                            {[profile.city, profile.state, profile.zip_code].filter(Boolean).join(', ')}
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-white/40 italic">Not set</span>
+                    )}
+                  </div>
+                </div>
+
+                <p className="text-xs text-white/50 text-center pt-2">
+                  To update your contact info, edit your profile in My Account.
+                </p>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-white/50">
+                Sign in to use your profile information.
               </div>
             )}
           </Card>

@@ -8,18 +8,16 @@
  * 4. My Offers - Submitted offers
  */
 
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { Input } from './Input';
 import { Button } from './Button';
-import { Badge } from './Badge';
 import { Switch } from './Switch';
 import { ProfileData } from '../../services/ProfileService';
 import type { GarageVehicle } from '../../types';
 import { formatPhoneNumber, formatCurrencyExact } from '../../utils/formatters';
 import { useIsTouchDevice } from '../../hooks/useIsTouchDevice';
 import { useCalculatorStore } from '../../stores/calculatorStore';
-import { useToast } from './Toast';
 import { LocationSearchPremium } from './LocationSearchPremium';
 import { GarageSharingModal } from './GarageSharingModal';
 
@@ -27,7 +25,6 @@ export interface UserProfileDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   profile: ProfileData | null;
-  onSaveProfile: (data: Partial<ProfileData>) => Promise<void>;
   onUpdateField: (field: keyof ProfileData, value: any) => void;
   garageVehicles: GarageVehicle[];
   savedVehicles: any[];
@@ -46,6 +43,8 @@ export interface UserProfileDropdownProps {
   currentUserId?: string | null;
   supabase: SupabaseClient | null;
   isDirty?: boolean;
+  autoSaveStatus?: 'idle' | 'saving' | 'saved' | 'error';
+  lastSavedAt?: number | null;
 }
 
 type Section = 'profile' | 'garage' | 'saved' | 'offers';
@@ -64,7 +63,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   isOpen,
   onClose,
   profile,
-  onSaveProfile,
   onUpdateField,
   garageVehicles,
   savedVehicles,
@@ -83,6 +81,8 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   currentUserId,
   supabase,
   isDirty = false,
+  autoSaveStatus = 'idle',
+  lastSavedAt = null,
 }) => {
   // Use calculator store for trade-in state
   const { selectedTradeInVehicles, sliders, tradePayoff, toggleTradeInVehicle } = useCalculatorStore();
@@ -92,9 +92,6 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
   const [hoveredSection, setHoveredSection] = useState<Section | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const isTouchDevice = useIsTouchDevice();
-  const addressInputRef = useRef<HTMLInputElement>(null);
-  const toast = useToast();
-  const [isSaving, setIsSaving] = useState(false);
   const [activeUserId, setActiveUserId] = useState<string | null>(currentUserId ?? null);
   const [showSharingModal, setShowSharingModal] = useState(false);
 
@@ -107,7 +104,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     profile?.preferred_down_payment != null ? profile.preferred_down_payment : 0
   );
 
-  // Track if local values differ from profile (for enabling Save button)
+  // Track if local values differ from profile (for inline status)
   const localIsDirty = useMemo(() => {
     if (!profile) return false;
     return (
@@ -181,42 +178,7 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose, showSharingModal]);
 
-  const handleSaveProfile = async () => {
-    if (!profile || isSaving) return;
-
-    try {
-      setIsSaving(true);
-      // Use local state values for fields managed locally, profile for others
-      await onSaveProfile({
-        full_name: localFullName,
-        email: localEmail,
-        phone: localPhone,
-        street_address: profile.street_address,
-        city: profile.city,
-        state: profile.state,
-        state_code: profile.state_code,
-        zip_code: profile.zip_code,
-        county: profile.county,
-        county_name: profile.county_name,
-        google_place_id: profile.google_place_id,
-        credit_score_range: profile.credit_score_range,
-        preferred_down_payment: localDownPayment,
-      });
-      toast.push({
-        kind: 'success',
-        title: 'Profile saved',
-        detail: 'Your info has been updated.',
-      });
-    } catch (error: any) {
-      toast.push({
-        kind: 'error',
-        title: 'Failed to save profile',
-        detail: error?.message || 'Please try again.',
-      });
-    } finally {
-      setIsSaving(false);
-    }
-  };
+  const hasUnsavedProfileChanges = localIsDirty || isDirty;
 
   const formatCurrency = (value?: number) => {
     if (value == null) return '';
@@ -581,28 +543,49 @@ export const UserProfileDropdown: React.FC<UserProfileDropdownProps> = ({
                 />
               </div>
 
-              {/* Save Button */}
-              <div className="pt-3 border-t border-white/10 flex gap-2">
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleSaveProfile}
-                  fullWidth
-                  disabled={!(isDirty || localIsDirty) || isSaving}
-                  loading={isSaving}
-                  className="shadow-lg shadow-blue-500/25"
-                >
-                  Save Changes
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setActiveSection(null)}
-                  fullWidth
-                  className="!border-white/25 !text-white hover:!bg-white/10 hover:!text-white"
-                >
-                  Cancel
-                </Button>
+              {/* Auto-save status */}
+              <div className="pt-3 border-t border-white/10 flex flex-col gap-1 text-xs text-white/70">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] uppercase tracking-wide text-white/70">
+                    Auto-save
+                  </span>
+                  <span className="text-white/60">Changes are saved automatically.</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {autoSaveStatus === 'saving' && (
+                    <span className="flex items-center gap-1 text-emerald-200">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                      Saving...
+                    </span>
+                  )}
+                  {autoSaveStatus === 'error' && (
+                    <span className="flex items-center gap-1 text-rose-200">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Unable to save. Check your connection.
+                    </span>
+                  )}
+                  {autoSaveStatus === 'idle' && hasUnsavedProfileChanges && (
+                    <span className="flex items-center gap-1 text-amber-200">
+                      <span className="inline-block w-2 h-2 rounded-full bg-amber-300 animate-pulse" />
+                      Pending save...
+                    </span>
+                  )}
+                  {(autoSaveStatus === 'saved' || (!hasUnsavedProfileChanges && autoSaveStatus === 'idle')) && (
+                    <span className="flex items-center gap-1 text-emerald-200">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Saved
+                    </span>
+                  )}
+                  {lastSavedAt && !hasUnsavedProfileChanges && (
+                    <span className="text-white/50">
+                      {new Date(lastSavedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
