@@ -370,12 +370,49 @@ function isTruckSchedule(bodyClass, vehicleType) {
 }
 
 app.use(express.json());
+const DEFAULT_ALLOWED_ORIGINS = [
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "https://jbj0005.github.io",
+  "https://jbj0005.github.io/BrandonsCalc",
+];
+
+const configuredOrigins = (process.env.ALLOW_ORIGIN || process.env.ALLOW_ORIGINS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const ALLOWED_ORIGINS = configuredOrigins.length
+  ? configuredOrigins
+  : DEFAULT_ALLOWED_ORIGINS;
+
+const isOriginAllowed = (origin) => {
+  if (!origin) return false;
+  return ALLOWED_ORIGINS.some((allowed) => origin === allowed);
+};
+
 app.use(
   cors({
-    origin: process.env.ALLOW_ORIGIN?.split(",").map((s) => s.trim()) ?? "*",
+    origin: (origin, callback) => {
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin not allowed: ${origin}`));
+    },
     credentials: false,
   })
 );
+
+function enforceTrustedOrigin(req, res) {
+  const origin = req.headers.origin || req.headers.referer || "";
+  if (!isOriginAllowed(origin)) {
+    res
+      .status(403)
+      .json({ error: "origin_not_allowed", detail: "Request origin is not allowed." });
+    return false;
+  }
+  return true;
+}
 
 // Serve static files from parent directory (for Express Mode and other static assets)
 const __filename = fileURLToPath(import.meta.url);
@@ -1032,7 +1069,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
     ? requestedVehicleIdRaw[0]
     : requestedVehicleIdRaw;
 
-  if (!token) {
+  if (!token || token.length < 24) {
     return res.status(400).json({ error: "Share token is required" });
   }
 
@@ -1184,6 +1221,7 @@ app.get("/api/share/:token/collections", async (req, res) => {
  * Send a single-vehicle share link via email (Mailtrap sandbox or sending)
  */
 app.post("/api/share/vehicle/email", async (req, res) => {
+  if (!enforceTrustedOrigin(req, res)) return;
   try {
     const {
       recipientEmail,
@@ -1319,6 +1357,7 @@ ${photoUrl ? `Photo: ${photoUrl}\n` : ""}
 // POST /api/send-offer-email
 // Fallback offer email sender via Mailtrap (mirrors Supabase edge function behavior)
 app.post("/api/send-offer-email", async (req, res) => {
+  if (!enforceTrustedOrigin(req, res)) return;
   try {
     const { recipientEmail, recipientName, vehicleInfo, offerText } = req.body || {};
 

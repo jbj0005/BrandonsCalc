@@ -20,9 +20,17 @@ import type {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'YOUR_ANON_KEY_HERE') {
-  // Use empty strings as fallback to prevent page from breaking
-  // The app will still work but Supabase features will be limited
+const supabaseConfigMissing =
+  !supabaseUrl || !supabaseAnonKey || supabaseAnonKey === 'YOUR_ANON_KEY_HERE';
+
+if (supabaseConfigMissing) {
+  const message =
+    'Supabase environment variables are missing (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY). Authentication and storage features are unavailable.';
+  if (import.meta.env.DEV) {
+    console.warn(message);
+  } else {
+    throw new Error(message);
+  }
 }
 
 // ========================================
