@@ -1,13 +1,40 @@
+# Dependencies
 node_modules/
-dist/
-.DS_Store
-.env
-supabase/.env.local
-output/
-cheatsheets/
-ref_files/
 
-# Keep .ai directory in git - it's critical for recovery!
-# .ai/
-# Claude Code local settings
-.claude/
+# Build
+build/
+dist/
+.vercel/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test
+/test-results/
+/playwright-report/
+/playwright/.cache/
+/coverage/
+
+# MCP
+mcp/context-server/dist/
+mcp/context-server/node_modules/
+
+# Frameworks
+.svelte-kit/
+.next/

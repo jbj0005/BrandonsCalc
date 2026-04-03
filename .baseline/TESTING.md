@@ -1,3 +1,0 @@
-- Unit: 70–80% lines, 60–70% branches (minimums).
-- Integration: API client against mock server from OpenAPI.
-- E2E: happy paths + auth flows.
